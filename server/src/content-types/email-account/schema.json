@@ -1,0 +1,93 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_accounts",
+  "info": {
+    "singularName": "email-account",
+    "pluralName": "email-accounts",
+    "displayName": "Email Account",
+    "description": "Email provider accounts for multi-account email sending"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "provider": {
+      "type": "enumeration",
+      "enum": ["smtp", "gmail-oauth", "microsoft-oauth", "yahoo-oauth", "sendgrid", "mailgun", "ses", "nodemailer"],
+      "required": true,
+      "default": "smtp"
+    },
+    "config": {
+      "type": "json",
+      "required": true
+    },
+    "oauth": {
+      "type": "json"
+    },
+    "fromEmail": {
+      "type": "email",
+      "required": true
+    },
+    "fromName": {
+      "type": "string"
+    },
+    "replyTo": {
+      "type": "email"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "isPrimary": {
+      "type": "boolean",
+      "default": false
+    },
+    "priority": {
+      "type": "integer",
+      "default": 1,
+      "min": 1,
+      "max": 10
+    },
+    "dailyLimit": {
+      "type": "integer",
+      "default": 0
+    },
+    "hourlyLimit": {
+      "type": "integer",
+      "default": 0
+    },
+    "emailsSentToday": {
+      "type": "integer",
+      "default": 0
+    },
+    "emailsSentThisHour": {
+      "type": "integer",
+      "default": 0
+    },
+    "totalEmailsSent": {
+      "type": "integer",
+      "default": 0
+    },
+    "lastUsed": {
+      "type": "datetime"
+    }
+  }
+}
+

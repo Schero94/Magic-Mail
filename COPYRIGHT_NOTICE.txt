@@ -1,0 +1,13 @@
+/**
+ * MagicMail - Email Business Suite for Strapi v5
+ * 
+ * Copyright (c) 2025 Schero D.
+ * 
+ * Licensed under the MIT License
+ * 
+ * This plugin is free to use for personal and commercial projects.
+ * 
+ * Repository: https://github.com/Schero94/MagicMail
+ * Issues: https://github.com/Schero94/MagicMail/issues
+ */
+

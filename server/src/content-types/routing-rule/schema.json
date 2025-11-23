@@ -1,0 +1,59 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_routing_rules",
+  "info": {
+    "singularName": "routing-rule",
+    "pluralName": "routing-rules",
+    "displayName": "Email Routing Rule",
+    "description": "Rules for routing emails to specific accounts"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "required": true
+    },
+    "priority": {
+      "type": "integer",
+      "default": 1,
+      "min": 1
+    },
+    "matchType": {
+      "type": "enumeration",
+      "enum": ["emailType", "subject", "recipient", "template", "custom"],
+      "required": true,
+      "default": "emailType"
+    },
+    "matchValue": {
+      "type": "text",
+      "required": true
+    },
+    "accountName": {
+      "type": "string",
+      "required": true
+    },
+    "fallbackAccountName": {
+      "type": "string"
+    }
+  }
+}
+

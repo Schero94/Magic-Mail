@@ -1,0 +1,424 @@
+import { useState, useEffect } from 'react';
+import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import styled from 'styled-components';
+import {
+  Box,
+  Button,
+  Flex,
+  Typography,
+  Badge,
+} from '@strapi/design-system';
+import {
+  Check as CheckIcon,
+  Cross as XMarkIcon,
+  Sparkle as SparklesIcon,
+  Lightning as BoltIcon,
+  Rocket as RocketLaunchIcon,
+} from '@strapi/icons';
+
+const Container = styled(Box)`
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+`;
+
+const Header = styled(Box)`
+  text-align: center;
+  margin-bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`;
+
+const Title = styled(Typography)`
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #0EA5E9, #A855F7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: block;
+`;
+
+const Subtitle = styled(Typography)`
+  font-size: 1.125rem;
+  color: #6B7280;
+  line-height: 1.6;
+  display: block;
+`;
+
+const TierGrid = styled(Flex)`
+  gap: 32px;
+  margin: 0 auto 48px;
+  max-width: 1080px;
+  justify-content: center;
+  flex-wrap: wrap;
+`;
+
+const TierWrapper = styled(Box)`
+  flex: 1;
+  min-width: 280px;
+  max-width: 340px;
+`;
+
+const TierCard = styled(Box)`
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  border: 2px solid ${props => props.$featured ? '#0EA5E9' : '#E5E7EB'};
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: ${props => props.$featured
+    ? '0 20px 25px -5px rgba(14, 165, 233, 0.25), 0 8px 10px -6px rgba(14, 165, 233, 0.2)'
+    : '0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05)'};
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  }
+`;
+
+const PopularBadge = styled(Badge)`
+  position: absolute;
+  top: -12px;
+  right: 24px;
+  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  color: white;
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 600;
+`;
+
+const TierIcon = styled(Box)`
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  background: ${props => props.$color};
+  
+  svg {
+    width: 28px;
+    height: 28px;
+    color: white;
+  }
+`;
+
+const TierName = styled(Typography)`
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+`;
+
+const TierPrice = styled(Typography)`
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+`;
+
+const TierDescription = styled(Typography)`
+  color: #6B7280;
+  margin-bottom: 24px;
+`;
+
+const FeatureList = styled(Box)`
+  margin-bottom: 24px;
+`;
+
+const Feature = styled(Flex)`
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+`;
+
+const FeatureIcon = styled(Box)`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  
+  ${props => props.$included ? `
+    background: #DCFCE7;
+    svg { color: #16A34A; }
+  ` : `
+    background: #FEE2E2;
+    svg { color: #DC2626; }
+  `}
+`;
+
+const UpgradeButton = styled(Button)`
+  width: 100%;
+  height: 48px;
+  font-weight: 600;
+  font-size: 15px;
+  background: ${props => props.$gradient};
+  border: none;
+  color: white;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+`;
+
+const CurrentPlanBadge = styled(Badge)`
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  color: #6B7280;
+  font-weight: 600;
+  font-size: 15px;
+`;
+
+const LicensePage = () => {
+  const { get, post } = useFetchClient();
+  const { toggleNotification } = useNotification();
+  const [currentTier, setCurrentTier] = useState('free');
+  const [limits, setLimits] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLicenseInfo();
+  }, []);
+
+  const fetchLicenseInfo = async () => {
+    try {
+      const response = await get('/magic-mail/license/limits');
+      const licenseData = response.data || {};
+      
+      // Determine tier from features
+      let tier = 'free';
+      if (licenseData.tier) {
+        tier = licenseData.tier;
+      }
+      
+      setCurrentTier(tier);
+      setLimits(licenseData.limits);
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch license info:', error);
+      setLoading(false);
+    }
+  };
+
+  // Helper function to compare tier ranks
+  const getTierRank = (tierId) => {
+    const ranks = {
+      'free': 0,
+      'premium': 1,
+      'advanced': 2,
+      'enterprise': 3,
+    };
+    return ranks[tierId] || 0;
+  };
+
+  // Get button text based on tier comparison
+  const getButtonText = (tierId) => {
+    const currentRank = getTierRank(currentTier);
+    const targetRank = getTierRank(tierId);
+    
+    if (currentRank === targetRank) {
+      return 'Current Plan';
+    } else if (targetRank > currentRank) {
+      return 'Upgrade Now';
+    } else {
+      return 'Downgrade';
+    }
+  };
+
+  const tiers = [
+    {
+      id: 'free',
+      name: 'FREE',
+      price: '$0',
+      period: 'forever',
+      description: 'Perfect for small projects and testing',
+      icon: <SparklesIcon />,
+      color: 'linear-gradient(135deg, #6B7280, #4B5563)',
+      features: [
+        { name: '25 Email Templates', included: true },
+        { name: '3 Email Accounts', included: true },
+        { name: '5 Routing Rules', included: true },
+        { name: 'All OAuth Providers', included: true },
+        { name: 'Import/Export Templates', included: true },
+        { name: 'Template Versioning', included: false },
+        { name: 'Analytics Dashboard', included: false },
+        { name: 'Priority Support', included: false },
+      ],
+      limits: {
+        templates: '25',
+        accounts: '3',
+        rules: '5',
+      }
+    },
+    {
+      id: 'premium',
+      name: 'PREMIUM',
+      price: '$14.50',
+      period: '/month',
+      description: 'Enhanced features for growing teams',
+      icon: <BoltIcon />,
+      color: 'linear-gradient(135deg, #8B5CF6, #7C3AED)',
+      featured: true,
+      features: [
+        { name: '100 Email Templates', included: true },
+        { name: '10 Email Accounts', included: true },
+        { name: '20 Routing Rules', included: true },
+        { name: 'All OAuth Providers', included: true },
+        { name: 'Import/Export Templates', included: true },
+        { name: 'Template Versioning', included: true },
+        { name: 'Basic Analytics', included: true },
+        { name: 'Priority Support', included: true },
+      ],
+      limits: {
+        templates: '100',
+        accounts: '10',
+        rules: '20',
+      }
+    },
+    {
+      id: 'advanced',
+      name: 'ADVANCED',
+      price: '$39.50',
+      period: '/month',
+      description: 'Maximum features for power users',
+      icon: <RocketLaunchIcon />,
+      color: 'linear-gradient(135deg, #0EA5E9, #0284C7)',
+      features: [
+        { name: '500 Email Templates', included: true },
+        { name: 'Unlimited Accounts', included: true },
+        { name: 'Unlimited Routing Rules', included: true },
+        { name: 'All OAuth Providers', included: true },
+        { name: 'Import/Export Templates', included: true },
+        { name: 'Template Versioning', included: true },
+        { name: 'Advanced Analytics & Tracking', included: true },
+        { name: 'SendGrid & Mailgun APIs', included: true },
+      ],
+      limits: {
+        templates: '500',
+        accounts: 'Unlimited',
+        rules: 'Unlimited',
+      }
+    }
+  ];
+
+  const handleUpgrade = (tierId) => {
+    // Navigate to upgrade URL or show upgrade modal
+    window.open('https://store.magicdx.dev/', '_blank');
+  };
+
+  if (loading) {
+    return (
+      <Container>
+        <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
+          <Typography>Loading license information...</Typography>
+        </Flex>
+      </Container>
+    );
+  }
+
+  return (
+    <Container>
+      <Header>
+        <Title variant="alpha">Choose Your Plan</Title>
+        <Subtitle variant="omega">
+          Unlock powerful email management features for your Strapi application
+        </Subtitle>
+      </Header>
+
+      <TierGrid>
+        {tiers.map((tier) => (
+          <TierWrapper key={tier.id}>
+            <TierCard $featured={tier.featured}>
+              {tier.featured && <PopularBadge>MOST POPULAR</PopularBadge>}
+              
+              <TierIcon $color={tier.color}>
+                {tier.icon}
+              </TierIcon>
+              
+              <TierName variant="beta">{tier.name}</TierName>
+              
+              <Flex alignItems="baseline" gap={1}>
+                <TierPrice variant="alpha">{tier.price}</TierPrice>
+                <Typography variant="omega" style={{ color: '#6B7280' }}>
+                  {tier.period}
+                </Typography>
+              </Flex>
+              
+              <TierDescription variant="omega">
+                {tier.description}
+              </TierDescription>
+              
+              {/* Limits Summary */}
+              <Box style={{ 
+                background: '#F9FAFB', 
+                borderRadius: '8px', 
+                padding: '12px', 
+                marginBottom: '20px' 
+              }}>
+                <Flex direction="column" gap={2}>
+                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                    <strong>Templates:</strong> {tier.limits.templates}
+                  </Typography>
+                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                    <strong>Accounts:</strong> {tier.limits.accounts}
+                  </Typography>
+                  <Typography variant="pi" style={{ fontSize: '13px' }}>
+                    <strong>Routing Rules:</strong> {tier.limits.rules}
+                  </Typography>
+                </Flex>
+              </Box>
+              
+              <FeatureList>
+                {tier.features.map((feature, index) => (
+                  <Feature key={index}>
+                    <FeatureIcon $included={feature.included}>
+                      {feature.included ? (
+                        <CheckIcon style={{ width: 14, height: 14 }} />
+                      ) : (
+                        <XMarkIcon style={{ width: 14, height: 14 }} />
+                      )}
+                    </FeatureIcon>
+                    <Typography 
+                      variant="omega" 
+                      style={{ 
+                        fontSize: '14px',
+                        color: feature.included ? '#374151' : '#9CA3AF',
+                        textDecoration: feature.included ? 'none' : 'line-through'
+                      }}
+                    >
+                      {feature.name}
+                    </Typography>
+                  </Feature>
+                ))}
+              </FeatureList>
+              
+              {currentTier === tier.id ? (
+                <CurrentPlanBadge>Current Plan</CurrentPlanBadge>
+              ) : (
+                <UpgradeButton
+                  $gradient={tier.color}
+                  onClick={() => handleUpgrade(tier.id)}
+                >
+                  {getButtonText(tier.id)}
+                </UpgradeButton>
+              )}
+            </TierCard>
+          </TierWrapper>
+        ))}
+      </TierGrid>
+    </Container>
+  );
+};
+
+export default LicensePage;

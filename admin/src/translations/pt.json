@@ -1,0 +1,71 @@
+{
+  "plugin.name": "MagicMail",
+  "plugin.description": "Suite de Email Business para Strapi v5",
+  
+  "tabs.accounts": "Contas de Email",
+  "tabs.routing": "Regras de Roteamento",
+  "tabs.license": "Licença",
+  
+  "accounts.title": "Contas de Email",
+  "accounts.subtitle": "Gerencie várias contas de email com Smart Routing",
+  "accounts.add": "Adicionar conta",
+  "accounts.edit": "Editar conta",
+  "accounts.delete": "Excluir conta",
+  "accounts.test": "Testar",
+  "accounts.empty": "Nenhuma conta de email",
+  "accounts.emptyDescription": "Adicione sua primeira conta de email para começar",
+  
+  "stats.emailsToday": "Enviados hoje",
+  "stats.totalSent": "Total enviado",
+  "stats.activeAccounts": "Contas ativas",
+  
+  "providers.smtp": "SMTP",
+  "providers.gmail": "Gmail OAuth",
+  "providers.microsoft": "Microsoft OAuth",
+  "providers.yahoo": "Yahoo Mail OAuth",
+  "providers.sendgrid": "SendGrid",
+  "providers.mailgun": "Mailgun",
+  
+  "routing.title": "Regras de Roteamento",
+  "routing.subtitle": "Defina regras inteligentes para envio de emails",
+  "routing.add": "Criar regra",
+  "routing.edit": "Editar regra",
+  "routing.delete": "Excluir regra",
+  "routing.empty": "Nenhuma regra de roteamento",
+  "routing.emptyDescription": "Crie sua primeira regra de roteamento",
+  
+  "license.title": "Gerenciamento de Licença",
+  "license.subtitle": "Gerencie sua licença MagicMail",
+  "license.active": "Licença ativa",
+  "license.inactive": "Nenhuma licença ativa",
+  "license.demo": "Modo demo",
+  "license.generate": "Gerar licença gratuita",
+  "license.activate": "Ativar licença",
+  "license.key": "Chave de licença",
+  "license.email": "Endereço de email",
+  "license.copyKey": "Copiar chave",
+  "license.download": "Baixar como TXT",
+  "license.refresh": "Atualizar status",
+  
+  "features.premium": "Recursos Premium",
+  "features.advanced": "Recursos Avançados",
+  "features.enterprise": "Recursos Enterprise",
+  
+  "notifications.accountCreated": "Conta de email criada com sucesso",
+  "notifications.accountUpdated": "Conta de email atualizada com sucesso",
+  "notifications.accountDeleted": "Conta de email excluída com sucesso",
+  "notifications.testSuccess": "Email de teste enviado com sucesso",
+  "notifications.testFailed": "Falha no email de teste",
+  "notifications.ruleCreated": "Regra de roteamento criada com sucesso",
+  "notifications.ruleUpdated": "Regra de roteamento atualizada com sucesso",
+  "notifications.ruleDeleted": "Regra de roteamento excluída com sucesso",
+  "notifications.licenseActivated": "Licença ativada com sucesso",
+  "notifications.licenseCopied": "Chave de licença copiada",
+  "notifications.error": "Ocorreu um erro",
+  
+  "errors.noAccounts": "Nenhuma conta de email disponível",
+  "errors.providerNotAllowed": "Este provedor requer uma licença superior",
+  "errors.accountLimitReached": "Limite de contas atingido. Atualização necessária",
+  "errors.ruleLimitReached": "Limite de regras atingido. Atualização necessária"
+}
+

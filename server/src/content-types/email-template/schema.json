@@ -1,0 +1,74 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_email_templates",
+  "info": {
+    "singularName": "email-template",
+    "pluralName": "email-templates",
+    "displayName": "Email Template",
+    "description": "Email templates created with the visual designer"
+  },
+  "options": {
+    "draftAndPublish": false,
+    "timestamps": true
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "templateReferenceId": {
+      "type": "integer",
+      "required": true,
+      "unique": true,
+      "configurable": false
+    },
+    "name": {
+      "type": "string",
+      "required": true,
+      "configurable": false
+    },
+    "subject": {
+      "type": "string",
+      "required": true,
+      "configurable": false
+    },
+    "design": {
+      "type": "json",
+      "configurable": false
+    },
+    "bodyHtml": {
+      "type": "text",
+      "configurable": false
+    },
+    "bodyText": {
+      "type": "text",
+      "configurable": false
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": ["transactional", "marketing", "notification", "custom"],
+      "default": "custom",
+      "configurable": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    },
+    "tags": {
+      "type": "json",
+      "configurable": false
+    },
+    "versions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::magic-mail.email-template-version",
+      "mappedBy": "template"
+    }
+  }
+}
+

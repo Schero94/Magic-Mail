@@ -1,0 +1,106 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_email_logs",
+  "info": {
+    "singularName": "email-log",
+    "pluralName": "email-logs",
+    "displayName": "Email Log",
+    "description": "Tracks all sent emails with user association"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "emailId": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "user": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "recipient": {
+      "type": "email",
+      "required": true
+    },
+    "recipientName": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "required": true
+    },
+    "templateId": {
+      "type": "integer"
+    },
+    "templateName": {
+      "type": "string"
+    },
+    "accountId": {
+      "type": "integer"
+    },
+    "accountName": {
+      "type": "string"
+    },
+    "sentAt": {
+      "type": "datetime",
+      "required": true
+    },
+    "deliveredAt": {
+      "type": "datetime"
+    },
+    "firstOpenedAt": {
+      "type": "datetime"
+    },
+    "lastOpenedAt": {
+      "type": "datetime"
+    },
+    "openCount": {
+      "type": "integer",
+      "default": 0
+    },
+    "clickCount": {
+      "type": "integer",
+      "default": 0
+    },
+    "bounced": {
+      "type": "boolean",
+      "default": false
+    },
+    "bounceReason": {
+      "type": "text"
+    },
+    "unsubscribed": {
+      "type": "boolean",
+      "default": false
+    },
+    "unsubscribedAt": {
+      "type": "datetime"
+    },
+    "metadata": {
+      "type": "json"
+    },
+    "events": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::magic-mail.email-event",
+      "mappedBy": "emailLog"
+    },
+    "links": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::magic-mail.email-link",
+      "mappedBy": "emailLog"
+    }
+  }
+}
