@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_email_links",
+  "info": {
+    "singularName": "email-link",
+    "pluralName": "email-links",
+    "displayName": "Email Link",
+    "description": "Stores click tracking links for emails"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "emailLog": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::magic-mail.email-log",
+      "inversedBy": "links"
+    },
+    "linkHash": {
+      "type": "string",
+      "required": true,
+      "unique": false
+    },
+    "originalUrl": {
+      "type": "text",
+      "required": true
+    },
+    "clickCount": {
+      "type": "integer",
+      "default": 0
+    },
+    "firstClickedAt": {
+      "type": "datetime"
+    },
+    "lastClickedAt": {
+      "type": "datetime"
+    }
+  }
+}
+

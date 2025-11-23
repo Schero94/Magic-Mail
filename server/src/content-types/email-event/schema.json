@@ -1,0 +1,57 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_email_events",
+  "info": {
+    "singularName": "email-event",
+    "pluralName": "email-events",
+    "displayName": "Email Event",
+    "description": "Individual email tracking events (opens, clicks, bounces)"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "emailLog": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::magic-mail.email-log",
+      "inversedBy": "events"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": ["open", "click", "bounce", "complaint", "unsubscribe"],
+      "required": true
+    },
+    "timestamp": {
+      "type": "datetime",
+      "required": true
+    },
+    "ipAddress": {
+      "type": "string"
+    },
+    "userAgent": {
+      "type": "text"
+    },
+    "location": {
+      "type": "json"
+    },
+    "linkUrl": {
+      "type": "text"
+    },
+    "linkText": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "json"
+    }
+  }
+}
+

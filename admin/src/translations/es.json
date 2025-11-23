@@ -1,0 +1,71 @@
+{
+  "plugin.name": "MagicMail",
+  "plugin.description": "Suite de Email Business para Strapi v5",
+  
+  "tabs.accounts": "Cuentas de Email",
+  "tabs.routing": "Reglas de Enrutamiento",
+  "tabs.license": "Licencia",
+  
+  "accounts.title": "Cuentas de Email",
+  "accounts.subtitle": "Administra múltiples cuentas de email con Smart Routing",
+  "accounts.add": "Agregar cuenta",
+  "accounts.edit": "Editar cuenta",
+  "accounts.delete": "Eliminar cuenta",
+  "accounts.test": "Probar",
+  "accounts.empty": "No hay cuentas de email",
+  "accounts.emptyDescription": "Agrega tu primera cuenta de email para comenzar",
+  
+  "stats.emailsToday": "Enviados hoy",
+  "stats.totalSent": "Total enviado",
+  "stats.activeAccounts": "Cuentas activas",
+  
+  "providers.smtp": "SMTP",
+  "providers.gmail": "Gmail OAuth",
+  "providers.microsoft": "Microsoft OAuth",
+  "providers.yahoo": "Yahoo Mail OAuth",
+  "providers.sendgrid": "SendGrid",
+  "providers.mailgun": "Mailgun",
+  
+  "routing.title": "Reglas de Enrutamiento",
+  "routing.subtitle": "Define reglas inteligentes para el envío de emails",
+  "routing.add": "Crear regla",
+  "routing.edit": "Editar regla",
+  "routing.delete": "Eliminar regla",
+  "routing.empty": "No hay reglas de enrutamiento",
+  "routing.emptyDescription": "Crea tu primera regla de enrutamiento",
+  
+  "license.title": "Gestión de Licencia",
+  "license.subtitle": "Administra tu licencia de MagicMail",
+  "license.active": "Licencia activa",
+  "license.inactive": "Sin licencia activa",
+  "license.demo": "Modo demo",
+  "license.generate": "Generar licencia gratuita",
+  "license.activate": "Activar licencia",
+  "license.key": "Clave de licencia",
+  "license.email": "Correo electrónico",
+  "license.copyKey": "Copiar clave",
+  "license.download": "Descargar como TXT",
+  "license.refresh": "Actualizar estado",
+  
+  "features.premium": "Funciones Premium",
+  "features.advanced": "Funciones Avanzadas",
+  "features.enterprise": "Funciones Enterprise",
+  
+  "notifications.accountCreated": "Cuenta de email creada exitosamente",
+  "notifications.accountUpdated": "Cuenta de email actualizada exitosamente",
+  "notifications.accountDeleted": "Cuenta de email eliminada exitosamente",
+  "notifications.testSuccess": "Email de prueba enviado exitosamente",
+  "notifications.testFailed": "Falló el email de prueba",
+  "notifications.ruleCreated": "Regla de enrutamiento creada exitosamente",
+  "notifications.ruleUpdated": "Regla de enrutamiento actualizada exitosamente",
+  "notifications.ruleDeleted": "Regla de enrutamiento eliminada exitosamente",
+  "notifications.licenseActivated": "Licencia activada exitosamente",
+  "notifications.licenseCopied": "Clave de licencia copiada",
+  "notifications.error": "Ocurrió un error",
+  
+  "errors.noAccounts": "No hay cuentas de email disponibles",
+  "errors.providerNotAllowed": "Este proveedor requiere una licencia superior",
+  "errors.accountLimitReached": "Límite de cuentas alcanzado. Actualización requerida",
+  "errors.ruleLimitReached": "Límite de reglas alcanzado. Actualización requerida"
+}
+

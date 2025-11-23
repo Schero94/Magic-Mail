@@ -1,0 +1,37 @@
+# Development files
+node_modules/
+.git/
+.github/
+.vscode/
+*.log
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Documentation (except README)
+docs/
+*.md
+!README.md
+
+# Source files (we only ship dist/)
+admin/src/
+server/src/
+
+# Build artifacts
+.cache/
+.tmp/
+
+# Optional dev dependencies (semantic-release)
+.releaserc
+.releaserc.json
+.releaserc.yml
+.releaserc.yaml
+.releaserc.js
+.releaserc.cjs
+
+# IDE
+.idea/
+.DS_Store

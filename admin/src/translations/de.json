@@ -1,0 +1,71 @@
+{
+  "plugin.name": "MagicMail",
+  "plugin.description": "Email Business Suite für Strapi v5",
+  
+  "tabs.accounts": "Email-Konten",
+  "tabs.routing": "Routing-Regeln",
+  "tabs.license": "Lizenz",
+  
+  "accounts.title": "Email-Konten",
+  "accounts.subtitle": "Verwalte mehrere Email-Konten mit Smart Routing",
+  "accounts.add": "Konto hinzufügen",
+  "accounts.edit": "Konto bearbeiten",
+  "accounts.delete": "Konto löschen",
+  "accounts.test": "Testen",
+  "accounts.empty": "Keine Email-Konten vorhanden",
+  "accounts.emptyDescription": "Füge dein erstes Email-Konto hinzu um zu starten",
+  
+  "stats.emailsToday": "Heute versendet",
+  "stats.totalSent": "Gesamt versendet",
+  "stats.activeAccounts": "Aktive Konten",
+  
+  "providers.smtp": "SMTP",
+  "providers.gmail": "Gmail OAuth",
+  "providers.microsoft": "Microsoft OAuth",
+  "providers.yahoo": "Yahoo Mail OAuth",
+  "providers.sendgrid": "SendGrid",
+  "providers.mailgun": "Mailgun",
+  
+  "routing.title": "Routing-Regeln",
+  "routing.subtitle": "Definiere intelligente Routing-Regeln für Email-Versand",
+  "routing.add": "Regel erstellen",
+  "routing.edit": "Regel bearbeiten",
+  "routing.delete": "Regel löschen",
+  "routing.empty": "Keine Routing-Regeln vorhanden",
+  "routing.emptyDescription": "Erstelle deine erste Routing-Regel",
+  
+  "license.title": "Lizenzverwaltung",
+  "license.subtitle": "Verwalte deine MagicMail Lizenz",
+  "license.active": "Lizenz aktiv",
+  "license.inactive": "Keine aktive Lizenz",
+  "license.demo": "Demo-Modus",
+  "license.generate": "Kostenlose Lizenz generieren",
+  "license.activate": "Lizenz aktivieren",
+  "license.key": "Lizenzschlüssel",
+  "license.email": "E-Mail-Adresse",
+  "license.copyKey": "Schlüssel kopieren",
+  "license.download": "Als TXT herunterladen",
+  "license.refresh": "Status aktualisieren",
+  
+  "features.premium": "Premium Features",
+  "features.advanced": "Erweiterte Features",
+  "features.enterprise": "Enterprise Features",
+  
+  "notifications.accountCreated": "Email-Konto erfolgreich erstellt",
+  "notifications.accountUpdated": "Email-Konto erfolgreich aktualisiert",
+  "notifications.accountDeleted": "Email-Konto erfolgreich gelöscht",
+  "notifications.testSuccess": "Test-Email erfolgreich versendet",
+  "notifications.testFailed": "Test-Email fehlgeschlagen",
+  "notifications.ruleCreated": "Routing-Regel erfolgreich erstellt",
+  "notifications.ruleUpdated": "Routing-Regel erfolgreich aktualisiert",
+  "notifications.ruleDeleted": "Routing-Regel erfolgreich gelöscht",
+  "notifications.licenseActivated": "Lizenz erfolgreich aktiviert",
+  "notifications.licenseCopied": "Lizenzschlüssel kopiert",
+  "notifications.error": "Ein Fehler ist aufgetreten",
+  
+  "errors.noAccounts": "Keine Email-Konten verfügbar",
+  "errors.providerNotAllowed": "Dieser Provider erfordert eine höhere Lizenz",
+  "errors.accountLimitReached": "Konto-Limit erreicht. Upgrade erforderlich",
+  "errors.ruleLimitReached": "Regel-Limit erreicht. Upgrade erforderlich"
+}
+
