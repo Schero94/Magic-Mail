@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/Schero94/Magic-Mail/compare/v1.0.3...v1.0.4) (2025-11-23)
+
+
+### Bug Fixes
+
+* Correct lazy loading for react-email-editor ([674f7eb](https://github.com/Schero94/Magic-Mail/commit/674f7eb33bf063723302a9ca5836def201ee6418))
+
 ## [1.0.3](https://github.com/Schero94/Magic-Mail/compare/v1.0.2...v1.0.3) (2025-11-23)
 
 
