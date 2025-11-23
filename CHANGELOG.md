@@ -1,3 +1,17 @@
+# [2.0.0](https://github.com/Schero94/Magic-Mail/compare/v1.0.5...v2.0.0) (2025-11-23)
+
+
+### Bug Fixes
+
+* resolve EmailEditor component export ([7fa3368](https://github.com/Schero94/Magic-Mail/commit/7fa3368db66476697894e45c76263d5bc2e58770))
+* resolve react-email-editor import issue in production builds ([3c90d35](https://github.com/Schero94/Magic-Mail/commit/3c90d358ed76352bd5494a01e1fb3c110f2d8cef))
+* resolve react-email-editor import issue in production builds ([fdb54c3](https://github.com/Schero94/Magic-Mail/commit/fdb54c3c283d897fd4230c721309e86633458d3f))
+
+
+### BREAKING CHANGES
+
+* Changed from lazy import to static import to fix 'Element type is invalid' error when creating email templates in production environments
+
 ## [1.0.5](https://github.com/Schero94/Magic-Mail/compare/v1.0.4...v1.0.5) (2025-11-23)
 
 
