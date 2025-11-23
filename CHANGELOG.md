@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/Schero94/Magic-Mail/compare/v2.0.0...v2.0.1) (2025-11-23)
+
+
+### Bug Fixes
+
+* Update readme ([caf4e21](https://github.com/Schero94/Magic-Mail/commit/caf4e217811772d1489d9267f88d9015f95f8b46))
+
 # [2.0.0](https://github.com/Schero94/Magic-Mail/compare/v1.0.5...v2.0.0) (2025-11-23)
 
 
