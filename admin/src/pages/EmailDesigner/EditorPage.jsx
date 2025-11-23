@@ -26,7 +26,16 @@ import {
   CodeBracketIcon,
 } from '@heroicons/react/24/outline';
 import { useLicense } from '../../hooks/useLicense';
-import { EmailEditor } from 'react-email-editor';
+import * as ReactEmailEditor from 'react-email-editor';
+
+const EmailEditorComponent =
+  ReactEmailEditor.EmailEditor ||
+  ReactEmailEditor.default ||
+  ReactEmailEditor;
+
+if (!EmailEditorComponent) {
+  console.error('[MagicMail] Failed to resolve EmailEditor component export', ReactEmailEditor);
+}
 
 // Standard Email Template for Core Emails (when no design exists)
 const STANDARD_EMAIL_TEMPLATE = {
@@ -1118,7 +1127,7 @@ const EditorPage = () => {
                   pointerEvents: editorLoaded ? 'auto' : 'none',
                 }}
               >
-                <EmailEditor
+                <EmailEditorComponent
                   ref={emailEditorRef}
                   onReady={onEditorReady}
                   minHeight="calc(100vh - 240px)"
