@@ -1,3 +1,10 @@
+## [2.0.2](https://github.com/Schero94/Magic-Mail/compare/v2.0.1...v2.0.2) (2025-11-23)
+
+
+### Bug Fixes
+
+* Readme with real limits ([b861c33](https://github.com/Schero94/Magic-Mail/commit/b861c33956fcc90206e6d825a2664de00e10b84b))
+
 ## [2.0.1](https://github.com/Schero94/Magic-Mail/compare/v2.0.0...v2.0.1) (2025-11-23)
 
 
