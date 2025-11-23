@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthRefresh } from '../../hooks/useAuthRefresh';
@@ -26,6 +26,7 @@ import {
   CodeBracketIcon,
 } from '@heroicons/react/24/outline';
 import { useLicense } from '../../hooks/useLicense';
+import EmailEditor from 'react-email-editor';
 
 // Standard Email Template for Core Emails (when no design exists)
 const STANDARD_EMAIL_TEMPLATE = {
@@ -106,13 +107,6 @@ const STANDARD_EMAIL_TEMPLATE = {
   },
   schemaVersion: 6,
 };
-
-// Dynamic import for Email Editor (500KB)
-const EmailEditor = lazy(() => 
-  import('react-email-editor').then((module) => ({
-    default: module.default || module.EmailEditor || module,
-  }))
-);
 
 // Styled components
 const Container = styled.div`
@@ -243,6 +237,16 @@ const LoadingContainer = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+`;
+
+const EditorCanvas = styled.div`
+  min-height: calc(100vh - 240px);
+`;
+
+const DesignerLoadingContainer = styled(LoadingContainer)`
+  width: 100%;
+  min-height: calc(100vh - 240px);
+  padding: 40px 20px;
 `;
 
 const HiddenInput = styled.input`
@@ -585,6 +589,7 @@ const EditorPage = () => {
   const [loading, setLoading] = useState(!isNewTemplate && !isCoreEmail);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('html');
+  const [editorLoaded, setEditorLoaded] = useState(false);
 
   const [templateData, setTemplateData] = useState({
     templateReferenceId: '',
@@ -937,6 +942,7 @@ const EditorPage = () => {
   };
 
   const onEditorReady = () => {
+    setEditorLoaded(true);
     if (templateData.design && emailEditorRef.current?.editor) {
       setTimeout(() => {
         emailEditorRef.current.editor.loadDesign(templateData.design);
@@ -1101,12 +1107,16 @@ const EditorPage = () => {
 
           <StyledTabsContent value="html">
             <TabContentWrapper>
-              <Suspense
-                fallback={
-                  <LoadingContainer>
-                    <Loader>Loading Email Designer...</Loader>
-                  </LoadingContainer>
-                }
+              {!editorLoaded && (
+                <DesignerLoadingContainer>
+                  <Loader>Loading Email Designer...</Loader>
+                </DesignerLoadingContainer>
+              )}
+              <EditorCanvas
+                style={{
+                  visibility: editorLoaded ? 'visible' : 'hidden',
+                  pointerEvents: editorLoaded ? 'auto' : 'none',
+                }}
               >
                 <EmailEditor
                   ref={emailEditorRef}
@@ -1292,7 +1302,7 @@ const EditorPage = () => {
                     }
                   }}
                 />
-              </Suspense>
+              </EditorCanvas>
             </TabContentWrapper>
           </StyledTabsContent>
 
