@@ -27,16 +27,48 @@
 ## 📸 Screenshots
 
 ### Email Accounts Dashboard
-![Email Accounts](pics/email-accounts-dashboard.png)
+![Email Accounts Dashboard](pics/EmailAccountDashboard.png)
 *Manage unlimited email accounts with live stats and real-time monitoring*
 
-### Routing Rules
-![Routing Rules](pics/routing-rules.png)
+### Add Email Account - Step 1
+![Add Account Step 1](pics/Emailaddccount1.png)
+*Choose from 6 different email providers with OAuth 2.0 support*
+
+### Add Email Account - Step 2
+![Add Account Step 2](pics/emailaddaccount2.png)
+*Configure SMTP settings or connect with OAuth*
+
+### Add Email Account - Step 3
+![Add Account Step 3](pics/emailaddaccount3.png)
+*Complete setup with rate limits and test connection*
+
+### Email Templates
+![Email Templates](pics/Templates.png)
+*Create and manage email templates with the visual designer*
+
+### Email Designer
+![Email Designer](pics/emailDesigner.png)
+*Drag-and-drop email editor with real-time preview*
+
+### Template Version History
+![Version History](pics/emailVersionHistory.png)
+*Track changes and restore previous template versions (ADVANCED+)*
+
+### Template Send Test
+![Send Test](pics/emailTemplateSendTest.png)
+*Test your templates before sending to production*
+
+### Routing Rules & Templates
+![Routing Rules](pics/RoutingEmailTemplates.png)
 *Define intelligent routing rules based on email type, recipient, subject*
 
-### Account Setup - OAuth
-![OAuth Setup](pics/oauth-setup.png)
-*Connect Gmail, Microsoft 365, or Yahoo with secure OAuth 2.0*
+### Email Analytics
+![Email Analytics](pics/emailAnalytics.png)
+*Track email performance with detailed analytics and statistics*
+
+### Code Integration
+![Code Snippet](pics/codesnippet.png)
+*Simple API integration with your Strapi application*
 
 ---
 
@@ -1401,7 +1433,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - 📖 [Documentation](https://github.com/Schero94/MagicMail#readme)
 - 🐛 [Report Issues](https://github.com/Schero94/MagicMail/issues)
 - 💡 [Feature Requests](https://github.com/Schero94/MagicMail/discussions)
-- 📧 [Email Support](mailto:support@magicmail.dev)
+
 
 ---
 
@@ -1411,7 +1443,6 @@ If MagicMail helps your project, please:
 - ⭐ Star the repo on [GitHub](https://github.com/Schero94/MagicMail)
 - 📢 Share with your team
 - 🐦 Tweet about it
-- ☕ [Buy me a coffee](https://www.buymeacoffee.com/schero)
 
 ---
 
