@@ -26,7 +26,7 @@ import {
   CodeBracketIcon,
 } from '@heroicons/react/24/outline';
 import { useLicense } from '../../hooks/useLicense';
-import EmailEditor from 'react-email-editor';
+import { EmailEditor } from 'react-email-editor';
 
 // Standard Email Template for Core Emails (when no design exists)
 const STANDARD_EMAIL_TEMPLATE = {
