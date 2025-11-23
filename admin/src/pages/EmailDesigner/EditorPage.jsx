@@ -108,11 +108,12 @@ const STANDARD_EMAIL_TEMPLATE = {
 };
 
 // Dynamic import for Email Editor (500KB)
-const EmailEditor = lazy(() =>
-  import('react-email-editor').then((module) => ({
-    default: module.EmailEditor,
-  }))
-);
+const EmailEditor = lazy(async () => {
+  const module = await import('react-email-editor');
+  return {
+    default: module.default || module.EmailEditor,
+  };
+});
 
 // Styled components
 const Container = styled.div`
