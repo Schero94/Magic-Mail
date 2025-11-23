@@ -103,11 +103,11 @@
   "author": "Schero D.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Schero94/MagicMail.git"
+    "url": "https://github.com/Schero94/Magic-Mail.git"
   },
   "bugs": {
-    "url": "https://github.com/Schero94/MagicMail/issues"
+    "url": "https://github.com/Schero94/Magic-Mail/issues"
   },
-  "homepage": "https://github.com/Schero94/MagicMail#readme",
+  "homepage": "https://github.com/Schero94/Magic-Mail#readme",
   "private": false
 }
