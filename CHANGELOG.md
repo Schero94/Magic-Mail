@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/Schero94/Magic-Mail/compare/v2.1.0...v2.2.0) (2025-12-08)
+
+
+### Features
+
+* enhance pull request template with email-specific sections and provider testing checklist ([6040125](https://github.com/Schero94/Magic-Mail/commit/6040125508af8a2209b3d37693e102f2aeb80325))
+
 # [2.1.0](https://github.com/Schero94/Magic-Mail/compare/v2.0.4...v2.1.0) (2025-12-08)
 
 
