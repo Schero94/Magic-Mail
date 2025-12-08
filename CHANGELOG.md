@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/Schero94/Magic-Mail/compare/v2.0.4...v2.1.0) (2025-12-08)
+
+
+### Features
+
+* enhance GitHub issue templates with email provider specific fields and feature request template ([bec7d30](https://github.com/Schero94/Magic-Mail/commit/bec7d30de766c041f07c6f07fa2476fe4e285fe7))
+
 ## [2.0.4](https://github.com/Schero94/Magic-Mail/compare/v2.0.3...v2.0.4) (2025-12-08)
 
 
