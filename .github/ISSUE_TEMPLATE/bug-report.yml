@@ -1,39 +1,143 @@
-name: Bug Report
-description: File a bug report
+name: 🐛 Bug Report
+description: Report a bug or issue with MagicMail
 title: '[Bug]: '
+labels: ['bug', 'needs-triage']
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        ## Thanks for taking the time to report a bug!
+        
+        Please fill out the information below to help us reproduce and fix the issue.
+        
   - type: textarea
-    id: issue-experiencing
+    id: bug-description
     attributes:
-      label: What issue are you experiencing?
-      description: A detailed explanation of the issue
+      label: 🐛 Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug you're experiencing...
     validations:
       required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+      
   - type: textarea
     id: reproduction-steps
     attributes:
-      label: Steps To Reproduce
-      description: Steps to reproduce the behavior.
+      label: 🔄 Steps To Reproduce
+      description: Steps to reproduce the behavior
       placeholder: |
-        1. In this environment...
-        2. With this config...
-        3. Run '...'
+        1. Configure email account with...
+        2. Create email template...
+        3. Send email...
         4. See error...
     validations:
+      required: true
+      
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: 📦 Feature Area
+      description: Which feature is affected?
+      options:
+        - Email Account Management
+        - Email Designer / Templates
+        - Email Sending
+        - Routing Rules
+        - Failover System
+        - Analytics / Tracking
+        - OAuth Integration (Gmail/Outlook)
+        - SMTP Configuration
+        - Admin UI
+        - Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: email-provider
+    attributes:
+      label: 📧 Email Provider
+      description: Which email provider are you using?
+      options:
+        - Gmail (OAuth)
+        - Outlook/Microsoft (OAuth)
+        - Custom SMTP
+        - SendGrid
+        - Mailgun
+        - Other
+    validations:
       required: false
+      
   - type: input
     id: plugin-version
     attributes:
-      label: What version of the plugin are you using?
+      label: 📦 Plugin Version
+      placeholder: e.g. 2.0.4
     validations:
       required: true
+      
   - type: input
     id: strapi-version
     attributes:
-      label: What strapi version are you using?
+      label: 🚀 Strapi Version
+      placeholder: e.g. 5.30.1
     validations:
       required: true
+      
+  - type: input
+    id: node-version
+    attributes:
+      label: 🟢 Node Version
+      placeholder: e.g. 20.19.4
+    validations:
+      required: true
+      
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: 📋 Error Logs
+      description: Please paste any relevant error logs
+      render: shell
+    validations:
+      required: false
+      
+  - type: textarea
+    id: email-config
+    attributes:
+      label: ⚙️ Email Configuration
+      description: Your email/SMTP configuration (remove sensitive data!)
+      render: javascript
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context, screenshots, or email examples
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ Checklist
+      options:
+        - label: I have searched for similar issues
+          required: true
+        - label: I have removed sensitive information (passwords, API keys, etc.)
+          required: true

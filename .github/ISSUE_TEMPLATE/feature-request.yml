@@ -1,0 +1,71 @@
+name: 💡 Feature Request
+description: Suggest a new feature or enhancement for MagicMail
+title: '[Feature]: '
+labels: ['enhancement', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Thanks for suggesting a feature!
+        
+        Please describe your idea in detail below.
+        
+  - type: dropdown
+    id: feature-area
+    attributes:
+      label: 📦 Feature Area
+      options:
+        - Email Account Management
+        - Email Designer / Templates
+        - Email Sending / Delivery
+        - Routing Rules
+        - Failover / Load Balancing
+        - Analytics / Reporting
+        - OAuth Providers
+        - Template Variables / Personalization
+        - Admin UI
+        - API / Backend
+        - Documentation
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem
+    attributes:
+      label: 🤔 Problem / Use Case
+      description: What problem does this feature solve?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: How would you like to see this implemented?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives Considered
+      description: Have you considered any alternatives?
+    validations:
+      required: false
+      
+  - type: textarea
+    id: example
+    attributes:
+      label: 📝 Example
+      description: Provide examples, mockups, or code snippets
+    validations:
+      required: false
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ Checklist
+      options:
+        - label: I have searched for similar feature requests
+          required: true
