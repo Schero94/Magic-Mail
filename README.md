@@ -6,6 +6,8 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Strapi Version](https://img.shields.io/badge/Strapi-v5.30.1-blue.svg)](https://strapi.io)
 
+> 💡 **Tip:** Set `debug: true` in plugin config to enable detailed logging
+
 ---
 
 ## 🌟 Why MagicMail?
