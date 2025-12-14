@@ -1,23 +1,27 @@
 'use strict';
 
+const { createLogger } = require('./utils/logger');
+
 module.exports = ({ strapi }) => {
+  const log = createLogger(strapi);
+  
   // Cleanup intervals
   if (global.magicMailIntervals) {
     if (global.magicMailIntervals.hourly) {
       clearInterval(global.magicMailIntervals.hourly);
-      strapi.log.info('[magic-mail] Cleared hourly reset interval');
+      log.info('Cleared hourly reset interval');
     }
     if (global.magicMailIntervals.daily) {
       clearInterval(global.magicMailIntervals.daily);
-      strapi.log.info('[magic-mail] Cleared daily reset interval');
+      log.info('Cleared daily reset interval');
     }
   }
 
   // Cleanup license guard ping interval
   if (strapi.licenseGuardMagicMail && strapi.licenseGuardMagicMail.pingInterval) {
     clearInterval(strapi.licenseGuardMagicMail.pingInterval);
-    strapi.log.info('[magic-mail] Cleared license ping interval');
+    log.info('Cleared license ping interval');
   }
 
-  strapi.log.info('[magic-mail] 👋 Plugin destroyed gracefully');
+  log.info('👋 Plugin destroyed gracefully');
 };

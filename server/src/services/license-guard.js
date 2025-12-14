@@ -6,11 +6,15 @@
 const crypto = require('crypto');
 const os = require('os');
 const pluginPkg = require('../../../package.json');
+const { createLogger } = require('../utils/logger');
 
 // FIXED LICENSE SERVER URL
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
 
-module.exports = ({ strapi }) => ({
+module.exports = ({ strapi }) => {
+  const log = createLogger(strapi);
+  
+  return {
   /**
    * Get license server URL
    */
@@ -101,14 +105,14 @@ module.exports = ({ strapi }) => ({
       const data = await response.json();
 
       if (data.success) {
-        strapi.log.info('[magic-mail] [SUCCESS] License created:', data.data.licenseKey);
+        log.info('[SUCCESS] License created:', data.data.licenseKey);
         return data.data;
       } else {
-        strapi.log.error('[magic-mail] [ERROR] License creation failed:', data);
+        log.error('[ERROR] License creation failed:', data);
         return null;
       }
     } catch (error) {
-      strapi.log.error('[magic-mail] [ERROR] Error creating license:', error);
+      log.error('[ERROR] Error creating license:', error);
       return null;
     }
   },
@@ -140,10 +144,10 @@ module.exports = ({ strapi }) => ({
       }
     } catch (error) {
       if (allowGracePeriod) {
-        strapi.log.warn('[magic-mail] [WARNING] License verification timeout - grace period active');
+        log.warn('[WARNING] License verification timeout - grace period active');
         return { valid: true, data: null, gracePeriod: true };
       }
-      strapi.log.error('[magic-mail] [ERROR] License verification error:', error.message);
+      log.error('[ERROR] License verification error:', error.message);
       return { valid: false, data: null };
     }
   },
@@ -166,7 +170,7 @@ module.exports = ({ strapi }) => ({
       
       return null;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error fetching license by key:', error);
+      log.error('Error fetching license by key:', error);
       return null;
     }
   },
@@ -206,7 +210,7 @@ module.exports = ({ strapi }) => ({
       name: 'magic-mail' 
     });
     await pluginStore.set({ key: 'licenseKey', value: licenseKey });
-    strapi.log.info(`[magic-mail] [SUCCESS] License key stored: ${licenseKey.substring(0, 8)}...`);
+    log.info(`[SUCCESS] License key stored: ${licenseKey.substring(0, 8)}...`);
   },
 
   startPinging(licenseKey, intervalMinutes = 15) {
@@ -217,7 +221,7 @@ module.exports = ({ strapi }) => ({
       try {
         await this.pingLicense(licenseKey);
       } catch (error) {
-        console.error('[magic-mail] Ping error:', error);
+        console.error('Ping error:', error);
       }
     }, intervalMinutes * 60 * 1000);
 
@@ -242,7 +246,7 @@ module.exports = ({ strapi }) => ({
       const license = await this.getLicenseByKey(licenseKey);
       return license;
     } catch (error) {
-      strapi.log.error(`[magic-mail] [ERROR] Error loading license:`, error);
+      log.error(`[ERROR] Error loading license:`, error);
       return null;
     }
   },
@@ -298,7 +302,7 @@ module.exports = ({ strapi }) => ({
    */
   async initialize() {
     try {
-      strapi.log.info('[INIT] Initializing License Guard...');
+      log.info('[INIT] Initializing License Guard...');
 
       // Check if license key exists in plugin store
       const pluginStore = strapi.store({ 
@@ -319,26 +323,26 @@ module.exports = ({ strapi }) => ({
         withinGracePeriod = hoursSinceValidation < gracePeriodHours;
       }
 
-      strapi.log.info('──────────────────────────────────────────────────────────');
-      strapi.log.info(`📦 Plugin Store Check:`);
+      log.info('──────────────────────────────────────────────────────────');
+      log.info(`📦 Plugin Store Check:`);
       if (licenseKey) {
-        strapi.log.info(`   [SUCCESS] License Key found: ${licenseKey}`);
-        strapi.log.info(`   [LICENSE] Key (short): ${licenseKey.substring(0, 10)}...`);
+        log.info(`   [SUCCESS] License Key found: ${licenseKey}`);
+        log.info(`   [LICENSE] Key (short): ${licenseKey.substring(0, 10)}...`);
         if (lastValidated) {
           const lastValidatedDate = new Date(lastValidated);
           const hoursAgo = Math.floor((now.getTime() - lastValidatedDate.getTime()) / (1000 * 60 * 60));
-          strapi.log.info(`   [TIME] Last validated: ${hoursAgo}h ago (Grace: ${withinGracePeriod ? 'ACTIVE' : 'EXPIRED'})`);
+          log.info(`   [TIME] Last validated: ${hoursAgo}h ago (Grace: ${withinGracePeriod ? 'ACTIVE' : 'EXPIRED'})`);
         } else {
-          strapi.log.info(`   [TIME] Last validated: Never (Grace: ACTIVE for first ${gracePeriodHours}h)`);
+          log.info(`   [TIME] Last validated: Never (Grace: ACTIVE for first ${gracePeriodHours}h)`);
         }
       } else {
-        strapi.log.info(`   [ERROR] No license key stored`);
+        log.info(`   [ERROR] No license key stored`);
       }
-      strapi.log.info('──────────────────────────────────────────────────────────');
+      log.info('──────────────────────────────────────────────────────────');
       
       if (!licenseKey) {
-        strapi.log.info('[DEMO] No license found - Running in demo mode');
-        strapi.log.info('[INFO] Create a license in the admin panel to activate full features');
+        log.info('[DEMO] No license found - Running in demo mode');
+        log.info('[INFO] Create a license in the admin panel to activate full features');
         return {
           valid: false,
           demo: true,
@@ -346,7 +350,7 @@ module.exports = ({ strapi }) => ({
         };
       }
 
-      strapi.log.info('[VERIFY] Verifying stored license key...');
+      log.info('[VERIFY] Verifying stored license key...');
       
       // Verify license (allow grace period if we have a last validation)
       const verification = await this.verifyLicense(licenseKey, withinGracePeriod);
@@ -355,7 +359,7 @@ module.exports = ({ strapi }) => ({
         // Get license details for display
         const license = await this.getLicenseByKey(licenseKey);
         
-        strapi.log.info(`[SUCCESS] License verified online: ACTIVE (Key: ${licenseKey.substring(0, 10)}...)`);
+        log.info(`[SUCCESS] License verified online: ACTIVE (Key: ${licenseKey.substring(0, 10)}...)`);
         
         // Update last validated timestamp
         await pluginStore.set({ 
@@ -363,11 +367,11 @@ module.exports = ({ strapi }) => ({
           value: now.toISOString() 
         });
 
-        strapi.log.info('[SUCCESS] License is valid and active');
+        log.info('[SUCCESS] License is valid and active');
         
         // Start automatic pinging
         const pingInterval = this.startPinging(licenseKey, 15);
-        strapi.log.info('[PING] Started pinging license every 15 minutes');
+        log.info('[PING] Started pinging license every 15 minutes');
         
         // Store interval globally so we can clean it up
         strapi.licenseGuardMagicMail = {
@@ -377,15 +381,15 @@ module.exports = ({ strapi }) => ({
         };
 
         // Display license info box
-        strapi.log.info('╔════════════════════════════════════════════════════════════════╗');
-        strapi.log.info('║  [SUCCESS] MAGIC MAIL PLUGIN LICENSE ACTIVE                           ║');
-        strapi.log.info('║                                                                ║');
-        strapi.log.info(`║  License: ${licenseKey.padEnd(38, ' ')}║`);
-        strapi.log.info(`║  User: ${(license?.firstName + ' ' + license?.lastName).padEnd(41, ' ')}║`);
-        strapi.log.info(`║  Email: ${(license?.email || 'N/A').padEnd(40, ' ')}║`);
-        strapi.log.info('║                                                                ║');
-        strapi.log.info('║  [AUTO] Pinging every 15 minutes                               ║');
-        strapi.log.info('╚════════════════════════════════════════════════════════════════╝');
+        log.info('╔════════════════════════════════════════════════════════════════╗');
+        log.info('║  [SUCCESS] MAGIC MAIL PLUGIN LICENSE ACTIVE                           ║');
+        log.info('║                                                                ║');
+        log.info(`║  License: ${licenseKey.padEnd(38, ' ')}║`);
+        log.info(`║  User: ${(license?.firstName + ' ' + license?.lastName).padEnd(41, ' ')}║`);
+        log.info(`║  Email: ${(license?.email || 'N/A').padEnd(40, ' ')}║`);
+        log.info('║                                                                ║');
+        log.info('║  [AUTO] Pinging every 15 minutes                               ║');
+        log.info('╚════════════════════════════════════════════════════════════════╝');
 
         return {
           valid: true,
@@ -394,9 +398,9 @@ module.exports = ({ strapi }) => ({
           gracePeriod: verification.gracePeriod || false,
         };
       } else {
-        strapi.log.error(`[ERROR] License validation failed (Key: ${licenseKey.substring(0, 10)}...)`);
-        strapi.log.info('──────────────────────────────────────────────────────────');
-        strapi.log.info('[WARNING]  Running in demo mode with limited features');
+        log.error(`[ERROR] License validation failed (Key: ${licenseKey.substring(0, 10)}...)`);
+        log.info('──────────────────────────────────────────────────────────');
+        log.info('[WARNING]  Running in demo mode with limited features');
         return {
           valid: false,
           demo: true,
@@ -405,7 +409,7 @@ module.exports = ({ strapi }) => ({
         };
       }
     } catch (error) {
-      strapi.log.error('[ERROR] Error initializing License Guard:', error);
+      log.error('[ERROR] Error initializing License Guard:', error);
       return {
         valid: false,
         demo: true,
@@ -414,5 +418,6 @@ module.exports = ({ strapi }) => ({
       };
     }
   },
-});
+};
+};
 
