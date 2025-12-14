@@ -29,8 +29,6 @@
   },
   "files": [
     "dist",
-    "server",
-    "admin",
     "strapi-admin.js",
     "strapi-server.js",
     "README.md",
