@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+# OIDC Trusted Publishing - No npm tokens needed!
+# npm trusts GitHub Actions directly via OIDC
+# See: https://docs.npmjs.com/generating-provenance-statements
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -12,7 +16,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      id-token: write  # Required for npm provenance
+      id-token: write  # Required for OIDC trusted publishing
 
     steps:
       - name: Checkout
