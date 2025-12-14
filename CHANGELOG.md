@@ -1,3 +1,10 @@
+## [2.2.1](https://github.com/Schero94/Magic-Mail/compare/v2.2.0...v2.2.1) (2025-12-14)
+
+
+### Bug Fixes
+
+* add debug mode for plugin logging ([a95711e](https://github.com/Schero94/Magic-Mail/commit/a95711e9f88ccb20030ce1c05a2cd11ea89bf577))
+
 # [2.2.0](https://github.com/Schero94/Magic-Mail/compare/v2.1.0...v2.2.0) (2025-12-08)
 
 
