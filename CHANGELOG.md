@@ -1,3 +1,10 @@
+## [2.2.6](https://github.com/Schero94/Magic-Mail/compare/v2.2.5...v2.2.6) (2025-12-14)
+
+
+### Bug Fixes
+
+* clean up README formatting ([e8f4f45](https://github.com/Schero94/Magic-Mail/commit/e8f4f4530e74fca7b4c4f115d8e3da9ca9e0abdb))
+
 ## [2.2.5](https://github.com/Schero94/Magic-Mail/compare/v2.2.4...v2.2.5) (2025-12-14)
 
 
