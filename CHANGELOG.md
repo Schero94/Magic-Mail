@@ -1,3 +1,10 @@
+## [2.2.4](https://github.com/Schero94/Magic-Mail/compare/v2.2.3...v2.2.4) (2025-12-14)
+
+
+### Bug Fixes
+
+* enable npm provenance with OIDC trusted publishing ([317db0e](https://github.com/Schero94/Magic-Mail/commit/317db0ea6d36b546dbb50a72ae5d14f965a6c0a4))
+
 ## [2.2.3](https://github.com/Schero94/Magic-Mail/compare/v2.2.2...v2.2.3) (2025-12-14)
 
 
