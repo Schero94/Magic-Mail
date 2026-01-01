@@ -147,6 +147,45 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Get version by numeric ID or documentId
+   * First tries documentId, then falls back to internal database id via entityService
+   */
+  async findVersionById(idOrDocumentId) {
+    strapi.log.info(`[magic-mail] [LOOKUP] Finding version by ID: ${idOrDocumentId}`);
+    
+    // Check if it looks like a documentId (alphanumeric string) or numeric id
+    const isNumericId = /^\d+$/.test(String(idOrDocumentId));
+    
+    if (!isNumericId) {
+      // Try as documentId first (Strapi v5 standard)
+      const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
+        documentId: String(idOrDocumentId),
+        populate: { template: true },
+      });
+      if (version) {
+        strapi.log.info(`[magic-mail] [SUCCESS] Found version by documentId: ${version.documentId}`);
+        return version;
+      }
+    }
+    
+    // Fallback: Try internal database id via entityService
+    const numericId = Number(idOrDocumentId);
+    if (!isNaN(numericId)) {
+      strapi.log.info(`[magic-mail] [FALLBACK] Trying internal db id for version: ${numericId}`);
+      const version = await strapi.entityService.findOne(EMAIL_TEMPLATE_VERSION_UID, numericId, {
+        populate: { template: true },
+      });
+      if (version) {
+        strapi.log.info(`[magic-mail] [SUCCESS] Found version by internal id ${numericId}: documentId=${version.documentId}`);
+        return version;
+      }
+    }
+    
+    strapi.log.warn(`[magic-mail] [WARNING] Version with ID ${idOrDocumentId} not found`);
+    return null;
+  },
+
+  /**
    * Create new template with automatic initial version
    */
   async create(data) {
@@ -433,35 +472,32 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Restore template from a specific version
-   * @param {string|number} idOrDocumentId - Either numeric id or documentId of template
-   * @param {string} versionDocumentId - documentId of version to restore
+   * @param {string|number} templateIdOrDocumentId - Either numeric id or documentId of template
+   * @param {string|number} versionIdOrDocumentId - Either numeric id or documentId of version
    */
-  async restoreVersion(idOrDocumentId, versionDocumentId) {
-    strapi.log.info(`[magic-mail] [RESTORE] Restoring template ${idOrDocumentId} from version ${versionDocumentId}`);
+  async restoreVersion(templateIdOrDocumentId, versionIdOrDocumentId) {
+    strapi.log.info(`[magic-mail] [RESTORE] Restoring template ${templateIdOrDocumentId} from version ${versionIdOrDocumentId}`);
 
     // Find template first (supports both numeric id and documentId)
-    const template = await this.findOne(idOrDocumentId);
+    const template = await this.findOne(templateIdOrDocumentId);
     if (!template) {
       throw new Error('Template not found');
     }
-    const actualDocumentId = template.documentId;
+    const actualTemplateDocumentId = template.documentId;
 
-    const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
-      documentId: versionDocumentId,
-      populate: { template: true },
-    });
-
+    // Find version (supports both numeric id and documentId)
+    const version = await this.findVersionById(versionIdOrDocumentId);
     if (!version) {
       throw new Error('Version not found');
     }
 
     // Verify version belongs to this template
-    if (version.template?.documentId !== actualDocumentId) {
+    if (version.template?.documentId !== actualTemplateDocumentId) {
       throw new Error('Version does not belong to this template');
     }
 
     // Update template with version data (creates new version via update)
-    const restored = await this.update(actualDocumentId, {
+    const restored = await this.update(actualTemplateDocumentId, {
       name: version.name,
       subject: version.subject,
       design: version.design,
@@ -476,34 +512,32 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Delete a single version
-   * @param {string|number} idOrDocumentId - Either numeric id or documentId of template
-   * @param {string} versionDocumentId - documentId of version to delete
+   * @param {string|number} templateIdOrDocumentId - Either numeric id or documentId of template
+   * @param {string|number} versionIdOrDocumentId - Either numeric id or documentId of version
    */
-  async deleteVersion(idOrDocumentId, versionDocumentId) {
-    strapi.log.info(`[magic-mail] [DELETE] Deleting version ${versionDocumentId}`);
+  async deleteVersion(templateIdOrDocumentId, versionIdOrDocumentId) {
+    strapi.log.info(`[magic-mail] [DELETE] Deleting version ${versionIdOrDocumentId}`);
 
     // Find template first (supports both numeric id and documentId)
-    const template = await this.findOne(idOrDocumentId);
+    const template = await this.findOne(templateIdOrDocumentId);
     if (!template) {
       throw new Error('Template not found');
     }
-    const actualDocumentId = template.documentId;
+    const actualTemplateDocumentId = template.documentId;
 
-    const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
-      documentId: versionDocumentId,
-      populate: { template: true },
-    });
+    // Find version (supports both numeric id and documentId)
+    const version = await this.findVersionById(versionIdOrDocumentId);
 
     if (!version) {
       throw new Error('Version not found');
     }
 
-    if (version.template?.documentId !== actualDocumentId) {
+    if (version.template?.documentId !== actualTemplateDocumentId) {
       throw new Error('Version does not belong to this template');
     }
 
     await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ 
-      documentId: versionDocumentId 
+      documentId: version.documentId 
     });
 
     strapi.log.info(`[magic-mail] [SUCCESS] Version v${version.versionNumber} deleted`);
