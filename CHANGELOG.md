@@ -1,3 +1,10 @@
+## [2.3.7](https://github.com/Schero94/Magic-Mail/compare/v2.3.6...v2.3.7) (2026-01-01)
+
+
+### Bug Fixes
+
+* support both templateReferenceId and internal db id lookup ([163529f](https://github.com/Schero94/Magic-Mail/commit/163529f91fa8dd0cac3803797b2fa58a711a4920))
+
 ## [2.3.6](https://github.com/Schero94/Magic-Mail/compare/v2.3.5...v2.3.6) (2026-01-01)
 
 
