@@ -413,10 +413,14 @@ module.exports = ({ strapi }) => ({
       }
     }
     
-    // Apply all replacements
+    // Apply all replacements - ONLY in href attributes, not in link text!
     let result = html;
     for (const replacement of replacements) {
-      result = result.replace(replacement.from, replacement.to);
+      // Escape special regex characters in the URL
+      const escapedFrom = replacement.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Only replace URLs within href="..." or href='...' attributes
+      const hrefRegex = new RegExp(`(href\\s*=\\s*["'])${escapedFrom}(["'])`, 'gi');
+      result = result.replace(hrefRegex, `$1${replacement.to}$2`);
     }
     
     if (linkCount > 0) {
