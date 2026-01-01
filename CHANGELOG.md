@@ -1,3 +1,10 @@
+## [2.3.4](https://github.com/Schero94/Magic-Mail/compare/v2.3.3...v2.3.4) (2026-01-01)
+
+
+### Bug Fixes
+
+* resolve documentId from findOne for all template operations ([1c4ff2b](https://github.com/Schero94/Magic-Mail/commit/1c4ff2ba241e986a046d46c0c1c483c2648c2bf5))
+
 ## [2.3.3](https://github.com/Schero94/Magic-Mail/compare/v2.3.2...v2.3.3) (2026-01-01)
 
 
