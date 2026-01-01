@@ -1,3 +1,10 @@
+## [2.3.9](https://github.com/Schero94/Magic-Mail/compare/v2.3.8...v2.3.9) (2026-01-01)
+
+
+### Bug Fixes
+
+* add findVersionById to support numeric version IDs ([648d5ca](https://github.com/Schero94/Magic-Mail/commit/648d5ca805aa93abaad5e223ba54dea628d547b2))
+
 ## [2.3.8](https://github.com/Schero94/Magic-Mail/compare/v2.3.7...v2.3.8) (2026-01-01)
 
 
