@@ -1,3 +1,10 @@
+## [2.3.3](https://github.com/Schero94/Magic-Mail/compare/v2.3.2...v2.3.3) (2026-01-01)
+
+
+### Bug Fixes
+
+* findOne supports both numeric id and documentId ([c1b3312](https://github.com/Schero94/Magic-Mail/commit/c1b3312694f633b210eac5728b7a819044f9c163))
+
 ## [2.3.2](https://github.com/Schero94/Magic-Mail/compare/v2.3.1...v2.3.2) (2026-01-01)
 
 
