@@ -1,3 +1,10 @@
+## [2.3.6](https://github.com/Schero94/Magic-Mail/compare/v2.3.5...v2.3.6) (2026-01-01)
+
+
+### Bug Fixes
+
+* use templateReferenceId for numeric ID lookup ([85aa4d8](https://github.com/Schero94/Magic-Mail/commit/85aa4d83dc08943a20b21ef9a6accc62b43c7445))
+
 ## [2.3.5](https://github.com/Schero94/Magic-Mail/compare/v2.3.4...v2.3.5) (2026-01-01)
 
 
