@@ -96,7 +96,7 @@ module.exports = ({ strapi }) => ({
     // Try as documentId (Strapi v5 standard)
     return strapi.documents(EMAIL_TEMPLATE_UID).findOne({
       documentId: String(idOrDocumentId),
-      populate: ['versions'],
+      populate: { versions: true },
     });
   },
 
@@ -108,11 +108,11 @@ module.exports = ({ strapi }) => ({
     const numericId = Number(id);
     strapi.log.info(`[magic-mail] [LOOKUP] Finding template by numeric ID: ${numericId}`);
     
-    // 1. First try: Filter by templateReferenceId (unique integer field)
+    // 1. First try: Filter by templateReferenceId (unique integer field) - Document Service
     const byRefId = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
       filters: { templateReferenceId: numericId },
       limit: 1,
-      populate: ['versions'],
+      populate: { versions: true },
     });
     
     if (byRefId.length > 0) {
@@ -123,7 +123,7 @@ module.exports = ({ strapi }) => ({
     // 2. Fallback: Try internal database id via entityService (for backward compatibility)
     strapi.log.info(`[magic-mail] [FALLBACK] templateReferenceId not found, trying internal db id: ${numericId}`);
     const byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
-      populate: ['versions'],
+      populate: { versions: true },
     });
     
     if (byInternalId) {
@@ -448,7 +448,7 @@ module.exports = ({ strapi }) => ({
 
     const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
       documentId: versionDocumentId,
-      populate: ['template'],
+      populate: { template: true },
     });
 
     if (!version) {
@@ -491,7 +491,7 @@ module.exports = ({ strapi }) => ({
 
     const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
       documentId: versionDocumentId,
-      populate: ['template'],
+      populate: { template: true },
     });
 
     if (!version) {
