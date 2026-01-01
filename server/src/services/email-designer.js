@@ -80,11 +80,22 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get template by ID (documentId) with populated versions
+   * Get template by ID (documentId or numeric id) with populated versions
+   * Supports both documentId (string) and numeric id for backward compatibility
    */
-  async findOne(documentId) {
+  async findOne(idOrDocumentId) {
+    // Check if it's a numeric ID (backward compatibility)
+    const isNumericId = /^\d+$/.test(String(idOrDocumentId));
+    
+    if (isNumericId) {
+      // Try to find by numeric id first
+      const result = await this.findById(Number(idOrDocumentId));
+      if (result) return result;
+    }
+    
+    // Try as documentId (Strapi v5 standard)
     return strapi.documents(EMAIL_TEMPLATE_UID).findOne({
-      documentId,
+      documentId: String(idOrDocumentId),
       populate: ['versions'],
     });
   },
@@ -354,7 +365,7 @@ module.exports = ({ strapi }) => ({
    * Get all versions for a template
    */
   async getVersions(templateDocumentId) {
-    strapi.log.info(`[magic-mail] 📜 Fetching versions for template documentId: ${templateDocumentId}`);
+    strapi.log.info(`[magic-mail] [VERSION] Fetching versions for template documentId: ${templateDocumentId}`);
 
     const template = await strapi.documents(EMAIL_TEMPLATE_UID).findOne({
       documentId: templateDocumentId,

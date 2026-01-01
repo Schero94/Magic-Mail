@@ -208,8 +208,7 @@ module.exports = ({ strapi }) => ({
    */
   async renderTemplate(ctx) {
     try {
-      const { templateReferenceId } = ct
-      x.params;
+      const { templateReferenceId } = ctx.params;
       const { data } = ctx.request.body;
 
       const rendered = await strapi
