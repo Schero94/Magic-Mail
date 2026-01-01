@@ -1,3 +1,10 @@
+## [2.3.5](https://github.com/Schero94/Magic-Mail/compare/v2.3.4...v2.3.5) (2026-01-01)
+
+
+### Bug Fixes
+
+* use entityService for numeric ID lookup in findById ([94b7cad](https://github.com/Schero94/Magic-Mail/commit/94b7cad283f6d070ee168295d912feae1ae11e88))
+
 ## [2.3.4](https://github.com/Schero94/Magic-Mail/compare/v2.3.3...v2.3.4) (2026-01-01)
 
 
