@@ -1,3 +1,10 @@
+## [2.3.8](https://github.com/Schero94/Magic-Mail/compare/v2.3.7...v2.3.8) (2026-01-01)
+
+
+### Bug Fixes
+
+* correct populate syntax for Strapi v5 ([465a6e0](https://github.com/Schero94/Magic-Mail/commit/465a6e04ac6ea848bf55c345cfa7570b6d66676a))
+
 ## [2.3.7](https://github.com/Schero94/Magic-Mail/compare/v2.3.6...v2.3.7) (2026-01-01)
 
 
