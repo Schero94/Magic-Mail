@@ -1,3 +1,10 @@
+## [2.3.10](https://github.com/Schero94/Magic-Mail/compare/v2.3.9...v2.3.10) (2026-01-01)
+
+
+### Bug Fixes
+
+* only replace URLs in href attributes, not in link text ([7bd1054](https://github.com/Schero94/Magic-Mail/commit/7bd10547834317456a689e55c810de9baf4d6b6b))
+
 ## [2.3.9](https://github.com/Schero94/Magic-Mail/compare/v2.3.8...v2.3.9) (2026-01-01)
 
 
