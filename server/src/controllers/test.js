@@ -15,7 +15,7 @@ module.exports = {
   async testRelations(ctx) {
     try {
       console.log('\n' + '='.repeat(60));
-      console.log('🧪 TEST: Template ↔ Version Relations (Document Service API)');
+      console.log('[TEST] Template - Version Relations (Document Service API)');
       console.log('='.repeat(60));
 
       // Initialize test result variables
@@ -241,7 +241,7 @@ module.exports = {
       }
 
       // Cleanup Test 3
-      console.log('\n🧹 Cleanup Test 3...');
+      console.log('\n[CLEANUP] Cleanup Test 3...');
       if (afterSecondUpdate.versions) {
         for (const version of afterSecondUpdate.versions) {
           await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ documentId: version.documentId });
@@ -266,7 +266,7 @@ module.exports = {
       console.log(`   Anzahl Versionen: ${finalTemplate.versions?.length || 0}`);
 
       // Cleanup
-      console.log('\n🧹 Aufräumen...');
+      console.log('\n[CLEANUP] Aufraumen...');
       await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ documentId: version1.documentId });
       await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ documentId: version2.documentId });
       await strapi.documents(EMAIL_TEMPLATE_UID).delete({ documentId: testTemplate.documentId });

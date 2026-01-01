@@ -327,7 +327,7 @@ module.exports = ({ strapi }) => ({
     const trackingUrl = `${baseUrl}/api/magic-mail/track/open/${emailId}/${recipientHash}?r=${randomToken}`;
     const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
     
-    strapi.log.info(`[magic-mail] 📍 Tracking pixel URL: ${trackingUrl}`);
+    strapi.log.info(`[magic-mail] [PIXEL] Tracking pixel URL: ${trackingUrl}`);
     
     // Try to inject before </body>, otherwise append at the end
     if (html.includes('</body>')) {

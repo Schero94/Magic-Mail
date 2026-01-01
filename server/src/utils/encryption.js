@@ -20,7 +20,9 @@ function getEncryptionKey() {
 }
 
 /**
- * Encrypt credentials
+ * Encrypt credentials and return as JSON-compatible object
+ * @param {object} data - The credentials object to encrypt
+ * @returns {object|null} Object with encrypted string, or null if no data
  */
 function encryptCredentials(data) {
   if (!data) return null;
@@ -36,7 +38,8 @@ function encryptCredentials(data) {
     
     const authTag = cipher.getAuthTag();
     
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    // Return as object for JSON field compatibility (PostgreSQL requires valid JSON)
+    return { encrypted: `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}` };
   } catch (err) {
     console.error('[magic-mail] Encryption failed:', err);
     throw new Error('Failed to encrypt credentials');
@@ -44,14 +47,23 @@ function encryptCredentials(data) {
 }
 
 /**
- * Decrypt credentials
+ * Decrypt credentials with backwards compatibility
+ * Handles both old format (plain string) and new format (object with .encrypted)
+ * @param {string|object} encryptedData - The encrypted data (string or object)
+ * @returns {object|null} The decrypted credentials object, or null if failed
  */
 function decryptCredentials(encryptedData) {
   if (!encryptedData) return null;
   
   try {
     const key = getEncryptionKey();
-    const parts = encryptedData.split(':');
+    
+    // Handle both formats: new object format { encrypted: "..." } and old string format
+    const encryptedString = typeof encryptedData === 'object' && encryptedData.encrypted 
+      ? encryptedData.encrypted 
+      : encryptedData;
+    
+    const parts = encryptedString.split(':');
     
     if (parts.length !== 3) {
       throw new Error('Invalid encrypted data format');

@@ -134,7 +134,7 @@ module.exports = {
         ctx.throw(400, 'testEmail is required');
       }
 
-      strapi.log.info('[magic-mail] 🧪 Testing Strapi Email Service integration...');
+      strapi.log.info('[magic-mail] [TEST] Testing Strapi Email Service integration...');
       strapi.log.info('[magic-mail] [EMAIL] Calling strapi.plugin("email").service("email").send()');
       if (accountName) {
         strapi.log.info(`[magic-mail] [FORCE] Forcing specific account: ${accountName}`);

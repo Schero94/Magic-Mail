@@ -52,7 +52,7 @@ module.exports = ({ strapi }) => ({
 
         if (emailData.templateReferenceId) {
           resolvedTemplateReferenceId = String(emailData.templateReferenceId).trim();
-          strapi.log.info(`[magic-mail] 🧩 Using provided templateReferenceId="${resolvedTemplateReferenceId}"`);
+          strapi.log.info(`[magic-mail] [TEMPLATE] Using provided templateReferenceId="${resolvedTemplateReferenceId}"`);
         }
 
         if (!resolvedTemplateReferenceId && templateId) {
@@ -81,7 +81,7 @@ module.exports = ({ strapi }) => ({
           } else {
             // templateId was provided but not numeric; treat it directly as reference ID
             resolvedTemplateReferenceId = String(templateId).trim();
-            strapi.log.info(`[magic-mail] 🧩 Treating templateId value as referenceId="${resolvedTemplateReferenceId}"`);
+            strapi.log.info(`[magic-mail] [TEMPLATE] Treating templateId value as referenceId="${resolvedTemplateReferenceId}"`);
           }
         }
 
@@ -225,8 +225,8 @@ module.exports = ({ strapi }) => ({
       // Check rate limits
       const canSend = await this.checkRateLimits(account);
       if (!canSend) {
-        // Try failover
-        const fallbackAccount = await this.selectAccount(type, priority, [account.id], emailData);
+        // Try failover - pass documentId to exclude current account
+        const fallbackAccount = await this.selectAccount(type, priority, [account.documentId], emailData);
         if (fallbackAccount) {
           strapi.log.info(`[magic-mail] Rate limit hit on ${account.name}, using fallback: ${fallbackAccount.name}`);
           return await this.sendViaAccount(fallbackAccount, emailData);
@@ -311,14 +311,22 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Select best account based on rules
+   * @param {string} type - Email type (transactional, marketing, notification)
+   * @param {string} priority - Priority level (high, normal, low)
+   * @param {Array<string>} excludeDocumentIds - Array of documentIds to exclude from selection
+   * @param {Object} emailData - Email data for routing rule matching
+   * @returns {Promise<Object|null>} Selected account or null
    */
-  async selectAccount(type, priority, excludeIds = [], emailData = {}) {
+  async selectAccount(type, priority, excludeDocumentIds = [], emailData = {}) {
+    // Build filters - only add documentId exclusion if array has entries
+    const filters = { isActive: true };
+    if (excludeDocumentIds.length > 0) {
+      filters.documentId = { $notIn: excludeDocumentIds };
+    }
+
     // Get all active accounts using Document Service
     const accounts = await strapi.documents('plugin::magic-mail.email-account').findMany({
-      filters: {
-        isActive: true,
-        id: { $notIn: excludeIds },
-      },
+      filters,
       sort: [{ priority: 'desc' }],
     });
 
