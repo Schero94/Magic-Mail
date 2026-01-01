@@ -101,28 +101,38 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get template by numeric templateReferenceId
-   * The templateReferenceId is a unique integer field used to identify templates
+   * Get template by numeric ID (supports both templateReferenceId and internal db id)
+   * First tries templateReferenceId, then falls back to internal database id via entityService
    */
   async findById(id) {
-    strapi.log.info(`[magic-mail] [LOOKUP] Finding template by templateReferenceId: ${id}`);
+    const numericId = Number(id);
+    strapi.log.info(`[magic-mail] [LOOKUP] Finding template by numeric ID: ${numericId}`);
     
-    // Filter by templateReferenceId (unique integer field)
-    const results = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
-      filters: { templateReferenceId: Number(id) },
+    // 1. First try: Filter by templateReferenceId (unique integer field)
+    const byRefId = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
+      filters: { templateReferenceId: numericId },
       limit: 1,
       populate: ['versions'],
     });
     
-    const result = results.length > 0 ? results[0] : null;
-    
-    if (result) {
-      strapi.log.info(`[magic-mail] [SUCCESS] Found template by templateReferenceId ${id}: documentId=${result.documentId}, name="${result.name}"`);
-    } else {
-      strapi.log.warn(`[magic-mail] [WARNING] Template with templateReferenceId ${id} not found`);
+    if (byRefId.length > 0) {
+      strapi.log.info(`[magic-mail] [SUCCESS] Found template by templateReferenceId ${numericId}: documentId=${byRefId[0].documentId}, name="${byRefId[0].name}"`);
+      return byRefId[0];
     }
     
-    return result;
+    // 2. Fallback: Try internal database id via entityService (for backward compatibility)
+    strapi.log.info(`[magic-mail] [FALLBACK] templateReferenceId not found, trying internal db id: ${numericId}`);
+    const byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
+      populate: ['versions'],
+    });
+    
+    if (byInternalId) {
+      strapi.log.info(`[magic-mail] [SUCCESS] Found template by internal id ${numericId}: documentId=${byInternalId.documentId}, name="${byInternalId.name}"`);
+      return byInternalId;
+    }
+    
+    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried templateReferenceId and internal id)`);
+    return null;
   },
 
   /**
