@@ -565,34 +565,91 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Import templates from JSON
+   * Supports both magic-mail export format and strapi-plugin-email-designer-5 format
    */
   async importTemplates(templates) {
     strapi.log.info(`[magic-mail] [IMPORT] Importing ${templates.length} templates...`);
 
     const results = [];
 
-    for (const templateData of templates) {
+    for (const rawData of templates) {
       try {
+        // Normalize template data - support different export formats
+        const templateData = this.normalizeImportData(rawData);
+        
+        strapi.log.info(`[magic-mail] [IMPORT] Processing: "${templateData.name}" (ref: ${templateData.templateReferenceId})`);
+
         const existing = await this.findByReferenceId(templateData.templateReferenceId);
 
         if (existing) {
           const updated = await this.update(existing.documentId, templateData);
           results.push({ success: true, action: 'updated', template: updated });
+          strapi.log.info(`[magic-mail] [SUCCESS] Updated: "${templateData.name}"`);
         } else {
           const created = await this.create(templateData);
           results.push({ success: true, action: 'created', template: created });
+          strapi.log.info(`[magic-mail] [SUCCESS] Created: "${templateData.name}"`);
         }
       } catch (error) {
+        strapi.log.error(`[magic-mail] [ERROR] Import failed for "${rawData.name}": ${error.message}`);
         results.push({
           success: false,
           action: 'failed',
           error: error.message,
-          templateName: templateData.name,
+          templateName: rawData.name,
         });
       }
     }
 
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+    strapi.log.info(`[magic-mail] [IMPORT] Complete: ${successful} successful, ${failed} failed`);
+
     return results;
+  },
+
+  /**
+   * Normalize import data from different export formats
+   * Supports: magic-mail, strapi-plugin-email-designer-5, and generic formats
+   */
+  normalizeImportData(rawData) {
+    // Map 'enabled' to 'isActive' (strapi-plugin-email-designer-5 format)
+    const isActive = rawData.isActive !== undefined 
+      ? rawData.isActive 
+      : (rawData.enabled !== undefined ? rawData.enabled : true);
+
+    // Generate reference ID if missing
+    const templateReferenceId = rawData.templateReferenceId 
+      || rawData.referenceId 
+      || Date.now() + Math.floor(Math.random() * 1000);
+
+    // Determine category (default to 'custom' if not specified)
+    const category = rawData.category || 'custom';
+
+    // Parse tags if string
+    let tags = rawData.tags;
+    if (typeof tags === 'string') {
+      try {
+        tags = JSON.parse(tags);
+      } catch (e) {
+        tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
+    }
+    if (!Array.isArray(tags)) {
+      tags = [];
+    }
+
+    return {
+      templateReferenceId,
+      name: rawData.name || 'Imported Template',
+      subject: rawData.subject || '',
+      design: rawData.design || null,
+      bodyHtml: rawData.bodyHtml || rawData.message || '',
+      bodyText: rawData.bodyText || '',
+      category,
+      tags,
+      isActive,
+    };
   },
 
   // ============================================================
