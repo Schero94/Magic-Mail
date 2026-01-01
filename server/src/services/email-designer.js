@@ -102,14 +102,24 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Get template by numeric ID (for backward compatibility)
+   * Note: Document Service cannot filter by internal 'id' field,
+   * so we use entityService as fallback for numeric IDs
    */
   async findById(id) {
-    const results = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
-      filters: { id },
-      limit: 1,
+    strapi.log.info(`[magic-mail] [LOOKUP] Finding template by numeric ID: ${id}`);
+    
+    // Use entityService for numeric ID lookup (deprecated but works for id filter)
+    const result = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, id, {
       populate: ['versions'],
     });
-    return results.length > 0 ? results[0] : null;
+    
+    if (result) {
+      strapi.log.info(`[magic-mail] [SUCCESS] Found template by ID ${id}: documentId=${result.documentId}, name="${result.name}"`);
+    } else {
+      strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${id} not found`);
+    }
+    
+    return result;
   },
 
   /**
