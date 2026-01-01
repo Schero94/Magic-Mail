@@ -1,3 +1,10 @@
+## [2.3.2](https://github.com/Schero94/Magic-Mail/compare/v2.3.1...v2.3.2) (2026-01-01)
+
+
+### Bug Fixes
+
+* improve template import to support email-designer-5 format ([290d31a](https://github.com/Schero94/Magic-Mail/commit/290d31a57b109137f74c547a8c64b90e80e37f29))
+
 ## [2.3.1](https://github.com/Schero94/Magic-Mail/compare/v2.3.0...v2.3.1) (2026-01-01)
 
 
