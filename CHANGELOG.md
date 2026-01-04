@@ -1,3 +1,10 @@
+## [2.3.11](https://github.com/Schero94/Magic-Mail/compare/v2.3.10...v2.3.11) (2026-01-04)
+
+
+### Bug Fixes
+
+* use relative paths for menu and settings links ([709849a](https://github.com/Schero94/Magic-Mail/commit/709849a5b7c78813380f1ae62bce137b792a1118))
+
 ## [2.3.10](https://github.com/Schero94/Magic-Mail/compare/v2.3.9...v2.3.10) (2026-01-01)
 
 
