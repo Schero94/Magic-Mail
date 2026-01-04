@@ -16,8 +16,9 @@ const prefixPluginTranslations = (data, pluginId) => {
 
 export default {
   register(app) {
+    // Menu link - path should be relative to root (no leading slash)
     app.addMenuLink({
-      to: `/plugins/${pluginId}`,
+      to: `plugins/${pluginId}`,
       icon: PluginIcon,
       intlLabel: {
         id: `${pluginId}.plugin.name`,
@@ -26,12 +27,12 @@ export default {
       Component: () => import('./pages/App'),
     });
 
-    // Add Settings section
+    // Settings section - paths should be relative to /settings (no /settings/ prefix)
     app.createSettingSection(
       {
         intlLabel: { id: `${pluginId}.settings.section`, defaultMessage: 'MagicMail' },
         id: pluginId,
-        to: `/settings/${pluginId}`,
+        to: pluginId,
       },
       [
         {
@@ -40,7 +41,7 @@ export default {
             defaultMessage: 'Upgrade',
           },
           id: 'upgrade',
-          to: `/settings/${pluginId}/upgrade`,
+          to: `${pluginId}/upgrade`,
           Component: () => import('./pages/LicensePage'),
         },
         {
@@ -49,7 +50,7 @@ export default {
             defaultMessage: 'License Details',
           },
           id: 'license',
-          to: `/settings/${pluginId}/license`,
+          to: `${pluginId}/license`,
           Component: () => import('./pages/Settings'),
         },
       ]
