@@ -4,10 +4,8 @@ import {
   Box,
   Flex,
   Typography,
-  TextInput,
   Loader,
   Badge,
-  Field,
   Divider,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
@@ -258,10 +256,84 @@ const InfoBox = styled(Box)`
 `;
 
 const TestSection = styled(Box)`
-  background: ${props => props.theme.colors.neutral100};
-  border-radius: 12px;
+  background: linear-gradient(135deg, ${colors.whatsappLight} 0%, #E8F5E9 100%);
+  border: 1px solid ${colors.whatsapp}40;
+  border-radius: 16px;
   padding: 24px;
   margin-top: 24px;
+`;
+
+const WhatsAppInput = styled.input`
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid ${props => props.theme.colors.neutral200};
+  border-radius: 12px;
+  font-size: 15px;
+  background: white;
+  color: ${props => props.theme.colors.neutral800};
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  
+  &:focus {
+    outline: none;
+    border-color: ${colors.whatsapp};
+    box-shadow: 0 0 0 3px ${colors.whatsapp}20;
+  }
+  
+  &::placeholder {
+    color: ${props => props.theme.colors.neutral400};
+  }
+`;
+
+const WhatsAppTextarea = styled.textarea`
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid ${props => props.theme.colors.neutral200};
+  border-radius: 12px;
+  font-size: 15px;
+  background: white;
+  color: ${props => props.theme.colors.neutral800};
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  
+  &:focus {
+    outline: none;
+    border-color: ${colors.whatsapp};
+    box-shadow: 0 0 0 3px ${colors.whatsapp}20;
+  }
+  
+  &::placeholder {
+    color: ${props => props.theme.colors.neutral400};
+  }
+`;
+
+const InputLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.whatsappDark};
+  margin-bottom: 8px;
+`;
+
+const InputHint = styled.span`
+  font-size: 12px;
+  color: ${props => props.theme.colors.neutral500};
+  margin-top: 6px;
+  display: block;
+`;
+
+const PhoneSymbol = styled.span`
+  font-size: 16px;
+  font-weight: 700;
+`;
+
+const MessageSymbol = styled.span`
+  font-size: 16px;
 `;
 
 const UseCaseCard = styled(Box)`
@@ -878,33 +950,40 @@ const WhatsAppPage = () => {
             </Typography>
 
             <TestSection>
-              <Flex direction="column" gap={4}>
-                <Field.Root>
-                  <Field.Label>Phone Number</Field.Label>
-                  <TextInput
-                    placeholder="49123456789 (with country code, no +)"
-                    value={testPhone}
-                    onChange={(e) => setTestPhone(e.target.value)}
-                  />
-                  <Field.Hint>Enter phone number with country code (e.g., 49 for Germany)</Field.Hint>
-                </Field.Root>
-                
-                <Field.Root>
-                  <Field.Label>Message (optional)</Field.Label>
-                  <TextInput
-                    placeholder="Leave empty for default test message"
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                  />
-                </Field.Root>
-                
-                <WhatsAppButton
-                  onClick={handleSendTest}
-                  loading={sendingTest}
-                >
-                  Send Test Message
-                </WhatsAppButton>
-              </Flex>
+              <Box style={{ marginBottom: '20px' }}>
+                <InputLabel>
+                  <PhoneSymbol>+</PhoneSymbol>
+                  Phone Number
+                </InputLabel>
+                <WhatsAppInput
+                  placeholder="49123456789"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                />
+                <InputHint>Enter with country code, without + (e.g., 49 for Germany, 1 for USA)</InputHint>
+              </Box>
+              
+              <Box style={{ marginBottom: '24px' }}>
+                <InputLabel>
+                  <MessageSymbol>@</MessageSymbol>
+                  Message (optional)
+                </InputLabel>
+                <WhatsAppTextarea
+                  placeholder="Type your message here... or leave empty for default test message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  rows={3}
+                />
+              </Box>
+              
+              <WhatsAppButton
+                onClick={handleSendTest}
+                loading={sendingTest}
+                disabled={!testPhone}
+                style={{ width: '100%' }}
+              >
+                Send Test Message
+              </WhatsAppButton>
             </TestSection>
 
             <Divider style={{ margin: '24px 0' }} />
