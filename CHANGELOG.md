@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/Schero94/Magic-Mail/compare/v2.4.0...v2.5.0) (2026-01-25)
+
+
+### Features
+
+* **whatsapp:** add send test message modal with styled UI ([c3bda11](https://github.com/Schero94/Magic-Mail/commit/c3bda110fc32ebaf1e12eccaf2ee51aca7647ae1))
+
 # [2.4.0](https://github.com/Schero94/Magic-Mail/compare/v2.3.11...v2.4.0) (2026-01-25)
 
 
