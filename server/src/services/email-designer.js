@@ -121,6 +121,8 @@ module.exports = ({ strapi }) => ({
     }
     
     // 2. Fallback: Try internal database id via entityService (for backward compatibility)
+    // NOTE: entityService is deprecated in Strapi v5, but required here for numeric ID lookups
+    // Document Service API only supports documentId (string), not numeric database IDs
     strapi.log.info(`[magic-mail] [FALLBACK] templateReferenceId not found, trying internal db id: ${numericId}`);
     const byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
       populate: { versions: true },
@@ -169,6 +171,8 @@ module.exports = ({ strapi }) => ({
     }
     
     // Fallback: Try internal database id via entityService
+    // NOTE: entityService is deprecated in Strapi v5, but required here for numeric ID lookups
+    // Document Service API only supports documentId (string), not numeric database IDs
     const numericId = Number(idOrDocumentId);
     if (!isNaN(numericId)) {
       strapi.log.info(`[magic-mail] [FALLBACK] Trying internal db id for version: ${numericId}`);

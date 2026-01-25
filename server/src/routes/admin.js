@@ -564,6 +564,25 @@ module.exports = {
         description: 'Get WhatsApp session info',
       },
     },
+    // Plugin Settings Routes
+    {
+      method: 'GET',
+      path: '/settings',
+      handler: 'pluginSettings.getSettings',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+        description: 'Get plugin settings',
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/settings',
+      handler: 'pluginSettings.updateSettings',
+      config: {
+        policies: ['admin::isAuthenticatedAdmin'],
+        description: 'Update plugin settings',
+      },
+    },
   ],
 };
 

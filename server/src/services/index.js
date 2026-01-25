@@ -7,6 +7,7 @@ const licenseGuard = require('./license-guard');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const whatsapp = require('./whatsapp');
+const pluginSettings = require('./plugin-settings');
 
 module.exports = {
   'email-router': emailRouter,
@@ -16,4 +17,5 @@ module.exports = {
   'email-designer': emailDesigner,
   analytics,
   whatsapp,
+  'plugin-settings': pluginSettings,
 };

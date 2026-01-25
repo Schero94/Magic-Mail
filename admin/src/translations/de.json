@@ -86,7 +86,7 @@
   "whatsapp.phoneHint": "Telefonnummer mit Landesvorwahl eingeben (z.B. 49 für Deutschland)",
   "whatsapp.message": "Nachricht (optional)",
   "whatsapp.notInstalled": "Abhängigkeiten nicht installiert",
-  "whatsapp.installCommand": "npm install @whiskeysockets/baileys pino qrcode",
+  "whatsapp.installCommand": "npm install baileys pino qrcode",
   "whatsapp.freeLabel": "KOSTENLOS - Keine API-Kosten!"
 }
 

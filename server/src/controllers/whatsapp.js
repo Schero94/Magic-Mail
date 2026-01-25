@@ -23,7 +23,7 @@ module.exports = {
           available,
           message: available 
             ? 'WhatsApp integration is available' 
-            : 'Baileys not installed. Run: npm install @whiskeysockets/baileys pino qrcode',
+            : 'Baileys not installed. Run: npm install baileys pino qrcode',
         },
       };
     } catch (error) {

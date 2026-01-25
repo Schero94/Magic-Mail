@@ -4,9 +4,7 @@ import {
   Box,
   Flex,
   Typography,
-  Button,
   TextInput,
-  Alert,
   Loader,
   Badge,
   Field,
@@ -14,6 +12,8 @@ import {
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { Check, Cross, ArrowRight, ArrowLeft, Play, ArrowClockwise } from '@strapi/icons';
+import { GradientButton, SecondaryButton, TertiaryButton, DangerButton } from '../../components/StyledButtons';
+import { theme } from '../../utils/theme';
 
 // ============= ANIMATIONS =============
 const fadeIn = keyframes`
@@ -250,22 +250,22 @@ const ConnectedCard = styled(Box)`
 `;
 
 const InfoBox = styled(Box)`
-  background: ${colors.primaryLight};
-  border: 1px solid ${colors.primary}33;
+  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${colors.whatsappLight} 100%);
+  border: 1px solid ${theme.colors.primary[200]};
   border-radius: 12px;
-  padding: 20px;
-  margin: 16px 0;
+  padding: 24px;
+  margin: 20px 0;
 `;
 
 const TestSection = styled(Box)`
-  background: ${colors.neutralLight};
+  background: ${props => props.theme.colors.neutral100};
   border-radius: 12px;
   padding: 24px;
   margin-top: 24px;
 `;
 
 const UseCaseCard = styled(Box)`
-  background: linear-gradient(135deg, ${colors.primaryLight}, ${colors.whatsappLight});
+  background: linear-gradient(135deg, ${colors.whatsappLight}, ${theme.colors.primary[50]});
   border: 2px solid ${colors.whatsapp};
   border-radius: 16px;
   padding: 24px;
@@ -275,7 +275,64 @@ const UseCaseCard = styled(Box)`
 const ButtonRow = styled(Flex)`
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid ${colors.border};
+  border-top: 1px solid ${props => props.theme.colors.neutral200};
+`;
+
+const AlertBox = styled(Box)`
+  background: ${theme.colors.primary[50]};
+  border: 1px solid ${theme.colors.primary[200]};
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-top: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+`;
+
+const AlertIcon = styled.div`
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: ${theme.colors.primary[500]};
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  flex-shrink: 0;
+`;
+
+const SuccessBox = styled(Box)`
+  background: ${theme.colors.success[50]};
+  border: 1px solid ${theme.colors.success[200]};
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+`;
+
+const SuccessIcon = styled.div`
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: ${theme.colors.success[500]};
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+const WhatsAppButton = styled(GradientButton)`
+  && {
+    background: linear-gradient(135deg, ${colors.whatsapp} 0%, ${colors.whatsappDark} 100%) !important;
+    
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, ${colors.whatsappDark} 0%, ${colors.whatsapp} 100%) !important;
+    }
+  }
 `;
 
 const NotInstalledCard = styled(Box)`
@@ -609,11 +666,19 @@ const WhatsAppPage = () => {
           </Typography>
 
           {isAvailable ? (
-            <Alert variant="success" title="[SUCCESS] Dependencies Installed">
-              <Typography variant="pi" style={{ display: 'block' }}>
-                Baileys library is installed and ready to use. You can proceed to connect your WhatsApp account.
-              </Typography>
-            </Alert>
+            <SuccessBox>
+              <SuccessIcon>
+                <Check style={{ width: 14, height: 14 }} />
+              </SuccessIcon>
+              <Box>
+                <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block', marginBottom: '4px', color: theme.colors.success[700] }}>
+                  Dependencies Installed
+                </Typography>
+                <Typography variant="pi" textColor="neutral600">
+                  Baileys library is installed and ready to use. You can proceed to connect your WhatsApp account.
+                </Typography>
+              </Box>
+            </SuccessBox>
           ) : (
             <NotInstalledCard>
               <Typography variant="beta" fontWeight="bold" style={{ display: 'block', marginBottom: '12px', color: colors.danger }}>
@@ -633,7 +698,7 @@ const WhatsAppPage = () => {
                   marginBottom: '16px'
                 }}
               >
-                npm install @whiskeysockets/baileys pino qrcode
+                npm install baileys pino qrcode
               </Box>
               <Typography variant="pi" textColor="neutral600">
                 After installing, restart your Strapi server and refresh this page.
@@ -641,24 +706,22 @@ const WhatsAppPage = () => {
             </NotInstalledCard>
           )}
 
-          <ButtonRow justifyContent="flex-end">
-            <Button
+          <ButtonRow justifyContent="flex-end" gap={3}>
+            <SecondaryButton
               onClick={() => {
                 checkAvailability();
               }}
-              variant="secondary"
               startIcon={<ArrowClockwise />}
-              style={{ marginRight: '12px' }}
             >
               Refresh
-            </Button>
-            <Button
+            </SecondaryButton>
+            <GradientButton
               onClick={() => setCurrentStep(2)}
               disabled={!isAvailable}
               endIcon={<ArrowRight />}
             >
               Continue
-            </Button>
+            </GradientButton>
           </ButtonRow>
         </ContentCard>
       )}
@@ -674,47 +737,51 @@ const WhatsAppPage = () => {
           </Typography>
 
           <InfoBox>
-            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '12px' }}>
+            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: theme.colors.primary[700] }}>
               How it works
             </Typography>
-            <Flex direction="column" gap={2}>
-              <Typography variant="omega">
+            <Flex direction="column" gap={3}>
+              <Typography variant="omega" textColor="neutral700">
                 1. Click "Connect WhatsApp" to generate a QR code
               </Typography>
-              <Typography variant="omega">
+              <Typography variant="omega" textColor="neutral700">
                 2. Open WhatsApp on your phone
               </Typography>
-              <Typography variant="omega">
+              <Typography variant="omega" textColor="neutral700">
                 3. Go to Settings - Linked Devices - Link a Device
               </Typography>
-              <Typography variant="omega">
+              <Typography variant="omega" textColor="neutral700">
                 4. Scan the QR code with your phone
               </Typography>
             </Flex>
           </InfoBox>
 
-          <Alert variant="default" title="Session Persistence" style={{ marginTop: '16px' }}>
-            <Typography variant="pi">
-              Your WhatsApp session will be saved. You won't need to scan the QR code again unless you manually disconnect or your session expires.
-            </Typography>
-          </Alert>
+          <AlertBox>
+            <AlertIcon>i</AlertIcon>
+            <Box>
+              <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block', marginBottom: '4px' }}>
+                Session Persistence
+              </Typography>
+              <Typography variant="pi" textColor="neutral600">
+                Your WhatsApp session will be saved. You won't need to scan the QR code again unless you manually disconnect or your session expires.
+              </Typography>
+            </Box>
+          </AlertBox>
 
           <ButtonRow justifyContent="space-between">
-            <Button
+            <TertiaryButton
               onClick={() => setCurrentStep(1)}
-              variant="tertiary"
               startIcon={<ArrowLeft />}
             >
               Back
-            </Button>
-            <Button
+            </TertiaryButton>
+            <WhatsAppButton
               onClick={handleConnect}
               loading={connecting}
-              style={{ background: colors.whatsapp }}
               startIcon={<Play />}
             >
               Connect WhatsApp
-            </Button>
+            </WhatsAppButton>
           </ButtonRow>
         </ContentCard>
       )}
@@ -745,39 +812,42 @@ const WhatsAppPage = () => {
             )}
           </QRCodeContainer>
 
-          <Alert variant="default" title="Instructions">
-            <Typography variant="pi">
-              1. Open WhatsApp on your phone
+          <InfoBox>
+            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: theme.colors.primary[700] }}>
+              Instructions
             </Typography>
-            <Typography variant="pi">
-              2. Tap Menu or Settings
-            </Typography>
-            <Typography variant="pi">
-              3. Select "Linked Devices"
-            </Typography>
-            <Typography variant="pi">
-              4. Tap "Link a Device"
-            </Typography>
-            <Typography variant="pi">
-              5. Point your phone camera at this QR code
-            </Typography>
-          </Alert>
+            <Flex direction="column" gap={2}>
+              <Typography variant="omega" textColor="neutral700">
+                1. Open WhatsApp on your phone
+              </Typography>
+              <Typography variant="omega" textColor="neutral700">
+                2. Tap Menu or Settings
+              </Typography>
+              <Typography variant="omega" textColor="neutral700">
+                3. Select "Linked Devices"
+              </Typography>
+              <Typography variant="omega" textColor="neutral700">
+                4. Tap "Link a Device"
+              </Typography>
+              <Typography variant="omega" textColor="neutral700">
+                5. Point your phone camera at this QR code
+              </Typography>
+            </Flex>
+          </InfoBox>
 
           <ButtonRow justifyContent="space-between">
-            <Button
+            <TertiaryButton
               onClick={() => setCurrentStep(2)}
-              variant="tertiary"
               startIcon={<ArrowLeft />}
             >
               Back
-            </Button>
-            <Button
+            </TertiaryButton>
+            <SecondaryButton
               onClick={handleConnect}
-              variant="secondary"
               startIcon={<ArrowClockwise />}
             >
               Refresh QR
-            </Button>
+            </SecondaryButton>
           </ButtonRow>
         </ContentCard>
       )}
@@ -828,13 +898,12 @@ const WhatsAppPage = () => {
                   />
                 </Field.Root>
                 
-                <Button
+                <WhatsAppButton
                   onClick={handleSendTest}
                   loading={sendingTest}
-                  style={{ background: colors.whatsapp }}
                 >
                   Send Test Message
-                </Button>
+                </WhatsAppButton>
               </Flex>
             </TestSection>
 
@@ -872,15 +941,14 @@ await whatsapp.sendTemplateMessage('49123456789', 'welcome', {
               </pre>
             </Box>
 
-            <ButtonRow justifyContent="space-between">
-              <Button
+            <ButtonRow justifyContent="space-between" alignItems="center">
+              <DangerButton
                 onClick={handleDisconnect}
-                variant="danger"
                 startIcon={<Cross />}
               >
                 Disconnect WhatsApp
-              </Button>
-              <Badge backgroundColor="success600" textColor="neutral0">
+              </DangerButton>
+              <Badge backgroundColor="success600" textColor="neutral0" style={{ padding: '8px 16px', fontSize: '13px' }}>
                 FREE - No API costs!
               </Badge>
             </ButtonRow>

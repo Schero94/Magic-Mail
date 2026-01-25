@@ -125,6 +125,43 @@ const CloseButton = styled.button`
   }
 `;
 
+const GradientButton = styled(Button)`
+  && {
+    background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+    color: white;
+    font-weight: 600;
+    border: none;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+    padding: 12px 24px;
+    min-height: 44px;
+    
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0284C7 0%, #9333EA 100%);
+      box-shadow: 0 6px 16px rgba(14, 165, 233, 0.5);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+`;
+
+const SecondaryStyledButton = styled(Button)`
+  && {
+    background: #f0f9ff;
+    color: #0EA5E9;
+    font-weight: 600;
+    border: 2px solid #0EA5E9;
+    padding: 12px 24px;
+    min-height: 44px;
+    
+    &:hover:not(:disabled) {
+      background: #e0f2fe;
+    }
+  }
+`;
+
 const ToggleButton = styled.button`
   background: none;
   border: none;
@@ -425,39 +462,25 @@ const LicenseGuard = ({ children }) => {
 
                 <Flex gap={3} justifyContent="center" style={{ marginTop: '16px' }}>
                   {useExistingKey ? (
-                    <Button
+                    <GradientButton
                       type="submit"
                       size="L"
                       startIcon={<CheckIcon style={{ width: 20, height: 20 }} />}
                       loading={isCreating}
                       disabled={isCreating || !existingLicenseKey.trim() || !existingEmail.trim()}
-                      style={{
-                        background: 'linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%)',
-                        color: 'white',
-                        fontWeight: '600',
-                        border: 'none',
-                        boxShadow: '0 4px 12px rgba(14, 165, 233, 0.4)',
-                      }}
                     >
                       Validate License
-                    </Button>
+                    </GradientButton>
                   ) : (
-                    <Button
+                    <GradientButton
                       type="submit"
                       size="L"
                       startIcon={<CheckIcon style={{ width: 20, height: 20 }} />}
                       loading={isCreating}
                       disabled={isCreating || !adminUser}
-                      style={{
-                        background: 'linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%)',
-                        color: 'white',
-                        fontWeight: '600',
-                        border: 'none',
-                        boxShadow: '0 4px 12px rgba(14, 165, 233, 0.4)',
-                      }}
                     >
                       Activate License
-                    </Button>
+                    </GradientButton>
                   )}
                 </Flex>
               </Flex>

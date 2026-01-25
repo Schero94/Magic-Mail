@@ -5,7 +5,6 @@ import { useLicense } from '../hooks/useLicense';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
-  Button,
   Flex,
   Typography,
   Loader,
@@ -26,6 +25,7 @@ import {
   MagnifyingGlassIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
+import { GradientButton, TertiaryButton, DangerButton } from '../components/StyledButtons';
 
 // ================ THEME (kopiert von TemplateList) ================
 const theme = {
@@ -508,20 +508,11 @@ const Analytics = () => {
             <Typography variant="omega" textColor="neutral600" style={{ marginBottom: '32px', lineHeight: '1.6', display: 'block' }}>
               Upgrade to Premium to unlock email analytics, tracking, open rates, click rates, and detailed reports about your email campaigns.
             </Typography>
-            <Button
+            <GradientButton
               onClick={() => window.location.href = '/admin/settings/magic-mail/upgrade'}
-              variant="default"
-              style={{
-                background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)',
-                color: 'white',
-                border: 'none',
-                padding: '12px 24px',
-                fontSize: '15px',
-                fontWeight: '600',
-              }}
             >
               View Upgrade Plans
-            </Button>
+            </GradientButton>
           </EmptyContent>
         </EmptyState>
       </Container>
@@ -604,14 +595,13 @@ const Analytics = () => {
               style={{ maxWidth: '300px' }}
             />
             {emailLogs.length > 0 && (
-              <Button
-                variant="danger-light"
-                startIcon={<TrashIcon />}
+              <DangerButton
+                startIcon={<TrashIcon style={{ width: 16, height: 16 }} />}
                 onClick={() => setShowClearDialog(true)}
                 disabled={isDeleting}
               >
                 Clear All
-              </Button>
+              </DangerButton>
             )}
           </Flex>
         </Flex>
@@ -736,21 +726,19 @@ const Analytics = () => {
           </Modal.Body>
           <Modal.Footer>
             <Flex justifyContent="flex-end" gap={2}>
-              <Button
-                variant="tertiary"
+              <TertiaryButton
                 onClick={() => setShowClearDialog(false)}
                 disabled={isDeleting}
               >
                 Cancel
-              </Button>
-              <Button
-                variant="danger"
+              </TertiaryButton>
+              <DangerButton
                 onClick={handleClearAll}
                 loading={isDeleting}
-                startIcon={<TrashIcon />}
+                startIcon={<TrashIcon style={{ width: 16, height: 16 }} />}
               >
                 Delete All
-              </Button>
+              </DangerButton>
             </Flex>
           </Modal.Footer>
         </Modal.Content>

@@ -9,6 +9,7 @@ const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const test = require('./test');
 const whatsapp = require('./whatsapp');
+const pluginSettings = require('./plugin-settings');
 
 module.exports = {
   controller,
@@ -20,4 +21,5 @@ module.exports = {
   analytics,
   test,
   whatsapp,
+  pluginSettings,
 };

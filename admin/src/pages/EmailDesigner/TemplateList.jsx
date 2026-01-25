@@ -14,6 +14,7 @@ import {
   Tabs,
   Divider,
   Modal,
+  Accordion,
 } from '@strapi/design-system';
 import { Table, Thead, Tbody, Tr, Th, Td } from '@strapi/design-system';
 import {
@@ -36,6 +37,18 @@ import {
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 import { useLicense } from '../../hooks/useLicense';
+import { 
+  GradientButton, 
+  SecondaryButton, 
+  TertiaryButton,
+  CTAButton,
+  IconButton,
+  IconButtonDanger,
+  IconButtonPrimary,
+  IconButtonSuccess,
+  IconButtonWarning,
+  IconButtonPurple,
+} from '../../components/StyledButtons';
 
 // ================ THEME (Exact copy from RoutingRules) ================
 const theme = {
@@ -87,7 +100,8 @@ const FloatingEmoji = styled.div`
 const ScrollableDialogBody = styled(Box)`
   overflow-y: auto;
   max-height: calc(85vh - 160px);
-  padding: 0 24px 24px 24px;
+  padding: 24px 28px 28px 28px;
+  background: ${props => props.theme.colors.neutral0};
 
   /* Custom Scrollbar */
   &::-webkit-scrollbar {
@@ -533,8 +547,35 @@ const StyledSearchInput = styled(TextInput)`
   padding-left: 36px;
 `;
 
+const TableWrapper = styled(Box)`
+  overflow-x: auto;
+  border-radius: ${theme.borderRadius.lg};
+  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: ${props => props.theme.colors.neutral0};
+  
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: ${props => props.theme.colors.neutral100};
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.neutral300};
+    border-radius: 4px;
+    
+    &:hover {
+      background: ${props => props.theme.colors.neutral400};
+    }
+  }
+`;
+
 const StyledTable = styled(Table)`
   width: 100%;
+  min-width: 900px;
+  
   thead {
     background: ${props => props.theme.colors.neutral100};
     border-bottom: 2px solid ${props => props.theme.colors.neutral200};
@@ -542,10 +583,11 @@ const StyledTable = styled(Table)`
     th {
       font-weight: 600;
       color: ${props => props.theme.colors.neutral800};
-      font-size: 0.875rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: 12px 16px;
+      white-space: nowrap;
     }
   }
   
@@ -562,10 +604,42 @@ const StyledTable = styled(Table)`
     }
     
     td {
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: 10px 12px;
       color: ${props => props.theme.colors.neutral800};
       vertical-align: middle;
+      font-size: 13px;
     }
+  }
+`;
+
+const PaginationWrapper = styled(Flex)`
+  padding: 16px 20px;
+  background: ${props => props.theme.colors.neutral100};
+  border-top: 1px solid ${props => props.theme.colors.neutral200};
+  border-radius: 0 0 ${theme.borderRadius.lg} ${theme.borderRadius.lg};
+`;
+
+const PaginationButton = styled.button`
+  background: ${props => props.active ? 'linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%)' : 'white'};
+  color: ${props => props.active ? 'white' : props.theme.colors.neutral700};
+  border: 1px solid ${props => props.active ? 'transparent' : props.theme.colors.neutral300};
+  padding: 6px 12px;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: ${props => props.active ? 'linear-gradient(135deg, #0284C7 0%, #9333EA 100%)' : props.theme.colors.neutral100};
+    border-color: ${props => props.active ? 'transparent' : props.theme.colors.neutral400};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -670,6 +744,130 @@ const HiddenFileInput = styled.input`
   display: none;
 `;
 
+// ================ MODAL STYLED COMPONENTS ================
+const StyledModalContent = styled(Modal.Content)`
+  && {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    max-width: 480px;
+  }
+`;
+
+const StyledModalHeader = styled(Modal.Header)`
+  && {
+    background: linear-gradient(135deg, ${theme.colors.primary[500]} 0%, ${theme.colors.secondary[500]} 100%);
+    padding: 24px 28px;
+    border-bottom: none;
+    
+    h2 {
+      color: white;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    
+    /* Close button styling */
+    button {
+      color: white !important;
+      opacity: 0.9;
+      background: rgba(255, 255, 255, 0.15) !important;
+      border-radius: 8px;
+      
+      &:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.25) !important;
+      }
+      
+      svg {
+        fill: white !important;
+        color: white !important;
+        
+        path {
+          fill: white !important;
+        }
+      }
+    }
+  }
+`;
+
+const StyledModalBody = styled(Modal.Body)`
+  && {
+    padding: 28px;
+    background: ${props => props.theme.colors.neutral0};
+  }
+`;
+
+const ModalField = styled(Box)`
+  margin-bottom: 20px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const ModalLabel = styled(Typography)`
+  && {
+    font-weight: 600;
+    font-size: 13px;
+    color: ${props => props.theme.colors.neutral700};
+    margin-bottom: 8px;
+    display: block;
+  }
+`;
+
+const ModalHint = styled(Typography)`
+  && {
+    font-size: 12px;
+    color: ${props => props.theme.colors.neutral600};
+    margin-top: 6px;
+    display: block;
+  }
+`;
+
+const ModalTemplateInfo = styled(Box)`
+  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${theme.colors.secondary[50]} 100%);
+  border: 1px solid ${theme.colors.primary[100]};
+  border-radius: 10px;
+  padding: 14px 16px;
+  
+  p {
+    margin: 0;
+    font-weight: 500;
+    color: ${props => props.theme.colors.neutral800};
+  }
+`;
+
+const StyledSelect = styled.select`
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid ${props => props.theme.colors.neutral200};
+  font-size: 14px;
+  background: ${props => props.theme.colors.neutral0};
+  cursor: pointer;
+  transition: all ${theme.transitions.fast};
+  color: ${props => props.theme.colors.neutral700};
+  
+  &:hover {
+    border-color: ${theme.colors.primary[500]};
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: ${theme.colors.primary[500]};
+    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+  }
+`;
+
+const StyledModalFooter = styled(Modal.Footer)`
+  && {
+    padding: 20px 28px;
+    background: ${props => props.theme.colors.neutral100};
+    border-top: 1px solid ${props => props.theme.colors.neutral200};
+    gap: 12px;
+  }
+`;
+
 const TemplateList = () => {
   const { get, del, post } = useFetchClient();
   const { toggleNotification } = useNotification();
@@ -688,6 +886,8 @@ const TemplateList = () => {
   const [limits, setLimits] = useState(null);
   const [showTestSendModal, setShowTestSendModal] = useState(false);
   const [testEmail, setTestEmail] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [testAccount, setTestAccount] = useState('');
   const [accounts, setAccounts] = useState([]);
   const fileInputRef = useRef(null);
@@ -1027,6 +1227,16 @@ const TemplateList = () => {
       t.templateReferenceId.toString().includes(searchTerm)
   );
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredTemplates.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedTemplates = filteredTemplates.slice(startIndex, startIndex + itemsPerPage);
+  
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   // Optimistic UI - show skeleton while loading
   const showSkeleton = loading && templates.length === 0;
 
@@ -1220,22 +1430,20 @@ const TemplateList = () => {
             
             {/* Action Buttons */}
             <EmptyButtonGroup>
-              <Button 
+              <CTAButton 
                 startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
                 onClick={handleCreateTemplate}
-                size="L"
               >
                 Create Your First Template
-              </Button>
+              </CTAButton>
               
               {canImport && (
-                <Button
+                <SecondaryButton
                   startIcon={<ArrowUpTrayIcon style={{ width: 20, height: 20 }} />}
                   onClick={() => fileInputRef.current?.click()}
-                  size="L"
                 >
                   Import Template
-                </Button>
+                </SecondaryButton>
               )}
             </EmptyButtonGroup>
           </EmptyContent>
@@ -1247,13 +1455,12 @@ const TemplateList = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 Email Templates
               </Typography>
-              <Button 
+              <GradientButton 
                 startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
                 onClick={handleCreateTemplate}
-                size="L"
               >
                 Create Template
-              </Button>
+              </GradientButton>
             </Flex>
           </SectionHeader>
 
@@ -1270,49 +1477,44 @@ const TemplateList = () => {
             </SearchInputWrapper>
 
             {canImport && (
-              <Button
-                startIcon={<ArrowUpTrayIcon style={{ width: 20, height: 20 }} />}
+              <SecondaryButton
+                startIcon={<ArrowUpTrayIcon style={{ width: 16, height: 16 }} />}
                 onClick={() => fileInputRef.current?.click()}
-                size="L"
               >
                 Import
-              </Button>
+              </SecondaryButton>
             )}
 
             {canExport && (
-              <Button 
-                startIcon={<ArrowDownTrayIcon style={{ width: 20, height: 20 }} />} 
+              <TertiaryButton 
+                startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />} 
                 onClick={handleExport} 
                 disabled={templates.length === 0}
-                size="L"
               >
                 Export
-              </Button>
+              </TertiaryButton>
             )}
           </FilterBar>
 
           {/* Templates Table */}
           {filteredTemplates.length > 0 ? (
-            <Box>
-              <StyledTable colCount={6} rowCount={filteredTemplates.length}>
+            <TableWrapper>
+              <StyledTable colCount={5} rowCount={paginatedTemplates.length}>
             <Thead>
               <Tr>
-                <Th>
+                <Th style={{ width: '100px' }}>
                   <Typography variant="sigma">ID</Typography>
                 </Th>
                 <Th>
                   <Typography variant="sigma">Name</Typography>
                 </Th>
-                <Th>
-                  <Typography variant="sigma">Subject</Typography>
-                </Th>
-                <Th>
+                <Th style={{ width: '100px' }}>
                   <Typography variant="sigma">Category</Typography>
                 </Th>
-                <Th>
+                <Th style={{ width: '80px' }}>
                   <Typography variant="sigma">Status</Typography>
                 </Th>
-                <Th>
+                <Th style={{ width: '260px' }}>
                   <Box style={{ textAlign: 'right', width: '100%' }}>
                     <Typography variant="sigma">Actions</Typography>
                   </Box>
@@ -1320,21 +1522,16 @@ const TemplateList = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredTemplates.map((template) => (
+              {paginatedTemplates.map((template) => (
                 <Tr key={template.id}>
                   <Td>
-                    <Typography variant="omega" fontWeight="bold">
+                    <Typography variant="omega" fontWeight="bold" style={{ fontSize: '13px' }}>
                       #{template.templateReferenceId}
                     </Typography>
                   </Td>
                   <Td>
-                    <Typography variant="omega" fontWeight="semiBold">
+                    <Typography variant="omega" fontWeight="semiBold" style={{ fontSize: '13px' }}>
                       {template.name}
-                    </Typography>
-                  </Td>
-                  <Td>
-                    <Typography variant="omega" textColor="neutral600">
-                      {template.subject}
                     </Typography>
                   </Td>
                   <Td>{getCategoryBadge(template.category)}</Td>
@@ -1345,79 +1542,129 @@ const TemplateList = () => {
                   </Td>
                   <Td>
                     <Flex gap={2} justifyContent="flex-end">
-                      <Button
-                        variant="secondary"
+                      <IconButtonPrimary
                         onClick={() =>
                           navigate(`/plugins/magic-mail/designer/${template.id}`)
                         }
-                        size="S"
                         aria-label="Edit Template"
+                        title="Edit Template"
                       >
-                        <PencilIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="secondary"
+                        <PencilIcon />
+                      </IconButtonPrimary>
+                      <IconButton
                         onClick={() => handleDownload(template.id, 'html')}
-                        size="S"
                         aria-label="Download HTML"
                         title="Download as HTML"
                       >
-                        <DocumentArrowDownIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="secondary"
+                        <DocumentArrowDownIcon />
+                      </IconButton>
+                      <IconButton
                         onClick={() => handleDownload(template.id, 'json')}
-                        size="S"
                         aria-label="Download JSON"
                         title="Download as JSON"
                       >
-                        <CodeBracketIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="secondary"
+                        <CodeBracketIcon />
+                      </IconButton>
+                      <IconButton
                         onClick={() => handleDuplicate(template.id, template.name)}
-                        size="S"
                         aria-label="Duplicate Template"
                         title="Duplicate Template"
                       >
-                        <DocumentDuplicateIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="secondary"
+                        <DocumentDuplicateIcon />
+                      </IconButton>
+                      <IconButtonPurple
                         onClick={() => {
                           setSelectedTemplate(template);
                           setShowCodeExample(true);
                         }}
-                        size="S"
                         aria-label="Code Example"
                         title="View Code Example"
                       >
-                        <BoltIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="success-light"
+                        <BoltIcon />
+                      </IconButtonPurple>
+                      <IconButtonSuccess
                         onClick={() => handleTestSend(template)}
-                        size="S"
                         aria-label="Send Test Email"
                         title="Send Test Email"
                       >
-                        <PaperAirplaneIcon style={{ width: 16, height: 16 }} />
-                      </Button>
-                      <Button
-                        variant="danger-light"
+                        <PaperAirplaneIcon />
+                      </IconButtonSuccess>
+                      <IconButtonDanger
                         onClick={() => handleDelete(template.id, template.name)}
-                        size="S"
                         aria-label="Delete Template"
+                        title="Delete Template"
                       >
-                        <TrashIcon style={{ width: 16, height: 16 }} />
-                      </Button>
+                        <TrashIcon />
+                      </IconButtonDanger>
                     </Flex>
                   </Td>
                 </Tr>
               ))}
             </Tbody>
           </StyledTable>
-        </Box>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <PaginationWrapper justifyContent="space-between" alignItems="center">
+              <Flex gap={3} alignItems="center">
+                <Typography variant="pi" textColor="neutral600">
+                  Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredTemplates.length)} of {filteredTemplates.length}
+                </Typography>
+                <Flex gap={2} alignItems="center">
+                  <Typography variant="pi" textColor="neutral600">per page:</Typography>
+                  <StyledSelect
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    style={{ width: '70px', padding: '4px 8px', fontSize: '12px' }}
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </StyledSelect>
+                </Flex>
+              </Flex>
+              <Flex gap={2}>
+                <PaginationButton
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </PaginationButton>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <PaginationButton
+                      key={pageNum}
+                      active={currentPage === pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </PaginationButton>
+                  );
+                })}
+                <PaginationButton
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </PaginationButton>
+              </Flex>
+            </PaginationWrapper>
+          )}
+        </TableWrapper>
       ) : (
         <Box
           background="neutral100"
@@ -1492,16 +1739,15 @@ const TemplateList = () => {
                       </Td>
                       <Td>
                         <Flex gap={2} justifyContent="flex-end">
-                          <Button
-                            variant="secondary"
+                          <IconButtonPrimary
                             onClick={() =>
                               navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
                             }
-                            size="S"
                             aria-label="Edit Core Email"
+                            title="Edit Template"
                           >
-                            <PencilIcon style={{ width: 16, height: 16 }} />
-                          </Button>
+                            <PencilIcon />
+                          </IconButtonPrimary>
                         </Flex>
                       </Td>
                     </Tr>
@@ -1521,86 +1767,106 @@ const TemplateList = () => {
             width: '90vw',
             maxHeight: '85vh',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            borderRadius: '16px',
+            overflow: 'hidden'
           }}>
-            <Modal.Header style={{ borderBottom: '1px solid #E5E7EB', paddingBottom: '16px' }}>
-              <Flex alignItems="center" gap={2}>
-                <BoltIcon style={{ width: 24, height: 24, color: theme.colors.primary[600] }} />
-                <Typography variant="beta" textColor="neutral800">
-                  Send Template: {selectedTemplate.name}
-                </Typography>
-              </Flex>
-            </Modal.Header>
+            <StyledModalHeader>
+              <Modal.Title>Code Snippets: {selectedTemplate.name}</Modal.Title>
+            </StyledModalHeader>
             <ScrollableDialogBody>
-              {/* Native Strapi Email Service (RECOMMENDED) */}
-              <CodeSection>
-                <CodeHeader>
-                  <CodeLabel variant="omega">
-                    <CheckCircleIcon style={{ width: 20, height: 20, color: theme.colors.success[600] }} />
-                    Native Strapi Email Service
-                  </CodeLabel>
-                  <RecommendedBadge>Empfohlen</RecommendedBadge>
-                </CodeHeader>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px' }}>
-                  Nutze die standard Strapi Email-Funktion. MagicMail fängt sie automatisch ab und wendet alle Features an.
-                </Typography>
-                <CodeBlockWrapper>
-                  <CodeBlock dangerouslySetInnerHTML={{ __html: 
-`<span class="comment">// Überall in deinem Strapi Backend:</span>
+              {/* Template Info Header */}
+              <InfoBox style={{ marginTop: 0, marginBottom: '20px' }}>
+                <Flex alignItems="center" justifyContent="space-between">
+                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
+                    <strong>Template ID:</strong> #{selectedTemplate.templateReferenceId}
+                  </Typography>
+                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
+                    <strong>Status:</strong> {selectedTemplate.isActive ? 'Active' : 'Inactive'}
+                  </Typography>
+                </Flex>
+              </InfoBox>
+
+              {!selectedTemplate.isActive && (
+                <WarningBox style={{ marginTop: 0, marginBottom: '20px' }}>
+                  <SparklesIcon style={{ width: 20, height: 20, color: theme.colors.warning[600] }} />
+                  <Typography variant="pi" style={{ color: theme.colors.warning[700], fontWeight: 500 }}>
+                    This template is currently <strong>INACTIVE</strong> and will not be sent.
+                  </Typography>
+                </WarningBox>
+              )}
+
+              <Accordion.Root defaultValue="native" collapsible>
+                {/* Native Strapi Email Service (RECOMMENDED) */}
+                <Accordion.Item value="native">
+                  <Accordion.Header>
+                    <Accordion.Trigger icon={() => <CheckCircleIcon style={{ width: 16, height: 16, color: theme.colors.success[600] }} />}>
+                      <Flex gap={2} alignItems="center">
+                        Native Strapi Email Service
+                        <RecommendedBadge>Recommended</RecommendedBadge>
+                      </Flex>
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content>
+                    <Box padding={4}>
+                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', display: 'block' }}>
+                        Use the standard Strapi Email function. MagicMail intercepts it automatically and applies all features.
+                      </Typography>
+                      <CodeBlockWrapper>
+                        <CodeBlock dangerouslySetInnerHTML={{ __html: 
+`<span class="comment">// Anywhere in your Strapi backend:</span>
 <span class="keyword">await</span> strapi.plugins.email.services.email.<span class="function">send</span>({
   <span class="keyword">to</span>: <span class="string">'user@example.com'</span>,
-  <span class="keyword">subject</span>: <span class="string">'Dein Betreff'</span>, <span class="comment">// Optional (wird von Template überschrieben)</span>
-  <span class="keyword">templateId</span>: <span class="number">${selectedTemplate.templateReferenceId}</span>, <span class="comment">// ← Template ID</span>
+  <span class="keyword">subject</span>: <span class="string">'Your Subject'</span>, <span class="comment">// Optional (overridden by template)</span>
+  <span class="keyword">templateId</span>: <span class="number">${selectedTemplate.templateReferenceId}</span>, <span class="comment">// Template ID</span>
   <span class="keyword">data</span>: {
     <span class="keyword">name</span>: <span class="string">'John Doe'</span>,
     <span class="keyword">code</span>: <span class="string">'123456'</span>,
-    <span class="comment">// ... deine dynamischen Variablen</span>
+    <span class="comment">// ... your dynamic variables</span>
   }
-});
-
-<span class="comment">// MagicMail fängt das automatisch ab und:</span>
-<span class="comment">// 1. Rendert das Template mit deinen Daten</span>
-<span class="comment">// 2. Routet über die richtige Email-Account</span>
-<span class="comment">// 3. Tracked Opens & Clicks (wenn aktiviert)</span>`
-                  }} />
-                  <CopyButton
-                    size="S"
-                    variant="ghost"
-                    onClick={() => handleCopyCode(
+});`
+                        }} />
+                        <CopyButton
+                          size="S"
+                          variant="ghost"
+                          onClick={() => handleCopyCode(
 `await strapi.plugins.email.services.email.send({
   to: 'user@example.com',
-  subject: 'Dein Betreff',
+  subject: 'Your Subject',
   templateId: ${selectedTemplate.templateReferenceId},
   data: {
     name: 'John Doe',
     code: '123456'
   }
 });`,
-                      'native'
-                    )}
-                  >
-                    {copiedCode === 'native' ? (
-                      <><CheckIcon /> Kopiert!</>
-                    ) : (
-                      <><ClipboardDocumentIcon /> Kopieren</>
-                    )}
-                  </CopyButton>
-                </CodeBlockWrapper>
-              </CodeSection>
+                            'native'
+                          )}
+                        >
+                          {copiedCode === 'native' ? (
+                            <><CheckIcon /> Copied!</>
+                          ) : (
+                            <><ClipboardDocumentIcon /> Copy</>
+                          )}
+                        </CopyButton>
+                      </CodeBlockWrapper>
+                    </Box>
+                  </Accordion.Content>
+                </Accordion.Item>
 
-              {/* MagicMail Plugin Service (Alternative) */}
-              <CodeSection>
-                <CodeHeader>
-                  <CodeLabel variant="omega">
-                    <CodeBracketIcon style={{ width: 20, height: 20, color: theme.colors.primary[600] }} />
-                    MagicMail Plugin Service
-                  </CodeLabel>
-                </CodeHeader>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px' }}>
-                  Direkter Zugriff auf den MagicMail Service für erweiterte Optionen.
-                </Typography>
-                <CodeBlockWrapper>
-                  <CodeBlock dangerouslySetInnerHTML={{ __html: 
+                {/* MagicMail Plugin Service */}
+                <Accordion.Item value="plugin">
+                  <Accordion.Header>
+                    <Accordion.Trigger icon={() => <CodeBracketIcon style={{ width: 16, height: 16, color: theme.colors.primary[600] }} />}>
+                      MagicMail Plugin Service
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content>
+                    <Box padding={4}>
+                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', display: 'block' }}>
+                        Direct access to the MagicMail service for advanced options.
+                      </Typography>
+                      <CodeBlockWrapper>
+                        <CodeBlock dangerouslySetInnerHTML={{ __html: 
 `<span class="comment">// Inside Strapi backend</span>
 <span class="keyword">await</span> strapi.<span class="function">plugin</span>(<span class="string">'magic-mail'</span>)
   .<span class="function">service</span>(<span class="string">'email-router'</span>)
@@ -1612,11 +1878,11 @@ const TemplateList = () => {
       <span class="keyword">code</span>: <span class="string">'123456'</span>
     }
   });`
-                  }} />
-                  <CopyButton
-                    size="S"
-                    variant="ghost"
-                    onClick={() => handleCopyCode(
+                        }} />
+                        <CopyButton
+                          size="S"
+                          variant="ghost"
+                          onClick={() => handleCopyCode(
 `await strapi.plugin('magic-mail')
   .service('email-router')
   .send({
@@ -1627,31 +1893,34 @@ const TemplateList = () => {
       code: '123456'
     }
   });`,
-                      'plugin'
-                    )}
-                  >
-                    {copiedCode === 'plugin' ? (
-                      <><CheckIcon /> Kopiert!</>
-                    ) : (
-                      <><ClipboardDocumentIcon /> Kopieren</>
-                    )}
-                  </CopyButton>
-                </CodeBlockWrapper>
-              </CodeSection>
-                
-              {/* REST API / External */}
-              <CodeSection>
-                <CodeHeader>
-                  <CodeLabel variant="omega">
-                    <DocumentArrowDownIcon style={{ width: 20, height: 20, color: theme.colors.secondary[600] }} />
-                    REST API
-                  </CodeLabel>
-                </CodeHeader>
-                <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px' }}>
-                  Für externe Anwendungen, Frontend-Calls oder Postman Tests.
-                </Typography>
-                <CodeBlockWrapper>
-                  <CodeBlock dangerouslySetInnerHTML={{ __html: 
+                            'plugin'
+                          )}
+                        >
+                          {copiedCode === 'plugin' ? (
+                            <><CheckIcon /> Copied!</>
+                          ) : (
+                            <><ClipboardDocumentIcon /> Copy</>
+                          )}
+                        </CopyButton>
+                      </CodeBlockWrapper>
+                    </Box>
+                  </Accordion.Content>
+                </Accordion.Item>
+
+                {/* REST API */}
+                <Accordion.Item value="rest">
+                  <Accordion.Header>
+                    <Accordion.Trigger icon={() => <DocumentArrowDownIcon style={{ width: 16, height: 16, color: theme.colors.secondary[600] }} />}>
+                      REST API (cURL)
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content>
+                    <Box padding={4}>
+                      <Typography variant="pi" textColor="neutral600" style={{ marginBottom: '16px', display: 'block' }}>
+                        For external applications, frontend calls, or Postman tests.
+                      </Typography>
+                      <CodeBlockWrapper>
+                        <CodeBlock dangerouslySetInnerHTML={{ __html: 
 `curl -X POST http://localhost:1337/api/magic-mail/send \\
   -H <span class="string">"Content-Type: application/json"</span> \\
   -H <span class="string">"Authorization: Bearer YOUR_API_TOKEN"</span> \\
@@ -1663,11 +1932,11 @@ const TemplateList = () => {
       "code": "123456"
     }
   }'</span>`
-                  }} />
-                  <CopyButton
-                    size="S"
-                    variant="ghost"
-                    onClick={() => handleCopyCode(
+                        }} />
+                        <CopyButton
+                          size="S"
+                          variant="ghost"
+                          onClick={() => handleCopyCode(
 `curl -X POST http://localhost:1337/api/magic-mail/send \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_API_TOKEN" \\
@@ -1679,119 +1948,84 @@ const TemplateList = () => {
       "code": "123456"
     }
   }'`,
-                      'curl'
-                    )}
-                  >
-                    {copiedCode === 'curl' ? (
-                      <><CheckIcon /> Kopiert!</>
-                    ) : (
-                      <><ClipboardDocumentIcon /> Kopieren</>
-                    )}
-                  </CopyButton>
-                </CodeBlockWrapper>
-              </CodeSection>
-                
-              {/* Template Info */}
-              <InfoBox>
-                <Flex alignItems="center" justifyContent="space-between">
-                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
-                    <strong>Template ID:</strong> #{selectedTemplate.templateReferenceId}
-                  </Typography>
-                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
-                    <strong>Name:</strong> {selectedTemplate.name}
-                  </Typography>
-                </Flex>
-              </InfoBox>
-
-              {!selectedTemplate.isActive && (
-                <WarningBox>
-                  <SparklesIcon style={{ width: 20, height: 20, color: theme.colors.warning[600] }} />
-                  <Typography variant="pi" style={{ color: theme.colors.warning[700], fontWeight: 500 }}>
-                    Dieses Template ist derzeit <strong>INAKTIV</strong> und wird nicht versendet.
-                  </Typography>
-                </WarningBox>
-              )}
+                            'curl'
+                          )}
+                        >
+                          {copiedCode === 'curl' ? (
+                            <><CheckIcon /> Copied!</>
+                          ) : (
+                            <><ClipboardDocumentIcon /> Copy</>
+                          )}
+                        </CopyButton>
+                      </CodeBlockWrapper>
+                    </Box>
+                  </Accordion.Content>
+                </Accordion.Item>
+              </Accordion.Root>
             </ScrollableDialogBody>
-            <Modal.Footer>
-              <Button onClick={() => setShowCodeExample(false)} variant="secondary">
-                Schließen
-              </Button>
-            </Modal.Footer>
+            <StyledModalFooter>
+              <TertiaryButton onClick={() => setShowCodeExample(false)}>
+                Close
+              </TertiaryButton>
+            </StyledModalFooter>
           </Modal.Content>
         </Modal.Root>
       )}
 
       {/* Test Send Modal */}
       <Modal.Root open={showTestSendModal} onOpenChange={setShowTestSendModal}>
-        <Modal.Content>
-          <Modal.Header>
+        <StyledModalContent>
+          <StyledModalHeader>
             <Modal.Title>Send Test Email</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <Flex direction="column" gap={4}>
-              <Box>
-                <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                  Template
-                </Typography>
-                <Typography variant="omega" textColor="neutral600">
-                  {selectedTemplate?.name}
-                </Typography>
-              </Box>
+          </StyledModalHeader>
+          <StyledModalBody>
+            <ModalField>
+              <ModalLabel>Template</ModalLabel>
+              <ModalTemplateInfo>
+                <Typography variant="omega">{selectedTemplate?.name}</Typography>
+              </ModalTemplateInfo>
+            </ModalField>
 
-              <Box>
-                <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                  Recipient Email *
-                </Typography>
-                <TextInput
-                  placeholder="test@example.com"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  type="email"
-                />
-              </Box>
+            <ModalField>
+              <ModalLabel>Recipient Email *</ModalLabel>
+              <TextInput
+                placeholder="test@example.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                type="email"
+              />
+            </ModalField>
 
-              <Box>
-                <Typography variant="pi" fontWeight="bold" style={{ marginBottom: '8px', display: 'block' }}>
-                  Send from Account (optional)
-                </Typography>
-                <select
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    border: '1px solid #dcdce4',
-                    fontSize: '14px',
-                    backgroundColor: 'white',
-                    cursor: 'pointer',
-                  }}
-                  value={testAccount}
-                  onChange={(e) => setTestAccount(e.target.value)}
-                >
-                  <option value="">Auto-select best account</option>
-                  {accounts
-                    .filter(acc => acc.isActive)
-                    .map(account => (
-                      <option key={account.name} value={account.name}>
-                        {account.name} ({account.provider})
-                      </option>
-                    ))}
-                </select>
-                <Typography variant="pi" textColor="neutral600" style={{ marginTop: '8px', display: 'block' }}>
-                  Leave empty to use smart routing
-                </Typography>
-              </Box>
-            </Flex>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button onClick={() => setShowTestSendModal(false)} variant="tertiary">
+            <ModalField>
+              <ModalLabel>Send from Account (optional)</ModalLabel>
+              <StyledSelect
+                value={testAccount}
+                onChange={(e) => setTestAccount(e.target.value)}
+              >
+                <option value="">Auto-select best account</option>
+                {accounts
+                  .filter(acc => acc.isActive)
+                  .map(account => (
+                    <option key={account.name} value={account.name}>
+                      {account.name} ({account.provider})
+                    </option>
+                  ))}
+              </StyledSelect>
+              <ModalHint>Leave empty to use smart routing</ModalHint>
+            </ModalField>
+          </StyledModalBody>
+          <StyledModalFooter>
+            <TertiaryButton onClick={() => setShowTestSendModal(false)}>
               Cancel
-            </Button>
-            <Button onClick={sendTestEmail} variant="default">
-              <PaperAirplaneIcon style={{ width: 16, height: 16, marginRight: '6px' }} />
+            </TertiaryButton>
+            <GradientButton 
+              onClick={sendTestEmail}
+              startIcon={<PaperAirplaneIcon style={{ width: 16, height: 16 }} />}
+            >
               Send Test Email
-            </Button>
-          </Modal.Footer>
-        </Modal.Content>
+            </GradientButton>
+          </StyledModalFooter>
+        </StyledModalContent>
       </Modal.Root>
 
       <HiddenFileInput 

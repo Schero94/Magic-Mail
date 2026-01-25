@@ -4,7 +4,6 @@ import { useAuthRefresh } from '../hooks/useAuthRefresh';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
-  Button,
   Flex,
   Typography,
   Loader,
@@ -29,6 +28,13 @@ import {
   FunnelIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
+import { 
+  GradientButton, 
+  TertiaryButton, 
+  CTAButton,
+  IconButton,
+  IconButtonDanger,
+} from '../components/StyledButtons';
 
 // ================ THEME (Exact copy from Email Accounts) ================
 const theme = {
@@ -658,13 +664,12 @@ const RoutingRulesPage = () => {
               Create your first routing rule to intelligently route emails based on type, recipient, subject, or custom conditions
             </Typography>
             
-            <Button 
+            <CTAButton 
               startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
               onClick={() => setShowModal(true)}
-              size="L"
             >
               Create First Rule
-            </Button>
+            </CTAButton>
           </Flex>
         </EmptyState>
       ) : (
@@ -674,9 +679,9 @@ const RoutingRulesPage = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 🎯 Routing Rules
               </Typography>
-              <Button startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowModal(true)}>
+              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowModal(true)}>
                 Create Rule
-              </Button>
+              </GradientButton>
             </Flex>
           </Box>
 
@@ -826,22 +831,18 @@ const RoutingRulesPage = () => {
                       {/* Actions */}
                       <Td>
                         <Flex gap={2}>
-                          <Button
-                            variant="secondary"
+                          <IconButton
                             onClick={() => setEditingRule(rule)}
-                            size="S"
                             aria-label="Edit Rule"
                           >
-                            <PencilIcon style={{ width: 16, height: 16 }} />
-                          </Button>
-                          <Button
-                            variant="danger-light"
+                            <PencilIcon />
+                          </IconButton>
+                          <IconButtonDanger
                             onClick={() => deleteRule(rule.id, rule.name)}
-                            size="S"
                             aria-label="Delete Rule"
                           >
-                            <TrashIcon style={{ width: 16, height: 16 }} />
-                          </Button>
+                            <TrashIcon />
+                          </IconButtonDanger>
                         </Flex>
                       </Td>
                     </Tr>
@@ -1163,17 +1164,17 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
 
         <Modal.Footer>
           <Flex justifyContent="flex-end" gap={2} style={{ width: '100%' }}>
-            <Button onClick={onClose} variant="tertiary">
+            <TertiaryButton onClick={onClose}>
               Cancel
-            </Button>
-            <Button
+            </TertiaryButton>
+            <GradientButton
               onClick={handleSubmit}
               loading={loading}
               disabled={!canSubmit}
               startIcon={<CheckIcon style={{ width: 16, height: 16 }} />}
             >
               {isEditMode ? 'Update Rule' : 'Create Rule'}
-            </Button>
+            </GradientButton>
           </Flex>
         </Modal.Footer>
       </Modal.Content>

@@ -17,6 +17,7 @@ import {
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { Mail, Server, Key, ArrowRight, ArrowLeft, Check, Lock, Cloud, Cog, Star } from '@strapi/icons';
+import { GradientButton, SecondaryButton, TertiaryButton } from './StyledButtons';
 
 // ============= ANIMATIONS =============
 const fadeIn = keyframes`
@@ -1901,36 +1902,35 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
           <Flex justifyContent="space-between" style={{ width: '100%' }}>
             <div>
               {currentStep > 1 && (
-                <Button 
-                  variant="tertiary" 
+                <TertiaryButton 
                   startIcon={<ArrowLeft />}
                   onClick={() => setCurrentStep(currentStep - 1)}
                 >
                   Back
-                </Button>
+                </TertiaryButton>
               )}
             </div>
             <Flex gap={2}>
-              <Button onClick={onClose} variant="tertiary">
+              <TertiaryButton onClick={onClose}>
                 Cancel
-              </Button>
+              </TertiaryButton>
               {currentStep < 4 ? (
-                <Button 
+                <GradientButton 
                   endIcon={<ArrowRight />}
                   onClick={() => setCurrentStep(currentStep + 1)}
                   disabled={!canProceed()}
                 >
                   Continue
-                </Button>
+                </GradientButton>
               ) : (
-                <Button 
+                <GradientButton 
                   onClick={handleSubmit} 
                   loading={loading}
                   disabled={!canProceed()}
                   startIcon={<Check />}
                 >
                   {isEditMode ? 'Update Account' : 'Create Account'}
-                </Button>
+                </GradientButton>
               )}
             </Flex>
           </Flex>

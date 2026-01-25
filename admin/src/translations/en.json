@@ -86,6 +86,6 @@
   "whatsapp.phoneHint": "Enter phone number with country code (e.g., 49 for Germany)",
   "whatsapp.message": "Message (optional)",
   "whatsapp.notInstalled": "Dependencies Not Installed",
-  "whatsapp.installCommand": "npm install @whiskeysockets/baileys pino qrcode",
+  "whatsapp.installCommand": "npm install baileys pino qrcode",
   "whatsapp.freeLabel": "FREE - No API costs!"
 }

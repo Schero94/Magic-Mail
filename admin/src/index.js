@@ -37,6 +37,15 @@ export default {
       [
         {
           intlLabel: {
+            id: `${pluginId}.settings.plugin-settings`,
+            defaultMessage: 'Plugin Settings',
+          },
+          id: 'plugin-settings',
+          to: `${pluginId}/plugin-settings`,
+          Component: () => import('./pages/PluginSettings'),
+        },
+        {
+          intlLabel: {
             id: `${pluginId}.settings.upgrade`,
             defaultMessage: 'Upgrade',
           },

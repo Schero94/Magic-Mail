@@ -340,7 +340,12 @@ module.exports = ({ strapi }) => ({
    * Rewrite links for click tracking
    */
   async rewriteLinksForTracking(html, emailId, recipientHash) {
-    const baseUrl = strapi.config.get('server.url') || 'http://localhost:1337';
+    // Get base URL - prefer plugin settings, then server config, then default
+    const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
+    const pluginSettings = await settingsService.getSettings();
+    const baseUrl = pluginSettings.trackingBaseUrl || strapi.config.get('server.url') || 'http://localhost:1337';
+    
+    strapi.log.debug(`[magic-mail] [LINK-TRACK] Using base URL: ${baseUrl}`);
     
     // Get the email log for storing link associations
     const emailLog = await strapi.documents(EMAIL_LOG_UID).findFirst({
@@ -352,35 +357,57 @@ module.exports = ({ strapi }) => ({
       return html;
     }
     
-    // More flexible regex to find links, including those with newlines/whitespace in attributes
-    const linkRegex = /<a\s+[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/gis;
+    // Decode HTML entities first (e.g., &amp; -> &)
+    let processedHtml = html
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"');
+    
+    // More flexible regex to find href attributes in anchor tags
+    // Handles: href="url", href='url', href = "url", multiline attributes
+    const linkRegex = /<a\s+(?:[^>]*?\s+)?href\s*=\s*["']([^"']+)["'][^>]*>/gis;
+    
+    // Also try a simpler pattern if the first one fails
+    const simpleLinkRegex = /href\s*=\s*["'](https?:\/\/[^"']+)["']/gi;
     
     // Collect all link mappings to store
     const linkMappings = [];
     const replacements = [];
+    const processedUrls = new Set(); // Avoid duplicates
     
     let linkCount = 0;
     let match;
     
-    // First pass: collect all links and their replacements
-    while ((match = linkRegex.exec(html)) !== null) {
-      const fullMatch = match[0];
-      const originalUrl = match[1];
+    // First pass: collect all links with primary regex
+    while ((match = linkRegex.exec(processedHtml)) !== null) {
+      const originalUrl = match[1].trim();
+      
+      // Skip if already processed
+      if (processedUrls.has(originalUrl)) continue;
       
       // Debug: Log what we found
       strapi.log.debug(`[magic-mail] [CHECK] Found link: ${originalUrl.substring(0, 100)}${originalUrl.length > 100 ? '...' : ''}`);
       
-      // Skip if already a tracking link or anchor
-      if (originalUrl.startsWith('#') || originalUrl.includes('/track/click/')) {
-        strapi.log.debug(`[magic-mail] [SKIP] Skipping (anchor or already tracked)`);
+      // Skip if already a tracking link, anchor, or mailto/tel
+      if (
+        originalUrl.startsWith('#') || 
+        originalUrl.includes('/track/click/') ||
+        originalUrl.startsWith('mailto:') ||
+        originalUrl.startsWith('tel:') ||
+        originalUrl.startsWith('javascript:')
+      ) {
+        strapi.log.debug(`[magic-mail] [SKIP] Skipping special URL: ${originalUrl.substring(0, 50)}`);
         continue;
       }
 
-      // Skip relative URLs without protocol (internal anchors, relative paths)
-      if (!originalUrl.match(/^https?:\/\//i) && !originalUrl.startsWith('/')) {
-        strapi.log.debug(`[magic-mail] [SKIP] Skipping relative URL: ${originalUrl}`);
+      // Must be an absolute URL with protocol
+      if (!originalUrl.match(/^https?:\/\//i)) {
+        strapi.log.debug(`[magic-mail] [SKIP] Skipping non-http URL: ${originalUrl.substring(0, 50)}`);
         continue;
       }
+
+      processedUrls.add(originalUrl);
 
       // Create link hash - hash the full URL including any query params
       const linkHash = crypto.createHash('md5').update(originalUrl).digest('hex').substring(0, 8);
@@ -391,17 +418,39 @@ module.exports = ({ strapi }) => ({
         originalUrl,
       });
       
-      // Create tracking URL WITHOUT the url query parameter (we'll look it up in the DB instead)
+      // Create tracking URL
       const trackingUrl = `${baseUrl}/api/magic-mail/track/click/${emailId}/${linkHash}/${recipientHash}`;
       
       linkCount++;
-      strapi.log.info(`[magic-mail] [LINK] Link ${linkCount}: ${originalUrl} → ${trackingUrl}`);
+      strapi.log.info(`[magic-mail] [LINK] Link ${linkCount}: ${originalUrl.substring(0, 80)}${originalUrl.length > 80 ? '...' : ''}`);
       
       // Store replacement info
       replacements.push({
         from: originalUrl,
         to: trackingUrl,
       });
+    }
+    
+    // If no links found with primary regex, try simple pattern
+    if (linkCount === 0) {
+      strapi.log.debug(`[magic-mail] [LINK-TRACK] Primary regex found no links, trying simple pattern...`);
+      while ((match = simpleLinkRegex.exec(processedHtml)) !== null) {
+        const originalUrl = match[1].trim();
+        
+        if (processedUrls.has(originalUrl)) continue;
+        if (originalUrl.includes('/track/click/')) continue;
+        
+        processedUrls.add(originalUrl);
+        
+        const linkHash = crypto.createHash('md5').update(originalUrl).digest('hex').substring(0, 8);
+        linkMappings.push({ linkHash, originalUrl });
+        
+        const trackingUrl = `${baseUrl}/api/magic-mail/track/click/${emailId}/${linkHash}/${recipientHash}`;
+        linkCount++;
+        strapi.log.info(`[magic-mail] [LINK] Link ${linkCount} (simple): ${originalUrl.substring(0, 80)}`);
+        
+        replacements.push({ from: originalUrl, to: trackingUrl });
+      }
     }
     
     // Store all link mappings in database
@@ -414,19 +463,29 @@ module.exports = ({ strapi }) => ({
     }
     
     // Apply all replacements - ONLY in href attributes, not in link text!
-    let result = html;
+    let result = html; // Use original HTML for replacement to preserve entities
     for (const replacement of replacements) {
       // Escape special regex characters in the URL
       const escapedFrom = replacement.from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Only replace URLs within href="..." or href='...' attributes
+      // Also handle HTML-encoded version of the URL
+      const escapedFromEncoded = replacement.from
+        .replace(/&/g, '&amp;')
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Replace both plain and HTML-encoded URLs within href attributes
       const hrefRegex = new RegExp(`(href\\s*=\\s*["'])${escapedFrom}(["'])`, 'gi');
+      const hrefRegexEncoded = new RegExp(`(href\\s*=\\s*["'])${escapedFromEncoded}(["'])`, 'gi');
+      
       result = result.replace(hrefRegex, `$1${replacement.to}$2`);
+      result = result.replace(hrefRegexEncoded, `$1${replacement.to}$2`);
     }
     
     if (linkCount > 0) {
       strapi.log.info(`[magic-mail] [SUCCESS] Rewrote ${linkCount} links for click tracking`);
     } else {
-      strapi.log.warn(`[magic-mail] [WARNING]  No links found in email HTML for tracking!`);
+      strapi.log.warn(`[magic-mail] [WARNING] No links found in email HTML for tracking!`);
+      // Debug: Show first 500 chars of HTML to help diagnose
+      strapi.log.debug(`[magic-mail] [DEBUG] HTML preview: ${html.substring(0, 500)}...`);
     }
     
     return result;

@@ -5,14 +5,12 @@ import {
   Badge,
   Flex,
   Alert,
-  Button,
   Loader,
   Accordion,
 } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { 
   ArrowPathIcon,
-  KeyIcon,
   UserIcon,
   ShieldCheckIcon,
   SparklesIcon,
@@ -21,19 +19,7 @@ import {
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import styled, { keyframes, css } from 'styled-components';
-
-// ================ THEME ================
-const theme = {
-  colors: {
-    primary: { 600: '#0EA5E9', 100: '#E0F2FE', 50: '#F0F9FF' },
-    success: { 600: '#16A34A', 50: '#DCFCE7' },
-    warning: { 50: '#FEF3C7' },
-    danger: { 50: '#FEE2E2' },
-    neutral: { 0: '#FFFFFF', 100: '#F3F4F6', 200: '#E5E7EB', 600: '#4B5563', 800: '#1F2937' }
-  },
-  shadows: { sm: '0 1px 3px rgba(0,0,0,0.1)' },
-  borderRadius: { lg: '12px' }
-};
+import { SecondaryButton, WhiteOutlineButton } from '../components/StyledButtons';
 
 // ================ ANIMATIONS ================
 const fadeIn = keyframes`
@@ -64,7 +50,7 @@ const StickySaveBar = styled(Box)`
 
 const LicenseKeyBanner = styled(Box)`
   background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
-  border-radius: ${theme.borderRadius.lg};
+  border-radius: 12px;
   padding: 28px 32px;
   color: white;
   position: relative;
@@ -104,14 +90,18 @@ const LoaderContainer = styled(Flex)`
   gap: 16px;
 `;
 
+
 // ================ MAIN COMPONENT ================
-const LicensePage = () => {
+const LicenseDetailsPage = () => {
   const { get } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [licenseData, setLicenseData] = useState(null);
   const [error, setError] = useState(null);
 
+  /**
+   * Fetch license status from API
+   */
   const fetchLicenseStatus = async () => {
     setLoading(true);
     setError(null);
@@ -127,6 +117,9 @@ const LicensePage = () => {
     }
   };
 
+  /**
+   * Copy license key to clipboard
+   */
   const handleCopyLicenseKey = async () => {
     try {
       await navigator.clipboard.writeText(licenseData?.data?.licenseKey || '');
@@ -142,6 +135,9 @@ const LicensePage = () => {
     }
   };
 
+  /**
+   * Download license key as text file
+   */
   const handleDownloadLicenseKey = () => {
     try {
       const data = licenseData?.data || {};
@@ -152,27 +148,27 @@ const LicensePage = () => {
       const fullName = `${firstName} ${lastName}`.trim() || 'N/A';
       
       const content = `MagicMail - Email Business Suite - License Key
-═══════════════════════════════════════
+===============================================
 
 License Key: ${licenseKey}
 
 License Holder Information:
-──────────────────────────────────────
+----------------------------------------------
 Name:        ${fullName}
 Email:       ${email}
 
 License Status:
-──────────────────────────────────────
+----------------------------------------------
 Status:      ${data.isActive ? 'ACTIVE' : 'INACTIVE'}
 Expires:     ${data.expiresAt ? new Date(data.expiresAt).toLocaleDateString() : 'Never'}
 
 Features:
-──────────────────────────────────────
+----------------------------------------------
 Premium:     ${data.features?.premium ? 'Enabled' : 'Disabled'}
 Advanced:    ${data.features?.advanced ? 'Enabled' : 'Disabled'}
 Enterprise:  ${data.features?.enterprise ? 'Enabled' : 'Disabled'}
 
-═══════════════════════════════════════
+===============================================
 Generated:   ${new Date().toLocaleString()}
 `;
       
@@ -241,19 +237,12 @@ Generated:   ${new Date().toLocaleString()}
               View your MagicMail plugin license
             </Typography>
           </Flex>
-          <Button
-            startIcon={<ArrowPathIcon style={{ width: 20, height: 20 }} />}
+          <SecondaryButton
+            startIcon={<ArrowPathIcon style={{ width: 18, height: 18 }} />}
             onClick={fetchLicenseStatus}
-            size="L"
-            style={{
-              background: 'linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%)',
-              color: 'white',
-              fontWeight: '600',
-              border: 'none',
-            }}
           >
             Refresh Status
-          </Button>
+          </SecondaryButton>
         </Flex>
       </StickySaveBar>
 
@@ -287,34 +276,20 @@ Generated:   ${new Date().toLocaleString()}
                     {data.licenseKey}
                   </Typography>
                   <Flex gap={2}>
-                    <Button
+                    <WhiteOutlineButton
                       onClick={handleCopyLicenseKey}
                       startIcon={<DocumentDuplicateIcon style={{ width: 16, height: 16 }} />}
                       size="S"
-                      variant="secondary"
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontWeight: '600',
-                      }}
                     >
                       Copy Key
-                    </Button>
-                    <Button
+                    </WhiteOutlineButton>
+                    <WhiteOutlineButton
                       onClick={handleDownloadLicenseKey}
                       startIcon={<ArrowDownTrayIcon style={{ width: 16, height: 16 }} />}
                       size="S"
-                      variant="secondary"
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        color: 'white',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        fontWeight: '600',
-                      }}
                     >
                       Download as TXT
-                    </Button>
+                    </WhiteOutlineButton>
                   </Flex>
                 </Box>
                 <Badge
@@ -425,118 +400,65 @@ Generated:   ${new Date().toLocaleString()}
                     <Badge
                       backgroundColor={data.features?.premium ? "success100" : "neutral100"}
                       textColor={data.features?.premium ? "success700" : "neutral600"}
-                      style={{ 
-                        fontSize: '13px', 
-                        fontWeight: '700', 
-                        padding: '8px 16px',
-                        border: data.features?.premium ? '2px solid #dcfce7' : '2px solid #e5e7eb'
-                      }}
+                      style={{ fontSize: '13px', fontWeight: '700', padding: '8px 16px' }}
                     >
-                      {data.features?.premium ? '✓' : '✗'} PREMIUM FEATURES
+                      {data.features?.premium ? '[OK]' : '[X]'} PREMIUM
                     </Badge>
                     <Badge
                       backgroundColor={data.features?.advanced ? "primary100" : "neutral100"}
                       textColor={data.features?.advanced ? "primary700" : "neutral600"}
-                      style={{ 
-                        fontSize: '13px', 
-                        fontWeight: '700', 
-                        padding: '8px 16px',
-                        border: data.features?.advanced ? '2px solid #bae6fd' : '2px solid #e5e7eb'
-                      }}
+                      style={{ fontSize: '13px', fontWeight: '700', padding: '8px 16px' }}
                     >
-                      {data.features?.advanced ? '✓' : '✗'} ADVANCED FEATURES
+                      {data.features?.advanced ? '[OK]' : '[X]'} ADVANCED
                     </Badge>
                     <Badge
                       backgroundColor={data.features?.enterprise ? "secondary100" : "neutral100"}
                       textColor={data.features?.enterprise ? "secondary700" : "neutral600"}
-                      style={{ 
-                        fontSize: '13px', 
-                        fontWeight: '700', 
-                        padding: '8px 16px',
-                        border: data.features?.enterprise ? '2px solid #ddd6fe' : '2px solid #e5e7eb'
-                      }}
+                      style={{ fontSize: '13px', fontWeight: '700', padding: '8px 16px' }}
                     >
-                      {data.features?.enterprise ? '✓' : '✗'} ENTERPRISE FEATURES
+                      {data.features?.enterprise ? '[OK]' : '[X]'} ENTERPRISE
                     </Badge>
                   </Flex>
                   
                   {/* Premium Features */}
                   {data.features?.premium && (
-                    <Box marginBottom={5} padding={5} background="success50" hasRadius style={{ border: '2px solid #dcfce7' }}>
-                      <Typography variant="delta" fontWeight="bold" textColor="success700" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        ✨ Premium Features Active
+                    <Box marginBottom={5} padding={5} background="success50" hasRadius>
+                      <Typography variant="delta" fontWeight="bold" textColor="success700" style={{ marginBottom: '16px' }}>
+                        Premium Features Active
                       </Typography>
                       <Flex direction="column" gap={2}>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Gmail OAuth 2.0 (Unlimited accounts)
-                        </Typography>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Microsoft 365 OAuth Integration
-                        </Typography>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Yahoo Mail OAuth
-                        </Typography>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ SendGrid & Mailgun Integration
-                        </Typography>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Smart Routing Rules (Unlimited)
-                        </Typography>
-                        <Typography variant="omega" textColor="success700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Email Analytics Dashboard
-                        </Typography>
+                        <Typography variant="omega" textColor="success700">[OK] Gmail OAuth 2.0</Typography>
+                        <Typography variant="omega" textColor="success700">[OK] Microsoft 365 OAuth</Typography>
+                        <Typography variant="omega" textColor="success700">[OK] Smart Routing Rules</Typography>
+                        <Typography variant="omega" textColor="success700">[OK] Email Analytics</Typography>
                       </Flex>
                     </Box>
                   )}
                   
                   {/* Advanced Features */}
                   {data.features?.advanced && (
-                    <Box marginBottom={5} padding={5} background="primary50" hasRadius style={{ border: '2px solid #bae6fd' }}>
-                      <Typography variant="delta" fontWeight="bold" textColor="primary700" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        🚀 Advanced Features Active
+                    <Box marginBottom={5} padding={5} background="primary50" hasRadius>
+                      <Typography variant="delta" fontWeight="bold" textColor="primary700" style={{ marginBottom: '16px' }}>
+                        Advanced Features Active
                       </Typography>
                       <Flex direction="column" gap={2}>
-                        <Typography variant="omega" textColor="primary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ DKIM Signing for SMTP
-                        </Typography>
-                        <Typography variant="omega" textColor="primary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Email Designer Integration
-                        </Typography>
-                        <Typography variant="omega" textColor="primary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Priority Email Headers
-                        </Typography>
-                        <Typography variant="omega" textColor="primary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ List-Unsubscribe Headers (GDPR)
-                        </Typography>
-                        <Typography variant="omega" textColor="primary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Enhanced Security Validation
-                        </Typography>
+                        <Typography variant="omega" textColor="primary700">[OK] DKIM Signing</Typography>
+                        <Typography variant="omega" textColor="primary700">[OK] Email Designer</Typography>
+                        <Typography variant="omega" textColor="primary700">[OK] List-Unsubscribe Headers</Typography>
                       </Flex>
                     </Box>
                   )}
                   
                   {/* Enterprise Features */}
                   {data.features?.enterprise && (
-                    <Box padding={5} background="secondary50" hasRadius style={{ border: '2px solid #ddd6fe' }}>
-                      <Typography variant="delta" fontWeight="bold" textColor="secondary700" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        🏢 Enterprise Features Active
+                    <Box padding={5} background="secondary50" hasRadius>
+                      <Typography variant="delta" fontWeight="bold" textColor="secondary700" style={{ marginBottom: '16px' }}>
+                        Enterprise Features Active
                       </Typography>
                       <Flex direction="column" gap={2}>
-                        <Typography variant="omega" textColor="secondary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Multi-tenant Email Management
-                        </Typography>
-                        <Typography variant="omega" textColor="secondary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Compliance Reports (GDPR, CAN-SPAM)
-                        </Typography>
-                        <Typography variant="omega" textColor="secondary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Custom Routing Rules Engine
-                        </Typography>
-                        <Typography variant="omega" textColor="secondary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Advanced Rate Limiting
-                        </Typography>
-                        <Typography variant="omega" textColor="secondary700" style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✓ Priority Support
-                        </Typography>
+                        <Typography variant="omega" textColor="secondary700">[OK] Multi-tenant Management</Typography>
+                        <Typography variant="omega" textColor="secondary700">[OK] Compliance Reports</Typography>
+                        <Typography variant="omega" textColor="secondary700">[OK] Priority Support</Typography>
                       </Flex>
                     </Box>
                   )}
@@ -599,5 +521,4 @@ Generated:   ${new Date().toLocaleString()}
   );
 };
 
-export default LicensePage;
-
+export default LicenseDetailsPage;

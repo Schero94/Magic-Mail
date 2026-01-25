@@ -29,6 +29,15 @@ import {
   PencilIcon,
 } from '@heroicons/react/24/outline';
 import AddAccountModal from '../components/AddAccountModal';
+import { 
+  GradientButton, 
+  SecondaryButton, 
+  TertiaryButton,
+  IconButton, 
+  IconButtonDanger, 
+  IconButtonPrimary,
+  CTAButton,
+} from '../components/StyledButtons';
 
 // ================ ANIMATIONS ================
 const fadeIn = keyframes`
@@ -410,6 +419,148 @@ const StyledSearchInput = styled.input`
   }
 `;
 
+// ================ MODAL STYLED COMPONENTS ================
+const StyledModalContent = styled(Modal.Content)`
+  && {
+    border-radius: 16px;
+    overflow: hidden;
+    max-width: 560px;
+    width: 90vw;
+  }
+`;
+
+const StyledModalHeader = styled(Modal.Header)`
+  && {
+    background: linear-gradient(135deg, ${theme.colors.primary[500]} 0%, ${theme.colors.secondary[500]} 100%);
+    padding: 24px 28px;
+    border-bottom: none;
+    
+    h2 {
+      color: white;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    
+    button {
+      color: white !important;
+      opacity: 0.9;
+      background: rgba(255, 255, 255, 0.15) !important;
+      border-radius: 8px;
+      
+      &:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.25) !important;
+      }
+      
+      svg {
+        fill: white !important;
+        color: white !important;
+        path { fill: white !important; }
+      }
+    }
+  }
+`;
+
+const StyledModalBody = styled(Modal.Body)`
+  && {
+    padding: 24px 28px;
+    background: ${props => props.theme.colors.neutral0};
+    width: 100%;
+    box-sizing: border-box;
+  }
+`;
+
+const StyledModalFooter = styled(Modal.Footer)`
+  && {
+    padding: 20px 28px;
+    border-top: 1px solid ${props => props.theme.colors.neutral200};
+    background: ${props => props.theme.colors.neutral100};
+  }
+`;
+
+const AccountInfoCard = styled(Box)`
+  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${theme.colors.secondary[50]} 100%);
+  border: 1px solid ${theme.colors.primary[200]};
+  border-radius: 12px;
+  padding: 16px 20px;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+`;
+
+const TestOptionCard = styled(Box)`
+  padding: 16px 20px;
+  border: 2px solid ${props => props.$selected ? theme.colors.primary[500] : props.theme.colors.neutral200};
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all ${theme.transitions.fast};
+  background: ${props => props.$selected ? theme.colors.primary[50] : props.theme.colors.neutral0};
+  
+  &:hover {
+    border-color: ${theme.colors.primary[400]};
+    background: ${theme.colors.primary[50]};
+  }
+`;
+
+const ModalFieldLabel = styled(Typography)`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${props => props.theme.colors.neutral700};
+  margin-bottom: 8px;
+  display: block;
+`;
+
+const ModalHint = styled(Typography)`
+  font-size: 12px;
+  color: ${props => props.theme.colors.neutral500};
+  margin-top: 6px;
+`;
+
+const StyledModalSelect = styled.select`
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid ${props => props.theme.colors.neutral200};
+  border-radius: 8px;
+  font-size: 14px;
+  background: ${props => props.theme.colors.neutral0};
+  color: ${props => props.theme.colors.neutral800};
+  cursor: pointer;
+  transition: all ${theme.transitions.fast};
+  box-sizing: border-box;
+  
+  &:focus {
+    outline: none;
+    border-color: ${theme.colors.primary[500]};
+    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+  }
+`;
+
+const StyledModalInput = styled.input`
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid ${props => props.theme.colors.neutral200};
+  border-radius: 8px;
+  font-size: 14px;
+  background: ${props => props.theme.colors.neutral0};
+  color: ${props => props.theme.colors.neutral800};
+  transition: all ${theme.transitions.fast};
+  box-sizing: border-box;
+  
+  &:focus {
+    outline: none;
+    border-color: ${theme.colors.primary[500]};
+    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+  }
+  
+  &::placeholder {
+    color: ${props => props.theme.colors.neutral400};
+  }
+`;
+
 const HomePage = () => {
   useAuthRefresh(); // Initialize token auto-refresh
   const { get, post, del } = useFetchClient();
@@ -613,13 +764,12 @@ const HomePage = () => {
               Add your first email account to start sending emails through MagicMail's multi-account routing system
             </Typography>
             
-            <Button 
+            <CTAButton 
               startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
               onClick={() => setShowAddModal(true)}
-              size="L"
             >
               Add First Account
-            </Button>
+            </CTAButton>
           </Flex>
         </EmptyState>
       ) : (
@@ -629,9 +779,9 @@ const HomePage = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 📧 Email Accounts
               </Typography>
-              <Button startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowAddModal(true)}>
+              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowAddModal(true)}>
                 Add Account
-              </Button>
+              </GradientButton>
             </Flex>
           </Box>
 
@@ -823,39 +973,33 @@ const HomePage = () => {
                         {/* Actions */}
                         <Td>
                           <Flex gap={2}>
-                            <Button
-                              variant="secondary"
+                            <IconButton
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingAccount(account);
                               }}
-                              size="S"
                               aria-label="Edit Account"
                             >
-                              <PencilIcon style={{ width: 16, height: 16 }} />
-                            </Button>
-                            <Button
-                              variant="secondary"
+                              <PencilIcon />
+                            </IconButton>
+                            <IconButtonPrimary
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setTestingAccount(account);
                               }}
-                              size="S"
                               aria-label="Test Account"
                             >
-                              <PlayIcon style={{ width: 16, height: 16 }} />
-                            </Button>
-                            <Button
-                              variant="danger-light"
+                              <PlayIcon />
+                            </IconButtonPrimary>
+                            <IconButtonDanger
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteAccount(account.id, account.name);
                               }}
-                              size="S"
                               aria-label="Delete Account"
                             >
-                              <TrashIcon style={{ width: 16, height: 16 }} />
-                            </Button>
+                              <TrashIcon />
+                            </IconButtonDanger>
                           </Flex>
                         </Td>
                       </Tr>
@@ -957,212 +1101,151 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
     e.stopPropagation();
   };
 
+  const [testMode, setTestMode] = useState('strapi'); // 'direct' or 'strapi'
+
   return (
     <Modal.Root open={true} onOpenChange={onClose}>
-      <Modal.Content size="L">
-        <Modal.Header>
-          <Typography variant="beta">
-            <PlayIcon style={{ marginRight: 8, width: 20, height: 20 }} />
-            Test Email Account
-          </Typography>
-        </Modal.Header>
+      <StyledModalContent>
+        <StyledModalHeader>
+          <Modal.Title>Test Email Account</Modal.Title>
+        </StyledModalHeader>
 
-        <Modal.Body>
-          <Flex direction="column" gap={6} style={{ width: '100%' }}>
-            {/* Account Info */}
-            <Box
-              padding={4}
-              background="neutral100"
-              hasRadius
-              style={{
-                borderRadius: '8px',
-                width: '100%',
-              }}
+        <StyledModalBody>
+          {/* Account Info Card */}
+          <AccountInfoCard>
+            <Typography variant="pi" style={{ color: theme.colors.primary[600], fontWeight: 500 }}>
+              Testing Account
+            </Typography>
+            <Typography variant="beta" textColor="neutral800" style={{ fontSize: '1.125rem', fontWeight: 700, marginTop: '4px' }}>
+              {account.name}
+            </Typography>
+            <Typography variant="pi" textColor="neutral600" style={{ marginTop: '2px' }}>
+              {account.fromEmail}
+            </Typography>
+          </AccountInfoCard>
+
+          {/* Recipient Email */}
+          <Box style={{ marginTop: '20px' }}>
+            <ModalFieldLabel>Recipient Email *</ModalFieldLabel>
+            <StyledModalInput
+              placeholder="test@example.com"
+              value={testEmail}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              type="email"
+              autoFocus
+            />
+          </Box>
+
+          {/* Test Mode Selection */}
+          <Box style={{ marginTop: '20px' }}>
+            <ModalFieldLabel>Test Mode</ModalFieldLabel>
+            <TestOptionCard 
+              $selected={testMode === 'direct'}
+              onClick={() => setTestMode('direct')}
+              style={{ marginBottom: '10px' }}
             >
-              <Flex direction="column" gap={2} style={{ width: '100%' }}>
-                <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: '#4B5563' }}>
-                  Testing Account
-                </Typography>
-                <Typography variant="beta" style={{ fontSize: '18px', fontWeight: 600 }}>
-                  {account.name}
-                </Typography>
-                <Typography variant="pi" textColor="neutral600" style={{ fontSize: '14px' }}>
-                  {account.fromEmail}
-                </Typography>
-              </Flex>
-            </Box>
-
-            {/* Email Input */}
-            <Field.Root required style={{ width: '100%' }}>
-              <Field.Label style={{ fontSize: '14px' }}>Recipient Email Address</Field.Label>
-              <TextInput
-                placeholder="recipient@example.com"
-                value={testEmail}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                onFocus={(e) => e.stopPropagation()}
-                onBlur={(e) => e.stopPropagation()}
-                type="email"
-                autoFocus
-                autoComplete="off"
-                name="test-email-recipient"
-                style={{ width: '100%', fontSize: '14px' }}
-              />
-              <Field.Hint style={{ fontSize: '13px' }}>
-                Enter the email address where you want to receive the test email
-              </Field.Hint>
-            </Field.Root>
-
-            {/* Test Configuration */}
-            <Box style={{ width: '100%' }}>
-              <Typography fontWeight="semiBold" marginBottom={3} style={{ fontSize: '14px', color: '#4B5563' }}>
-                Email Configuration
-              </Typography>
-              
-              <Flex direction="column" gap={3} style={{ width: '100%' }}>
-                {/* Priority */}
-                <Field.Root style={{ width: '100%' }}>
-                  <Field.Label style={{ fontSize: '14px' }}>Priority</Field.Label>
-                  <SingleSelect
-                    value={priority}
-                    onChange={setPriority}
-                    style={{ width: '100%' }}
-                  >
-                    <SingleSelectOption value="normal">Normal Priority</SingleSelectOption>
-                    <SingleSelectOption value="high">High Priority</SingleSelectOption>
-                  </SingleSelect>
-                  <Field.Hint style={{ fontSize: '13px' }}>
-                    High priority adds X-Priority and Importance headers
-                  </Field.Hint>
-                </Field.Root>
-
-                {/* Email Type */}
-                <Field.Root style={{ width: '100%' }}>
-                  <Field.Label style={{ fontSize: '14px' }}>Email Type</Field.Label>
-                  <SingleSelect
-                    value={emailType}
-                    onChange={setEmailType}
-                    style={{ width: '100%' }}
-                  >
-                    <SingleSelectOption value="transactional">Transactional</SingleSelectOption>
-                    <SingleSelectOption value="marketing">Marketing</SingleSelectOption>
-                    <SingleSelectOption value="notification">Notification</SingleSelectOption>
-                  </SingleSelect>
-                  <Field.Hint style={{ fontSize: '13px' }}>
-                    Marketing emails automatically include List-Unsubscribe headers
-                  </Field.Hint>
-                </Field.Root>
-
-                {/* Unsubscribe URL (nur für Marketing) */}
-                {emailType === 'marketing' && (
-                  <Field.Root style={{ width: '100%' }}>
-                    <Field.Label style={{ fontSize: '14px' }}>Unsubscribe URL (Required for Marketing)</Field.Label>
-                    <TextInput
-                      placeholder="https://yoursite.com/unsubscribe"
-                      value={unsubscribeUrl}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        setUnsubscribeUrl(e.target.value);
-                      }}
-                      style={{ width: '100%', fontSize: '14px' }}
-                    />
-                    <Field.Hint style={{ fontSize: '13px' }}>
-                      Required for GDPR/CAN-SPAM compliance. Adds List-Unsubscribe header.
-                    </Field.Hint>
-                  </Field.Root>
-                )}
-              </Flex>
-            </Box>
-
-            {/* Test Options */}
-            <Box style={{ width: '100%' }}>
-              <Typography fontWeight="semiBold" marginBottom={3} style={{ fontSize: '14px', color: '#4B5563' }}>
-                Test Options
-              </Typography>
-              
-              <Flex direction="column" gap={3} style={{ width: '100%' }}>
-                {/* Direct Test */}
-                <Box
-                  padding={4}
-                  background="neutral0"
-                  hasRadius
-                  style={{
-                    border: '2px solid #E5E7EB',
-                    borderRadius: '8px',
-                    width: '100%',
-                  }}
-                >
-                  <Flex direction="column" gap={2}>
-                    <Flex alignItems="center" gap={2}>
-                      <PlayIcon style={{ width: 18, height: 18, color: '#0EA5E9', flexShrink: 0 }} />
-                      <Typography fontWeight="semiBold" style={{ fontSize: '14px' }}>
-                        Direct Test
-                      </Typography>
-                    </Flex>
-                    <Typography variant="pi" textColor="neutral600" style={{ fontSize: '13px', lineHeight: '1.5' }}>
-                      Send test email directly through this specific account
-                    </Typography>
-                  </Flex>
-                </Box>
-
-                {/* Strapi Service Test */}
-                <Box
-                  padding={4}
-                  background="primary50"
-                  hasRadius
-                  style={{
-                    border: '2px solid #0EA5E9',
-                    borderRadius: '8px',
-                    width: '100%',
-                  }}
-                >
-                  <Flex direction="column" gap={2}>
-                    <Flex alignItems="center" gap={2}>
-                      <SparklesIcon style={{ width: 18, height: 18, color: '#0369A1', flexShrink: 0 }} />
-                      <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: '#0369A1' }}>
-                        Strapi Email Service Test
-                      </Typography>
-                    </Flex>
-                    <Typography variant="pi" textColor="neutral600" style={{ fontSize: '13px', lineHeight: '1.5' }}>
-                      Test if MagicMail intercepts Strapi's native email service via THIS account ({account.name})
-                    </Typography>
-                    <Typography variant="pi" textColor="neutral600" style={{ fontSize: '13px', lineHeight: '1.5' }}>
-                      <strong style={{ color: '#0369A1' }}>Use this to verify Email Designer compatibility</strong>
-                    </Typography>
-                  </Flex>
+              <Flex alignItems="center" gap={3}>
+                <PlayIcon style={{ width: 20, height: 20, color: testMode === 'direct' ? theme.colors.primary[600] : '#6B7280', flexShrink: 0 }} />
+                <Box style={{ flex: 1 }}>
+                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? theme.colors.primary[700] : '#374151' }}>
+                    Direct Test
+                  </Typography>
+                  <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
+                    Send directly through this account
+                  </Typography>
                 </Box>
               </Flex>
-            </Box>
-          </Flex>
-        </Modal.Body>
+            </TestOptionCard>
 
-        <Modal.Footer>
-          <Flex justifyContent="space-between" gap={2} style={{ width: '100%' }}>
-            <Button onClick={onClose} variant="tertiary">
+            <TestOptionCard 
+              $selected={testMode === 'strapi'}
+              onClick={() => setTestMode('strapi')}
+            >
+              <Flex alignItems="center" gap={3}>
+                <SparklesIcon style={{ width: 20, height: 20, color: testMode === 'strapi' ? theme.colors.primary[600] : '#6B7280', flexShrink: 0 }} />
+                <Box style={{ flex: 1 }}>
+                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? theme.colors.primary[700] : '#374151' }}>
+                    Strapi Service Test
+                  </Typography>
+                  <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
+                    Verify MagicMail intercepts Strapi's email service
+                  </Typography>
+                </Box>
+              </Flex>
+            </TestOptionCard>
+          </Box>
+
+          {/* Advanced Options (only for Direct Test) */}
+          {testMode === 'direct' && (
+            <Box style={{ marginTop: '20px', padding: '16px', background: '#F9FAFB', borderRadius: '12px' }}>
+              <ModalFieldLabel style={{ marginBottom: '16px', fontSize: '14px' }}>Advanced Options</ModalFieldLabel>
+              
+              <Box style={{ marginBottom: '12px' }}>
+                <ModalFieldLabel>Priority</ModalFieldLabel>
+                <StyledModalSelect
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="high">High Priority</option>
+                </StyledModalSelect>
+              </Box>
+
+              <Box style={{ marginBottom: emailType === 'marketing' ? '12px' : '0' }}>
+                <ModalFieldLabel>Email Type</ModalFieldLabel>
+                <StyledModalSelect
+                  value={emailType}
+                  onChange={(e) => setEmailType(e.target.value)}
+                >
+                  <option value="transactional">Transactional</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="notification">Notification</option>
+                </StyledModalSelect>
+              </Box>
+
+              {emailType === 'marketing' && (
+                <Box>
+                  <ModalFieldLabel>Unsubscribe URL *</ModalFieldLabel>
+                  <StyledModalInput
+                    placeholder="https://yoursite.com/unsubscribe"
+                    value={unsubscribeUrl}
+                    onChange={(e) => setUnsubscribeUrl(e.target.value)}
+                  />
+                  <ModalHint>Required for GDPR/CAN-SPAM compliance</ModalHint>
+                </Box>
+              )}
+            </Box>
+          )}
+        </StyledModalBody>
+
+        <StyledModalFooter>
+          <Flex justifyContent="space-between" style={{ width: '100%' }}>
+            <TertiaryButton onClick={onClose}>
               Cancel
-            </Button>
-            <Flex gap={2}>
-              <Button
+            </TertiaryButton>
+            {testMode === 'direct' ? (
+              <GradientButton
                 onClick={() => onTest(testEmail, { priority, type: emailType, unsubscribeUrl })}
                 disabled={!testEmail || !testEmail.includes('@') || (emailType === 'marketing' && !unsubscribeUrl)}
                 startIcon={<PlayIcon style={{ width: 16, height: 16 }} />}
-                variant="secondary"
               >
-                Test Direct
-              </Button>
-              <Button
+                Send Test Email
+              </GradientButton>
+            ) : (
+              <GradientButton
                 onClick={testStrapiService}
                 disabled={!testEmail || !testEmail.includes('@')}
                 loading={testingStrapiService}
                 startIcon={<SparklesIcon style={{ width: 16, height: 16 }} />}
               >
                 Test Strapi Service
-              </Button>
-            </Flex>
+              </GradientButton>
+            )}
           </Flex>
-        </Modal.Footer>
-      </Modal.Content>
+        </StyledModalFooter>
+      </StyledModalContent>
     </Modal.Root>
   );
 };

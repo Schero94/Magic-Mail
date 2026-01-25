@@ -7,6 +7,7 @@ const emailEvent = require('./email-event/schema.json');
 const emailLink = require('./email-link/schema.json');
 const emailTemplate = require('./email-template/schema.json');
 const emailTemplateVersion = require('./email-template-version/schema.json');
+const pluginSettings = require('./plugin-settings/schema.json');
 
 module.exports = {
   'email-account': {
@@ -29,5 +30,8 @@ module.exports = {
   },
   'email-template-version': {
     schema: emailTemplateVersion,
+  },
+  'plugin-settings': {
+    schema: pluginSettings,
   },
 };

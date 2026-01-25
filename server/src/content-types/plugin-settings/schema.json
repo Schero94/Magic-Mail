@@ -1,0 +1,54 @@
+{
+  "kind": "singleType",
+  "collectionName": "magic_mail_settings",
+  "info": {
+    "singularName": "plugin-settings",
+    "pluralName": "plugin-settings",
+    "displayName": "MagicMail Settings"
+  },
+  "options": {
+    "draftAndPublish": false,
+    "comment": "Global settings for MagicMail plugin"
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "enableLinkTracking": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    },
+    "enableOpenTracking": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    },
+    "trackingBaseUrl": {
+      "type": "string",
+      "configurable": false
+    },
+    "defaultFromName": {
+      "type": "string",
+      "configurable": false
+    },
+    "defaultFromEmail": {
+      "type": "string",
+      "configurable": false
+    },
+    "unsubscribeUrl": {
+      "type": "string",
+      "configurable": false
+    },
+    "enableUnsubscribeHeader": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    }
+  }
+}

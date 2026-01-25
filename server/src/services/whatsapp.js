@@ -4,7 +4,7 @@
  * WhatsApp Service for MagicMail
  * 
  * Provides FREE WhatsApp messaging functionality for message delivery.
- * Uses @whiskeysockets/baileys for WhatsApp Web API integration.
+ * Uses baileys for WhatsApp Web API integration.
  * 
  * Features:
  * - Session persistence (no re-scan needed after first setup)
@@ -27,14 +27,14 @@ let baileys = null;
 const loadBaileys = async () => {
   if (!baileys) {
     try {
-      baileys = require('@whiskeysockets/baileys');
+      baileys = require('baileys');
       if (process.env.DEBUG) {
         console.log('[MagicMail WhatsApp] Baileys loaded successfully');
       }
       return true;
     } catch (error) {
       console.warn('[MagicMail WhatsApp] Baileys not installed. WhatsApp features disabled.');
-      console.warn('[MagicMail WhatsApp] Install with: npm install @whiskeysockets/baileys pino qrcode');
+      console.warn('[MagicMail WhatsApp] Install with: npm install baileys pino qrcode');
       return false;
     }
   }
@@ -142,7 +142,7 @@ module.exports = ({ strapi }) => {
     async connect() {
       const available = await loadBaileys();
       if (!available) {
-        lastError = 'Baileys not installed. Run: npm install @whiskeysockets/baileys pino qrcode';
+        lastError = 'Baileys not installed. Run: npm install baileys pino qrcode';
         strapi.log.error('[MagicMail WhatsApp] [ERROR] Baileys library not available');
         return { success: false, error: lastError };
       }

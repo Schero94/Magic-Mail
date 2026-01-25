@@ -124,6 +124,12 @@ module.exports = ({ strapi }) => ({
     if (enableTracking && html) {
       try {
         const analyticsService = strapi.plugin('magic-mail').service('analytics');
+        const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
+        
+        // Get global plugin settings
+        const pluginSettings = await settingsService.getSettings();
+        const globalLinkTrackingEnabled = pluginSettings.enableLinkTracking !== false;
+        const globalOpenTrackingEnabled = pluginSettings.enableOpenTracking !== false;
         
         // Create email log entry
         emailLog = await analyticsService.createEmailLog({
@@ -145,17 +151,26 @@ module.exports = ({ strapi }) => ({
 
         recipientHash = analyticsService.generateRecipientHash(emailLog.emailId, to);
 
-        // Inject tracking pixel (open tracking)
-        html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
+        // Inject tracking pixel (open tracking) - only if globally enabled
+        if (globalOpenTrackingEnabled) {
+          html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
+        } else {
+          strapi.log.info(`[magic-mail] [STATS] Open tracking DISABLED globally`);
+        }
 
-        // Rewrite links for click tracking (unless explicitly disabled)
+        // Rewrite links for click tracking (unless explicitly disabled OR globally disabled)
         // skipLinkTracking is useful for sensitive URLs like Magic Links, password resets, etc.
         // where the original URL must remain intact for security/UX reasons
-        if (!skipLinkTracking) {
+        // Priority: per-email skipLinkTracking > global enableLinkTracking setting
+        const shouldTrackLinks = globalLinkTrackingEnabled && !skipLinkTracking;
+        
+        if (shouldTrackLinks) {
           html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
-          strapi.log.info(`[magic-mail] [STATS] Full tracking enabled for email: ${emailLog.emailId}`);
+          strapi.log.info(`[magic-mail] [STATS] Link tracking enabled for email: ${emailLog.emailId}`);
+        } else if (!globalLinkTrackingEnabled) {
+          strapi.log.info(`[magic-mail] [STATS] Link tracking DISABLED globally for email: ${emailLog.emailId}`);
         } else {
-          strapi.log.info(`[magic-mail] [STATS] Open tracking enabled, link tracking DISABLED for email: ${emailLog.emailId}`);
+          strapi.log.info(`[magic-mail] [STATS] Link tracking DISABLED per-email (skipLinkTracking=true) for email: ${emailLog.emailId}`);
         }
       } catch (error) {
         strapi.log.error(`[magic-mail] [WARNING]  Tracking setup failed (continuing without tracking):`, error.message);
@@ -243,7 +258,7 @@ module.exports = ({ strapi }) => ({
           await strapi.documents('plugin::magic-mail.email-log').update({
             documentId: emailLog.documentId,
             data: {
-              accountId: account.id,
+              accountId: account.documentId,
               accountName: account.name,
               deliveredAt: new Date(),
             },
