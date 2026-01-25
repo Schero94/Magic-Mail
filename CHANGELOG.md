@@ -1,3 +1,10 @@
+# [2.4.0](https://github.com/Schero94/Magic-Mail/compare/v2.3.11...v2.4.0) (2026-01-25)
+
+
+### Features
+
+* v2.4.0 - Major UI improvements and WhatsApp integration ([e5df08e](https://github.com/Schero94/Magic-Mail/commit/e5df08e431ec978706c14d5862d7819bdf89e53d))
+
 ## [2.3.11](https://github.com/Schero94/Magic-Mail/compare/v2.3.10...v2.3.11) (2026-01-04)
 
 
