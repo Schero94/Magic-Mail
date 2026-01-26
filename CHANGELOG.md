@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/Schero94/Magic-Mail/compare/v2.5.0...v2.6.0) (2026-01-26)
+
+
+### Features
+
+* **admin:** add session heartbeat to prevent token expiration ([045a728](https://github.com/Schero94/Magic-Mail/commit/045a728dbe694c028b44a1f89929c7537c5d6e40))
+
 # [2.5.0](https://github.com/Schero94/Magic-Mail/compare/v2.4.0...v2.5.0) (2026-01-25)
 
 
