@@ -1113,8 +1113,8 @@ const TemplateList = () => {
       fetchStats();
 
       // Navigate to the duplicated template
-      if (duplicated?.id) {
-        navigate(`/plugins/magic-mail/designer/${duplicated.id}`);
+      if (duplicated?.documentId) {
+        navigate(`/plugins/magic-mail/designer/${duplicated.documentId}`);
       }
     } catch (error) {
       toggleNotification({
@@ -1523,7 +1523,7 @@ const TemplateList = () => {
             </Thead>
             <Tbody>
               {paginatedTemplates.map((template) => (
-                <Tr key={template.id}>
+                <Tr key={template.documentId}>
                   <Td>
                     <Typography variant="omega" fontWeight="bold" style={{ fontSize: '13px' }}>
                       #{template.templateReferenceId}
@@ -1544,7 +1544,7 @@ const TemplateList = () => {
                     <Flex gap={2} justifyContent="flex-end">
                       <IconButtonPrimary
                         onClick={() =>
-                          navigate(`/plugins/magic-mail/designer/${template.id}`)
+                          navigate(`/plugins/magic-mail/designer/${template.documentId}`)
                         }
                         aria-label="Edit Template"
                         title="Edit Template"
@@ -1552,21 +1552,21 @@ const TemplateList = () => {
                         <PencilIcon />
                       </IconButtonPrimary>
                       <IconButton
-                        onClick={() => handleDownload(template.id, 'html')}
+                        onClick={() => handleDownload(template.documentId, 'html')}
                         aria-label="Download HTML"
                         title="Download as HTML"
                       >
                         <DocumentArrowDownIcon />
                       </IconButton>
                       <IconButton
-                        onClick={() => handleDownload(template.id, 'json')}
+                        onClick={() => handleDownload(template.documentId, 'json')}
                         aria-label="Download JSON"
                         title="Download as JSON"
                       >
                         <CodeBracketIcon />
                       </IconButton>
                       <IconButton
-                        onClick={() => handleDuplicate(template.id, template.name)}
+                        onClick={() => handleDuplicate(template.documentId, template.name)}
                         aria-label="Duplicate Template"
                         title="Duplicate Template"
                       >
@@ -1590,7 +1590,7 @@ const TemplateList = () => {
                         <PaperAirplaneIcon />
                       </IconButtonSuccess>
                       <IconButtonDanger
-                        onClick={() => handleDelete(template.id, template.name)}
+                        onClick={() => handleDelete(template.documentId, template.name)}
                         aria-label="Delete Template"
                         title="Delete Template"
                       >
