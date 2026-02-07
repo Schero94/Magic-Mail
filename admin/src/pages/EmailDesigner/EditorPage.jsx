@@ -122,12 +122,12 @@ const Container = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: ${props => props.theme.colors.neutral100};
+  background: var(--colors-neutral100);
 `;
 
 const Header = styled.div`
   padding: 24px;
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 `;
 
@@ -174,8 +174,8 @@ const ToggleWrapper = styled.div`
   
   /* Custom green styling for active toggle */
   button[aria-checked="true"] {
-    background-color: #22C55E !important;
-    border-color: #22C55E !important;
+    background-color: var(--colors-success600, #22C55E) !important;
+    border-color: var(--colors-success600, #22C55E) !important;
     
     span {
       background-color: white !important;
@@ -183,8 +183,8 @@ const ToggleWrapper = styled.div`
   }
   
   button[aria-checked="false"] {
-    background-color: #E5E7EB !important;
-    border-color: #D1D5DB !important;
+    background-color: var(--colors-neutral200, rgba(128, 128, 128, 0.2)) !important;
+    border-color: rgba(128, 128, 128, 0.2) !important;
     
     span {
       background-color: white !important;
@@ -193,7 +193,7 @@ const ToggleWrapper = styled.div`
   
   /* Label styling based on state */
   p {
-    color: ${props => props.$isActive ? '#22C55E' : '#6B7280'};
+    color: ${props => props.$isActive ? 'var(--colors-success600, #22C55E)' : 'var(--colors-neutral600, #6B7280)'};
     font-weight: 600;
     transition: color 0.2s;
   }
@@ -207,8 +207,8 @@ const TabsWrapper = styled.div`
 
 const TabListWrapper = styled.div`
   padding: 0 24px;
-  background: ${props => props.theme.colors.neutral0};
-  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 `;
 
 const StyledTabsRoot = styled(Tabs.Root)`
@@ -225,7 +225,7 @@ const StyledTabsContent = styled(Tabs.Content)`
 
 const TabContentWrapper = styled.div`
   height: calc(100vh - 240px);
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   position: relative;
 `;
 
@@ -263,7 +263,7 @@ const HiddenInput = styled.input`
 `;
 
 const SaveButton = styled(Button)`
-  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+  background: linear-gradient(135deg, var(--colors-success600, #22C55E) 0%, var(--colors-success700, #16A34A) 100%);
   border: none;
   color: white;
   font-weight: 600;
@@ -276,7 +276,7 @@ const SaveButton = styled(Button)`
   &:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-    background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+    background: linear-gradient(135deg, var(--colors-success700, #16A34A) 0%, var(--colors-success800, #15803D) 100%);
   }
 
   &:active {
@@ -304,10 +304,10 @@ const ImportExportButton = styled.span`
   gap: 6px;
   padding: 8px 16px;
   height: 36px;
-  background: ${props => props.theme.colors.neutral0};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   font-weight: 500;
   font-size: 13px;
   cursor: pointer;
@@ -315,9 +315,9 @@ const ImportExportButton = styled.span`
   white-space: nowrap;
 
   &:hover {
-    background: ${props => props.theme.colors.neutral100};
-    border-color: ${props => props.theme.colors.primary600};
-    color: ${props => props.theme.colors.primary600};
+    background: var(--colors-neutral100);
+    border-color: var(--colors-primary600, #0284C7);
+    color: var(--colors-primary600, #0284C7);
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
   }
@@ -338,8 +338,8 @@ const ImportLabel = styled.label`
 `;
 
 const BackButton = styled.button`
-  background: ${props => props.theme.colors.neutral0};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
   padding: 8px 10px;
   height: 36px;
@@ -350,8 +350,8 @@ const BackButton = styled.button`
   transition: all 200ms;
 
   &:hover {
-    background: ${props => props.theme.colors.neutral100};
-    border-color: ${props => props.theme.colors.neutral300};
+    background: var(--colors-neutral100);
+    border-color: rgba(128, 128, 128, 0.3);
     transform: translateY(-1px);
   }
 
@@ -366,8 +366,8 @@ const BackButton = styled.button`
 `;
 
 const VersionButton = styled.button`
-  background: ${props => props.theme.colors.neutral0};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
   padding: 8px 16px;
   height: 36px;
@@ -379,13 +379,13 @@ const VersionButton = styled.button`
   transition: all 200ms;
   font-size: 13px;
   font-weight: 500;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   white-space: nowrap;
 
   &:hover {
-    background: ${props => props.theme.colors.neutral100};
-    border-color: ${props => props.theme.colors.primary600};
-    color: ${props => props.theme.colors.primary600};
+    background: var(--colors-neutral100);
+    border-color: var(--colors-primary600, #0284C7);
+    color: var(--colors-primary600, #0284C7);
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
   }
@@ -407,7 +407,7 @@ const VersionModal = styled.div`
   right: ${props => props.$isOpen ? '0' : '-450px'};
   width: 450px;
   height: 100vh;
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
   z-index: 9999;
   transition: right 300ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -430,7 +430,7 @@ const VersionModalOverlay = styled.div`
 
 const VersionModalHeader = styled.div`
   padding: 24px;
-  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -444,13 +444,13 @@ const VersionModalContent = styled.div`
 
 const VersionItem = styled.div`
   padding: 16px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   margin-bottom: 12px;
   transition: all 150ms;
   
   &:hover {
-    border-color: ${props => props.theme.colors.primary600};
+    border-color: var(--colors-primary600, #0284C7);
     box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
   }
 `;
@@ -464,14 +464,14 @@ const VersionItemHeader = styled.div`
 
 const VersionNumber = styled.div`
   font-weight: 600;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   display: flex;
   align-items: center;
   gap: 8px;
 `;
 
 const VersionBadge = styled.span`
-  background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-primary700, #0284C7) 100%);
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -481,12 +481,12 @@ const VersionBadge = styled.span`
 
 const VersionDate = styled.div`
   font-size: 13px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
 `;
 
 const VersionMeta = styled.div`
   font-size: 13px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   margin-bottom: 12px;
 `;
 
@@ -496,14 +496,14 @@ const VersionActions = styled.div`
 `;
 
 const RestoreButton = styled(Button)`
-  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+  background: linear-gradient(135deg, var(--colors-success600, #22C55E) 0%, var(--colors-success700, #16A34A) 100%);
   border: none;
   color: white;
   font-size: 13px;
   padding: 8px 16px;
   
   &:hover {
-    background: linear-gradient(135deg, #4ADE80 0%, #22C55E 100%);
+    background: linear-gradient(135deg, var(--colors-success400, #4ADE80) 0%, var(--colors-success600, #22C55E) 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
     border-color: transparent;
@@ -516,14 +516,14 @@ const RestoreButton = styled(Button)`
 `;
 
 const DeleteButton = styled(Button)`
-  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  background: linear-gradient(135deg, var(--colors-danger500, #EF4444) 0%, var(--colors-danger600, #DC2626) 100%);
   border: none;
   color: white;
   font-size: 13px;
   padding: 8px 16px;
   
   &:hover {
-    background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
+    background: linear-gradient(135deg, var(--colors-danger400, #F87171) 0%, var(--colors-danger500, #EF4444) 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     border-color: transparent;
@@ -543,12 +543,12 @@ const CloseButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   transition: all 150ms;
   
   &:hover {
-    color: ${props => props.theme.colors.neutral800};
-    background: ${props => props.theme.colors.neutral100};
+    color: var(--colors-neutral800);
+    background: var(--colors-neutral100);
     border-radius: 4px;
   }
   
@@ -561,7 +561,7 @@ const CloseButton = styled.button`
 const EmptyVersions = styled.div`
   text-align: center;
   padding: 60px 20px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -571,7 +571,7 @@ const EmptyVersions = styled.div`
     width: 64px;
     height: 64px;
     margin-bottom: 16px;
-    color: ${props => props.theme.colors.neutral300};
+    color: rgba(128, 128, 128, 0.3);
   }
 `;
 
@@ -1332,12 +1332,12 @@ const EditorPage = () => {
       <VersionModal $isOpen={showVersionHistory}>
         <VersionModalHeader>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClockIcon style={{ width: 20, height: 20, color: '#32324d' }} />
+            <ClockIcon style={{ width: 20, height: 20, color: 'var(--colors-neutral800, #32324d)' }} />
             <Typography variant="beta" fontWeight="bold">
               Version History
             </Typography>
             {versions.length > 0 && (
-              <span style={{ fontSize: '12px', color: '#666687', marginLeft: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--colors-neutral600, #666687)', marginLeft: '8px' }}>
                 ({versions.length})
               </span>
             )}

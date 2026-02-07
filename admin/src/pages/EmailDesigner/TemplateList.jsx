@@ -53,12 +53,12 @@ import {
 // ================ THEME (Exact copy from RoutingRules) ================
 const theme = {
   colors: {
-    primary: { 50: '#F0F9FF', 100: '#E0F2FE', 500: '#0EA5E9', 600: '#0284C7', 700: '#0369A1' },
-    secondary: { 50: '#F5F3FF', 100: '#EDE9FE', 500: '#A855F7', 600: '#9333EA' },
-    success: { 100: '#DCFCE7', 500: '#22C55E', 600: '#16A34A', 700: '#15803D' },
-    warning: { 100: '#FEF3C7', 500: '#F59E0B', 600: '#D97706' },
-    danger: { 100: '#FEE2E2', 500: '#EF4444', 600: '#DC2626' },
-    neutral: { 0: '#FFFFFF', 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 600: '#4B5563', 700: '#374151', 800: '#1F2937' }
+    primary: { 50: 'rgba(14, 165, 233, 0.06)', 100: 'rgba(14, 165, 233, 0.12)', 500: '#0EA5E9', 600: '#0284C7', 700: '#0369A1' },
+    secondary: { 50: 'rgba(168, 85, 247, 0.06)', 100: 'rgba(168, 85, 247, 0.1)', 500: '#A855F7', 600: '#9333EA' },
+    success: { 100: 'rgba(34, 197, 94, 0.15)', 500: '#22C55E', 600: '#16A34A', 700: '#15803D' },
+    warning: { 100: 'rgba(245, 158, 11, 0.15)', 500: '#F59E0B', 600: '#D97706' },
+    danger: { 100: 'rgba(220, 38, 38, 0.12)', 500: '#EF4444', 600: '#DC2626' },
+    neutral: { 0: 'var(--colors-neutral0, #FFFFFF)', 50: 'var(--colors-neutral100, #F9FAFB)', 100: 'rgba(128, 128, 128, 0.1)', 200: 'rgba(128, 128, 128, 0.2)', 600: 'var(--colors-neutral600, #4B5563)', 700: 'var(--colors-neutral800, #374151)', 800: 'var(--colors-neutral900, #1F2937)' }
   },
   shadows: {
     sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
@@ -101,7 +101,7 @@ const ScrollableDialogBody = styled(Box)`
   overflow-y: auto;
   max-height: calc(85vh - 160px);
   padding: 24px 28px 28px 28px;
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
 
   /* Custom Scrollbar */
   &::-webkit-scrollbar {
@@ -113,12 +113,12 @@ const ScrollableDialogBody = styled(Box)`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.colors.neutral200};
+    background: rgba(128, 128, 128, 0.2);
     border-radius: 3px;
   }
   
   &::-webkit-scrollbar-thumb:hover {
-    background: ${props => props.theme.colors.neutral300};
+    background: rgba(128, 128, 128, 0.3);
   }
 `;
 
@@ -139,14 +139,14 @@ const CodeHeader = styled(Flex)`
 const CodeLabel = styled(Typography)`
   font-size: 15px;
   font-weight: 600;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   display: flex;
   align-items: center;
   gap: 8px;
 `;
 
 const RecommendedBadge = styled(Badge)`
-  background: linear-gradient(135deg, ${theme.colors.success[500]}, ${theme.colors.success[600]});
+  background: linear-gradient(135deg, ${'var(--colors-success600, #22C55E)'}, ${'var(--colors-success600, #16A34A)'});
   color: white;
   padding: 4px 12px;
   font-size: 11px;
@@ -240,16 +240,16 @@ const CopyButton = styled(Button)`
 `;
 
 const InfoBox = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.primary[50]}, ${theme.colors.primary[100]});
-  border-left: 4px solid ${theme.colors.primary[500]};
+  background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'}, ${'rgba(2, 132, 199, 0.12)'});
+  border-left: 4px solid ${'var(--colors-primary600, #0EA5E9)'};
   border-radius: 8px;
   padding: 16px;
   margin-top: 24px;
 `;
 
 const WarningBox = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.warning[50]}, ${theme.colors.warning[100]});
-  border-left: 4px solid ${theme.colors.warning[500]};
+  background: linear-gradient(135deg, ${'rgba(234, 179, 8, 0.06)'}, ${'rgba(234, 179, 8, 0.12)'});
+  border-left: 4px solid ${'var(--colors-warning600, #F59E0B)'};
   border-radius: 8px;
   padding: 12px 16px;
   margin-top: 12px;
@@ -259,8 +259,8 @@ const WarningBox = styled(Box)`
 `;
 
 const LimitWarning = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.warning[50]}, rgba(251, 191, 36, 0.1));
-  border: 1px solid ${theme.colors.warning[200]};
+  background: linear-gradient(135deg, ${'rgba(234, 179, 8, 0.06)'}, rgba(251, 191, 36, 0.1));
+  border: 1px solid rgba(234, 179, 8, 0.2);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 24px;
@@ -270,7 +270,7 @@ const LimitWarning = styled(Box)`
 `;
 
 const UpgradeButton = styled(Button)`
-  background: linear-gradient(135deg, ${theme.colors.warning[500]}, ${theme.colors.warning[600]});
+  background: linear-gradient(135deg, ${'var(--colors-warning600, #F59E0B)'}, ${'var(--colors-warning600, #D97706)'});
   color: white;
   font-weight: 600;
   padding: 8px 16px;
@@ -280,7 +280,7 @@ const UpgradeButton = styled(Button)`
   gap: 6px;
   
   &:hover {
-    background: linear-gradient(135deg, ${theme.colors.warning[600]}, ${theme.colors.warning[700]});
+    background: linear-gradient(135deg, ${'var(--colors-warning600, #D97706)'}, ${'var(--colors-warning600, #A16207)'});
     transform: translateY(-1px);
   }
 `;
@@ -306,8 +306,8 @@ const Container = styled(Box)`
 
 const Header = styled(Box)`
   background: linear-gradient(135deg, 
-    ${theme.colors.secondary[600]} 0%, 
-    ${theme.colors.primary[600]} 100%
+    var(--colors-secondary600, #7C3AED) 0%, 
+    ${'var(--colors-primary600, #0284C7)'} 100%
   );
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
@@ -406,7 +406,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -415,7 +415,7 @@ const StatCard = styled(Box)`
   ${css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`}
   animation-delay: ${props => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   min-width: 200px;
   flex: 1;
   text-align: center;
@@ -436,7 +436,7 @@ const StatCard = styled(Box)`
   &:hover {
     transform: translateY(-6px);
     box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
+    border-color: ${props => props.$color || 'var(--colors-primary600, #0EA5E9)'};
     
     .stat-icon {
       transform: scale(1.15) rotate(5deg);
@@ -444,7 +444,7 @@ const StatCard = styled(Box)`
     
     .stat-value {
       transform: scale(1.08);
-      color: ${props => props.$color || theme.colors.primary[600]};
+      color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
     }
   }
 `;
@@ -456,7 +456,7 @@ const StatIcon = styled(Box)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.$bg || theme.colors.primary[100]};
+  background: ${props => props.$bg || 'rgba(2, 132, 199, 0.12)'};
   transition: all ${theme.transitions.normal};
   margin: 0 auto 20px;
   box-shadow: ${theme.shadows.sm};
@@ -464,7 +464,7 @@ const StatIcon = styled(Box)`
   svg {
     width: 34px;
     height: 34px;
-    color: ${props => props.$color || theme.colors.primary[600]};
+    color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
   }
   
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -482,7 +482,7 @@ const StatIcon = styled(Box)`
 const StatValue = styled(Typography)`
   font-size: 2.75rem;
   font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   line-height: 1;
   margin-bottom: 10px;
   transition: all ${theme.transitions.normal};
@@ -496,7 +496,7 @@ const StatValue = styled(Typography)`
 
 const StatLabel = styled(Typography)`
   font-size: 0.95rem;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   font-weight: 500;
   letter-spacing: 0.025em;
   text-align: center;
@@ -515,12 +515,12 @@ const SectionHeader = styled(Box)`
 `;
 
 const FilterBar = styled(Flex)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   gap: ${theme.spacing.md};
   align-items: center;
 `;
@@ -537,7 +537,7 @@ const SearchIcon = styled(MagnifyingGlassIcon)`
   left: 12px;
   width: 16px;
   height: 16px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   pointer-events: none;
   z-index: 1;
 `;
@@ -550,24 +550,24 @@ const StyledSearchInput = styled(TextInput)`
 const TableWrapper = styled(Box)`
   overflow-x: auto;
   border-radius: ${theme.borderRadius.lg};
-  border: 1px solid ${props => props.theme.colors.neutral200};
-  background: ${props => props.theme.colors.neutral0};
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background: var(--colors-neutral0, white);
   
   &::-webkit-scrollbar {
     height: 8px;
   }
   
   &::-webkit-scrollbar-track {
-    background: ${props => props.theme.colors.neutral100};
+    background: var(--colors-neutral100);
     border-radius: 4px;
   }
   
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.colors.neutral300};
+    background: rgba(128, 128, 128, 0.3);
     border-radius: 4px;
     
     &:hover {
-      background: ${props => props.theme.colors.neutral400};
+      background: rgba(128, 128, 128, 0.4);
     }
   }
 `;
@@ -577,12 +577,12 @@ const StyledTable = styled(Table)`
   min-width: 900px;
   
   thead {
-    background: ${props => props.theme.colors.neutral100};
-    border-bottom: 2px solid ${props => props.theme.colors.neutral200};
+    background: var(--colors-neutral100);
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
     
     th {
       font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.025em;
@@ -593,19 +593,19 @@ const StyledTable = styled(Table)`
   
   tbody tr {
     transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral150};
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
     
     &:last-child {
       border-bottom: none;
     }
     
     &:hover {
-      background: ${props => props.theme.colors.primary100};
+      background: rgba(2, 132, 199, 0.12);
     }
     
     td {
       padding: 10px 12px;
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       vertical-align: middle;
       font-size: 13px;
     }
@@ -614,15 +614,15 @@ const StyledTable = styled(Table)`
 
 const PaginationWrapper = styled(Flex)`
   padding: 16px 20px;
-  background: ${props => props.theme.colors.neutral100};
-  border-top: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral100);
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 0 0 ${theme.borderRadius.lg} ${theme.borderRadius.lg};
 `;
 
 const PaginationButton = styled.button`
-  background: ${props => props.active ? 'linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%)' : 'white'};
-  color: ${props => props.active ? 'white' : props.theme.colors.neutral700};
-  border: 1px solid ${props => props.active ? 'transparent' : props.theme.colors.neutral300};
+  background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%)' : 'var(--colors-neutral0, white)'};
+  color: ${props => props.active ? 'white' : 'var(--colors-neutral700)'};
+  border: 1px solid ${props => props.active ? 'transparent' : 'rgba(128, 128, 128, 0.3)'};
   padding: 6px 12px;
   min-width: 36px;
   height: 36px;
@@ -633,8 +633,8 @@ const PaginationButton = styled.button`
   transition: all 0.2s ease;
   
   &:hover:not(:disabled) {
-    background: ${props => props.active ? 'linear-gradient(135deg, #0284C7 0%, #9333EA 100%)' : props.theme.colors.neutral100};
-    border-color: ${props => props.active ? 'transparent' : props.theme.colors.neutral400};
+    background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%)' : 'var(--colors-neutral100)'};
+    border-color: ${props => props.active ? 'transparent' : 'rgba(128, 128, 128, 0.4)'};
   }
   
   &:disabled {
@@ -644,9 +644,9 @@ const PaginationButton = styled.button`
 `;
 
 const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed ${props => props.theme.colors.neutral300};
+  border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
   text-align: center;
   position: relative;
@@ -664,7 +664,7 @@ const EmptyState = styled(Box)`
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, ${theme.colors.secondary[50]} 0%, ${theme.colors.primary[50]} 100%);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, ${'rgba(2, 132, 199, 0.06)'} 100%);
     opacity: 0.3;
     z-index: 0;
   }
@@ -682,7 +682,7 @@ const EmptyIcon = styled.div`
   height: 120px;
   margin: 0 auto ${theme.spacing.lg};
   border-radius: 50%;
-  background: linear-gradient(135deg, ${theme.colors.secondary[100]} 0%, ${theme.colors.primary[100]} 100%);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, ${'rgba(2, 132, 199, 0.12)'} 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -691,7 +691,7 @@ const EmptyIcon = styled.div`
   svg {
     width: 60px;
     height: 60px;
-    color: ${theme.colors.primary[600]};
+    color: ${'var(--colors-primary600, #0284C7)'};
   }
 `;
 
@@ -713,7 +713,7 @@ const EmptyFeatureItem = styled.div`
   text-align: center;
   gap: ${theme.spacing.sm};
   padding: ${theme.spacing.lg};
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.md};
   box-shadow: ${theme.shadows.sm};
   transition: ${theme.transitions.fast};
@@ -726,7 +726,7 @@ const EmptyFeatureItem = styled.div`
   svg {
     width: 28px;
     height: 28px;
-    color: ${theme.colors.success[500]};
+    color: ${'var(--colors-success600, #22C55E)'};
     flex-shrink: 0;
     margin-bottom: ${theme.spacing.xs};
   }
@@ -756,7 +756,7 @@ const StyledModalContent = styled(Modal.Content)`
 
 const StyledModalHeader = styled(Modal.Header)`
   && {
-    background: linear-gradient(135deg, ${theme.colors.primary[500]} 0%, ${theme.colors.secondary[500]} 100%);
+    background: linear-gradient(135deg, ${'var(--colors-primary600, #0EA5E9)'} 0%, var(--colors-secondary600, #A855F7) 100%);
     padding: 24px 28px;
     border-bottom: none;
     
@@ -793,7 +793,7 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   && {
     padding: 28px;
-    background: ${props => props.theme.colors.neutral0};
+    background: var(--colors-neutral0, white);
   }
 `;
 
@@ -809,7 +809,7 @@ const ModalLabel = styled(Typography)`
   && {
     font-weight: 600;
     font-size: 13px;
-    color: ${props => props.theme.colors.neutral700};
+    color: var(--colors-neutral700);
     margin-bottom: 8px;
     display: block;
   }
@@ -818,22 +818,22 @@ const ModalLabel = styled(Typography)`
 const ModalHint = styled(Typography)`
   && {
     font-size: 12px;
-    color: ${props => props.theme.colors.neutral600};
+    color: var(--colors-neutral600);
     margin-top: 6px;
     display: block;
   }
 `;
 
 const ModalTemplateInfo = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${theme.colors.secondary[50]} 100%);
-  border: 1px solid ${theme.colors.primary[100]};
+  background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'} 0%, rgba(168, 85, 247, 0.06) 100%);
+  border: 1px solid ${'rgba(2, 132, 199, 0.12)'};
   border-radius: 10px;
   padding: 14px 16px;
   
   p {
     margin: 0;
     font-weight: 500;
-    color: ${props => props.theme.colors.neutral800};
+    color: var(--colors-neutral800);
   }
 `;
 
@@ -841,29 +841,29 @@ const StyledSelect = styled.select`
   width: 100%;
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   font-size: 14px;
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   cursor: pointer;
   transition: all ${theme.transitions.fast};
-  color: ${props => props.theme.colors.neutral700};
+  color: var(--colors-neutral700);
   
   &:hover {
-    border-color: ${theme.colors.primary[500]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
   }
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary[500]};
-    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
+    box-shadow: 0 0 0 3px ${'rgba(2, 132, 199, 0.12)'};
   }
 `;
 
 const StyledModalFooter = styled(Modal.Footer)`
   && {
     padding: 20px 28px;
-    background: ${props => props.theme.colors.neutral100};
-    border-top: 1px solid ${props => props.theme.colors.neutral200};
+    background: var(--colors-neutral100);
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
     gap: 12px;
   }
 `;
@@ -1285,8 +1285,8 @@ const TemplateList = () => {
 
       {/* Stats Cards */}
       <StatsGrid>
-        <StatCard $delay="0.1s" $color={theme.colors.primary[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.primary[100]} $color={theme.colors.primary[600]}>
+        <StatCard $delay="0.1s" $color={'var(--colors-primary600, #0EA5E9)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(2, 132, 199, 0.12)'} $color={'var(--colors-primary600, #0284C7)'}>
             <DocumentTextIcon />
           </StatIcon>
           <StatValue className="stat-value" variant="alpha">
@@ -1295,8 +1295,8 @@ const TemplateList = () => {
           <StatLabel variant="pi">Total Templates</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.2s" $color={theme.colors.success[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.success[100]} $color={theme.colors.success[600]}>
+        <StatCard $delay="0.2s" $color={'var(--colors-success600, #22C55E)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(22, 163, 74, 0.12)'} $color={'var(--colors-success600, #16A34A)'}>
             <ChartBarIcon />
           </StatIcon>
           <StatValue className="stat-value" variant="alpha">
@@ -1306,8 +1306,8 @@ const TemplateList = () => {
         </StatCard>
 
         {(limits?.emailTemplates && !limits.emailTemplates.unlimited) && (
-          <StatCard $delay="0.3s" $color={theme.colors.warning[500]}>
-            <StatIcon className="stat-icon" $bg={theme.colors.warning[100]} $color={theme.colors.warning[600]}>
+          <StatCard $delay="0.3s" $color={'var(--colors-warning600, #F59E0B)'}>
+            <StatIcon className="stat-icon" $bg={'rgba(234, 179, 8, 0.12)'} $color={'var(--colors-warning600, #D97706)'}>
               <SparklesIcon />
             </StatIcon>
             <StatValue className="stat-value" variant="alpha">
@@ -1329,7 +1329,7 @@ const TemplateList = () => {
        limits.emailTemplates.current >= limits.emailTemplates.max * 0.8 && (
         <LimitWarning>
           <Flex alignItems="center" gap={3}>
-            <SparklesIcon style={{ width: 24, height: 24, color: theme.colors.warning[600] }} />
+            <SparklesIcon style={{ width: 24, height: 24, color: 'var(--colors-warning600, #D97706)' }} />
             <Box>
               <Typography variant="omega" fontWeight="bold" textColor="neutral800">
                 {limits.emailTemplates.current >= limits.emailTemplates.max 
@@ -1672,10 +1672,10 @@ const TemplateList = () => {
             padding: '80px 32px',
             textAlign: 'center',
             borderRadius: theme.borderRadius.lg,
-            border: '1px dashed #D1D5DB',
+            border: '1px dashed rgba(128, 128, 128, 0.2)',
           }}
         >
-          <MagnifyingGlassIcon style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#9CA3AF' }} />
+          <MagnifyingGlassIcon style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: 'var(--colors-neutral500)' }} />
           <Typography variant="beta" textColor="neutral700" style={{ marginBottom: '8px' }}>
             No templates found
           </Typography>
@@ -1710,7 +1710,7 @@ const TemplateList = () => {
               </Typography>
             </Flex>
 
-            <Box background="neutral0" borderRadius={theme.borderRadius.lg} shadow="md" style={{ border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+            <Box background="neutral0" borderRadius={theme.borderRadius.lg} shadow="md" style={{ border: '1px solid rgba(128, 128, 128, 0.2)', overflow: 'hidden' }}>
               <Table colCount={2} rowCount={2}>
                 <Thead>
                   <Tr>
@@ -1778,10 +1778,10 @@ const TemplateList = () => {
               {/* Template Info Header */}
               <InfoBox style={{ marginTop: 0, marginBottom: '20px' }}>
                 <Flex alignItems="center" justifyContent="space-between">
-                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
+                  <Typography variant="pi" style={{ color: 'var(--colors-primary600, #075985)' }}>
                     <strong>Template ID:</strong> #{selectedTemplate.templateReferenceId}
                   </Typography>
-                  <Typography variant="pi" style={{ color: theme.colors.primary[700] }}>
+                  <Typography variant="pi" style={{ color: 'var(--colors-primary600, #075985)' }}>
                     <strong>Status:</strong> {selectedTemplate.isActive ? 'Active' : 'Inactive'}
                   </Typography>
                 </Flex>
@@ -1789,8 +1789,8 @@ const TemplateList = () => {
 
               {!selectedTemplate.isActive && (
                 <WarningBox style={{ marginTop: 0, marginBottom: '20px' }}>
-                  <SparklesIcon style={{ width: 20, height: 20, color: theme.colors.warning[600] }} />
-                  <Typography variant="pi" style={{ color: theme.colors.warning[700], fontWeight: 500 }}>
+                  <SparklesIcon style={{ width: 20, height: 20, color: 'var(--colors-warning600, #D97706)' }} />
+                  <Typography variant="pi" style={{ color: 'var(--colors-warning600, #A16207)', fontWeight: 500 }}>
                     This template is currently <strong>INACTIVE</strong> and will not be sent.
                   </Typography>
                 </WarningBox>
@@ -1800,7 +1800,7 @@ const TemplateList = () => {
                 {/* Native Strapi Email Service (RECOMMENDED) */}
                 <Accordion.Item value="native">
                   <Accordion.Header>
-                    <Accordion.Trigger icon={() => <CheckCircleIcon style={{ width: 16, height: 16, color: theme.colors.success[600] }} />}>
+                    <Accordion.Trigger icon={() => <CheckCircleIcon style={{ width: 16, height: 16, color: 'var(--colors-success600, #16A34A)' }} />}>
                       <Flex gap={2} alignItems="center">
                         Native Strapi Email Service
                         <RecommendedBadge>Recommended</RecommendedBadge>
@@ -1856,7 +1856,7 @@ const TemplateList = () => {
                 {/* MagicMail Plugin Service */}
                 <Accordion.Item value="plugin">
                   <Accordion.Header>
-                    <Accordion.Trigger icon={() => <CodeBracketIcon style={{ width: 16, height: 16, color: theme.colors.primary[600] }} />}>
+                    <Accordion.Trigger icon={() => <CodeBracketIcon style={{ width: 16, height: 16, color: 'var(--colors-primary600, #0284C7)' }} />}>
                       MagicMail Plugin Service
                     </Accordion.Trigger>
                   </Accordion.Header>
@@ -1910,7 +1910,7 @@ const TemplateList = () => {
                 {/* REST API */}
                 <Accordion.Item value="rest">
                   <Accordion.Header>
-                    <Accordion.Trigger icon={() => <DocumentArrowDownIcon style={{ width: 16, height: 16, color: theme.colors.secondary[600] }} />}>
+                    <Accordion.Trigger icon={() => <DocumentArrowDownIcon style={{ width: 16, height: 16, color: 'var(--colors-secondary600, #7C3AED)' }} />}>
                       REST API (cURL)
                     </Accordion.Trigger>
                   </Accordion.Header>

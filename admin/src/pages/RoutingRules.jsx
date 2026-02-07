@@ -40,42 +40,42 @@ import {
 const theme = {
   colors: {
     primary: {
-      50: '#F0F9FF',
-      100: '#E0F2FE',
+      50: 'rgba(14, 165, 233, 0.06)',
+      100: 'rgba(14, 165, 233, 0.12)',
       500: '#0EA5E9',
       600: '#0284C7',
       700: '#0369A1',
     },
     secondary: {
-      50: '#F5F3FF',
-      100: '#EDE9FE',
+      50: 'rgba(168, 85, 247, 0.06)',
+      100: 'rgba(168, 85, 247, 0.1)',
       500: '#A855F7',
       600: '#9333EA',
     },
     success: {
-      100: '#DCFCE7',
+      100: 'rgba(34, 197, 94, 0.15)',
       500: '#22C55E',
       600: '#16A34A',
       700: '#15803D',
     },
     warning: {
-      100: '#FEF3C7',
+      100: 'rgba(245, 158, 11, 0.15)',
       500: '#F59E0B',
       600: '#D97706',
     },
     danger: {
-      100: '#FEE2E2',
+      100: 'rgba(220, 38, 38, 0.12)',
       500: '#EF4444',
       600: '#DC2626',
     },
     neutral: {
-      0: '#FFFFFF',
-      50: '#F9FAFB',
-      100: '#F3F4F6',
-      200: '#E5E7EB',
-      600: '#4B5563',
-      700: '#374151',
-      800: '#1F2937',
+      0: 'var(--colors-neutral0, #FFFFFF)',
+      50: 'var(--colors-neutral100, #F9FAFB)',
+      100: 'rgba(128, 128, 128, 0.1)',
+      200: 'rgba(128, 128, 128, 0.2)',
+      600: 'var(--colors-neutral600, #4B5563)',
+      700: 'var(--colors-neutral800, #374151)',
+      800: 'var(--colors-neutral900, #1F2937)',
     }
   },
   shadows: {
@@ -155,8 +155,8 @@ const Container = styled(Box)`
 
 const Header = styled(Box)`
   background: linear-gradient(135deg, 
-    ${theme.colors.secondary[600]} 0%, 
-    ${theme.colors.primary[600]} 100%
+    var(--colors-secondary600, #7C3AED) 0%, 
+    ${'var(--colors-primary600, #0284C7)'} 100%
   );
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
@@ -260,7 +260,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -269,7 +269,7 @@ const StatCard = styled(Box)`
   ${css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`}
   animation-delay: ${props => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   min-width: 200px;
   flex: 1;
   text-align: center;
@@ -290,7 +290,7 @@ const StatCard = styled(Box)`
   &:hover {
     transform: translateY(-6px);
     box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
+    border-color: ${props => props.$color || 'var(--colors-primary600, #0EA5E9)'};
     
     .stat-icon {
       transform: scale(1.15) rotate(5deg);
@@ -298,7 +298,7 @@ const StatCard = styled(Box)`
     
     .stat-value {
       transform: scale(1.08);
-      color: ${props => props.$color || theme.colors.primary[600]};
+      color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
     }
   }
 `;
@@ -310,7 +310,7 @@ const StatIcon = styled(Box)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.$bg || theme.colors.primary[100]};
+  background: ${props => props.$bg || 'rgba(2, 132, 199, 0.12)'};
   transition: all ${theme.transitions.normal};
   margin: 0 auto 20px;
   box-shadow: ${theme.shadows.sm};
@@ -318,7 +318,7 @@ const StatIcon = styled(Box)`
   svg {
     width: 34px;
     height: 34px;
-    color: ${props => props.$color || theme.colors.primary[600]};
+    color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
   }
   
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -336,7 +336,7 @@ const StatIcon = styled(Box)`
 const StatValue = styled(Typography)`
   font-size: 2.75rem;
   font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   line-height: 1;
   margin-bottom: 10px;
   transition: all ${theme.transitions.normal};
@@ -350,7 +350,7 @@ const StatValue = styled(Typography)`
 
 const StatLabel = styled(Typography)`
   font-size: 0.95rem;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   font-weight: 500;
   letter-spacing: 0.025em;
   text-align: center;
@@ -365,9 +365,9 @@ const RulesContainer = styled(Box)`
 `;
 
 const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed ${props => props.theme.colors.neutral300};
+  border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
   text-align: center;
   position: relative;
@@ -385,7 +385,7 @@ const EmptyState = styled(Box)`
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, ${theme.colors.secondary[50]} 0%, ${theme.colors.primary[50]} 100%);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, ${'rgba(2, 132, 199, 0.06)'} 100%);
     opacity: 0.3;
     z-index: 0;
   }
@@ -395,7 +395,7 @@ const OnlineBadge = styled.div`
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: ${props => props.$active ? theme.colors.success[500] : props.theme.colors.neutral400};
+  background: ${props => props.$active ? 'var(--colors-success600, #22C55E)' : 'rgba(128, 128, 128, 0.4)'};
   display: inline-block;
   margin-right: 8px;
   ${css`animation: ${props => props.$active ? pulse : 'none'} 2s ease-in-out infinite;`}
@@ -403,12 +403,12 @@ const OnlineBadge = styled.div`
 
 const StyledTable = styled(Table)`
   thead {
-    background: ${props => props.theme.colors.neutral100};
-    border-bottom: 2px solid ${props => props.theme.colors.neutral200};
+    background: var(--colors-neutral100);
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
     
     th {
       font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       font-size: 0.875rem;
       text-transform: uppercase;
       letter-spacing: 0.025em;
@@ -418,31 +418,31 @@ const StyledTable = styled(Table)`
   
   tbody tr {
     transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral150};
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
     
     &:last-child {
       border-bottom: none;
     }
     
     &:hover {
-      background: ${props => props.theme.colors.primary100};
+      background: rgba(2, 132, 199, 0.12);
     }
     
     td {
       padding: ${theme.spacing.lg} ${theme.spacing.lg};
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       vertical-align: middle;
     }
   }
 `;
 
 const FilterBar = styled(Flex)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   gap: ${theme.spacing.md};
   align-items: center;
 `;
@@ -459,26 +459,26 @@ const SearchIcon = styled(MagnifyingGlassIcon)`
   left: 12px;
   width: 16px;
   height: 16px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   pointer-events: none;
 `;
 
 const StyledSearchInput = styled.input`
   width: 100%;
   padding: 10px 12px 10px 40px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: ${theme.borderRadius.md};
   font-size: 0.875rem;
   transition: all ${theme.transitions.fast};
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary[500]};
-    box-shadow: 0 0 0 2px ${theme.colors.primary[100]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
+    box-shadow: 0 0 0 2px ${'rgba(2, 132, 199, 0.12)'};
   }
   
   &::placeholder {
-    color: ${props => props.theme.colors.neutral500};
+    color: var(--colors-neutral500);
   }
 `;
 
@@ -591,24 +591,24 @@ const RoutingRulesPage = () => {
 
       {/* Quick Stats */}
       <StatsGrid>
-        <StatCard $delay="0.1s" $color={theme.colors.secondary[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.secondary[100]} $color={theme.colors.secondary[600]}>
+        <StatCard $delay="0.1s" $color={'var(--colors-secondary600, #7C3AED)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(168, 85, 247, 0.12)'} $color={'var(--colors-secondary600, #7C3AED)'}>
             <FunnelIcon />
           </StatIcon>
           <StatValue className="stat-value">{totalRules}</StatValue>
           <StatLabel>Total Rules</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.2s" $color={theme.colors.success[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.success[100]} $color={theme.colors.success[600]}>
+        <StatCard $delay="0.2s" $color={'var(--colors-success600, #16A34A)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(22, 163, 74, 0.12)'} $color={'var(--colors-success600, #16A34A)'}>
             <CheckIcon />
           </StatIcon>
           <StatValue className="stat-value">{activeRules}</StatValue>
           <StatLabel>Active Rules</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.3s" $color={theme.colors.warning[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.warning[100]} $color={theme.colors.warning[600]}>
+        <StatCard $delay="0.3s" $color={'var(--colors-warning600, #D97706)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(234, 179, 8, 0.12)'} $color={'var(--colors-warning600, #D97706)'}>
             <SparklesIcon />
           </StatIcon>
           <StatValue className="stat-value">{highPriorityRules}</StatValue>
@@ -630,14 +630,14 @@ const RoutingRulesPage = () => {
                 width: '120px',
                 height: '120px',
                 borderRadius: '50%',
-                background: `linear-gradient(135deg, ${theme.colors.secondary[100]} 0%, ${theme.colors.primary[100]} 100%)`,
+                background: `linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, ${'rgba(2, 132, 199, 0.12)'} 100%)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: theme.shadows.xl,
               }}
             >
-              <FunnelIcon style={{ width: '60px', height: '60px', color: theme.colors.secondary[600] }} />
+              <FunnelIcon style={{ width: '60px', height: '60px', color: 'var(--colors-secondary600, #7C3AED)' }} />
             </Box>
             
             <Typography 
@@ -1068,11 +1068,11 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
               {/* WhatsApp Fallback */}
               <Box 
                 padding={4} 
-                background={formData.whatsappFallback ? theme.colors.success[100] : theme.colors.neutral[100]}
+                background={formData.whatsappFallback ? 'rgba(22, 163, 74, 0.12)' : 'var(--colors-neutral100)'}
                 hasRadius
                 style={{ 
                   width: '100%',
-                  border: formData.whatsappFallback ? `2px solid ${theme.colors.success[600]}` : `1px solid ${theme.colors.neutral[200]}`,
+                  border: formData.whatsappFallback ? `2px solid ${'var(--colors-success600, #16A34A)'}` : `1px solid ${'rgba(128, 128, 128, 0.2)'}`,
                   borderRadius: theme.borderRadius.md,
                   transition: 'all 0.2s ease'
                 }}
@@ -1121,11 +1121,11 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
               {/* Active Toggle */}
               <Box 
                 padding={4} 
-                background={formData.isActive ? theme.colors.success[100] : theme.colors.danger[100]}
+                background={formData.isActive ? 'rgba(22, 163, 74, 0.12)' : 'rgba(220, 38, 38, 0.12)'}
                 hasRadius
                 style={{ 
                   width: '100%',
-                  border: formData.isActive ? `2px solid ${theme.colors.success[600]}` : `2px solid ${theme.colors.danger[600]}`,
+                  border: formData.isActive ? `2px solid ${'var(--colors-success600, #16A34A)'}` : `2px solid ${'var(--colors-danger600, #DC2626)'}`,
                   borderRadius: theme.borderRadius.md,
                   transition: 'all 0.2s ease'
                 }}

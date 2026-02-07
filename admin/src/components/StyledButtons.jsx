@@ -8,7 +8,7 @@ import { Button } from '@strapi/design-system';
 // ================ PRIMARY GRADIENT BUTTON ================
 export const GradientButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+    background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
     color: white;
     font-weight: 600;
     border: none;
@@ -17,7 +17,7 @@ export const GradientButton = styled(Button)`
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0284C7 0%, #9333EA 100%);
+      background: linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
     }
@@ -36,11 +36,11 @@ export const GradientButton = styled(Button)`
 // ================ SECONDARY BUTTON (Gradient Outline) ================
 export const SecondaryButton = styled(Button)`
   && {
-    background: white;
-    color: #7C3AED;
+    background: var(--colors-neutral0, white);
+    color: var(--colors-secondary600, #7C3AED);
     font-weight: 600;
     border: 2px solid transparent;
-    background-image: linear-gradient(white, white), linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+    background-image: linear-gradient(var(--colors-neutral0, white), var(--colors-neutral0, white)), linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
     background-origin: border-box;
     background-clip: padding-box, border-box;
     padding: 10px 20px;
@@ -48,7 +48,7 @@ export const SecondaryButton = styled(Button)`
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+      background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
       background-clip: padding-box;
       color: white;
       transform: translateY(-1px);
@@ -70,17 +70,17 @@ export const SecondaryButton = styled(Button)`
 export const TertiaryButton = styled(Button)`
   && {
     background: transparent;
-    color: ${props => props.theme.colors.neutral600};
+    color: var(--colors-neutral600);
     font-weight: 500;
-    border: 1px solid ${props => props.theme.colors.neutral200};
+    border: 1px solid rgba(128, 128, 128, 0.2);
     padding: 10px 20px;
     min-height: 40px;
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      background: ${props => props.theme.colors.neutral100};
-      border-color: ${props => props.theme.colors.neutral300};
-      color: ${props => props.theme.colors.neutral800};
+      background: var(--colors-neutral100);
+      border-color: rgba(128, 128, 128, 0.3);
+      color: var(--colors-neutral800);
     }
     
     &:disabled {
@@ -93,18 +93,18 @@ export const TertiaryButton = styled(Button)`
 // ================ DANGER BUTTON ================
 export const DangerButton = styled(Button)`
   && {
-    background: #FEE2E2;
-    color: #DC2626;
+    background: rgba(220, 38, 38, 0.12);
+    color: var(--colors-danger600, #DC2626);
     font-weight: 600;
-    border: 1px solid #FECACA;
+    border: 1px solid rgba(220, 38, 38, 0.3);
     padding: 10px 20px;
     min-height: 40px;
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      background: #DC2626;
+      background: var(--colors-danger600, #DC2626);
       color: white;
-      border-color: #DC2626;
+      border-color: var(--colors-danger600, #DC2626);
     }
     
     &:disabled {
@@ -117,7 +117,7 @@ export const DangerButton = styled(Button)`
 // ================ SUCCESS BUTTON ================
 export const SuccessButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    background: linear-gradient(135deg, var(--colors-success500, #10B981) 0%, var(--colors-success600, #059669) 100%);
     color: white;
     font-weight: 600;
     border: none;
@@ -126,7 +126,7 @@ export const SuccessButton = styled(Button)`
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      background: linear-gradient(135deg, var(--colors-success600, #059669) 0%, var(--colors-success700, #047857) 100%);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
@@ -141,9 +141,9 @@ export const SuccessButton = styled(Button)`
 // ================ ICON BUTTON (Small, for actions) ================
 export const IconButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-    color: #64748B;
-    border: 1px solid #E2E8F0;
+    background: linear-gradient(135deg, rgba(128, 128, 128, 0.04) 0%, rgba(128, 128, 128, 0.08) 100%);
+    color: var(--colors-neutral600, #64748B);
+    border: 1px solid rgba(128, 128, 128, 0.2);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -162,8 +162,8 @@ export const IconButton = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
-      border-color: #0EA5E9;
+      background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-primary700, #0284C7) 100%);
+      border-color: var(--colors-primary600, #0EA5E9);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
@@ -179,9 +179,9 @@ export const IconButton = styled(Button)`
 // ================ ICON BUTTON DANGER ================
 export const IconButtonDanger = styled(Button)`
   && {
-    background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
-    color: #EF4444;
-    border: 1px solid #FECACA;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.06) 0%, rgba(220, 38, 38, 0.12) 100%);
+    color: var(--colors-danger500, #EF4444);
+    border: 1px solid rgba(220, 38, 38, 0.3);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -200,8 +200,8 @@ export const IconButtonDanger = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-      border-color: #EF4444;
+      background: linear-gradient(135deg, var(--colors-danger500, #EF4444) 0%, var(--colors-danger600, #DC2626) 100%);
+      border-color: var(--colors-danger500, #EF4444);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
@@ -217,9 +217,9 @@ export const IconButtonDanger = styled(Button)`
 // ================ ICON BUTTON PRIMARY ================
 export const IconButtonPrimary = styled(Button)`
   && {
-    background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-    color: #0EA5E9;
-    border: 1px solid #BAE6FD;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(14, 165, 233, 0.12) 100%);
+    color: var(--colors-primary600, #0EA5E9);
+    border: 1px solid rgba(14, 165, 233, 0.3);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -238,8 +238,8 @@ export const IconButtonPrimary = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
-      border-color: #0EA5E9;
+      background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-primary700, #0284C7) 100%);
+      border-color: var(--colors-primary600, #0EA5E9);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
@@ -255,9 +255,9 @@ export const IconButtonPrimary = styled(Button)`
 // ================ ICON BUTTON SUCCESS ================
 export const IconButtonSuccess = styled(Button)`
   && {
-    background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-    color: #22C55E;
-    border: 1px solid #BBF7D0;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.06) 0%, rgba(34, 197, 94, 0.15) 100%);
+    color: var(--colors-success600, #22C55E);
+    border: 1px solid rgba(34, 197, 94, 0.3);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -276,8 +276,8 @@ export const IconButtonSuccess = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
-      border-color: #22C55E;
+      background: linear-gradient(135deg, var(--colors-success600, #22C55E) 0%, var(--colors-success700, #16A34A) 100%);
+      border-color: var(--colors-success600, #22C55E);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
@@ -293,9 +293,9 @@ export const IconButtonSuccess = styled(Button)`
 // ================ ICON BUTTON WARNING ================
 export const IconButtonWarning = styled(Button)`
   && {
-    background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-    color: #F59E0B;
-    border: 1px solid #FDE68A;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(245, 158, 11, 0.15) 100%);
+    color: var(--colors-warning500, #F59E0B);
+    border: 1px solid rgba(234, 179, 8, 0.4);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -314,8 +314,8 @@ export const IconButtonWarning = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-      border-color: #F59E0B;
+      background: linear-gradient(135deg, var(--colors-warning500, #F59E0B) 0%, var(--colors-warning600, #D97706) 100%);
+      border-color: var(--colors-warning500, #F59E0B);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
@@ -331,9 +331,9 @@ export const IconButtonWarning = styled(Button)`
 // ================ ICON BUTTON PURPLE (for special actions) ================
 export const IconButtonPurple = styled(Button)`
   && {
-    background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);
-    color: #A855F7;
-    border: 1px solid #E9D5FF;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, rgba(168, 85, 247, 0.12) 100%);
+    color: var(--colors-secondary500, #A855F7);
+    border: 1px solid rgba(139, 92, 246, 0.3);
     padding: 8px;
     min-width: 38px;
     min-height: 38px;
@@ -352,8 +352,8 @@ export const IconButtonPurple = styled(Button)`
     }
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #A855F7 0%, #9333EA 100%);
-      border-color: #A855F7;
+      background: linear-gradient(135deg, var(--colors-secondary500, #A855F7) 0%, var(--colors-secondary600, #9333EA) 100%);
+      border-color: var(--colors-secondary500, #A855F7);
       color: white;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
@@ -369,7 +369,7 @@ export const IconButtonPurple = styled(Button)`
 // ================ LARGE CTA BUTTON ================
 export const CTAButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+    background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
     color: white;
     font-weight: 700;
     font-size: 1rem;
@@ -381,7 +381,7 @@ export const CTAButton = styled(Button)`
     box-shadow: 0 4px 14px rgba(14, 165, 233, 0.25);
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0284C7 0%, #9333EA 100%);
+      background: linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%);
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35);
     }
@@ -401,7 +401,7 @@ export const CTAButton = styled(Button)`
 export const LinkButton = styled(Button)`
   && {
     background: transparent;
-    color: #0EA5E9;
+    color: var(--colors-primary600, #0EA5E9);
     font-weight: 500;
     border: none;
     padding: 4px 8px;
@@ -410,7 +410,7 @@ export const LinkButton = styled(Button)`
     transition: all 0.2s ease;
     
     &:hover:not(:disabled) {
-      color: #0284C7;
+      color: var(--colors-primary700, #0284C7);
       text-decoration: none;
     }
     

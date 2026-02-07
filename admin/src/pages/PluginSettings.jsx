@@ -43,28 +43,28 @@ const PageHeader = styled(Flex)`
 const PageTitle = styled(Typography)`
   font-size: 28px;
   font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   display: block;
 `;
 
 const PageSubtitle = styled(Typography)`
   font-size: 14px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   display: block;
 `;
 
 const ActionBar = styled(Flex)`
   margin-bottom: 32px;
   padding: 16px 20px;
-  background: ${props => props.theme.colors.neutral0};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 `;
 
 const SettingsSection = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 24px;
@@ -73,8 +73,8 @@ const SettingsSection = styled(Box)`
 
 const SectionHeader = styled(Flex)`
   padding: 20px 24px;
-  background: ${props => props.theme.colors.neutral100};
-  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral100);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 `;
 
 const SectionIcon = styled(Box)`
@@ -85,7 +85,7 @@ const SectionIcon = styled(Box)`
   align-items: center;
   justify-content: center;
   margin-right: 16px;
-  background: ${props => props.bgColor || '#E0F2FE'};
+  background: ${props => props.bgColor || 'rgba(14, 165, 233, 0.12)'};
   flex-shrink: 0;
 `;
 
@@ -95,7 +95,7 @@ const SectionContent = styled(Box)`
 
 const SettingRow = styled(Flex)`
   padding: 16px 0;
-  border-bottom: 1px solid ${props => props.theme.colors.neutral150};
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
   
   &:last-child {
     border-bottom: none;
@@ -118,13 +118,13 @@ const SettingInfo = styled(Flex)`
 const SettingLabel = styled(Typography)`
   font-size: 14px;
   font-weight: 600;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   display: block;
 `;
 
 const SettingDescription = styled(Typography)`
   font-size: 13px;
-  color: ${props => props.theme.colors.neutral500};
+  color: var(--colors-neutral500);
   line-height: 1.5;
   display: block;
 `;
@@ -144,8 +144,8 @@ const LoaderContainer = styled(Flex)`
 `;
 
 const InfoBox = styled(Box)`
-  background: #EFF6FF;
-  border: 1px solid #BFDBFE;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.3);
   border-radius: 8px;
   padding: 12px 16px;
   margin-top: 16px;
@@ -153,7 +153,7 @@ const InfoBox = styled(Box)`
 
 const CodeSnippet = styled.code`
   background: #1E293B;
-  color: #E2E8F0;
+  color: rgba(128, 128, 128, 0.3);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -286,8 +286,8 @@ const PluginSettingsPage = () => {
       {/* Link Tracking Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="#DBEAFE">
-            <LinkIcon style={{ width: 22, height: 22, color: '#2563EB' }} />
+          <SectionIcon bgColor="rgba(37, 99, 235, 0.15)">
+            <LinkIcon style={{ width: 22, height: 22, color: 'var(--colors-primary600, #2563EB)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold">Link Tracking</Typography>
@@ -348,8 +348,8 @@ const PluginSettingsPage = () => {
       {/* Open Tracking Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="#DCFCE7">
-            <EyeIcon style={{ width: 22, height: 22, color: '#16A34A' }} />
+          <SectionIcon bgColor="rgba(34, 197, 94, 0.15)">
+            <EyeIcon style={{ width: 22, height: 22, color: 'var(--colors-success600, #16A34A)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold">Open Tracking</Typography>
@@ -380,8 +380,8 @@ const PluginSettingsPage = () => {
       {/* Unsubscribe Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="#FEF3C7">
-            <EnvelopeIcon style={{ width: 22, height: 22, color: '#D97706' }} />
+          <SectionIcon bgColor="rgba(245, 158, 11, 0.15)">
+            <EnvelopeIcon style={{ width: 22, height: 22, color: 'var(--colors-warning600, #D97706)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold">Unsubscribe Settings</Typography>
@@ -430,8 +430,8 @@ const PluginSettingsPage = () => {
       {/* Default Sender Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="#F3E8FF">
-            <UserIcon style={{ width: 22, height: 22, color: '#9333EA' }} />
+          <SectionIcon bgColor="rgba(147, 51, 234, 0.12)">
+            <UserIcon style={{ width: 22, height: 22, color: 'var(--colors-secondary600, #9333EA)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold">Default Sender</Typography>

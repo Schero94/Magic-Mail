@@ -35,7 +35,7 @@ const Title = styled(Typography)`
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, #0EA5E9, #A855F7);
+  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9), var(--colors-secondary500, #A855F7));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: block;
@@ -43,7 +43,7 @@ const Title = styled(Typography)`
 
 const Subtitle = styled(Typography)`
   font-size: 1.125rem;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   line-height: 1.6;
   display: block;
 `;
@@ -65,10 +65,10 @@ const TierWrapper = styled(Box)`
 `;
 
 const TierCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: 16px;
   padding: 32px;
-  border: 2px solid ${props => props.$featured ? '#0EA5E9' : props.theme.colors.neutral200};
+  border: 2px solid ${props => props.$featured ? 'var(--colors-primary600, #0EA5E9)' : 'rgba(128, 128, 128, 0.2)'};
   position: relative;
   transition: all 0.3s ease;
   box-shadow: ${props => props.$featured
@@ -88,7 +88,7 @@ const PopularBadge = styled(Badge)`
   position: absolute;
   top: -12px;
   right: 24px;
-  background: linear-gradient(135deg, #0EA5E9, #0284C7);
+  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9), var(--colors-primary700, #0284C7));
   color: white;
   padding: 4px 16px;
   font-size: 12px;
@@ -125,7 +125,7 @@ const TierPrice = styled(Typography)`
 `;
 
 const TierDescription = styled(Typography)`
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   margin-bottom: 24px;
 `;
 
@@ -151,11 +151,11 @@ const FeatureIcon = styled(Box)`
   margin-top: 2px;
   
   ${props => props.$included ? `
-    background: #DCFCE7;
-    svg { color: #16A34A; }
+    background: rgba(34, 197, 94, 0.15);
+    svg { color: var(--colors-success600, #16A34A); }
   ` : `
-    background: #FEE2E2;
-    svg { color: #DC2626; }
+    background: rgba(220, 38, 38, 0.12);
+    svg { color: var(--colors-danger600, #DC2626); }
   `}
 `;
 
@@ -180,8 +180,8 @@ const CurrentPlanBadge = styled(Badge)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.theme.colors.neutral100};
-  color: ${props => props.theme.colors.neutral600};
+  background: var(--colors-neutral100);
+  color: var(--colors-neutral600);
   font-weight: 600;
   font-size: 15px;
 `;
@@ -356,7 +356,7 @@ const LicensePage = () => {
               
               <Flex alignItems="baseline" gap={1}>
                 <TierPrice variant="alpha">{tier.price}</TierPrice>
-                <Typography variant="omega" style={{ color: '#6B7280' }}>
+                <Typography variant="omega" style={{ color: 'var(--colors-neutral600)' }}>
                   {tier.period}
                 </Typography>
               </Flex>
@@ -367,7 +367,7 @@ const LicensePage = () => {
               
               {/* Limits Summary */}
               <Box style={{ 
-                background: '#F9FAFB', 
+                background: 'var(--colors-neutral100, #F9FAFB)', 
                 borderRadius: '8px', 
                 padding: '12px', 
                 marginBottom: '20px' 
@@ -399,7 +399,7 @@ const LicensePage = () => {
                       variant="omega" 
                       style={{ 
                         fontSize: '14px',
-                        color: feature.included ? '#374151' : '#9CA3AF',
+                        color: feature.included ? 'var(--colors-neutral800)' : 'var(--colors-neutral500)',
                         textDecoration: feature.included ? 'none' : 'line-through'
                       }}
                     >

@@ -90,8 +90,8 @@ const Container = styled(Box)`
 
 const Header = styled(Box)`
   background: linear-gradient(135deg, 
-    ${theme.colors.primary[600]} 0%, 
-    ${theme.colors.secondary[600]} 100%
+    ${'var(--colors-primary600, #0284C7)'} 0%, 
+    var(--colors-secondary600, #7C3AED) 100%
   );
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
@@ -195,7 +195,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -204,7 +204,7 @@ const StatCard = styled(Box)`
   ${css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`}
   animation-delay: ${props => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   min-width: 200px;
   flex: 1;
   text-align: center;
@@ -225,7 +225,7 @@ const StatCard = styled(Box)`
   &:hover {
     transform: translateY(-6px);
     box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
+    border-color: ${props => props.$color || 'var(--colors-primary600, #0EA5E9)'};
     
     .stat-icon {
       transform: scale(1.15) rotate(5deg);
@@ -233,7 +233,7 @@ const StatCard = styled(Box)`
     
     .stat-value {
       transform: scale(1.08);
-      color: ${props => props.$color || theme.colors.primary[600]};
+      color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
     }
   }
 `;
@@ -245,7 +245,7 @@ const StatIcon = styled(Box)`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.$bg || theme.colors.primary[100]};
+  background: ${props => props.$bg || 'rgba(2, 132, 199, 0.12)'};
   transition: all ${theme.transitions.normal};
   margin: 0 auto 20px;
   box-shadow: ${theme.shadows.sm};
@@ -253,7 +253,7 @@ const StatIcon = styled(Box)`
   svg {
     width: 34px;
     height: 34px;
-    color: ${props => props.$color || theme.colors.primary[600]};
+    color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
   }
   
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -271,7 +271,7 @@ const StatIcon = styled(Box)`
 const StatValue = styled(Typography)`
   font-size: 2.75rem;
   font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   line-height: 1;
   margin-bottom: 10px;
   transition: all ${theme.transitions.normal};
@@ -285,7 +285,7 @@ const StatValue = styled(Typography)`
 
 const StatLabel = styled(Typography)`
   font-size: 0.95rem;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   font-weight: 500;
   letter-spacing: 0.025em;
   text-align: center;
@@ -300,9 +300,9 @@ const AccountsContainer = styled(Box)`
 `;
 
 const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed ${props => props.theme.colors.neutral300};
+  border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
   text-align: center;
   position: relative;
@@ -320,7 +320,7 @@ const EmptyState = styled(Box)`
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${theme.colors.secondary[50]} 100%);
+    background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'} 0%, rgba(168, 85, 247, 0.06) 100%);
     opacity: 0.3;
     z-index: 0;
   }
@@ -330,7 +330,7 @@ const OnlineBadge = styled.div`
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: ${props => props.$active ? theme.colors.success[500] : props.theme.colors.neutral400};
+  background: ${props => props.$active ? 'var(--colors-success600, #22C55E)' : 'rgba(128, 128, 128, 0.4)'};
   display: inline-block;
   margin-right: 8px;
   ${css`animation: ${props => props.$active ? pulse : 'none'} 2s ease-in-out infinite;`}
@@ -338,12 +338,12 @@ const OnlineBadge = styled.div`
 
 const StyledTable = styled(Table)`
   thead {
-    background: ${props => props.theme.colors.neutral100};
-    border-bottom: 2px solid ${props => props.theme.colors.neutral200};
+    background: var(--colors-neutral100);
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
     
     th {
       font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       font-size: 0.875rem;
       text-transform: uppercase;
       letter-spacing: 0.025em;
@@ -353,31 +353,31 @@ const StyledTable = styled(Table)`
   
   tbody tr {
     transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral150};
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
     
     &:last-child {
       border-bottom: none;
     }
     
     &:hover {
-      background: ${props => props.theme.colors.primary100};
+      background: rgba(2, 132, 199, 0.12);
     }
     
     td {
       padding: ${theme.spacing.lg} ${theme.spacing.lg};
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       vertical-align: middle;
     }
   }
 `;
 
 const FilterBar = styled(Flex)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   gap: ${theme.spacing.md};
   align-items: center;
 `;
@@ -394,28 +394,28 @@ const SearchIcon = styled(MagnifyingGlassIcon)`
   left: 12px;
   width: 16px;
   height: 16px;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   pointer-events: none;
 `;
 
 const StyledSearchInput = styled.input`
   width: 100%;
   padding: 10px 12px 10px 40px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: ${theme.borderRadius.md};
   font-size: 0.875rem;
   transition: all ${theme.transitions.fast};
-  background: ${props => props.theme.colors.neutral0};
-  color: ${props => props.theme.colors.neutral800};
+  background: var(--colors-neutral0, white);
+  color: var(--colors-neutral800);
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary[500]};
-    box-shadow: 0 0 0 2px ${theme.colors.primary[100]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
+    box-shadow: 0 0 0 2px ${'rgba(2, 132, 199, 0.12)'};
   }
   
   &::placeholder {
-    color: ${props => props.theme.colors.neutral500};
+    color: var(--colors-neutral500);
   }
 `;
 
@@ -431,7 +431,7 @@ const StyledModalContent = styled(Modal.Content)`
 
 const StyledModalHeader = styled(Modal.Header)`
   && {
-    background: linear-gradient(135deg, ${theme.colors.primary[500]} 0%, ${theme.colors.secondary[500]} 100%);
+    background: linear-gradient(135deg, ${'var(--colors-primary600, #0EA5E9)'} 0%, var(--colors-secondary600, #A855F7) 100%);
     padding: 24px 28px;
     border-bottom: none;
     
@@ -464,7 +464,7 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   && {
     padding: 24px 28px;
-    background: ${props => props.theme.colors.neutral0};
+    background: var(--colors-neutral0, white);
     width: 100%;
     box-sizing: border-box;
   }
@@ -473,14 +473,14 @@ const StyledModalBody = styled(Modal.Body)`
 const StyledModalFooter = styled(Modal.Footer)`
   && {
     padding: 20px 28px;
-    border-top: 1px solid ${props => props.theme.colors.neutral200};
-    background: ${props => props.theme.colors.neutral100};
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    background: var(--colors-neutral100);
   }
 `;
 
 const AccountInfoCard = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${theme.colors.secondary[50]} 100%);
-  border: 1px solid ${theme.colors.primary[200]};
+  background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'} 0%, rgba(168, 85, 247, 0.06) 100%);
+  border: 1px solid ${'rgba(2, 132, 199, 0.2)'};
   border-radius: 12px;
   padding: 16px 20px;
   text-align: center;
@@ -494,70 +494,70 @@ const AccountInfoCard = styled(Box)`
 
 const TestOptionCard = styled(Box)`
   padding: 16px 20px;
-  border: 2px solid ${props => props.$selected ? theme.colors.primary[500] : props.theme.colors.neutral200};
+  border: 2px solid ${props => props.$selected ? 'var(--colors-primary600, #0EA5E9)' : 'rgba(128, 128, 128, 0.2)'};
   border-radius: 12px;
   cursor: pointer;
   transition: all ${theme.transitions.fast};
-  background: ${props => props.$selected ? theme.colors.primary[50] : props.theme.colors.neutral0};
+  background: ${props => props.$selected ? 'rgba(2, 132, 199, 0.06)' : 'var(--colors-neutral0, white)'};
   
   &:hover {
-    border-color: ${theme.colors.primary[400]};
-    background: ${theme.colors.primary[50]};
+    border-color: ${'rgba(2, 132, 199, 0.4)'};
+    background: ${'rgba(2, 132, 199, 0.06)'};
   }
 `;
 
 const ModalFieldLabel = styled(Typography)`
   font-size: 13px;
   font-weight: 600;
-  color: ${props => props.theme.colors.neutral700};
+  color: var(--colors-neutral700);
   margin-bottom: 8px;
   display: block;
 `;
 
 const ModalHint = styled(Typography)`
   font-size: 12px;
-  color: ${props => props.theme.colors.neutral500};
+  color: var(--colors-neutral500);
   margin-top: 6px;
 `;
 
 const StyledModalSelect = styled.select`
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   font-size: 14px;
-  background: ${props => props.theme.colors.neutral0};
-  color: ${props => props.theme.colors.neutral800};
+  background: var(--colors-neutral0, white);
+  color: var(--colors-neutral800);
   cursor: pointer;
   transition: all ${theme.transitions.fast};
   box-sizing: border-box;
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary[500]};
-    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
+    box-shadow: 0 0 0 3px ${'rgba(2, 132, 199, 0.12)'};
   }
 `;
 
 const StyledModalInput = styled.input`
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   font-size: 14px;
-  background: ${props => props.theme.colors.neutral0};
-  color: ${props => props.theme.colors.neutral800};
+  background: var(--colors-neutral0, white);
+  color: var(--colors-neutral800);
   transition: all ${theme.transitions.fast};
   box-sizing: border-box;
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary[500]};
-    box-shadow: 0 0 0 3px ${theme.colors.primary[100]};
+    border-color: ${'var(--colors-primary600, #0EA5E9)'};
+    box-shadow: 0 0 0 3px ${'rgba(2, 132, 199, 0.12)'};
   }
   
   &::placeholder {
-    color: ${props => props.theme.colors.neutral400};
+    color: rgba(128, 128, 128, 0.4);
   }
 `;
 
@@ -691,24 +691,24 @@ const HomePage = () => {
 
       {/* Quick Stats */}
       <StatsGrid>
-        <StatCard $delay="0.1s" $color={theme.colors.primary[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.primary[100]} $color={theme.colors.primary[600]}>
+        <StatCard $delay="0.1s" $color={'var(--colors-primary600, #0284C7)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(2, 132, 199, 0.12)'} $color={'var(--colors-primary600, #0284C7)'}>
             <EnvelopeIcon />
           </StatIcon>
           <StatValue className="stat-value">{totalSentToday}</StatValue>
           <StatLabel>Emails Today</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.2s" $color={theme.colors.success[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.success[100]} $color={theme.colors.success[600]}>
+        <StatCard $delay="0.2s" $color={'var(--colors-success600, #16A34A)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(22, 163, 74, 0.12)'} $color={'var(--colors-success600, #16A34A)'}>
             <ServerIcon />
           </StatIcon>
           <StatValue className="stat-value">{totalSent}</StatValue>
           <StatLabel>Total Sent</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.3s" $color={theme.colors.warning[600]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.warning[100]} $color={theme.colors.warning[600]}>
+        <StatCard $delay="0.3s" $color={'var(--colors-warning600, #D97706)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(234, 179, 8, 0.12)'} $color={'var(--colors-warning600, #D97706)'}>
             <SparklesIcon />
           </StatIcon>
           <StatValue className="stat-value">{activeAccounts} / {accounts.length}</StatValue>
@@ -730,14 +730,14 @@ const HomePage = () => {
                 width: '120px',
                 height: '120px',
                 borderRadius: '50%',
-                background: `linear-gradient(135deg, ${theme.colors.primary[100]} 0%, ${theme.colors.secondary[100]} 100%)`,
+                background: `linear-gradient(135deg, ${'rgba(2, 132, 199, 0.12)'} 0%, rgba(168, 85, 247, 0.12) 100%)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: theme.shadows.xl,
               }}
             >
-              <EnvelopeIcon style={{ width: '60px', height: '60px', color: theme.colors.primary[600] }} />
+              <EnvelopeIcon style={{ width: '60px', height: '60px', color: 'var(--colors-primary600, #0284C7)' }} />
             </Box>
             
             <Typography 
@@ -933,8 +933,8 @@ const HomePage = () => {
                                       width: `${Math.min(usagePercent, 100)}%`,
                                       height: '100%',
                                       background: isNearLimit 
-                                        ? theme.colors.danger[600]
-                                        : theme.colors.success[600],
+                                        ? 'var(--colors-danger600, #DC2626)'
+                                        : 'var(--colors-success600, #16A34A)',
                                       borderRadius: '999px',
                                     }}
                                   />
@@ -1113,7 +1113,7 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
         <StyledModalBody>
           {/* Account Info Card */}
           <AccountInfoCard>
-            <Typography variant="pi" style={{ color: theme.colors.primary[600], fontWeight: 500 }}>
+            <Typography variant="pi" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: 500 }}>
               Testing Account
             </Typography>
             <Typography variant="beta" textColor="neutral800" style={{ fontSize: '1.125rem', fontWeight: 700, marginTop: '4px' }}>
@@ -1147,9 +1147,9 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
               style={{ marginBottom: '10px' }}
             >
               <Flex alignItems="center" gap={3}>
-                <PlayIcon style={{ width: 20, height: 20, color: testMode === 'direct' ? theme.colors.primary[600] : '#6B7280', flexShrink: 0 }} />
+                <PlayIcon style={{ width: 20, height: 20, color: testMode === 'direct' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
                 <Box style={{ flex: 1 }}>
-                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? theme.colors.primary[700] : '#374151' }}>
+                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
                     Direct Test
                   </Typography>
                   <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
@@ -1164,9 +1164,9 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
               onClick={() => setTestMode('strapi')}
             >
               <Flex alignItems="center" gap={3}>
-                <SparklesIcon style={{ width: 20, height: 20, color: testMode === 'strapi' ? theme.colors.primary[600] : '#6B7280', flexShrink: 0 }} />
+                <SparklesIcon style={{ width: 20, height: 20, color: testMode === 'strapi' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
                 <Box style={{ flex: 1 }}>
-                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? theme.colors.primary[700] : '#374151' }}>
+                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
                     Strapi Service Test
                   </Typography>
                   <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
@@ -1179,7 +1179,7 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
 
           {/* Advanced Options (only for Direct Test) */}
           {testMode === 'direct' && (
-            <Box style={{ marginTop: '20px', padding: '16px', background: '#F9FAFB', borderRadius: '12px' }}>
+            <Box style={{ marginTop: '20px', padding: '16px', background: 'var(--colors-neutral100, #F9FAFB)', borderRadius: '12px' }}>
               <ModalFieldLabel style={{ marginBottom: '16px', fontSize: '14px' }}>Advanced Options</ModalFieldLabel>
               
               <Box style={{ marginBottom: '12px' }}>

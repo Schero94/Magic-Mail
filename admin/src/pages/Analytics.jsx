@@ -30,12 +30,12 @@ import { GradientButton, TertiaryButton, DangerButton } from '../components/Styl
 // ================ THEME (kopiert von TemplateList) ================
 const theme = {
   colors: {
-    primary: { 50: '#F0F9FF', 100: '#E0F2FE', 500: '#0EA5E9', 600: '#0284C7', 700: '#0369A1' },
-    secondary: { 50: '#F5F3FF', 100: '#EDE9FE', 500: '#A855F7', 600: '#9333EA' },
-    success: { 100: '#DCFCE7', 500: '#22C55E', 600: '#16A34A', 700: '#15803D' },
-    warning: { 100: '#FEF3C7', 500: '#F59E0B', 600: '#D97706' },
-    danger: { 100: '#FEE2E2', 500: '#EF4444', 600: '#DC2626' },
-    neutral: { 0: '#FFFFFF', 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 600: '#4B5563', 700: '#374151', 800: '#1F2937' }
+    primary: { 50: 'rgba(14, 165, 233, 0.06)', 100: 'rgba(14, 165, 233, 0.12)', 500: '#0EA5E9', 600: '#0284C7', 700: '#0369A1' },
+    secondary: { 50: 'rgba(168, 85, 247, 0.06)', 100: 'rgba(168, 85, 247, 0.1)', 500: '#A855F7', 600: '#9333EA' },
+    success: { 100: 'rgba(34, 197, 94, 0.15)', 500: '#22C55E', 600: '#16A34A', 700: '#15803D' },
+    warning: { 100: 'rgba(245, 158, 11, 0.15)', 500: '#F59E0B', 600: '#D97706' },
+    danger: { 100: 'rgba(220, 38, 38, 0.12)', 500: '#EF4444', 600: '#DC2626' },
+    neutral: { 0: 'var(--colors-neutral0, #FFFFFF)', 50: 'var(--colors-neutral100, #F9FAFB)', 100: 'rgba(128, 128, 128, 0.1)', 200: 'rgba(128, 128, 128, 0.2)', 600: 'var(--colors-neutral600, #4B5563)', 700: 'var(--colors-neutral800, #374151)', 800: 'var(--colors-neutral900, #1F2937)' }
   },
   shadows: {
     sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
@@ -85,8 +85,8 @@ const Container = styled(Box)`
 
 const Header = styled(Box)`
   background: linear-gradient(135deg, 
-    ${theme.colors.secondary[600]} 0%, 
-    ${theme.colors.primary[600]} 100%
+    var(--colors-secondary600, #7C3AED) 0%, 
+    ${'var(--colors-primary600, #0284C7)'} 100%
   );
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
@@ -185,7 +185,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -194,7 +194,7 @@ const StatCard = styled(Box)`
   ${css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`}
   animation-delay: ${props => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   min-width: 200px;
   flex: 1;
   text-align: center;
@@ -215,7 +215,7 @@ const StatCard = styled(Box)`
   &:hover {
     transform: translateY(-6px);
     box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || theme.colors.primary[500]};
+    border-color: ${props => props.$color || 'var(--colors-primary600, #0EA5E9)'};
     
     .stat-icon {
       transform: scale(1.15) rotate(5deg);
@@ -223,7 +223,7 @@ const StatCard = styled(Box)`
     
     .stat-value {
       transform: scale(1.08);
-      color: ${props => props.$color || theme.colors.primary[600]};
+      color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
     }
   }
 `;
@@ -236,13 +236,13 @@ const StatIcon = styled(Box)`
   align-items: center;
   justify-content: center;
   margin-bottom: ${theme.spacing.md};
-  background: ${props => props.$bg || theme.colors.primary[100]};
+  background: ${props => props.$bg || 'rgba(2, 132, 199, 0.12)'};
   transition: all ${theme.transitions.normal};
   
   svg {
     width: 32px;
     height: 32px;
-    color: ${props => props.$color || theme.colors.primary[600]};
+    color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
   }
   
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -260,7 +260,7 @@ const StatIcon = styled(Box)`
 const StatValue = styled(Typography)`
   font-size: 2.25rem;
   font-weight: 700;
-  color: ${props => props.theme.colors.neutral800};
+  color: var(--colors-neutral800);
   transition: all ${theme.transitions.normal};
   line-height: 1;
   margin-bottom: ${theme.spacing.xs};
@@ -272,7 +272,7 @@ const StatValue = styled(Typography)`
 
 const StatLabel = styled(Typography)`
   font-size: 0.875rem;
-  color: ${props => props.theme.colors.neutral600};
+  color: var(--colors-neutral600);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -283,22 +283,22 @@ const StatLabel = styled(Typography)`
 `;
 
 const FilterBar = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.lg} ${theme.spacing.xl};
   margin-bottom: ${theme.spacing.lg};
   box-shadow: ${theme.shadows.sm};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
 `;
 
 const StyledTable = styled(Table)`
   thead {
-    background: ${props => props.theme.colors.neutral100};
-    border-bottom: 2px solid ${props => props.theme.colors.neutral200};
+    background: var(--colors-neutral100);
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
     
     th {
       font-weight: 600;
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       font-size: 0.875rem;
       text-transform: uppercase;
       letter-spacing: 0.025em;
@@ -308,37 +308,37 @@ const StyledTable = styled(Table)`
   
   tbody tr {
     transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid ${props => props.theme.colors.neutral150};
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
     
     &:last-child {
       border-bottom: none;
     }
     
     &:hover {
-      background: ${props => props.theme.colors.primary100};
+      background: rgba(2, 132, 199, 0.12);
     }
     
     td {
       padding: ${theme.spacing.lg} ${theme.spacing.lg};
-      color: ${props => props.theme.colors.neutral800};
+      color: var(--colors-neutral800);
       vertical-align: middle;
     }
   }
 `;
 
 const TableContainer = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.lg};
   box-shadow: ${theme.shadows.md};
-  border: 1px solid ${props => props.theme.colors.neutral200};
+  border: 1px solid rgba(128, 128, 128, 0.2);
   overflow: hidden;
   margin-bottom: ${theme.spacing.xl};
 `;
 
 const EmptyState = styled(Box)`
-  background: ${props => props.theme.colors.neutral0};
+  background: var(--colors-neutral0, white);
   border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed ${props => props.theme.colors.neutral300};
+  border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
   text-align: center;
   position: relative;
@@ -355,7 +355,7 @@ const EmptyState = styled(Box)`
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, ${theme.colors.secondary[50]} 0%, ${theme.colors.primary[50]} 100%);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, ${'rgba(2, 132, 199, 0.06)'} 100%);
     opacity: 0.3;
     z-index: 0;
   }
@@ -373,7 +373,7 @@ const EmptyIcon = styled.div`
   height: 120px;
   margin: 0 auto ${theme.spacing.lg};
   border-radius: 50%;
-  background: linear-gradient(135deg, ${theme.colors.secondary[100]} 0%, ${theme.colors.primary[100]} 100%);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, ${'rgba(2, 132, 199, 0.12)'} 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -382,7 +382,7 @@ const EmptyIcon = styled.div`
   svg {
     width: 60px;
     height: 60px;
-    color: ${theme.colors.primary[600]};
+    color: ${'var(--colors-primary600, #0284C7)'};
   }
 `;
 
@@ -547,32 +547,32 @@ const Analytics = () => {
 
       {/* Stats Cards */}
       <StatsGrid>
-        <StatCard $delay="0.1s" $color={theme.colors.primary[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.primary[100]} $color={theme.colors.primary[600]}>
+        <StatCard $delay="0.1s" $color={'var(--colors-primary600, #0EA5E9)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(2, 132, 199, 0.12)'} $color={'var(--colors-primary600, #0284C7)'}>
             <EnvelopeIcon />
           </StatIcon>
           <StatValue className="stat-value">{stats?.totalSent || 0}</StatValue>
           <StatLabel>Total Sent</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.2s" $color={theme.colors.success[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.success[100]} $color={theme.colors.success[600]}>
+        <StatCard $delay="0.2s" $color={'var(--colors-success600, #22C55E)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(22, 163, 74, 0.12)'} $color={'var(--colors-success600, #16A34A)'}>
             <EnvelopeOpenIcon />
           </StatIcon>
           <StatValue className="stat-value">{stats?.totalOpened || 0}</StatValue>
           <StatLabel>Opened</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.3s" $color={theme.colors.primary[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.primary[100]} $color={theme.colors.primary[600]}>
+        <StatCard $delay="0.3s" $color={'var(--colors-primary600, #0EA5E9)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(2, 132, 199, 0.12)'} $color={'var(--colors-primary600, #0284C7)'}>
             <CursorArrowRaysIcon />
           </StatIcon>
           <StatValue className="stat-value">{stats?.totalClicked || 0}</StatValue>
           <StatLabel>Clicked</StatLabel>
         </StatCard>
 
-        <StatCard $delay="0.4s" $color={theme.colors.danger[500]}>
-          <StatIcon className="stat-icon" $bg={theme.colors.danger[100]} $color={theme.colors.danger[600]}>
+        <StatCard $delay="0.4s" $color={'var(--colors-danger600, #EF4444)'}>
+          <StatIcon className="stat-icon" $bg={'rgba(220, 38, 38, 0.12)'} $color={'var(--colors-danger600, #DC2626)'}>
             <ExclamationTriangleIcon />
           </StatIcon>
           <StatValue className="stat-value">{stats?.totalBounced || 0}</StatValue>
@@ -667,14 +667,14 @@ const Analytics = () => {
                     <Td>
                       {log.openCount > 0 ? (
                         <Flex alignItems="center" gap={2}>
-                          <CheckCircleIcon style={{ width: 16, height: 16, color: theme.colors.success[600] }} />
-                          <Typography variant="pi" fontWeight="semiBold" style={{ color: theme.colors.success[600] }}>
+                          <CheckCircleIcon style={{ width: 16, height: 16, color: 'var(--colors-success600, #16A34A)' }} />
+                          <Typography variant="pi" fontWeight="semiBold" style={{ color: 'var(--colors-success600, #16A34A)' }}>
                             {log.openCount} {log.openCount === 1 ? 'time' : 'times'}
                           </Typography>
                         </Flex>
                       ) : (
                         <Flex alignItems="center" gap={1}>
-                          <XCircleIcon style={{ width: 16, height: 16, color: '#9CA3AF' }} />
+                          <XCircleIcon style={{ width: 16, height: 16, color: 'var(--colors-neutral500)' }} />
                           <Typography variant="pi" textColor="neutral600">
                             No
                           </Typography>
@@ -684,14 +684,14 @@ const Analytics = () => {
                     <Td>
                       {log.clickCount > 0 ? (
                         <Flex alignItems="center" gap={2}>
-                          <CheckCircleIcon style={{ width: 16, height: 16, color: theme.colors.primary[600] }} />
-                          <Typography variant="pi" fontWeight="semiBold" style={{ color: theme.colors.primary[600] }}>
+                          <CheckCircleIcon style={{ width: 16, height: 16, color: 'var(--colors-primary600, #0284C7)' }} />
+                          <Typography variant="pi" fontWeight="semiBold" style={{ color: 'var(--colors-primary600, #0284C7)' }}>
                             {log.clickCount} {log.clickCount === 1 ? 'time' : 'times'}
                           </Typography>
                         </Flex>
                       ) : (
                         <Flex alignItems="center" gap={1}>
-                          <XCircleIcon style={{ width: 16, height: 16, color: '#9CA3AF' }} />
+                          <XCircleIcon style={{ width: 16, height: 16, color: 'var(--colors-neutral500)' }} />
                           <Typography variant="pi" textColor="neutral600">
                             No
                           </Typography>

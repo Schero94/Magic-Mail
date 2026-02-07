@@ -54,15 +54,15 @@ const slideIn = keyframes`
 // ============= COLORS =============
 const colors = {
   primary: '#4945ff',      // Strapi Primary Blue
-  primaryLight: '#f0f0ff', // Light Blue Background
+  primaryLight: 'rgba(73, 69, 255, 0.06)', // Light Blue Background
   success: '#5cb176',      // Green for completed
-  successLight: '#eafaf1', // Light green background
+  successLight: 'rgba(92, 177, 118, 0.12)', // Light green background
   neutral: '#8e8ea9',      // Gray
-  neutralLight: '#f6f6f9', // Light gray
-  white: '#ffffff',
-  border: '#dcdce4',
-  text: '#32324d',
-  textLight: '#666687',
+  neutralLight: 'rgba(142, 142, 169, 0.08)', // Light gray
+  white: 'var(--colors-neutral0, #ffffff)',
+  border: 'rgba(128, 128, 128, 0.2)',
+  text: 'var(--colors-neutral800, #32324d)',
+  textLight: 'var(--colors-neutral600, #666687)',
 };
 
 // ============= STYLED COMPONENTS =============
@@ -1165,10 +1165,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                       
                       <Box
                         padding={4}
-                        background={formData.secure ? '#DCFCE7' : '#FEF3C7'}
+                        background={formData.secure ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)'}
                         hasRadius
                         style={{
-                          border: formData.secure ? '2px solid #22C55E' : '2px solid #F59E0B',
+                          border: formData.secure ? '2px solid var(--colors-success600, #22C55E)' : '2px solid var(--colors-warning600, #F59E0B)',
                           borderRadius: '8px',
                           transition: 'all 0.2s ease',
                         }}
@@ -1696,10 +1696,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                       
                       <Alert variant="default" title="📖 SendGrid Resources">
                         <Typography variant="pi">
-                          <strong>Dashboard:</strong> <a href="https://app.sendgrid.com" target="_blank" rel="noopener noreferrer" style={{color: '#0284c7'}}>app.sendgrid.com</a><br/>
+                          <strong>Dashboard:</strong> <a href="https://app.sendgrid.com" target="_blank" rel="noopener noreferrer" style={{color: 'var(--colors-primary600, #0284c7)'}}>app.sendgrid.com</a><br/>
                           <strong>API Keys:</strong> Settings → API Keys → Create API Key<br/>
                           <strong>Required Scope:</strong> Mail Send (Full Access)<br/>
-                          <strong>Docs:</strong> <a href="https://docs.sendgrid.com" target="_blank" rel="noopener noreferrer" style={{color: '#0284c7'}}>docs.sendgrid.com</a>
+                          <strong>Docs:</strong> <a href="https://docs.sendgrid.com" target="_blank" rel="noopener noreferrer" style={{color: 'var(--colors-primary600, #0284c7)'}}>docs.sendgrid.com</a>
                         </Typography>
                       </Alert>
                     </Flex>
@@ -1749,10 +1749,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                       
                       <Alert variant="default" title="📖 Mailgun Resources">
                         <Typography variant="pi">
-                          <strong>Dashboard:</strong> <a href="https://app.mailgun.com" target="_blank" rel="noopener noreferrer" style={{color: '#0284c7'}}>app.mailgun.com</a><br/>
+                          <strong>Dashboard:</strong> <a href="https://app.mailgun.com" target="_blank" rel="noopener noreferrer" style={{color: 'var(--colors-primary600, #0284c7)'}}>app.mailgun.com</a><br/>
                           <strong>API Keys:</strong> Settings → API Security → Private API Key<br/>
                           <strong>Domains:</strong> Sending → Domains (verify your domain or use sandbox)<br/>
-                          <strong>Docs:</strong> <a href="https://documentation.mailgun.com" target="_blank" rel="noopener noreferrer" style={{color: '#0284c7'}}>documentation.mailgun.com</a>
+                          <strong>Docs:</strong> <a href="https://documentation.mailgun.com" target="_blank" rel="noopener noreferrer" style={{color: 'var(--colors-primary600, #0284c7)'}}>documentation.mailgun.com</a>
                         </Typography>
                       </Alert>
                     </Flex>
@@ -1815,10 +1815,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   {/* Account Active Toggle */}
                   <Box 
                     padding={4} 
-                    background={formData.isActive ? '#DCFCE7' : '#FEE2E2'}
+                    background={formData.isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 38, 38, 0.12)'}
                     hasRadius
                     style={{ 
-                      border: formData.isActive ? `2px solid #22C55E` : `2px solid #EF4444`,
+                      border: formData.isActive ? '2px solid var(--colors-success600, #22C55E)' : '2px solid var(--colors-danger600, #EF4444)',
                       borderRadius: '8px',
                       transition: 'all 0.2s ease'
                     }}
@@ -1858,10 +1858,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   {/* Primary Account Toggle */}
                   <Box 
                     padding={4} 
-                    background={formData.isPrimary ? '#FEF3C7' : 'neutral100'}
+                    background={formData.isPrimary ? 'rgba(245, 158, 11, 0.15)' : 'neutral100'}
                     hasRadius
                     style={{ 
-                      border: formData.isPrimary ? `2px solid #F59E0B` : `1px solid ${colors.border}`,
+                      border: formData.isPrimary ? '2px solid var(--colors-warning600, #F59E0B)' : `1px solid ${colors.border}`,
                       borderRadius: '8px',
                       transition: 'all 0.2s ease'
                     }}

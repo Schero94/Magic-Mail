@@ -48,7 +48,7 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled(Box)`
-  background: white;
+  background: var(--colors-neutral0, white);
   border-radius: 16px;
   width: 100%;
   max-width: 580px;
@@ -58,7 +58,7 @@ const ModalContent = styled(Box)`
 `;
 
 const GradientHeader = styled(Box)`
-  background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
   padding: 32px 40px;
   position: relative;
   overflow: hidden;
@@ -127,7 +127,7 @@ const CloseButton = styled.button`
 
 const GradientButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+    background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
     color: white;
     font-weight: 600;
     border: none;
@@ -136,7 +136,7 @@ const GradientButton = styled(Button)`
     min-height: 44px;
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0284C7 0%, #9333EA 100%);
+      background: linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%);
       box-shadow: 0 6px 16px rgba(14, 165, 233, 0.5);
     }
     
@@ -149,15 +149,15 @@ const GradientButton = styled(Button)`
 
 const SecondaryStyledButton = styled(Button)`
   && {
-    background: #f0f9ff;
-    color: #0EA5E9;
+    background: rgba(14, 165, 233, 0.06);
+    color: var(--colors-primary600, #0EA5E9);
     font-weight: 600;
-    border: 2px solid #0EA5E9;
+    border: 2px solid var(--colors-primary600, #0EA5E9);
     padding: 12px 24px;
     min-height: 44px;
     
     &:hover:not(:disabled) {
-      background: #e0f2fe;
+      background: rgba(14, 165, 233, 0.12);
     }
   }
 `;
@@ -165,7 +165,7 @@ const SecondaryStyledButton = styled(Button)`
 const ToggleButton = styled.button`
   background: none;
   border: none;
-  color: #0EA5E9;
+  color: var(--colors-primary600, #0EA5E9);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -174,7 +174,7 @@ const ToggleButton = styled.button`
   transition: color 0.2s;
   
   &:hover {
-    color: #A855F7;
+    color: var(--colors-secondary600, #A855F7);
   }
   
   &:disabled {
@@ -374,7 +374,7 @@ const LicenseGuard = ({ children }) => {
                   padding={4}
                   style={{
                     borderRadius: '8px',
-                    border: '2px solid #BAE6FD',
+                    border: '2px solid rgba(14, 165, 233, 0.3)',
                     width: '100%',
                   }}
                 >
@@ -439,7 +439,7 @@ const LicenseGuard = ({ children }) => {
                     padding={5}
                     style={{
                       borderRadius: '8px',
-                      border: '2px solid #DCFCE7',
+                      border: '2px solid rgba(34, 197, 94, 0.3)',
                       textAlign: 'center',
                     }}
                   >

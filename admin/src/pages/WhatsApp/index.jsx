@@ -47,19 +47,19 @@ const spin = keyframes`
 const colors = {
   whatsapp: '#25D366',
   whatsappDark: '#128C7E',
-  whatsappLight: '#DCF8C6',
+  whatsappLight: 'rgba(37, 211, 102, 0.2)',
   primary: '#4945ff',
-  primaryLight: '#f0f0ff',
+  primaryLight: 'rgba(73, 69, 255, 0.06)',
   success: '#5cb176',
-  successLight: '#eafaf1',
+  successLight: 'rgba(92, 177, 118, 0.12)',
   danger: '#d02b20',
-  dangerLight: '#fcecea',
+  dangerLight: 'rgba(208, 43, 32, 0.1)',
   neutral: '#8e8ea9',
-  neutralLight: '#f6f6f9',
-  white: '#ffffff',
-  border: '#dcdce4',
-  text: '#32324d',
-  textLight: '#666687',
+  neutralLight: 'rgba(142, 142, 169, 0.08)',
+  white: 'var(--colors-neutral0, #ffffff)',
+  border: 'rgba(128, 128, 128, 0.2)',
+  text: 'var(--colors-neutral800, #32324d)',
+  textLight: 'var(--colors-neutral600, #666687)',
 };
 
 // ============= STYLED COMPONENTS =============
@@ -248,15 +248,15 @@ const ConnectedCard = styled(Box)`
 `;
 
 const InfoBox = styled(Box)`
-  background: linear-gradient(135deg, ${theme.colors.primary[50]} 0%, ${colors.whatsappLight} 100%);
-  border: 1px solid ${theme.colors.primary[200]};
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, ${colors.whatsappLight} 100%);
+  border: 1px solid rgba(2, 132, 199, 0.2);
   border-radius: 12px;
   padding: 24px;
   margin: 20px 0;
 `;
 
 const TestSection = styled(Box)`
-  background: linear-gradient(135deg, ${colors.whatsappLight} 0%, #E8F5E9 100%);
+  background: linear-gradient(135deg, ${colors.whatsappLight} 0%, rgba(34, 197, 94, 0.1) 100%);
   border: 1px solid ${colors.whatsapp}40;
   border-radius: 16px;
   padding: 24px;
@@ -266,11 +266,11 @@ const TestSection = styled(Box)`
 const WhatsAppInput = styled.input`
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid ${props => props.theme.colors.neutral200};
+  border: 2px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   font-size: 15px;
-  background: white;
-  color: ${props => props.theme.colors.neutral800};
+  background: var(--colors-neutral0, white);
+  color: var(--colors-neutral800);
   transition: all 0.2s ease;
   box-sizing: border-box;
   
@@ -281,18 +281,18 @@ const WhatsAppInput = styled.input`
   }
   
   &::placeholder {
-    color: ${props => props.theme.colors.neutral400};
+    color: rgba(128, 128, 128, 0.4);
   }
 `;
 
 const WhatsAppTextarea = styled.textarea`
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid ${props => props.theme.colors.neutral200};
+  border: 2px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   font-size: 15px;
-  background: white;
-  color: ${props => props.theme.colors.neutral800};
+  background: var(--colors-neutral0, white);
+  color: var(--colors-neutral800);
   transition: all 0.2s ease;
   box-sizing: border-box;
   resize: vertical;
@@ -306,7 +306,7 @@ const WhatsAppTextarea = styled.textarea`
   }
   
   &::placeholder {
-    color: ${props => props.theme.colors.neutral400};
+    color: rgba(128, 128, 128, 0.4);
   }
 `;
 
@@ -322,7 +322,7 @@ const InputLabel = styled.label`
 
 const InputHint = styled.span`
   font-size: 12px;
-  color: ${props => props.theme.colors.neutral500};
+  color: var(--colors-neutral500);
   margin-top: 6px;
   display: block;
 `;
@@ -337,7 +337,7 @@ const MessageSymbol = styled.span`
 `;
 
 const UseCaseCard = styled(Box)`
-  background: linear-gradient(135deg, ${colors.whatsappLight}, ${theme.colors.primary[50]});
+  background: linear-gradient(135deg, ${colors.whatsappLight}, rgba(2, 132, 199, 0.06));
   border: 2px solid ${colors.whatsapp};
   border-radius: 16px;
   padding: 24px;
@@ -347,12 +347,12 @@ const UseCaseCard = styled(Box)`
 const ButtonRow = styled(Flex)`
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid ${props => props.theme.colors.neutral200};
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
 `;
 
 const AlertBox = styled(Box)`
-  background: ${theme.colors.primary[50]};
-  border: 1px solid ${theme.colors.primary[200]};
+  background: rgba(2, 132, 199, 0.06);
+  border: 1px solid rgba(2, 132, 199, 0.2);
   border-radius: 12px;
   padding: 16px 20px;
   margin-top: 20px;
@@ -365,7 +365,7 @@ const AlertIcon = styled.div`
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: ${theme.colors.primary[500]};
+  background: var(--colors-primary600, #0EA5E9);
   color: white;
   display: flex;
   align-items: center;
@@ -376,8 +376,8 @@ const AlertIcon = styled.div`
 `;
 
 const SuccessBox = styled(Box)`
-  background: ${theme.colors.success[50]};
-  border: 1px solid ${theme.colors.success[200]};
+  background: rgba(22, 163, 74, 0.06);
+  border: 1px solid rgba(22, 163, 74, 0.2);
   border-radius: 12px;
   padding: 16px 20px;
   display: flex;
@@ -389,7 +389,7 @@ const SuccessIcon = styled.div`
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: ${theme.colors.success[500]};
+  background: var(--colors-success600, #22C55E);
   color: white;
   display: flex;
   align-items: center;
@@ -408,8 +408,8 @@ const WhatsAppButton = styled(GradientButton)`
 `;
 
 const NotInstalledCard = styled(Box)`
-  background: linear-gradient(135deg, #FEF3C7, #FEE2E2);
-  border: 2px solid #F59E0B;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(220, 38, 38, 0.12));
+  border: 2px solid var(--colors-warning600, #F59E0B);
   border-radius: 16px;
   padding: 32px;
   text-align: center;
@@ -743,7 +743,7 @@ const WhatsAppPage = () => {
                 <Check style={{ width: 14, height: 14 }} />
               </SuccessIcon>
               <Box>
-                <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block', marginBottom: '4px', color: theme.colors.success[700] }}>
+                <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block', marginBottom: '4px', color: 'var(--colors-success600, #15803D)' }}>
                   Dependencies Installed
                 </Typography>
                 <Typography variant="pi" textColor="neutral600">
@@ -809,7 +809,7 @@ const WhatsAppPage = () => {
           </Typography>
 
           <InfoBox>
-            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: theme.colors.primary[700] }}>
+            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: 'var(--colors-primary600, #075985)' }}>
               How it works
             </Typography>
             <Flex direction="column" gap={3}>
@@ -885,7 +885,7 @@ const WhatsAppPage = () => {
           </QRCodeContainer>
 
           <InfoBox>
-            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: theme.colors.primary[700] }}>
+            <Typography variant="delta" fontWeight="bold" style={{ display: 'block', marginBottom: '16px', color: 'var(--colors-primary600, #075985)' }}>
               Instructions
             </Typography>
             <Flex direction="column" gap={2}>

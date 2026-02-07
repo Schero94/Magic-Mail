@@ -43,13 +43,13 @@ const StickySaveBar = styled(Box)`
   position: sticky;
   top: 0;
   z-index: 10;
-  background: ${props => props.theme.colors.neutral0};
-  border-bottom: 1px solid ${props => props.theme.colors.neutral200};
+  background: var(--colors-neutral0, white);
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 `;
 
 const LicenseKeyBanner = styled(Box)`
-  background: linear-gradient(135deg, #0EA5E9 0%, #A855F7 100%);
+  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
   border-radius: 12px;
   padding: 28px 32px;
   color: white;
