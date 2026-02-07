@@ -1,3 +1,10 @@
+## [2.6.1](https://github.com/Schero94/Magic-Mail/compare/v2.6.0...v2.6.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* **admin:** use templateReferenceId for template navigation ([d91f03d](https://github.com/Schero94/Magic-Mail/commit/d91f03da5ca956a7b1540a4671ac7b9962baea10))
+
 # [2.6.0](https://github.com/Schero94/Magic-Mail/compare/v2.5.0...v2.6.0) (2026-01-26)
 
 
