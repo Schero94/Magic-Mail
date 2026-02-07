@@ -1,3 +1,10 @@
+## [2.6.2](https://github.com/Schero94/Magic-Mail/compare/v2.6.1...v2.6.2) (2026-02-07)
+
+
+### Bug Fixes
+
+* dark/light mode compatibility for entire admin UI ([f373d6f](https://github.com/Schero94/Magic-Mail/commit/f373d6f97f4dfb625a40407e53b261467548b43f))
+
 ## [2.6.1](https://github.com/Schero94/Magic-Mail/compare/v2.6.0...v2.6.1) (2026-02-07)
 
 
