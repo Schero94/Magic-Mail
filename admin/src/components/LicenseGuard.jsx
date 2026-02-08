@@ -58,7 +58,7 @@ const ModalContent = styled(Box)`
 `;
 
 const GradientHeader = styled(Box)`
-  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
+  background: linear-gradient(135deg, #4945ff 0%, #7c3aed 100%);
   padding: 32px 40px;
   position: relative;
   overflow: hidden;
@@ -127,17 +127,17 @@ const CloseButton = styled.button`
 
 const GradientButton = styled(Button)`
   && {
-    background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
+    background: linear-gradient(135deg, #4945ff 0%, #7c3aed 100%);
     color: white;
     font-weight: 600;
     border: none;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+    box-shadow: 0 4px 12px rgba(73, 69, 255, 0.4);
     padding: 12px 24px;
     min-height: 44px;
     
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%);
-      box-shadow: 0 6px 16px rgba(14, 165, 233, 0.5);
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      box-shadow: 0 6px 16px rgba(73, 69, 255, 0.5);
     }
     
     &:disabled {
@@ -149,15 +149,15 @@ const GradientButton = styled(Button)`
 
 const SecondaryStyledButton = styled(Button)`
   && {
-    background: rgba(14, 165, 233, 0.06);
-    color: var(--colors-primary600, #0EA5E9);
+    background: rgba(73, 69, 255, 0.06);
+    color: #4945ff;
     font-weight: 600;
-    border: 2px solid var(--colors-primary600, #0EA5E9);
+    border: 2px solid #4945ff;
     padding: 12px 24px;
     min-height: 44px;
     
     &:hover:not(:disabled) {
-      background: rgba(14, 165, 233, 0.12);
+      background: rgba(73, 69, 255, 0.12);
     }
   }
 `;
@@ -165,7 +165,7 @@ const SecondaryStyledButton = styled(Button)`
 const ToggleButton = styled.button`
   background: none;
   border: none;
-  color: var(--colors-primary600, #0EA5E9);
+  color: #4945ff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -174,13 +174,35 @@ const ToggleButton = styled.button`
   transition: color 0.2s;
   
   &:hover {
-    color: var(--colors-secondary600, #A855F7);
+    color: #7c3aed;
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
+`;
+
+const InfoBox = styled(Box)`
+  background: rgba(73, 69, 255, 0.06);
+  border: 2px solid rgba(73, 69, 255, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  width: 100%;
+`;
+
+const SuccessBox = styled(Box)`
+  background: rgba(34, 197, 94, 0.06);
+  border: 2px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+`;
+
+const InfoText = styled(Typography)`
+  font-size: 13px;
+  line-height: 1.6;
+  color: ${(p) => p.theme.colors.neutral800};
 `;
 
 const LicenseGuard = ({ children }) => {
@@ -369,24 +391,16 @@ const LicenseGuard = ({ children }) => {
                   </ToggleButton>
                 </Box>
 
-                <Box
-                  background="primary100"
-                  padding={4}
-                  style={{
-                    borderRadius: '8px',
-                    border: '2px solid rgba(14, 165, 233, 0.3)',
-                    width: '100%',
-                  }}
-                >
-                  <Typography variant="omega" style={{ fontSize: '13px', lineHeight: '1.6' }}>
+                <InfoBox>
+                  <InfoText variant="omega">
                     {useExistingKey 
-                      ? '🔑 Enter your email and license key to activate.'
+                      ? 'Enter your email and license key to activate.'
                       : adminUser && adminUser.email
-                      ? `✨ Click "Activate" to auto-create a license with your account (${adminUser.email})`
-                      : '✨ Click "Activate" to auto-create a license with your admin account'
+                      ? `Click "Activate" to auto-create a license with your account (${adminUser.email})`
+                      : 'Click "Activate" to auto-create a license with your admin account'
                     }
-                  </Typography>
-                </Box>
+                  </InfoText>
+                </InfoBox>
 
                 {useExistingKey ? (
                   // Existing License Key Input
@@ -434,25 +448,17 @@ const LicenseGuard = ({ children }) => {
                   </>
                 ) : adminUser ? (
                   // Auto-create mode - Show user info
-                  <Box
-                    background="success100"
-                    padding={5}
-                    style={{
-                      borderRadius: '8px',
-                      border: '2px solid rgba(34, 197, 94, 0.3)',
-                      textAlign: 'center',
-                    }}
-                  >
+                  <SuccessBox>
                     <Typography variant="omega" fontWeight="bold" style={{ marginBottom: '12px', display: 'block' }}>
                       Ready to activate with your account:
                     </Typography>
                     <Typography variant="pi" style={{ marginBottom: '4px', display: 'block' }}>
-                      👤 {adminUser.firstname || 'Admin'} {adminUser.lastname || 'User'}
+                      {adminUser.firstname || 'Admin'} {adminUser.lastname || 'User'}
                     </Typography>
                     <Typography variant="pi" textColor="neutral600">
-                      📧 {adminUser.email || 'Loading...'}
+                      {adminUser.email || 'Loading...'}
                     </Typography>
-                  </Box>
+                  </SuccessBox>
                 ) : (
                   <Box padding={4} background="neutral100" hasRadius style={{ textAlign: 'center' }}>
                     <Loader small />
