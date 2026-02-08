@@ -1,3 +1,11 @@
+## [2.6.4](https://github.com/Schero94/Magic-Mail/compare/v2.6.3...v2.6.4) (2026-02-08)
+
+
+### Bug Fixes
+
+* dark mode compatibility for LicensePage and LicenseGuard ([21427be](https://github.com/Schero94/Magic-Mail/commit/21427bed9fe461590db8dc4712f8a568d38ccc48)), closes [#4945ff](https://github.com/Schero94/Magic-Mail/issues/4945ff)
+* remove TypeScript syntax from JSX file (FeatureText) ([749d2a4](https://github.com/Schero94/Magic-Mail/commit/749d2a491f81f1098bb479aebca7d143b6596ee9))
+
 ## [2.6.3](https://github.com/Schero94/Magic-Mail/compare/v2.6.2...v2.6.3) (2026-02-08)
 
 
