@@ -147,7 +147,7 @@ const PeriodText = styled(Typography)`
   color: ${(p) => p.theme.colors.neutral600};
 `;
 
-const FeatureText = styled(Typography)<{ $included: boolean }>`
+const FeatureText = styled(Typography)`
   font-size: 14px;
   color: ${(p) => p.$included ? p.theme.colors.neutral800 : p.theme.colors.neutral500};
   text-decoration: ${(p) => p.$included ? 'none' : 'line-through'};
