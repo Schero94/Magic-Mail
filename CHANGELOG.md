@@ -1,3 +1,10 @@
+## [2.6.3](https://github.com/Schero94/Magic-Mail/compare/v2.6.2...v2.6.3) (2026-02-08)
+
+
+### Bug Fixes
+
+* use props.theme.colors.neutral0 for dark mode card backgrounds ([15df80f](https://github.com/Schero94/Magic-Mail/commit/15df80f4790b39c2b4b0595325fcf1f6326f94a1))
+
 ## [2.6.2](https://github.com/Schero94/Magic-Mail/compare/v2.6.1...v2.6.2) (2026-02-07)
 
 
