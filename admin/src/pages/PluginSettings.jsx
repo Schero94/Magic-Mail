@@ -56,14 +56,14 @@ const PageSubtitle = styled(Typography)`
 const ActionBar = styled(Flex)`
   margin-bottom: 32px;
   padding: 16px 20px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 `;
 
 const SettingsSection = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   overflow: hidden;

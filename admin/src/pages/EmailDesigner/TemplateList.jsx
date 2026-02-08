@@ -101,7 +101,7 @@ const ScrollableDialogBody = styled(Box)`
   overflow-y: auto;
   max-height: calc(85vh - 160px);
   padding: 24px 28px 28px 28px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
 
   /* Custom Scrollbar */
   &::-webkit-scrollbar {
@@ -406,7 +406,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -515,7 +515,7 @@ const SectionHeader = styled(Box)`
 `;
 
 const FilterBar = styled(Flex)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};
@@ -551,7 +551,7 @@ const TableWrapper = styled(Box)`
   overflow-x: auto;
   border-radius: ${theme.borderRadius.lg};
   border: 1px solid rgba(128, 128, 128, 0.2);
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   
   &::-webkit-scrollbar {
     height: 8px;
@@ -620,7 +620,7 @@ const PaginationWrapper = styled(Flex)`
 `;
 
 const PaginationButton = styled.button`
-  background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%)' : 'var(--colors-neutral0, white)'};
+  background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%)' : '${(p) => p.theme.colors.neutral0}'};
   color: ${props => props.active ? 'white' : 'var(--colors-neutral700)'};
   border: 1px solid ${props => props.active ? 'transparent' : 'rgba(128, 128, 128, 0.3)'};
   padding: 6px 12px;
@@ -644,7 +644,7 @@ const PaginationButton = styled.button`
 `;
 
 const EmptyState = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.xl};
   border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
@@ -713,7 +713,7 @@ const EmptyFeatureItem = styled.div`
   text-align: center;
   gap: ${theme.spacing.sm};
   padding: ${theme.spacing.lg};
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.md};
   box-shadow: ${theme.shadows.sm};
   transition: ${theme.transitions.fast};
@@ -793,7 +793,7 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   && {
     padding: 28px;
-    background: var(--colors-neutral0, white);
+    background: ${(p) => p.theme.colors.neutral0};
   }
 `;
 
@@ -843,7 +843,7 @@ const StyledSelect = styled.select`
   border-radius: 8px;
   border: 1px solid rgba(128, 128, 128, 0.2);
   font-size: 14px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   cursor: pointer;
   transition: all ${theme.transitions.fast};
   color: var(--colors-neutral700);

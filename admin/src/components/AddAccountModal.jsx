@@ -137,10 +137,10 @@ const StepDot = styled.div`
   background: ${props => 
     props.$active ? colors.primary : 
     props.$completed ? colors.success : 
-    colors.white
+    props.theme.colors.neutral0
   };
   color: ${props => 
-    props.$active || props.$completed ? colors.white : colors.textLight
+    props.$active || props.$completed ? '#ffffff' : colors.textLight
   };
   border: 4px solid ${props =>
     props.$active ? colors.primary :
@@ -193,7 +193,7 @@ const ProvidersGrid = styled(Box)`
 `;
 
 const ProviderCard = styled(Box)`
-  background: ${props => props.$selected ? colors.successLight : colors.white};
+  background: ${props => props.$selected ? colors.successLight : props.theme.colors.neutral0};
   border: 2px solid ${props => props.$selected ? colors.success : colors.border};
   border-radius: 12px;
   padding: 24px;

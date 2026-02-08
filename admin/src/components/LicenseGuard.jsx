@@ -48,7 +48,7 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: 16px;
   width: 100%;
   max-width: 580px;

@@ -65,7 +65,7 @@ const TierWrapper = styled(Box)`
 `;
 
 const TierCard = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: 16px;
   padding: 32px;
   border: 2px solid ${props => props.$featured ? 'var(--colors-primary600, #0EA5E9)' : 'rgba(128, 128, 128, 0.2)'};

@@ -127,7 +127,7 @@ const Container = styled.div`
 
 const Header = styled.div`
   padding: 24px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 `;
 
@@ -207,7 +207,7 @@ const TabsWrapper = styled.div`
 
 const TabListWrapper = styled.div`
   padding: 0 24px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 `;
 
@@ -225,7 +225,7 @@ const StyledTabsContent = styled(Tabs.Content)`
 
 const TabContentWrapper = styled.div`
   height: calc(100vh - 240px);
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   position: relative;
 `;
 
@@ -304,7 +304,7 @@ const ImportExportButton = styled.span`
   gap: 6px;
   padding: 8px 16px;
   height: 36px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
   color: var(--colors-neutral800);
@@ -338,7 +338,7 @@ const ImportLabel = styled.label`
 `;
 
 const BackButton = styled.button`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
   padding: 8px 10px;
@@ -366,7 +366,7 @@ const BackButton = styled.button`
 `;
 
 const VersionButton = styled.button`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 4px;
   padding: 8px 16px;
@@ -407,7 +407,7 @@ const VersionModal = styled.div`
   right: ${props => props.$isOpen ? '0' : '-450px'};
   width: 450px;
   height: 100vh;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
   z-index: 9999;
   transition: right 300ms cubic-bezier(0.4, 0, 0.2, 1);

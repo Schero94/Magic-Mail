@@ -260,7 +260,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -365,7 +365,7 @@ const RulesContainer = styled(Box)`
 `;
 
 const EmptyState = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.xl};
   border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
@@ -437,7 +437,7 @@ const StyledTable = styled(Table)`
 `;
 
 const FilterBar = styled(Flex)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};

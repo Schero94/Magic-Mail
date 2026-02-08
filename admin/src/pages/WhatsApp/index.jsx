@@ -131,10 +131,10 @@ const StepDot = styled.div`
   background: ${props => 
     props.$active ? colors.whatsapp : 
     props.$completed ? colors.success : 
-    colors.white
+    props.theme.colors.neutral0
   };
   color: ${props => 
-    props.$active || props.$completed ? colors.white : colors.textLight
+    props.$active || props.$completed ? '#ffffff' : colors.textLight
   };
   border: 4px solid ${props =>
     props.$active ? colors.whatsapp :
@@ -176,7 +176,7 @@ const StepLabel = styled(Typography)`
 `;
 
 const ContentCard = styled(Box)`
-  background: ${colors.white};
+  background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid ${colors.border};
   border-radius: 16px;
   padding: 32px;
@@ -269,7 +269,7 @@ const WhatsAppInput = styled.input`
   border: 2px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   font-size: 15px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   color: var(--colors-neutral800);
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -291,7 +291,7 @@ const WhatsAppTextarea = styled.textarea`
   border: 2px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   font-size: 15px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   color: var(--colors-neutral800);
   transition: all 0.2s ease;
   box-sizing: border-box;

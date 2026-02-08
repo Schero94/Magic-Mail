@@ -36,11 +36,11 @@ export const GradientButton = styled(Button)`
 // ================ SECONDARY BUTTON (Gradient Outline) ================
 export const SecondaryButton = styled(Button)`
   && {
-    background: var(--colors-neutral0, white);
+    background: ${(p) => p.theme.colors.neutral0};
     color: var(--colors-secondary600, #7C3AED);
     font-weight: 600;
     border: 2px solid transparent;
-    background-image: linear-gradient(var(--colors-neutral0, white), var(--colors-neutral0, white)), linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
+    background-image: linear-gradient(${(p) => p.theme.colors.neutral0}, ${(p) => p.theme.colors.neutral0}), linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%);
     background-origin: border-box;
     background-clip: padding-box, border-box;
     padding: 10px 20px;

@@ -195,7 +195,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.lg};
   padding: 28px ${theme.spacing.lg};
   position: relative;
@@ -300,7 +300,7 @@ const AccountsContainer = styled(Box)`
 `;
 
 const EmptyState = styled(Box)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   border-radius: ${theme.borderRadius.xl};
   border: 2px dashed rgba(128, 128, 128, 0.3);
   padding: 80px 32px;
@@ -372,7 +372,7 @@ const StyledTable = styled(Table)`
 `;
 
 const FilterBar = styled(Flex)`
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   margin-bottom: ${theme.spacing.lg};
@@ -405,7 +405,7 @@ const StyledSearchInput = styled.input`
   border-radius: ${theme.borderRadius.md};
   font-size: 0.875rem;
   transition: all ${theme.transitions.fast};
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   color: var(--colors-neutral800);
   
   &:focus {
@@ -464,7 +464,7 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   && {
     padding: 24px 28px;
-    background: var(--colors-neutral0, white);
+    background: ${(p) => p.theme.colors.neutral0};
     width: 100%;
     box-sizing: border-box;
   }
@@ -498,7 +498,7 @@ const TestOptionCard = styled(Box)`
   border-radius: 12px;
   cursor: pointer;
   transition: all ${theme.transitions.fast};
-  background: ${props => props.$selected ? 'rgba(2, 132, 199, 0.06)' : 'var(--colors-neutral0, white)'};
+  background: ${props => props.$selected ? 'rgba(2, 132, 199, 0.06)' : '${(p) => p.theme.colors.neutral0}'};
   
   &:hover {
     border-color: ${'rgba(2, 132, 199, 0.4)'};
@@ -526,7 +526,7 @@ const StyledModalSelect = styled.select`
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   font-size: 14px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   color: var(--colors-neutral800);
   cursor: pointer;
   transition: all ${theme.transitions.fast};
@@ -545,7 +545,7 @@ const StyledModalInput = styled.input`
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
   font-size: 14px;
-  background: var(--colors-neutral0, white);
+  background: ${(p) => p.theme.colors.neutral0};
   color: var(--colors-neutral800);
   transition: all ${theme.transitions.fast};
   box-sizing: border-box;
