@@ -1,5 +1,5 @@
 {
-  "version": "2.6.4",
+  "version": "2.6.5",
   "keywords": [
     "strapi",
     "strapi-plugin",
@@ -88,11 +88,7 @@
     "styled-components": "^6.3.8"
   },
   "overrides": {
-    "glob": "^13.0.0",
-    "esbuild": "^0.27.0",
-    "tmp": "^0.2.3",
-    "vite": "^6.1.7",
-    "koa": "^2.16.1"
+    "libsignal": "npm:@baileys-md/libsignal@2.0.1"
   },
   "strapi": {
     "kind": "plugin",
@@ -112,8 +108,5 @@
     "url": "https://github.com/Schero94/Magic-Mail/issues"
   },
   "homepage": "https://github.com/Schero94/Magic-Mail#readme",
-  "private": false,
-  "overrides": {
-    "libsignal": "npm:@baileys-md/libsignal@2.0.1"
-  }
+  "private": false
 }

@@ -1,3 +1,10 @@
+## [2.6.5](https://github.com/Schero94/Magic-Mail/compare/v2.6.4...v2.6.5) (2026-02-14)
+
+
+### Bug Fixes
+
+* resolve libsignal git+ssh dependency issue for CI/CD compatibility ([3975015](https://github.com/Schero94/Magic-Mail/commit/3975015c96538bbb694233c94588893735cff582))
+
 ## [2.6.4](https://github.com/Schero94/Magic-Mail/compare/v2.6.3...v2.6.4) (2026-02-08)
 
 
