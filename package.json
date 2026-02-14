@@ -112,5 +112,8 @@
     "url": "https://github.com/Schero94/Magic-Mail/issues"
   },
   "homepage": "https://github.com/Schero94/Magic-Mail#readme",
-  "private": false
+  "private": false,
+  "overrides": {
+    "libsignal": "npm:@baileys-md/libsignal@2.0.1"
+  }
 }
