@@ -82,7 +82,7 @@ module.exports = ({ strapi }) => ({
         valid: verification.valid,
         demo: false,
         data: {
-          licenseKey: licenseKey ? licenseKey.substring(0, 8) + '...' + licenseKey.substring(licenseKey.length - 4) : null,
+          licenseKey,
           email: license?.email || null,
           firstName: license?.firstName || null,
           lastName: license?.lastName || null,
