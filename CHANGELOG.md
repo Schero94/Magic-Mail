@@ -1,3 +1,10 @@
+## [2.6.6](https://github.com/Schero94/Magic-Mail/compare/v2.6.5...v2.6.6) (2026-02-16)
+
+
+### Bug Fixes
+
+* normalize recipient email to lowercase before sending ([d0c53dd](https://github.com/Schero94/Magic-Mail/commit/d0c53dd9df312cba94117e3a4e3cb8a3e6079f9a))
+
 ## [2.6.5](https://github.com/Schero94/Magic-Mail/compare/v2.6.4...v2.6.5) (2026-02-14)
 
 
