@@ -493,9 +493,9 @@ module.exports = ({ strapi }) => ({
         provider: `${provider}-oauth`,
         config: encryptedConfig,      // OAuth app credentials
         oauth: encryptedOAuth,         // OAuth tokens
-        fromEmail: tokenData.email,    // [SUCCESS] Use email from Google, not from accountDetails
+        fromEmail: tokenData.email ? tokenData.email.trim().toLowerCase() : tokenData.email,
         fromName: accountDetails.fromName || tokenData.email.split('@')[0],
-        replyTo: accountDetails.replyTo || tokenData.email,
+        replyTo: (accountDetails.replyTo || tokenData.email || '').trim().toLowerCase(),
         isActive: true,
         isPrimary: accountDetails.isPrimary || false,
         priority: accountDetails.priority || 1,

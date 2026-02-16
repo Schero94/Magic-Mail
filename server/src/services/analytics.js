@@ -26,9 +26,10 @@ module.exports = ({ strapi }) => ({
    * Generate secure hash for recipient (for tracking URLs)
    */
   generateRecipientHash(emailId, recipient) {
+    const normalized = (recipient || '').trim().toLowerCase();
     return crypto
       .createHash('sha256')
-      .update(`${emailId}-${recipient}-${process.env.APP_KEYS || 'secret'}`)
+      .update(`${emailId}-${normalized}-${process.env.APP_KEYS || 'secret'}`)
       .digest('hex')
       .substring(0, 16);
   },
@@ -38,12 +39,13 @@ module.exports = ({ strapi }) => ({
    */
   async createEmailLog(data) {
     const emailId = this.generateEmailId();
+    const normalizedRecipient = data.to ? String(data.to).trim().toLowerCase() : data.to;
     
     const logEntry = await strapi.documents(EMAIL_LOG_UID).create({
       data: {
         emailId,
         user: data.userId || null,
-        recipient: data.to,
+        recipient: normalizedRecipient,
         recipientName: data.recipientName || null,
         subject: data.subject,
         templateId: data.templateId || null,

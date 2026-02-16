@@ -38,16 +38,45 @@ module.exports = ({ strapi }) => ({
       templateData = data;
     }
 
+    // Validate required fields
+    if (!to || (typeof to === 'string' && to.trim().length === 0)) {
+      throw new Error('Recipient email address (to) is required');
+    }
+
     // Normalize email addresses (RFC 5321: domain part is case-insensitive)
-    if (to && typeof to === 'string') {
-      to = to.trim().toLowerCase();
-    }
-    if (from && typeof from === 'string') {
-      from = from.trim();
-    }
-    if (replyTo && typeof replyTo === 'string') {
-      replyTo = replyTo.trim();
-    }
+    const normalizeAddr = (addr) => {
+      if (!addr) return addr;
+      if (typeof addr === 'string') {
+        // Handle display name format: "John <john@example.com>"
+        if (addr.includes('<') && addr.includes('>')) {
+          return addr.replace(/<([^>]+)>/, (_, email) => `<${email.trim().toLowerCase()}>`);
+        }
+        return addr.trim().toLowerCase();
+      }
+      return addr;
+    };
+
+    const normalizeAddrs = (val) => {
+      if (!val) return val;
+      if (Array.isArray(val)) {
+        return val.map(a => normalizeAddr(a));
+      }
+      if (typeof val === 'string' && val.includes(',')) {
+        return val.split(',').map(a => normalizeAddr(a)).join(', ');
+      }
+      return normalizeAddr(val);
+    };
+
+    to = normalizeAddrs(to);
+    from = normalizeAddr(from);
+    replyTo = normalizeAddr(replyTo);
+
+    // Sync back to emailData so all downstream methods get normalized values
+    emailData.to = to;
+    emailData.from = from;
+    emailData.replyTo = replyTo;
+    if (emailData.cc) emailData.cc = normalizeAddrs(emailData.cc);
+    if (emailData.bcc) emailData.bcc = normalizeAddrs(emailData.bcc);
     
     // Debug log for skipLinkTracking
     if (skipLinkTracking) {
@@ -400,7 +429,7 @@ module.exports = ({ strapi }) => ({
       }
 
       if (matches) {
-        const account = accounts.find(a => a.name === rule.accountName);
+        const account = accounts.find(a => a.name.toLowerCase() === rule.accountName.toLowerCase());
         if (account) {
           strapi.log.info(`[magic-mail] [ROUTE] Routing rule matched: ${rule.name} -> ${account.name}`);
           return account;
@@ -1450,10 +1479,32 @@ module.exports = ({ strapi }) => ({
   validateEmailSecurity(emailData) {
     const { to, subject, html, text } = emailData;
 
-    // 1. Validate recipient email format
+    // 1. Validate recipient email format (supports display names and arrays)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(to)) {
-      throw new Error(`Invalid recipient email format: ${to}`);
+    const extractEmail = (addr) => {
+      if (!addr || typeof addr !== 'string') return '';
+      if (addr.includes('<')) {
+        const match = addr.match(/<([^>]+)>/);
+        return match ? match[1].trim() : addr.trim();
+      }
+      return addr.trim();
+    };
+
+    const validateAddr = (addr) => emailRegex.test(extractEmail(addr));
+
+    if (Array.isArray(to)) {
+      for (const addr of to) {
+        if (!validateAddr(addr)) {
+          throw new Error(`Invalid recipient email format: ${addr}`);
+        }
+      }
+    } else if (typeof to === 'string') {
+      const addresses = to.includes(',') ? to.split(',') : [to];
+      for (const addr of addresses) {
+        if (!validateAddr(addr.trim())) {
+          throw new Error(`Invalid recipient email format: ${addr.trim()}`);
+        }
+      }
     }
 
     // 2. Prevent empty subject (spam trigger)

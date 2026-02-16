@@ -60,7 +60,7 @@ module.exports = ({ strapi }) => ({
         ...data,
         trackingBaseUrl: data.trackingBaseUrl?.trim() || null,
         defaultFromName: data.defaultFromName?.trim() || null,
-        defaultFromEmail: data.defaultFromEmail?.trim() || null,
+        defaultFromEmail: data.defaultFromEmail?.trim()?.toLowerCase() || null,
         unsubscribeUrl: data.unsubscribeUrl?.trim() || null,
       };
       
