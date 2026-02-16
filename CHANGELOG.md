@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/Schero94/Magic-Mail/compare/v2.7.0...v2.8.0) (2026-02-16)
+
+
+### Features
+
+* add endpoint coverage tests for all untested routes ([4fb5b1a](https://github.com/Schero94/Magic-Mail/commit/4fb5b1aa6885b804111753bbad517b4240b64cdc))
+
 # [2.7.0](https://github.com/Schero94/Magic-Mail/compare/v2.6.8...v2.7.0) (2026-02-16)
 
 
