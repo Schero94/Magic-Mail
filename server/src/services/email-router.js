@@ -37,6 +37,17 @@ module.exports = ({ strapi }) => ({
     if (!templateData && data) {
       templateData = data;
     }
+
+    // Normalize email addresses (RFC 5321: domain part is case-insensitive)
+    if (to && typeof to === 'string') {
+      to = to.trim().toLowerCase();
+    }
+    if (from && typeof from === 'string') {
+      from = from.trim();
+    }
+    if (replyTo && typeof replyTo === 'string') {
+      replyTo = replyTo.trim();
+    }
     
     // Debug log for skipLinkTracking
     if (skipLinkTracking) {
