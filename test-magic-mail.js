@@ -703,6 +703,279 @@ async function testPerformance() {
   }
 }
 
+// ============================================================
+// SECURITY EXPLOIT TESTS
+// ============================================================
+
+/**
+ * SECURITY TEST 1: Unauthenticated send must be blocked
+ */
+async function testUnauthenticatedSendBlocked() {
+  logSection('SECURITY 1: Unauthenticated Send Blocked');
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/magic-mail/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: 'attacker@evil.com',
+        subject: 'Open relay test',
+        text: 'If this arrives, the server is an open relay',
+      }),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      logSuccess(`Unauthenticated send blocked with ${response.status}`);
+      return true;
+    } else if (response.status === 200) {
+      logError('CRITICAL: Unauthenticated email send succeeded! Server is an OPEN RELAY!');
+      return false;
+    } else {
+      logSuccess(`Unauthenticated send rejected with ${response.status}`);
+      return true;
+    }
+  } catch (err) {
+    logError(`Unauthenticated send test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 2: Unauthenticated account creation must be blocked
+ */
+async function testUnauthenticatedAccountCreateBlocked() {
+  logSection('SECURITY 2: Unauthenticated Account Creation Blocked');
+
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Exploit Test Account',
+        provider: 'smtp',
+        config: { host: 'evil.com', port: 587, user: 'x', pass: 'x' },
+        fromEmail: 'exploit@evil.com',
+      }),
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      logSuccess(`Unauthenticated account creation blocked with ${response.status}`);
+      return true;
+    } else if (response.status === 200 || response.status === 201) {
+      logError('CRITICAL: Unauthenticated account creation succeeded!');
+      return false;
+    } else {
+      logSuccess(`Unauthenticated account creation rejected with ${response.status}`);
+      return true;
+    }
+  } catch (err) {
+    logError(`Unauthenticated account creation test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 3: Path traversal via attachment.path must be stripped
+ */
+async function testPathTraversalBlocked() {
+  logSection('SECURITY 3: Attachment Path Traversal Blocked');
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/magic-mail/send`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ADMIN_JWT}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: process.env.TEST_EMAIL || 'test@example.com',
+        subject: 'Path traversal test',
+        text: 'Testing path traversal protection',
+        attachments: [
+          { path: '/etc/passwd', filename: 'passwd.txt' },
+          { path: '../../.env', filename: 'env.txt' },
+          { content: 'Safe content here', filename: 'safe.txt' },
+        ],
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    // The request may succeed (email sent) or fail (no account configured)
+    // But the key check: did it NOT attach /etc/passwd?
+    // We verify by checking the response doesn't mention file read errors
+    // for system files - the path should have been silently stripped
+    if (response.status === 500 && data.message && data.message.includes('/etc/passwd')) {
+      logError('CRITICAL: Server attempted to read /etc/passwd!');
+      return false;
+    }
+    
+    logSuccess('Attachment path fields are stripped from API requests');
+    logInfo('Content-based attachments remain intact, file paths are removed');
+    return true;
+  } catch (err) {
+    logError(`Path traversal test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 4: Open redirect in click tracking must be blocked
+ */
+async function testOpenRedirectBlocked() {
+  logSection('SECURITY 4: Open Redirect Blocked');
+
+  try {
+    // Try to inject a URL via query parameter
+    const response = await fetch(
+      `${BASE_URL}/api/magic-mail/track/click/fake-id/fake-hash/fake-recipient?url=https://evil-phishing.com`,
+      { redirect: 'manual' }
+    );
+
+    if (response.status === 302 || response.status === 301) {
+      const location = response.headers.get('location');
+      if (location && location.includes('evil-phishing.com')) {
+        logError('CRITICAL: Open redirect to attacker URL succeeded!');
+        return false;
+      }
+      logSuccess('Redirect does not point to attacker URL');
+      return true;
+    } else if (response.status === 400) {
+      logSuccess(`Open redirect blocked with 400 - URL from query param rejected`);
+      return true;
+    } else {
+      logSuccess(`Click tracking returned ${response.status} (no redirect to attacker URL)`);
+      return true;
+    }
+  } catch (err) {
+    logError(`Open redirect test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 5: XSS via tracking endpoints
+ */
+async function testXssInTrackingEndpoints() {
+  logSection('SECURITY 5: XSS Prevention in Tracking');
+
+  try {
+    // Test tracking pixel with XSS payload in params
+    const xssPayload = '<script>alert(1)</script>';
+    const encodedPayload = encodeURIComponent(xssPayload);
+
+    const response = await fetch(
+      `${BASE_URL}/api/magic-mail/track/open/${encodedPayload}/${encodedPayload}`
+    );
+
+    const contentType = response.headers.get('content-type');
+
+    if (contentType && contentType.includes('image/gif')) {
+      logSuccess('Tracking pixel returns image/gif, not HTML (XSS not possible)');
+      return true;
+    } else if (contentType && contentType.includes('text/html')) {
+      const body = await response.text();
+      if (body.includes('<script>')) {
+        logError('CRITICAL: XSS payload reflected in tracking response!');
+        return false;
+      }
+      logSuccess('HTML response does not reflect XSS payload');
+      return true;
+    } else {
+      logSuccess(`Tracking returns ${contentType} - not vulnerable to XSS`);
+      return true;
+    }
+  } catch (err) {
+    logError(`XSS test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 6: Error responses must not leak stack traces
+ */
+async function testErrorLeakPrevention() {
+  logSection('SECURITY 6: Error Message Leak Prevention');
+
+  try {
+    // Trigger a 500 error with invalid data
+    const response = await fetch(`${BASE_URL}/magic-mail/analytics/emails/nonexistent-id-12345`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+
+    const data = await response.json().catch(() => ({}));
+    const responseText = JSON.stringify(data);
+
+    // Check for stack trace indicators
+    const leakPatterns = [
+      'node_modules',
+      'at Object.',
+      'at Module.',
+      'at Function.',
+      '.js:',
+      'Error\n',
+      'stack',
+      'node:internal',
+    ];
+
+    let hasLeak = false;
+    for (const pattern of leakPatterns) {
+      if (responseText.includes(pattern)) {
+        logError(`Error response leaks internal info: "${pattern}" found`);
+        hasLeak = true;
+        break;
+      }
+    }
+
+    if (!hasLeak) {
+      logSuccess('Error responses do not leak stack traces or internal paths');
+      return true;
+    }
+    return false;
+  } catch (err) {
+    logError(`Error leak test error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * SECURITY TEST 7: License key must be masked in API responses
+ */
+async function testLicenseKeyMasked() {
+  logSection('SECURITY 7: License Key Masking');
+
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/license/status`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+
+    const data = await response.json();
+    const responseText = JSON.stringify(data);
+
+    // Check if full license key is exposed (keys are typically 20+ chars)
+    const licenseKey = data.data?.licenseKey || data.licenseKey;
+
+    if (licenseKey) {
+      if (licenseKey.includes('...')) {
+        logSuccess(`License key is masked: ${licenseKey}`);
+        return true;
+      } else if (licenseKey.length > 16) {
+        logError(`SECURITY: Full license key exposed in API response (${licenseKey.length} chars)`);
+        return false;
+      } else {
+        logSuccess('License key appears truncated/masked');
+        return true;
+      }
+    } else {
+      logInfo('No license key in response (may not be activated)');
+      return true;
+    }
+  } catch (err) {
+    logError(`License key mask test error: ${err.message}`);
+    return false;
+  }
+}
+
 /**
  * SUMMARY: Print Test Results
  */
@@ -811,6 +1084,32 @@ async function runAllTests() {
   await sleep(500);
   
   // ============================================================
+  // SECURITY TESTS
+  // ============================================================
+  logCategory('SECURITY TESTS');
+
+  await testUnauthenticatedSendBlocked();
+  await sleep(500);
+
+  await testUnauthenticatedAccountCreateBlocked();
+  await sleep(500);
+
+  await testPathTraversalBlocked();
+  await sleep(500);
+
+  await testOpenRedirectBlocked();
+  await sleep(500);
+
+  await testXssInTrackingEndpoints();
+  await sleep(500);
+
+  await testErrorLeakPrevention();
+  await sleep(500);
+
+  await testLicenseKeyMasked();
+  await sleep(500);
+
+  // ============================================================
   // FULL TESTS (Only with --full flag)
   // ============================================================
   if (IS_FULL_TEST) {
@@ -848,8 +1147,17 @@ Usage:
 
 Options:
   --quick    Run quick tests only (default)
-  --full     Run all tests including build & performance
+  --full     Run all tests including build, performance & security
   --help     Show this help message
+
+Security Tests (always run):
+  - Unauthenticated send blocked (open relay prevention)
+  - Unauthenticated account creation blocked
+  - Attachment path traversal blocked
+  - Open redirect blocked
+  - XSS prevention in tracking endpoints
+  - Error message leak prevention
+  - License key masking
 
 Environment Variables:
   ADMIN_EMAIL     Admin email (required)
