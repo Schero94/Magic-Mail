@@ -976,6 +976,361 @@ async function testLicenseKeyMasked() {
   }
 }
 
+// ============================================================
+// ENDPOINT COVERAGE TESTS
+// ============================================================
+
+/**
+ * TEST: License Limits Endpoint
+ */
+async function testLicenseLimits() {
+  logSection('ENDPOINT: License Limits');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/license/limits`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      logSuccess(`License limits retrieved (tier: ${data.tier || data.data?.tier || 'unknown'})`);
+      return true;
+    }
+    logError(`License limits failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`License limits error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: License Debug Endpoint
+ */
+async function testLicenseDebug() {
+  logSection('ENDPOINT: License Debug');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/license/debug`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      logSuccess('License debug endpoint accessible');
+      return true;
+    }
+    logError(`License debug failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`License debug error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: Designer Stats Endpoint
+ */
+async function testDesignerStats() {
+  logSection('ENDPOINT: Designer Stats');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/designer/stats`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const stats = data.data || data;
+      logSuccess(`Designer stats: ${stats.total || 0} templates, ${stats.active || 0} active`);
+      return true;
+    }
+    logError(`Designer stats failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`Designer stats error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: Core Email Template Endpoint
+ */
+async function testCoreTemplate() {
+  logSection('ENDPOINT: Core Email Template');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/designer/core/user-address-confirmation`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      logSuccess('Core template endpoint accessible');
+      return true;
+    } else if (response.status === 404) {
+      logInfo('Core template not found (expected if not customized)');
+      results.passed++;
+      return true;
+    }
+    logError(`Core template failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`Core template error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: Analytics Debug Endpoint
+ */
+async function testAnalyticsDebug() {
+  logSection('ENDPOINT: Analytics Debug');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/analytics/debug`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      logSuccess('Analytics debug endpoint accessible');
+      return true;
+    }
+    logError(`Analytics debug failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`Analytics debug error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: WhatsApp Admin Endpoints
+ */
+async function testWhatsAppEndpoints() {
+  logSection('ENDPOINT: WhatsApp Admin Routes');
+  
+  const endpoints = [
+    { path: '/whatsapp/available', name: 'WhatsApp Available' },
+    { path: '/whatsapp/status', name: 'WhatsApp Status' },
+    { path: '/whatsapp/templates', name: 'WhatsApp Templates' },
+    { path: '/whatsapp/session', name: 'WhatsApp Session' },
+  ];
+  
+  let allPassed = true;
+  
+  for (const ep of endpoints) {
+    try {
+      const response = await fetch(`${BASE_URL}/magic-mail${ep.path}`, {
+        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      });
+      if (response.ok || response.status === 404) {
+        logSuccess(`${ep.name}: ${response.status}`);
+      } else if (response.status === 500) {
+        logWarning(`${ep.name}: 500 (WhatsApp may not be configured)`);
+      } else {
+        logError(`${ep.name}: ${response.status}`);
+        allPassed = false;
+      }
+    } catch (err) {
+      logError(`${ep.name} error: ${err.message}`);
+      allPassed = false;
+    }
+  }
+  
+  return allPassed;
+}
+
+/**
+ * TEST: Plugin Settings Endpoints
+ */
+async function testPluginSettings() {
+  logSection('ENDPOINT: Plugin Settings');
+  try {
+    const response = await fetch(`${BASE_URL}/magic-mail/settings`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      logSuccess('Plugin settings retrieved');
+      logInfo(`Settings keys: ${Object.keys(data.data || data).join(', ').substring(0, 80)}`);
+      return true;
+    }
+    logError(`Plugin settings failed: ${response.status}`);
+    return false;
+  } catch (err) {
+    logError(`Plugin settings error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * TEST: Content-API Send Endpoints (authenticated)
+ */
+async function testContentApiSendEndpoints() {
+  logSection('ENDPOINT: Content-API Send Routes (Auth Check)');
+  
+  const endpoints = [
+    { path: '/api/magic-mail/send-message', name: 'Send Message', body: { to: 'test@example.com', message: 'test' } },
+    { path: '/api/magic-mail/send-whatsapp', name: 'Send WhatsApp', body: { phoneNumber: '+49123456789', message: 'test' } },
+  ];
+  
+  let allPassed = true;
+  
+  for (const ep of endpoints) {
+    try {
+      // Test WITHOUT auth - should be blocked
+      const noAuthResp = await fetch(`${BASE_URL}${ep.path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ep.body),
+      });
+      
+      if (noAuthResp.status === 401 || noAuthResp.status === 403) {
+        logSuccess(`${ep.name} blocked without auth (${noAuthResp.status})`);
+      } else {
+        logError(`${ep.name} accessible without auth! Status: ${noAuthResp.status}`);
+        allPassed = false;
+      }
+    } catch (err) {
+      logError(`${ep.name} error: ${err.message}`);
+      allPassed = false;
+    }
+  }
+  
+  return allPassed;
+}
+
+/**
+ * TEST: Template CRUD Lifecycle
+ */
+async function testTemplateCrudLifecycle() {
+  logSection('ENDPOINT: Template CRUD Lifecycle');
+  
+  let templateId = null;
+  
+  try {
+    // CREATE
+    const createResp = await fetch(`${BASE_URL}/magic-mail/designer/templates`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${ADMIN_JWT}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: `Test Template ${Date.now()}`,
+        subject: 'Test Subject {{name}}',
+        bodyHtml: '<h1>Hello {{name}}</h1>',
+        bodyText: 'Hello {{name}}',
+        category: 'transactional',
+        templateReferenceId: Date.now(),
+      }),
+    });
+    
+    const createData = await createResp.json();
+    const template = createData.data || createData;
+    templateId = template.documentId || template.id;
+    
+    if (createResp.ok && templateId) {
+      logSuccess(`Template created: ${template.name} (${templateId})`);
+    } else {
+      logError(`Template create failed: ${createResp.status}`);
+      return false;
+    }
+    
+    // READ ONE
+    const getResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    
+    if (getResp.ok) {
+      logSuccess('Template read (single) works');
+    } else {
+      logError(`Template read failed: ${getResp.status}`);
+    }
+    
+    // UPDATE
+    const updateResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${ADMIN_JWT}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        subject: 'Updated Subject {{name}}',
+      }),
+    });
+    
+    if (updateResp.ok) {
+      logSuccess('Template update works');
+    } else {
+      logError(`Template update failed: ${updateResp.status}`);
+    }
+    
+    // GET VERSIONS
+    const versionsResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/versions`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    
+    if (versionsResp.ok) {
+      const versionsData = await versionsResp.json();
+      const versions = versionsData.data || versionsData;
+      logSuccess(`Template versions: ${Array.isArray(versions) ? versions.length : 0}`);
+    } else {
+      logWarning(`Template versions: ${versionsResp.status} (may not have versions yet)`);
+    }
+    
+    // DUPLICATE
+    const dupeResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/duplicate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    
+    let dupeId = null;
+    if (dupeResp.ok) {
+      const dupeData = await dupeResp.json();
+      const dupe = dupeData.data || dupeData;
+      dupeId = dupe.documentId || dupe.id;
+      logSuccess(`Template duplicated: ${dupe.name}`);
+    } else {
+      logWarning(`Template duplicate: ${dupeResp.status}`);
+    }
+    
+    // DOWNLOAD HTML
+    const downloadResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/download?type=html`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    
+    if (downloadResp.ok) {
+      logSuccess('Template download (HTML) works');
+    } else {
+      logWarning(`Template download: ${downloadResp.status}`);
+    }
+    
+    // DELETE (template + duplicate)
+    if (dupeId) {
+      await fetch(`${BASE_URL}/magic-mail/designer/templates/${dupeId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      });
+      logInfo('Duplicate template deleted');
+    }
+    
+    const deleteResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+    });
+    
+    if (deleteResp.ok) {
+      logSuccess('Template delete works');
+    } else {
+      logError(`Template delete failed: ${deleteResp.status}`);
+    }
+    
+    return true;
+  } catch (err) {
+    logError(`Template CRUD error: ${err.message}`);
+    // Cleanup
+    if (templateId) {
+      try {
+        await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+        });
+      } catch {}
+    }
+    return false;
+  }
+}
+
 /**
  * SUMMARY: Print Test Results
  */
@@ -1107,6 +1462,38 @@ async function runAllTests() {
   await sleep(500);
 
   await testLicenseKeyMasked();
+  await sleep(500);
+
+  // ============================================================
+  // ENDPOINT COVERAGE TESTS
+  // ============================================================
+  logCategory('ENDPOINT COVERAGE TESTS');
+
+  await testLicenseLimits();
+  await sleep(300);
+
+  await testLicenseDebug();
+  await sleep(300);
+
+  await testDesignerStats();
+  await sleep(300);
+
+  await testCoreTemplate();
+  await sleep(300);
+
+  await testAnalyticsDebug();
+  await sleep(300);
+
+  await testWhatsAppEndpoints();
+  await sleep(300);
+
+  await testPluginSettings();
+  await sleep(300);
+
+  await testContentApiSendEndpoints();
+  await sleep(300);
+
+  await testTemplateCrudLifecycle();
   await sleep(500);
 
   // ============================================================
