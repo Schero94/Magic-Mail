@@ -1,3 +1,10 @@
+## [2.8.2](https://github.com/Schero94/Magic-Mail/compare/v2.8.1...v2.8.2) (2026-02-16)
+
+
+### Bug Fixes
+
+* restore unmasked licenseKey in API response (needed for license server communication) ([1069633](https://github.com/Schero94/Magic-Mail/commit/10696337c514db6dde42a61604707b8c32aece77))
+
 ## [2.8.1](https://github.com/Schero94/Magic-Mail/compare/v2.8.0...v2.8.1) (2026-02-16)
 
 
