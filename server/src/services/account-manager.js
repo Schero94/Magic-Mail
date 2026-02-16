@@ -49,10 +49,10 @@ module.exports = ({ strapi }) => ({
       hourlyLimit = 0,
     } = accountData;
 
-    console.log('create account', accountData);
+    strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
 
     // Encrypt sensitive config data
-    const encryptedConfig = encryptCredentials(config);
+    const encryptedConfig = config ? encryptCredentials(config) : null;
 
     // If this is primary, unset other primaries
     if (isPrimary) {
@@ -115,8 +115,8 @@ module.exports = ({ strapi }) => ({
       hourlyLimit,
     } = accountData;
 
-    // Encrypt sensitive config data
-    const encryptedConfig = encryptCredentials(config);
+    // Encrypt sensitive config data (preserve existing if not updating)
+    const encryptedConfig = config ? encryptCredentials(config) : existingAccount.config;
 
     // If this is being set to primary, unset other primaries
     if (isPrimary && !existingAccount.isPrimary) {

@@ -295,7 +295,7 @@ module.exports = {
     } catch (error) {
       console.error('\n[ERROR] FEHLER:', error.message);
       console.error(error.stack);
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   }
 };

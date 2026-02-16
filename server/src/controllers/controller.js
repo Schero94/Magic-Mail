@@ -1,6 +1,17 @@
 'use strict';
 
 /**
+ * Strip file-path attachments from API requests (security: prevents arbitrary file read).
+ * Internal service calls bypass the controller and can still use path-based attachments.
+ */
+function stripAttachmentPaths(body) {
+  if (body.attachments && Array.isArray(body.attachments)) {
+    body.attachments = body.attachments.map(({ path, ...safe }) => safe);
+  }
+  return body;
+}
+
+/**
  * Main Controller
  * Handles email and WhatsApp sending requests
  */
@@ -11,62 +22,72 @@ module.exports = {
    */
   async send(ctx) {
     try {
+      const body = stripAttachmentPaths({ ...ctx.request.body });
+      if (!body || !body.to) {
+        return ctx.badRequest('Recipient (to) is required');
+      }
+
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.send(ctx.request.body);
+      const result = await emailRouter.send(body);
 
       ctx.body = {
         success: true,
         ...result,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending email:', err);
-      ctx.throw(500, err.message || 'Failed to send email');
+      strapi.log.error('[magic-mail] Error sending email:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Failed to send email');
     }
   },
 
   /**
    * Send message via Email or WhatsApp (unified API)
-   * POST /api/magic-mail/send-message
-   * Body: { channel: 'email' | 'whatsapp' | 'auto', to, phoneNumber, subject, message, ... }
    */
   async sendMessage(ctx) {
     try {
+      const body = stripAttachmentPaths({ ...ctx.request.body });
+      if (!body || (!body.to && !body.phoneNumber)) {
+        return ctx.badRequest('Recipient (to or phoneNumber) is required');
+      }
+
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendMessage(ctx.request.body);
+      const result = await emailRouter.sendMessage(body);
 
       ctx.body = {
         success: true,
         ...result,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending message:', err);
-      ctx.throw(500, err.message || 'Failed to send message');
+      strapi.log.error('[magic-mail] Error sending message:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Failed to send message');
     }
   },
 
   /**
    * Send WhatsApp message
-   * POST /api/magic-mail/send-whatsapp
-   * Body: { phoneNumber, message, templateId?, templateData? }
    */
   async sendWhatsApp(ctx) {
     try {
+      const body = stripAttachmentPaths({ ...ctx.request.body });
+      if (!body || !body.phoneNumber) {
+        return ctx.badRequest('Phone number is required');
+      }
+
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendWhatsApp(ctx.request.body);
+      const result = await emailRouter.sendWhatsApp(body);
 
       ctx.body = {
         success: true,
         ...result,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending WhatsApp:', err);
-      ctx.throw(500, err.message || 'Failed to send WhatsApp message');
+      strapi.log.error('[magic-mail] Error sending WhatsApp:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Failed to send WhatsApp message');
     }
   },
 
   /**
    * Get WhatsApp connection status
-   * GET /api/magic-mail/whatsapp/status
    */
   async getWhatsAppStatus(ctx) {
     try {
@@ -78,7 +99,8 @@ module.exports = {
         data: status,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting WhatsApp status:', err);
+      strapi.log.error('[magic-mail] Error getting WhatsApp status:', err.message);
+      ctx.status = 503;
       ctx.body = {
         success: false,
         data: {
@@ -92,15 +114,13 @@ module.exports = {
 
   /**
    * Check if phone number is on WhatsApp
-   * GET /api/magic-mail/whatsapp/check/:phoneNumber
    */
   async checkWhatsAppNumber(ctx) {
     try {
       const { phoneNumber } = ctx.params;
       
       if (!phoneNumber) {
-        ctx.throw(400, 'Phone number is required');
-        return;
+        return ctx.badRequest('Phone number is required');
       }
 
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
@@ -111,8 +131,8 @@ module.exports = {
         data: result,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error checking WhatsApp number:', err);
-      ctx.throw(500, err.message || 'Failed to check phone number');
+      strapi.log.error('[magic-mail] Error checking WhatsApp number:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Failed to check phone number');
     }
   },
 };

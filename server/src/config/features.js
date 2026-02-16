@@ -131,7 +131,6 @@ module.exports = {
     });
  */
     if (!licenseData) {
-      console.log(`[features.js] [WARNING]  No license data → using FREE tier`);
       // Demo mode - only free features
       return this.free.features.includes(featureName);
     }
@@ -182,21 +181,16 @@ module.exports = {
  */
     // Check tiers in order: enterprise > advanced > premium > free
     if (isEnterprise && this.enterprise.features.includes(featureName)) {
-      console.log(`[features.js] [SUCCESS] ENTERPRISE tier has feature "${featureName}"`);
       return true;
     }
     if (isAdvanced && this.advanced.features.includes(featureName)) {
-      console.log(`[features.js] [SUCCESS] ADVANCED tier has feature "${featureName}"`);
       return true;
     }
     if (isPremium && this.premium.features.includes(featureName)) {
-      console.log(`[features.js] [SUCCESS] PREMIUM tier has feature "${featureName}"`);
       return true;
     }
     
-    const inFree = this.free.features.includes(featureName);
-    console.log(`[features.js] ${inFree ? '[SUCCESS]' : '[ERROR]'} FREE tier check for "${featureName}": ${inFree}`);
-    return inFree;
+    return this.free.features.includes(featureName);
   },
 
   /**

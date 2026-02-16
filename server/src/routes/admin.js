@@ -27,8 +27,7 @@ module.exports = {
       path: '/accounts',
       handler: 'accounts.create',
       config: {
-        policies: [],
-        auth: false,
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Create email account',
       },
     },
@@ -214,7 +213,7 @@ module.exports = {
       path: '/license/limits',
       handler: 'license.getLimits',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Get license limits and available features',
       },
     },
@@ -223,7 +222,7 @@ module.exports = {
       path: '/license/debug',
       handler: 'license.debugLicense',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Debug license data',
       },
     },

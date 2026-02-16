@@ -77,7 +77,7 @@ module.exports = ({ strapi }) => ({
     emailData.replyTo = replyTo;
     if (emailData.cc) emailData.cc = normalizeAddrs(emailData.cc);
     if (emailData.bcc) emailData.bcc = normalizeAddrs(emailData.bcc);
-    
+
     // Debug log for skipLinkTracking
     if (skipLinkTracking) {
       strapi.log.info(`[magic-mail] [SKIP-TRACK] skipLinkTracking=true received for email to: ${to}`);

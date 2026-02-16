@@ -21,7 +21,7 @@ module.exports = ({ strapi }) => ({
         data: templates,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -45,7 +45,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -67,7 +67,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('limit reached') || error.message.includes('already exists')) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -90,7 +90,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('not found')) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -107,7 +107,7 @@ module.exports = ({ strapi }) => ({
         message: 'Template deleted successfully',
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -127,7 +127,7 @@ module.exports = ({ strapi }) => ({
         data: versions,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -150,7 +150,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('not found')) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -176,7 +176,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('does not belong')) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -199,7 +199,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('not found')) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -224,7 +224,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('not found')) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -247,7 +247,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('requires')) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -275,7 +275,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('requires')) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -291,7 +291,7 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -311,7 +311,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -331,7 +331,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -373,8 +373,8 @@ module.exports = ({ strapi }) => ({
       ctx.set('Content-Disposition', `attachment; filename="${fileName}"`);
       ctx.send(fileContent);
     } catch (error) {
-      strapi.log.error('[magic-mail] Error downloading template:', error);
-      ctx.throw(500, error);
+      strapi.log.error('[magic-mail] Error downloading template:', error.message);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -398,7 +398,7 @@ module.exports = ({ strapi }) => ({
       if (error.message.includes('not found')) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 

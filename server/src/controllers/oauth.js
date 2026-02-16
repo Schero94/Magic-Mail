@@ -1,6 +1,30 @@
 'use strict';
 
 /**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Escape string for safe use inside JavaScript single-quoted strings
+ */
+function escapeJs(str) {
+  return String(str || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+/**
  * OAuth Controller
  * Handles OAuth authentication flows
  */
@@ -57,7 +81,7 @@ module.exports = {
           </head>
           <body>
             <div class="error">[ERROR] OAuth Authorization Failed</div>
-            <p>Error: ${error}</p>
+            <p>Error: ${escapeHtml(error)}</p>
             <p>You can close this window and try again.</p>
             <script>
               setTimeout(() => window.close(), 3000);
@@ -101,15 +125,15 @@ module.exports = {
               // Send data to parent window
               window.opener.postMessage({
                 type: 'gmail-oauth-success',
-                code: '${code}',
-                state: '${state}'
+                code: '${escapeJs(code)}',
+                state: '${escapeJs(state)}'
               }, window.location.origin);
               
               setTimeout(() => window.close(), 1500);
             } else {
               // Fallback: redirect to admin panel
               setTimeout(() => {
-                window.location.href = '/admin/plugins/magic-mail?oauth_code=${code}&oauth_state=${state}';
+                window.location.href = '/admin/plugins/magic-mail?oauth_code=' + encodeURIComponent('${escapeJs(code)}') + '&oauth_state=' + encodeURIComponent('${escapeJs(state)}');
               }, 2000);
             }
           </script>
@@ -178,7 +202,7 @@ module.exports = {
           </head>
           <body>
             <div class="error">[ERROR] OAuth Authorization Failed</div>
-            <p>Error: ${error}</p>
+            <p>Error: ${escapeHtml(error)}</p>
             <p>You can close this window and try again.</p>
             <script>
               setTimeout(() => window.close(), 3000);
@@ -222,15 +246,15 @@ module.exports = {
               // Send data to parent window
               window.opener.postMessage({
                 type: 'microsoft-oauth-success',
-                code: '${code}',
-                state: '${state}'
+                code: '${escapeJs(code)}',
+                state: '${escapeJs(state)}'
               }, window.location.origin);
               
               setTimeout(() => window.close(), 1500);
             } else {
               // Fallback: redirect to admin panel
               setTimeout(() => {
-                window.location.href = '/admin/plugins/magic-mail?oauth_code=${code}&oauth_state=${state}';
+                window.location.href = '/admin/plugins/magic-mail?oauth_code=' + encodeURIComponent('${escapeJs(code)}') + '&oauth_state=' + encodeURIComponent('${escapeJs(state)}');
               }, 2000);
             }
           </script>
@@ -294,7 +318,7 @@ module.exports = {
           </head>
           <body>
             <div class="error">[ERROR] OAuth Authorization Failed</div>
-            <p>Error: ${error}</p>
+            <p>Error: ${escapeHtml(error)}</p>
             <p>You can close this window and try again.</p>
             <script>
               setTimeout(() => window.close(), 3000);
@@ -338,15 +362,15 @@ module.exports = {
               // Send data to parent window
               window.opener.postMessage({
                 type: 'yahoo-oauth-success',
-                code: '${code}',
-                state: '${state}'
+                code: '${escapeJs(code)}',
+                state: '${escapeJs(state)}'
               }, window.location.origin);
               
               setTimeout(() => window.close(), 1500);
             } else {
               // Fallback: redirect to admin panel
               setTimeout(() => {
-                window.location.href = '/admin/plugins/magic-mail?oauth_code=${code}&oauth_state=${state}';
+                window.location.href = '/admin/plugins/magic-mail?oauth_code=' + encodeURIComponent('${escapeJs(code)}') + '&oauth_state=' + encodeURIComponent('${escapeJs(state)}');
               }, 2000);
             }
           </script>

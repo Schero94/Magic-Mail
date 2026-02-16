@@ -11,12 +11,15 @@ const IV_LENGTH = 16;
 function getEncryptionKey() {
   const envKey = process.env.MAGIC_MAIL_ENCRYPTION_KEY || process.env.APP_KEYS;
   
-  if (envKey) {
-    return crypto.createHash('sha256').update(envKey).digest();
+  if (!envKey) {
+    throw new Error(
+      '[magic-mail] FATAL: No encryption key configured. ' +
+      'Set MAGIC_MAIL_ENCRYPTION_KEY or APP_KEYS in your environment variables. ' +
+      'Email account credentials cannot be stored securely without a proper key.'
+    );
   }
   
-  console.warn('[magic-mail] [WARNING]  No MAGIC_MAIL_ENCRYPTION_KEY found. Using fallback.');
-  return crypto.createHash('sha256').update('magic-mail-default-key').digest();
+  return crypto.createHash('sha256').update(envKey).digest();
 }
 
 /**
@@ -41,8 +44,7 @@ function encryptCredentials(data) {
     // Return as object for JSON field compatibility (PostgreSQL requires valid JSON)
     return { encrypted: `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}` };
   } catch (err) {
-    console.error('[magic-mail] Encryption failed:', err);
-    throw new Error('Failed to encrypt credentials');
+    throw new Error(`Failed to encrypt credentials: ${err.message}`);
   }
 }
 
@@ -81,7 +83,9 @@ function decryptCredentials(encryptedData) {
     
     return JSON.parse(decrypted);
   } catch (err) {
-    console.error('[magic-mail] Decryption failed:', err);
+    if (typeof strapi !== 'undefined' && strapi.log) {
+      strapi.log.error('[magic-mail] Decryption failed:', err.message);
+    }
     return null;
   }
 }

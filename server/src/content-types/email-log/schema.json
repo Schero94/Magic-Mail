@@ -47,7 +47,7 @@
       "type": "string"
     },
     "accountId": {
-      "type": "integer"
+      "type": "string"
     },
     "accountName": {
       "type": "string"

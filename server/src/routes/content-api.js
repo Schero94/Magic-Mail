@@ -9,8 +9,7 @@ module.exports = {
       path: '/send',
       handler: 'controller.send',
       config: {
-        auth: false, // Can be called from anywhere
-        description: 'Send email via MagicMail router',
+        description: 'Send email via MagicMail router (requires API token)',
       },
     },
 
@@ -20,8 +19,7 @@ module.exports = {
       path: '/send-message',
       handler: 'controller.sendMessage',
       config: {
-        auth: false,
-        description: 'Send message via Email or WhatsApp (unified API)',
+        description: 'Send message via Email or WhatsApp (requires API token)',
       },
     },
 
@@ -31,8 +29,7 @@ module.exports = {
       path: '/send-whatsapp',
       handler: 'controller.sendWhatsApp',
       config: {
-        auth: false,
-        description: 'Send WhatsApp message',
+        description: 'Send WhatsApp message (requires API token)',
       },
     },
     {
@@ -40,8 +37,7 @@ module.exports = {
       path: '/whatsapp/status',
       handler: 'controller.getWhatsAppStatus',
       config: {
-        auth: false,
-        description: 'Get WhatsApp connection status',
+        description: 'Get WhatsApp connection status (requires API token)',
       },
     },
     {
@@ -49,8 +45,7 @@ module.exports = {
       path: '/whatsapp/check/:phoneNumber',
       handler: 'controller.checkWhatsAppNumber',
       config: {
-        auth: false,
-        description: 'Check if phone number is on WhatsApp',
+        description: 'Check if phone number is on WhatsApp (requires API token)',
       },
     },
 

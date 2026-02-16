@@ -54,7 +54,7 @@ const convertHtmlToText = (html, options = { wordwrap: 130 }) => {
     // Fallback
     return html.replace(/<[^>]*>/g, '');
   } catch (error) {
-    strapi.log.error('[magic-mail] Error converting HTML to text:', error);
+    console.error('[magic-mail] Error converting HTML to text:', error.message);
     return (html || '').replace(/<[^>]*>/g, '');
   }
 };

@@ -70,12 +70,16 @@ module.exports = {
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const account = await accountManager.getAccountWithDecryptedConfig(accountId);
 
+      if (!account) {
+        return ctx.notFound('Email account not found');
+      }
+
       ctx.body = {
         data: account,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting account:', err);
-      ctx.throw(500, 'Error fetching email account');
+      strapi.log.error('[magic-mail] Error getting account:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Error fetching email account');
     }
   },
 
@@ -88,23 +92,32 @@ module.exports = {
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const account = await accountManager.updateAccount(accountId, ctx.request.body);
 
+      if (!account) {
+        return ctx.notFound('Email account not found');
+      }
+
       ctx.body = {
         data: account,
         message: 'Email account updated successfully',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error updating account:', err);
-      ctx.throw(500, err.message || 'Error updating email account');
+      strapi.log.error('[magic-mail] Error updating account:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Error updating email account');
     }
   },
 
   /**
-   * Test email account
+   * Test email account with validation
    */
   async test(ctx) {
     try {
       const { accountId } = ctx.params;
-      const { testEmail, priority, type, unsubscribeUrl } = ctx.request.body;
+      const { testEmail, to, priority, type, unsubscribeUrl } = ctx.request.body;
+      const recipientEmail = testEmail || to;
+      
+      if (!recipientEmail) {
+        return ctx.badRequest('testEmail is required');
+      }
       
       const testOptions = {
         priority: priority || 'normal',
@@ -113,12 +126,12 @@ module.exports = {
       };
       
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
-      const result = await accountManager.testAccount(accountId, testEmail, testOptions);
+      const result = await accountManager.testAccount(accountId, recipientEmail, testOptions);
 
       ctx.body = result;
     } catch (err) {
-      strapi.log.error('[magic-mail] Error testing account:', err);
-      ctx.throw(500, 'Error testing email account');
+      strapi.log.error('[magic-mail] Error testing account:', err.message);
+      ctx.throw(err.status || 500, err.message || 'Error testing email account');
     }
   },
 

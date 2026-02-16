@@ -26,12 +26,20 @@ module.exports = ({ strapi }) => ({
    * Generate secure hash for recipient (for tracking URLs)
    */
   generateRecipientHash(emailId, recipient) {
+    const secret = process.env.APP_KEYS || process.env.MAGIC_MAIL_ENCRYPTION_KEY;
+    if (!secret) {
+      throw new Error(
+        '[magic-mail] FATAL: No HMAC secret configured. ' +
+        'Set APP_KEYS or MAGIC_MAIL_ENCRYPTION_KEY in your environment variables. ' +
+        'Tracking hashes cannot be generated securely without a proper key.'
+      );
+    }
     const normalized = (recipient || '').trim().toLowerCase();
     return crypto
-      .createHash('sha256')
-      .update(`${emailId}-${normalized}-${process.env.APP_KEYS || 'secret'}`)
+      .createHmac('sha256', secret)
+      .update(`${emailId}-${normalized}`)
       .digest('hex')
-      .substring(0, 16);
+      .substring(0, 32);
   },
 
   /**

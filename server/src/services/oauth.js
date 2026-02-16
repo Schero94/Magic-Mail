@@ -33,7 +33,7 @@ module.exports = ({ strapi }) => ({
       `scope=${encodeURIComponent(scopes)}&` +
       `access_type=offline&` +
       `prompt=consent&` +
-      `state=${state}`;
+      `state=${encodeURIComponent(state)}`;
 
     return authUrl;
   },
@@ -131,7 +131,7 @@ module.exports = ({ strapi }) => ({
 
     return {
       accessToken: tokens.access_token,
-      expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
     };
   },
 
@@ -170,7 +170,7 @@ module.exports = ({ strapi }) => ({
       `scope=${encodeURIComponent(scopes)}&` +
       `response_mode=query&` +
       `prompt=consent&` +
-      `state=${state}`;
+      `state=${encodeURIComponent(state)}`;
 
     strapi.log.info(`[magic-mail] Microsoft OAuth URL: Using tenant ${tenantId}`);
 
@@ -347,7 +347,7 @@ module.exports = ({ strapi }) => ({
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scopes)}&` +
-      `state=${state}`;
+      `state=${encodeURIComponent(state)}`;
 
     return authUrl;
   },
@@ -451,7 +451,7 @@ module.exports = ({ strapi }) => ({
 
     return {
       accessToken: tokens.access_token,
-      expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
     };
   },
 

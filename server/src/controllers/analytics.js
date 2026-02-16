@@ -18,10 +18,13 @@ module.exports = ({ strapi }) => ({
   async trackOpen(ctx) {
     const { emailId, recipientHash } = ctx.params;
 
-    // Record the open event
-    await strapi.plugin('magic-mail').service('analytics').recordOpen(emailId, recipientHash, ctx.request);
+    try {
+      await strapi.plugin('magic-mail').service('analytics').recordOpen(emailId, recipientHash, ctx.request);
+    } catch (err) {
+      strapi.log.error('[magic-mail] Error recording open event:', err.message);
+    }
 
-    // Return 1x1 transparent GIF
+    // Always return tracking pixel regardless of errors
     const pixel = Buffer.from(
       'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
       'base64'
@@ -32,30 +35,44 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Click tracking endpoint
+   * Click tracking endpoint with open-redirect protection
    * GET /magic-mail/track/click/:emailId/:linkHash/:recipientHash
    */
   async trackClick(ctx) {
     const { emailId, linkHash, recipientHash } = ctx.params;
-    let { url } = ctx.query;
 
-    // Try to get URL from database if not in query string
-    if (!url) {
+    // Always resolve URL from database only (never from query params) to prevent open redirect
+    let url;
+    try {
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
       url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash);
+    } catch (err) {
+      strapi.log.error('[magic-mail] Error getting original URL:', err.message);
     }
 
     if (!url) {
-      return ctx.badRequest('Missing target URL');
+      return ctx.badRequest('Invalid or expired tracking link');
     }
 
-    // Record the click event
-    await strapi
-      .plugin('magic-mail')
-      .service('analytics')
-      .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
+    // Validate URL protocol
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return ctx.badRequest('Invalid URL protocol');
+      }
+    } catch {
+      return ctx.badRequest('Invalid URL format');
+    }
 
-    // Redirect to the original URL
+    try {
+      await strapi
+        .plugin('magic-mail')
+        .service('analytics')
+        .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
+    } catch (err) {
+      strapi.log.error('[magic-mail] Error recording click event:', err.message);
+    }
+
     ctx.redirect(url);
   },
 
@@ -84,7 +101,7 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -119,7 +136,7 @@ module.exports = ({ strapi }) => ({
         ...result,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -145,7 +162,7 @@ module.exports = ({ strapi }) => ({
         data: emailLog,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -169,7 +186,7 @@ module.exports = ({ strapi }) => ({
         data: activity,
       });
     } catch (error) {
-      ctx.throw(500, error);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -256,8 +273,8 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Debug error:', error);
-      ctx.throw(500, error);
+      strapi.log.error('[magic-mail] Debug error:', error.message);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -297,8 +314,8 @@ module.exports = ({ strapi }) => ({
         message: 'Email log deleted successfully',
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error deleting email log:', error);
-      ctx.throw(500, error);
+      strapi.log.error('[magic-mail] Error deleting email log:', error.message);
+      ctx.throw(500, error.message);
     }
   },
 
@@ -354,8 +371,8 @@ module.exports = ({ strapi }) => ({
         deletedCount: emailLogs.length,
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error clearing email logs:', error);
-      ctx.throw(500, error);
+      strapi.log.error('[magic-mail] Error clearing email logs:', error.message);
+      ctx.throw(500, error.message);
     }
   },
 });

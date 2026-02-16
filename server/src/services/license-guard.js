@@ -326,8 +326,8 @@ module.exports = ({ strapi }) => {
       log.info('──────────────────────────────────────────────────────────');
       log.info(`📦 Plugin Store Check:`);
       if (licenseKey) {
-        log.info(`   [SUCCESS] License Key found: ${licenseKey}`);
-        log.info(`   [LICENSE] Key (short): ${licenseKey.substring(0, 10)}...`);
+        const maskedKey = licenseKey.substring(0, 8) + '...' + licenseKey.substring(licenseKey.length - 4);
+        log.info(`   [SUCCESS] License Key found: ${maskedKey}`);
         if (lastValidated) {
           const lastValidatedDate = new Date(lastValidated);
           const hoursAgo = Math.floor((now.getTime() - lastValidatedDate.getTime()) / (1000 * 60 * 60));

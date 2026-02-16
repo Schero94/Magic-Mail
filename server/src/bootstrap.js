@@ -19,22 +19,25 @@ module.exports = async ({ strapi }) => {
     
     // Wait a bit for all services to be ready
     setTimeout(async () => {
-      const licenseStatus = await licenseGuardService.initialize();
-      
-      if (!licenseStatus.valid && licenseStatus.demo) {
-        log.error('╔════════════════════════════════════════════════════════════════╗');
-        log.error('║  [ERROR] MAGICMAIL - NO VALID LICENSE                         ║');
-        log.error('║                                                                ║');
-        log.error('║  This plugin requires a valid license to operate.             ║');
-        log.error('║  Please activate your license via Admin UI:                   ║');
-        log.error('║  Go to MagicMail → License tab                                ║');
-        log.error('║                                                                ║');
-        log.error('║  Click "Generate Free License" to get started!                ║');
-        log.error('╚════════════════════════════════════════════════════════════════╝');
-      } else if (licenseStatus.gracePeriod) {
-        log.warn('[WARNING] Running on grace period (license server unreachable)');
+      try {
+        const licenseStatus = await licenseGuardService.initialize();
+        
+        if (!licenseStatus.valid && licenseStatus.demo) {
+          log.error('╔════════════════════════════════════════════════════════════════╗');
+          log.error('║  [ERROR] MAGICMAIL - NO VALID LICENSE                         ║');
+          log.error('║                                                                ║');
+          log.error('║  This plugin requires a valid license to operate.             ║');
+          log.error('║  Please activate your license via Admin UI:                   ║');
+          log.error('║  Go to MagicMail -> License tab                               ║');
+          log.error('║                                                                ║');
+          log.error('║  Click "Generate Free License" to get started!                ║');
+          log.error('╚════════════════════════════════════════════════════════════════╝');
+        } else if (licenseStatus.gracePeriod) {
+          log.warn('[WARNING] Running on grace period (license server unreachable)');
+        }
+      } catch (err) {
+        log.error('[ERROR] License initialization failed:', err.message);
       }
-      // No additional log here, as initialize() already outputs the license box
     }, 2000);
 
     const accountManager = strapi.plugin('magic-mail').service('account-manager');
@@ -97,14 +100,14 @@ module.exports = async ({ strapi }) => {
     const hourlyResetInterval = setInterval(async () => {
       try {
         if (!strapi || !strapi.plugin) {
-          console.warn('Strapi not available for hourly reset');
+          strapi.log.warn('[magic-mail] Strapi not available for hourly reset');
           return;
         }
         const accountMgr = strapi.plugin('magic-mail').service('account-manager');
         await accountMgr.resetCounters('hourly');
         log.info('[RESET] Hourly counters reset');
       } catch (err) {
-        console.error('Hourly reset error:', err.message);
+        strapi.log.error('[magic-mail] Hourly reset error:', err.message);
       }
     }, 60 * 60 * 1000); // Every hour
     
@@ -120,7 +123,7 @@ module.exports = async ({ strapi }) => {
     setTimeout(async () => {
       try {
         if (!strapi || !strapi.plugin) {
-          console.warn('Strapi not available for daily reset');
+          strapi.log.warn('[magic-mail] Strapi not available for daily reset');
           return;
         }
         const accountMgr = strapi.plugin('magic-mail').service('account-manager');
@@ -131,21 +134,21 @@ module.exports = async ({ strapi }) => {
         const dailyResetInterval = setInterval(async () => {
           try {
             if (!strapi || !strapi.plugin) {
-              console.warn('Strapi not available for daily reset');
+              strapi.log.warn('[magic-mail] Strapi not available for daily reset');
               return;
             }
             const accountMgr = strapi.plugin('magic-mail').service('account-manager');
             await accountMgr.resetCounters('daily');
             log.info('[RESET] Daily counters reset');
           } catch (err) {
-            console.error('Daily reset error:', err.message);
+            strapi.log.error('[magic-mail] Daily reset error:', err.message);
           }
         }, 24 * 60 * 60 * 1000); // Every 24 hours
         
         // Store interval for cleanup
         global.magicMailIntervals.daily = dailyResetInterval;
       } catch (err) {
-        console.error('Initial daily reset error:', err.message);
+        strapi.log.error('[magic-mail] Initial daily reset error:', err.message);
       }
     }, msUntilMidnight);
 
