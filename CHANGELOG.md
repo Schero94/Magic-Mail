@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/Schero94/Magic-Mail/compare/v2.6.8...v2.7.0) (2026-02-16)
+
+
+### Features
+
+* add security exploit tests to test suite ([4442894](https://github.com/Schero94/Magic-Mail/commit/44428945658bf56024c9c9652a933c9e790d0b36))
+
 ## [2.6.8](https://github.com/Schero94/Magic-Mail/compare/v2.6.7...v2.6.8) (2026-02-16)
 
 
