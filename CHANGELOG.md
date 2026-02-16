@@ -1,3 +1,10 @@
+## [2.6.7](https://github.com/Schero94/Magic-Mail/compare/v2.6.6...v2.6.7) (2026-02-16)
+
+
+### Bug Fixes
+
+* comprehensive email address normalization and validation ([5c9769c](https://github.com/Schero94/Magic-Mail/commit/5c9769cf5214bbacd6784ca991374d0d50b86e3b))
+
 ## [2.6.6](https://github.com/Schero94/Magic-Mail/compare/v2.6.5...v2.6.6) (2026-02-16)
 
 
