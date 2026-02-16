@@ -1,3 +1,10 @@
+## [2.6.8](https://github.com/Schero94/Magic-Mail/compare/v2.6.7...v2.6.8) (2026-02-16)
+
+
+### Bug Fixes
+
+* comprehensive security hardening and bug fixes ([049a71e](https://github.com/Schero94/Magic-Mail/commit/049a71eb135a4fa49d8df38eef879349a7aab2f5))
+
 ## [2.6.7](https://github.com/Schero94/Magic-Mail/compare/v2.6.6...v2.6.7) (2026-02-16)
 
 
