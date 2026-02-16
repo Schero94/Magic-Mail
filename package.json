@@ -55,7 +55,7 @@
     "form-data": "^4.0.4",
     "html-to-text": "^9.0.5",
     "mustache": "^4.2.0",
-    "nodemailer": "^7.0.12",
+    "nodemailer": "^8.0.1",
     "pino": "^9.5.0",
     "qrcode": "^1.5.4",
     "react-email-editor": "^1.7.11",
