@@ -1,3 +1,10 @@
+## [2.8.1](https://github.com/Schero94/Magic-Mail/compare/v2.8.0...v2.8.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* accept 500 for unconfigured core template in test ([234bdc5](https://github.com/Schero94/Magic-Mail/commit/234bdc5f73fa70af3bbbd9c48cd363330278c88f))
+
 # [2.8.0](https://github.com/Schero94/Magic-Mail/compare/v2.7.0...v2.8.0) (2026-02-16)
 
 
