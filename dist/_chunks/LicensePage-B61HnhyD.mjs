@@ -1,0 +1,352 @@
+import { jsx, jsxs } from "react/jsx-runtime";
+import { useState, useEffect } from "react";
+import { useFetchClient, useNotification } from "@strapi/strapi/admin";
+import styled from "styled-components";
+import { Flex, Typography, Box, Badge, Button } from "@strapi/design-system";
+import { Check, Cross, Sparkle, Lightning, Rocket } from "@strapi/icons";
+const Container = styled(Box)`
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+`;
+const Header = styled(Box)`
+  text-align: center;
+  margin-bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`;
+const Title = styled(Typography)`
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #4945ff, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: block;
+`;
+const Subtitle = styled(Typography)`
+  font-size: 1.125rem;
+  color: ${(p) => p.theme.colors.neutral600};
+  line-height: 1.6;
+  display: block;
+`;
+const TierGrid = styled(Flex)`
+  gap: 32px;
+  margin: 0 auto 48px;
+  max-width: 1080px;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: stretch;
+`;
+const TierWrapper = styled(Box)`
+  flex: 1;
+  min-width: 280px;
+  max-width: 340px;
+  display: flex;
+`;
+const TierCard = styled(Box)`
+  background: ${(p) => p.theme.colors.neutral0};
+  border-radius: 16px;
+  padding: 32px;
+  border: 2px solid ${(props) => props.$featured ? "#4945ff" : props.theme.colors.neutral200};
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: ${(props) => props.$featured ? "0 20px 25px -5px rgba(73, 69, 255, 0.25), 0 8px 10px -6px rgba(73, 69, 255, 0.2)" : "0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05)"};
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+`;
+const PopularBadge = styled(Badge)`
+  position: absolute;
+  top: -12px;
+  right: 24px;
+  background: linear-gradient(135deg, #4945ff, #4338ca);
+  color: white;
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 600;
+`;
+const TierIcon = styled(Box)`
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  background: ${(props) => props.$color};
+  
+  svg {
+    width: 28px;
+    height: 28px;
+    color: white;
+  }
+`;
+const TierName = styled(Typography)`
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: ${(p) => p.theme.colors.neutral800};
+`;
+const TierPrice = styled(Typography)`
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: ${(p) => p.theme.colors.neutral800};
+`;
+const TierDescription = styled(Typography)`
+  color: ${(p) => p.theme.colors.neutral600};
+  margin-bottom: 24px;
+`;
+const LimitsBox = styled(Box)`
+  background: ${(p) => p.theme.colors.neutral100};
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+`;
+const LimitText = styled(Typography)`
+  font-size: 13px;
+  color: ${(p) => p.theme.colors.neutral800};
+`;
+const PeriodText = styled(Typography)`
+  color: ${(p) => p.theme.colors.neutral600};
+`;
+const FeatureText = styled(Typography)`
+  font-size: 14px;
+  color: ${(p) => p.$included ? p.theme.colors.neutral800 : p.theme.colors.neutral500};
+  text-decoration: ${(p) => p.$included ? "none" : "line-through"};
+`;
+const FeatureList = styled(Box)`
+  margin-bottom: 24px;
+  flex: 1;
+`;
+const Feature = styled(Flex)`
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+`;
+const FeatureIcon = styled(Box)`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  
+  ${(props) => props.$included ? `
+    background: rgba(34, 197, 94, 0.15);
+    svg { color: #16A34A; }
+  ` : `
+    background: rgba(220, 38, 38, 0.12);
+    svg { color: #DC2626; }
+  `}
+`;
+const UpgradeButton = styled(Button)`
+  width: 100%;
+  height: 48px;
+  font-weight: 600;
+  font-size: 15px;
+  background: ${(props) => props.$gradient};
+  border: none;
+  color: white;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+`;
+const CurrentPlanBadge = styled(Badge)`
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(p) => p.theme.colors.neutral100};
+  color: ${(p) => p.theme.colors.neutral600};
+  font-weight: 600;
+  font-size: 15px;
+`;
+const LicensePage = () => {
+  const { get, post } = useFetchClient();
+  const { toggleNotification } = useNotification();
+  const [currentTier, setCurrentTier] = useState("free");
+  const [limits, setLimits] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetchLicenseInfo();
+  }, []);
+  const fetchLicenseInfo = async () => {
+    try {
+      const response = await get("/magic-mail/license/limits");
+      const licenseData = response.data || {};
+      let tier = "free";
+      if (licenseData.tier) {
+        tier = licenseData.tier;
+      }
+      setCurrentTier(tier);
+      setLimits(licenseData.limits);
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch license info:", error);
+      setLoading(false);
+    }
+  };
+  const getTierRank = (tierId) => {
+    const ranks = {
+      "free": 0,
+      "premium": 1,
+      "advanced": 2,
+      "enterprise": 3
+    };
+    return ranks[tierId] || 0;
+  };
+  const getButtonText = (tierId) => {
+    const currentRank = getTierRank(currentTier);
+    const targetRank = getTierRank(tierId);
+    if (currentRank === targetRank) {
+      return "Current Plan";
+    } else if (targetRank > currentRank) {
+      return "Upgrade Now";
+    } else {
+      return "Downgrade";
+    }
+  };
+  const tiers = [
+    {
+      id: "free",
+      name: "FREE",
+      price: "$0",
+      period: "forever",
+      description: "Perfect for small projects and testing",
+      icon: /* @__PURE__ */ jsx(Sparkle, {}),
+      color: "linear-gradient(135deg, #6B7280, #4B5563)",
+      features: [
+        { name: "25 Email Templates", included: true },
+        { name: "3 Email Accounts", included: true },
+        { name: "5 Routing Rules", included: true },
+        { name: "All OAuth Providers", included: true },
+        { name: "Import/Export Templates", included: true },
+        { name: "Template Versioning", included: false },
+        { name: "Analytics Dashboard", included: false },
+        { name: "Priority Support", included: false }
+      ],
+      limits: {
+        templates: "25",
+        accounts: "3",
+        rules: "5"
+      }
+    },
+    {
+      id: "premium",
+      name: "PREMIUM",
+      price: "$14.50",
+      period: "/month",
+      description: "Enhanced features for growing teams",
+      icon: /* @__PURE__ */ jsx(Lightning, {}),
+      color: "linear-gradient(135deg, #8B5CF6, #7C3AED)",
+      featured: true,
+      features: [
+        { name: "100 Email Templates", included: true },
+        { name: "10 Email Accounts", included: true },
+        { name: "20 Routing Rules", included: true },
+        { name: "All OAuth Providers", included: true },
+        { name: "Import/Export Templates", included: true },
+        { name: "Template Versioning", included: true },
+        { name: "Basic Analytics", included: true },
+        { name: "Priority Support", included: true }
+      ],
+      limits: {
+        templates: "100",
+        accounts: "10",
+        rules: "20"
+      }
+    },
+    {
+      id: "advanced",
+      name: "ADVANCED",
+      price: "$39.50",
+      period: "/month",
+      description: "Maximum features for power users",
+      icon: /* @__PURE__ */ jsx(Rocket, {}),
+      color: "linear-gradient(135deg, #0EA5E9, #0284C7)",
+      features: [
+        { name: "500 Email Templates", included: true },
+        { name: "Unlimited Accounts", included: true },
+        { name: "Unlimited Routing Rules", included: true },
+        { name: "All OAuth Providers", included: true },
+        { name: "Import/Export Templates", included: true },
+        { name: "Template Versioning", included: true },
+        { name: "Advanced Analytics & Tracking", included: true },
+        { name: "SendGrid & Mailgun APIs", included: true }
+      ],
+      limits: {
+        templates: "500",
+        accounts: "Unlimited",
+        rules: "Unlimited"
+      }
+    }
+  ];
+  const handleUpgrade = (tierId) => {
+    window.open("https://store.magicdx.dev/", "_blank");
+  };
+  if (loading) {
+    return /* @__PURE__ */ jsx(Container, { children: /* @__PURE__ */ jsx(Flex, { justifyContent: "center", alignItems: "center", style: { minHeight: "400px" }, children: /* @__PURE__ */ jsx(Typography, { children: "Loading license information..." }) }) });
+  }
+  return /* @__PURE__ */ jsxs(Container, { children: [
+    /* @__PURE__ */ jsxs(Header, { children: [
+      /* @__PURE__ */ jsx(Title, { variant: "alpha", children: "Choose Your Plan" }),
+      /* @__PURE__ */ jsx(Subtitle, { variant: "omega", children: "Unlock powerful email management features for your Strapi application" })
+    ] }),
+    /* @__PURE__ */ jsx(TierGrid, { children: tiers.map((tier) => /* @__PURE__ */ jsx(TierWrapper, { children: /* @__PURE__ */ jsxs(TierCard, { $featured: tier.featured, children: [
+      tier.featured && /* @__PURE__ */ jsx(PopularBadge, { children: "MOST POPULAR" }),
+      /* @__PURE__ */ jsx(TierIcon, { $color: tier.color, children: tier.icon }),
+      /* @__PURE__ */ jsx(TierName, { variant: "beta", children: tier.name }),
+      /* @__PURE__ */ jsxs(Flex, { alignItems: "baseline", gap: 1, children: [
+        /* @__PURE__ */ jsx(TierPrice, { variant: "alpha", children: tier.price }),
+        /* @__PURE__ */ jsx(PeriodText, { variant: "omega", children: tier.period })
+      ] }),
+      /* @__PURE__ */ jsx(TierDescription, { variant: "omega", children: tier.description }),
+      /* @__PURE__ */ jsx(LimitsBox, { children: /* @__PURE__ */ jsxs(Flex, { direction: "column", gap: 2, children: [
+        /* @__PURE__ */ jsxs(LimitText, { variant: "pi", children: [
+          /* @__PURE__ */ jsx("strong", { children: "Templates:" }),
+          " ",
+          tier.limits.templates
+        ] }),
+        /* @__PURE__ */ jsxs(LimitText, { variant: "pi", children: [
+          /* @__PURE__ */ jsx("strong", { children: "Accounts:" }),
+          " ",
+          tier.limits.accounts
+        ] }),
+        /* @__PURE__ */ jsxs(LimitText, { variant: "pi", children: [
+          /* @__PURE__ */ jsx("strong", { children: "Routing Rules:" }),
+          " ",
+          tier.limits.rules
+        ] })
+      ] }) }),
+      /* @__PURE__ */ jsx(FeatureList, { children: tier.features.map((feature, index) => /* @__PURE__ */ jsxs(Feature, { children: [
+        /* @__PURE__ */ jsx(FeatureIcon, { $included: feature.included, children: feature.included ? /* @__PURE__ */ jsx(Check, { style: { width: 14, height: 14 } }) : /* @__PURE__ */ jsx(Cross, { style: { width: 14, height: 14 } }) }),
+        /* @__PURE__ */ jsx(FeatureText, { variant: "omega", $included: feature.included, children: feature.name })
+      ] }, index)) }),
+      currentTier === tier.id ? /* @__PURE__ */ jsx(CurrentPlanBadge, { children: "Current Plan" }) : /* @__PURE__ */ jsx(
+        UpgradeButton,
+        {
+          $gradient: tier.color,
+          onClick: () => handleUpgrade(tier.id),
+          children: getButtonText(tier.id)
+        }
+      )
+    ] }) }, tier.id)) })
+  ] });
+};
+export {
+  LicensePage as default
+};

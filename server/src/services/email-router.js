@@ -12,13 +12,15 @@ const { decryptCredentials } = require('../utils/encryption');
 module.exports = ({ strapi }) => ({
   /**
    * Send email with smart routing
-   * @param {Object} emailData - { to, from, subject, text, html, attachments, type, priority, templateId, templateData OR data }
+   * @param {Object} emailData - { to, from, cc, bcc, subject, text, html, replyTo, attachments, type, priority, templateId, templateData OR data }
    * @returns {Promise<Object>} Send result
    */
   async send(emailData) {
     let {
       to,
       from,
+      cc,
+      bcc,
       subject,
       text,
       html,
@@ -70,13 +72,15 @@ module.exports = ({ strapi }) => ({
     to = normalizeAddrs(to);
     from = normalizeAddr(from);
     replyTo = normalizeAddr(replyTo);
+    if (cc) cc = normalizeAddrs(cc);
+    if (bcc) bcc = normalizeAddrs(bcc);
 
     // Sync back to emailData so all downstream methods get normalized values
     emailData.to = to;
     emailData.from = from;
     emailData.replyTo = replyTo;
-    if (emailData.cc) emailData.cc = normalizeAddrs(emailData.cc);
-    if (emailData.bcc) emailData.bcc = normalizeAddrs(emailData.bcc);
+    emailData.cc = cc;
+    emailData.bcc = bcc;
 
     // Debug log for skipLinkTracking
     if (skipLinkTracking) {
@@ -513,6 +517,8 @@ module.exports = ({ strapi }) => ({
     const mailOptions = {
       from: emailData.from || `${account.fromName || 'MagicMail'} <${account.fromEmail}>`,
       to: emailData.to,
+      ...(emailData.cc && { cc: emailData.cc }),
+      ...(emailData.bcc && { bcc: emailData.bcc }),
       replyTo: emailData.replyTo || account.replyTo,
       subject: emailData.subject,
       text: emailData.text,
@@ -672,6 +678,9 @@ module.exports = ({ strapi }) => ({
           'X-Mailer: MagicMail/1.0',
         ];
 
+        if (emailData.cc) emailLines.push(`Cc: ${emailData.cc}`);
+        if (emailData.bcc) emailLines.push(`Bcc: ${emailData.bcc}`);
+
         // Add priority headers if high priority
         if (emailData.priority === 'high') {
           emailLines.push('X-Priority: 1 (Highest)');
@@ -757,6 +766,9 @@ module.exports = ({ strapi }) => ({
           'Content-Type: text/html; charset=utf-8',
           'X-Mailer: MagicMail/1.0',
         ];
+
+        if (emailData.cc) emailLines.push(`Cc: ${emailData.cc}`);
+        if (emailData.bcc) emailLines.push(`Bcc: ${emailData.bcc}`);
 
         // Add priority headers if high priority
         if (emailData.priority === 'high') {
@@ -916,6 +928,9 @@ module.exports = ({ strapi }) => ({
           'X-Mailer: MagicMail/1.0',
         ];
 
+        if (emailData.cc) mimeLines.push(`Cc: ${emailData.cc}`);
+        if (emailData.bcc) mimeLines.push(`Bcc: ${emailData.bcc}`);
+
         // Priority headers
         if (emailData.priority === 'high') {
           mimeLines.push('X-Priority: 1 (Highest)');
@@ -983,6 +998,9 @@ module.exports = ({ strapi }) => ({
           'Content-Type: text/html; charset=utf-8',
           'X-Mailer: MagicMail/1.0',
         ];
+
+        if (emailData.cc) mimeLines.push(`Cc: ${emailData.cc}`);
+        if (emailData.bcc) mimeLines.push(`Bcc: ${emailData.bcc}`);
 
         // Priority headers
         if (emailData.priority === 'high') {
@@ -1130,6 +1148,8 @@ module.exports = ({ strapi }) => ({
       const mailOptions = {
         from: `${account.fromName || 'Yahoo Mail'} <${account.fromEmail}>`,
         to: emailData.to,
+        ...(emailData.cc && { cc: emailData.cc }),
+        ...(emailData.bcc && { bcc: emailData.bcc }),
         replyTo: emailData.replyTo || account.replyTo,
         subject: emailData.subject,
         text: emailData.text,
@@ -1187,16 +1207,28 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Sending via SendGrid for account: ${account.name}`);
 
     try {
-      // Build message object for SendGrid
+      // Build personalizations for SendGrid v3 API
+      const personalization = { to: [{ email: emailData.to }] };
+      if (emailData.cc) {
+        const ccList = Array.isArray(emailData.cc) ? emailData.cc : emailData.cc.split(',').map(e => e.trim());
+        personalization.cc = ccList.map(email => ({ email }));
+      }
+      if (emailData.bcc) {
+        const bccList = Array.isArray(emailData.bcc) ? emailData.bcc : emailData.bcc.split(',').map(e => e.trim());
+        personalization.bcc = bccList.map(email => ({ email }));
+      }
+
       const msg = {
-        to: emailData.to,
+        personalizations: [personalization],
         from: {
           email: account.fromEmail,
           name: account.fromName || account.fromEmail,
         },
         subject: emailData.subject,
-        text: emailData.text,
-        html: emailData.html,
+        content: [
+          ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
+          ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
+        ],
         
         // Security and tracking headers
         customArgs: {
@@ -1325,6 +1357,8 @@ module.exports = ({ strapi }) => ({
         : account.fromEmail
       );
       form.append('to', emailData.to);
+      if (emailData.cc) form.append('cc', emailData.cc);
+      if (emailData.bcc) form.append('bcc', emailData.bcc);
       form.append('subject', emailData.subject);
       
       // Add text or html content
