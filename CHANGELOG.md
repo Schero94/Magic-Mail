@@ -1,3 +1,10 @@
+## [2.8.3](https://github.com/Schero94/Magic-Mail/compare/v2.8.2...v2.8.3) (2026-03-13)
+
+
+### Bug Fixes
+
+* pass bcc/cc to all email providers ([b4058ce](https://github.com/Schero94/Magic-Mail/commit/b4058ceda478cc8e14a9d96a02b0af6f927b2d92))
+
 ## [2.8.2](https://github.com/Schero94/Magic-Mail/compare/v2.8.1...v2.8.2) (2026-02-16)
 
 
