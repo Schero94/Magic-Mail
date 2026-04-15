@@ -48264,6 +48264,10 @@ var encryption = {
 };
 const nodemailer = require$$0$a;
 const { decryptCredentials: decryptCredentials$1 } = encryption;
+function stripHeaderInjection(value) {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\r\n]/g, "").trim();
+}
 var emailRouter$1 = ({ strapi: strapi2 }) => ({
   /**
    * Send email with smart routing
@@ -48669,13 +48673,16 @@ ${text || "Email delivery failed. Please check your email settings."}`;
       strapi2.log.info("[magic-mail] DKIM signing enabled");
     }
     const transporter = nodemailer.createTransport(transportConfig);
+    const safeSubject2 = stripHeaderInjection(emailData.subject);
+    const safeFromName2 = stripHeaderInjection(account.fromName || "MagicMail");
+    const safeReplyTo = stripHeaderInjection(emailData.replyTo || account.replyTo || "");
     const mailOptions = {
-      from: emailData.from || `${account.fromName || "MagicMail"} <${account.fromEmail}>`,
+      from: emailData.from || `${safeFromName2} <${account.fromEmail}>`,
       to: emailData.to,
       ...emailData.cc && { cc: emailData.cc },
       ...emailData.bcc && { bcc: emailData.bcc },
-      replyTo: emailData.replyTo || account.replyTo,
-      subject: emailData.subject,
+      ...safeReplyTo && { replyTo: safeReplyTo },
+      subject: safeSubject2,
       text: emailData.text,
       html: emailData.html,
       attachments: emailData.attachments || [],
@@ -48782,9 +48789,9 @@ ${text || "Email delivery failed. Please check your email settings."}`;
       let emailContent = "";
       if (attachments.length > 0) {
         const emailLines = [
-          `From: ${account.fromName ? `"${account.fromName}" ` : ""}<${account.fromEmail}>`,
+          `From: ${safeFromName ? `"${safeFromName}" ` : ""}<${account.fromEmail}>`,
           `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
+          `Subject: ${safeSubject}`,
           `Date: ${(/* @__PURE__ */ new Date()).toUTCString()}`,
           `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split("@")[1]}>`,
           "MIME-Version: 1.0",
@@ -48850,9 +48857,9 @@ ${text || "Email delivery failed. Please check your email settings."}`;
         strapi2.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
       } else {
         const emailLines = [
-          `From: ${account.fromName ? `"${account.fromName}" ` : ""}<${account.fromEmail}>`,
+          `From: ${safeFromName ? `"${safeFromName}" ` : ""}<${account.fromEmail}>`,
           `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
+          `Subject: ${safeSubject}`,
           `Date: ${(/* @__PURE__ */ new Date()).toUTCString()}`,
           `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split("@")[1]}>`,
           "MIME-Version: 1.0",
@@ -50350,7 +50357,7 @@ var oauth$1 = ({ strapi: strapi2 }) => ({
     return account;
   }
 });
-const version = "2.8.3";
+const version = "2.8.4";
 const require$$2 = {
   version
 };

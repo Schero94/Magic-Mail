@@ -4,6 +4,17 @@ const nodemailer = require('nodemailer');
 const { decryptCredentials } = require('../utils/encryption');
 
 /**
+ * Strips CR/LF from a string to prevent SMTP header injection.
+ * Safe to call on any value - returns empty string for non-strings.
+ * @param {*} value
+ * @returns {string}
+ */
+function stripHeaderInjection(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\r\n]/g, '').trim();
+}
+
+/**
  * Email Router Service
  * Smart routing of emails to appropriate accounts
  * Handles failover, rate limiting, and load balancing
@@ -513,14 +524,17 @@ module.exports = ({ strapi }) => ({
 
     const transporter = nodemailer.createTransport(transportConfig);
 
-    // Build mail options with comprehensive security headers
+    const safeSubject = stripHeaderInjection(emailData.subject);
+    const safeFromName = stripHeaderInjection(account.fromName || 'MagicMail');
+    const safeReplyTo = stripHeaderInjection(emailData.replyTo || account.replyTo || '');
+
     const mailOptions = {
-      from: emailData.from || `${account.fromName || 'MagicMail'} <${account.fromEmail}>`,
+      from: emailData.from || `${safeFromName} <${account.fromEmail}>`,
       to: emailData.to,
       ...(emailData.cc && { cc: emailData.cc }),
       ...(emailData.bcc && { bcc: emailData.bcc }),
-      replyTo: emailData.replyTo || account.replyTo,
-      subject: emailData.subject,
+      ...(safeReplyTo && { replyTo: safeReplyTo }),
+      subject: safeSubject,
       text: emailData.text,
       html: emailData.html,
       attachments: emailData.attachments || [],
@@ -666,11 +680,10 @@ module.exports = ({ strapi }) => ({
       let emailContent = '';
       
       if (attachments.length > 0) {
-        // Multipart email with attachments
         const emailLines = [
-          `From: ${account.fromName ? `"${account.fromName}" ` : ''}<${account.fromEmail}>`,
+          `From: ${safeFromName ? `"${safeFromName}" ` : ''}<${account.fromEmail}>`,
           `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
+          `Subject: ${safeSubject}`,
           `Date: ${new Date().toUTCString()}`,
           `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
           'MIME-Version: 1.0',
@@ -755,11 +768,10 @@ module.exports = ({ strapi }) => ({
         
         strapi.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
       } else {
-        // Simple email without attachments
         const emailLines = [
-          `From: ${account.fromName ? `"${account.fromName}" ` : ''}<${account.fromEmail}>`,
+          `From: ${safeFromName ? `"${safeFromName}" ` : ''}<${account.fromEmail}>`,
           `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
+          `Subject: ${safeSubject}`,
           `Date: ${new Date().toUTCString()}`,
           `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
           'MIME-Version: 1.0',
