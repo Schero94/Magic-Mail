@@ -1,5 +1,7 @@
 'use strict';
 
+const { validate } = require('../validation');
+
 /**
  * Plugin Settings Controller
  * Handles API endpoints for MagicMail plugin settings
@@ -31,25 +33,7 @@ module.exports = ({ strapi }) => ({
    */
   async updateSettings(ctx) {
     try {
-      const { body } = ctx.request;
-      
-      // Validate input
-      const allowedFields = [
-        'enableLinkTracking',
-        'enableOpenTracking',
-        'trackingBaseUrl',
-        'defaultFromName',
-        'defaultFromEmail',
-        'unsubscribeUrl',
-        'enableUnsubscribeHeader',
-      ];
-      
-      const data = {};
-      for (const field of allowedFields) {
-        if (body[field] !== undefined) {
-          data[field] = body[field];
-        }
-      }
+      const data = validate('pluginSettings.update', ctx.request.body);
       
       const settings = await strapi
         .plugin('magic-mail')

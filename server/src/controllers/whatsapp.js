@@ -1,5 +1,7 @@
 'use strict';
 
+const { validate } = require('../validation');
+
 /**
  * WhatsApp Controller for MagicMail
  * 
@@ -95,12 +97,7 @@ module.exports = {
    */
   async sendTest(ctx) {
     try {
-      const { phoneNumber, message } = ctx.request.body;
-      
-      if (!phoneNumber) {
-        return ctx.badRequest('Phone number is required');
-      }
-      
+      const { phoneNumber, message } = validate('whatsapp.sendTest', ctx.request.body);
       const whatsappService = strapi.plugin('magic-mail').service('whatsapp');
       const testMessage = message || `[MagicMail Test] This is a test message sent at ${new Date().toLocaleString()}`;
       
@@ -121,12 +118,7 @@ module.exports = {
    */
   async sendTemplateMessage(ctx) {
     try {
-      const { phoneNumber, templateName, variables } = ctx.request.body;
-      
-      if (!phoneNumber || !templateName) {
-        return ctx.badRequest('Phone number and template name are required');
-      }
-      
+      const { phoneNumber, templateName, variables } = validate('whatsapp.sendTemplateMessage', ctx.request.body);
       const whatsappService = strapi.plugin('magic-mail').service('whatsapp');
       const result = await whatsappService.sendTemplateMessage(phoneNumber, templateName, variables || {});
       
@@ -145,12 +137,7 @@ module.exports = {
    */
   async checkNumber(ctx) {
     try {
-      const { phoneNumber } = ctx.request.body;
-      
-      if (!phoneNumber) {
-        return ctx.badRequest('Phone number is required');
-      }
-      
+      const { phoneNumber } = validate('whatsapp.checkNumber', ctx.request.body);
       const whatsappService = strapi.plugin('magic-mail').service('whatsapp');
       const result = await whatsappService.checkNumber(phoneNumber);
       
@@ -187,12 +174,7 @@ module.exports = {
    */
   async saveTemplate(ctx) {
     try {
-      const { templateName, templateContent } = ctx.request.body;
-      
-      if (!templateName || !templateContent) {
-        return ctx.badRequest('Template name and content are required');
-      }
-      
+      const { templateName, templateContent } = validate('whatsapp.saveTemplate', ctx.request.body);
       const whatsappService = strapi.plugin('magic-mail').service('whatsapp');
       const result = await whatsappService.saveTemplate(templateName, templateContent);
       

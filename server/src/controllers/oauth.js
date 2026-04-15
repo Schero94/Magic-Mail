@@ -388,15 +388,11 @@ module.exports = {
    */
   async createOAuthAccount(ctx) {
     try {
-      const { provider, code, state, accountDetails } = ctx.request.body;
+      const { validate } = require('../validation');
+      const { provider, code, state, accountDetails } = validate('oauth.createOAuthAccount', ctx.request.body);
 
       strapi.log.info('[magic-mail] Creating OAuth account...');
       strapi.log.info('[magic-mail] Provider:', provider);
-      strapi.log.info('[magic-mail] Account name:', accountDetails?.name);
-
-      if (provider !== 'gmail' && provider !== 'microsoft' && provider !== 'yahoo') {
-        return ctx.badRequest('Only Gmail, Microsoft and Yahoo OAuth supported');
-      }
 
       if (!code) {
         return ctx.badRequest('OAuth code is required');

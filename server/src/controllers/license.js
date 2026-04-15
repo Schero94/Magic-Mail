@@ -180,6 +180,9 @@ module.exports = ({ strapi }) => ({
    */
   async debugLicense(ctx) {
     try {
+      if (process.env.NODE_ENV === 'production') {
+        return ctx.forbidden('Debug endpoint is disabled in production');
+      }
       const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
       const license = await licenseGuard.getCurrentLicense();
       

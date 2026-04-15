@@ -5,6 +5,8 @@
 
 'use strict';
 
+const { validate } = require('../validation');
+
 module.exports = ({ strapi }) => ({
   /**
    * Get all templates
@@ -57,7 +59,7 @@ module.exports = ({ strapi }) => ({
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .create(ctx.request.body);
+        .create(validate('emailDesigner.create', ctx.request.body));
 
       return ctx.send({
         success: true,
@@ -80,7 +82,7 @@ module.exports = ({ strapi }) => ({
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .update(id, ctx.request.body);
+        .update(id, validate('emailDesigner.update', ctx.request.body));
 
       return ctx.send({
         success: true,
@@ -209,7 +211,7 @@ module.exports = ({ strapi }) => ({
   async renderTemplate(ctx) {
     try {
       const { templateReferenceId } = ctx.params;
-      const { data } = ctx.request.body;
+      const { data } = validate('emailDesigner.renderTemplate', ctx.request.body);
 
       const rendered = await strapi
         .plugin('magic-mail')
@@ -233,7 +235,7 @@ module.exports = ({ strapi }) => ({
    */
   async exportTemplates(ctx) {
     try {
-      const { templateIds } = ctx.request.body;
+      const { templateIds } = validate('emailDesigner.exportTemplates', ctx.request.body);
       const templates = await strapi
         .plugin('magic-mail')
         .service('email-designer')
@@ -256,7 +258,7 @@ module.exports = ({ strapi }) => ({
    */
   async importTemplates(ctx) {
     try {
-      const { templates } = ctx.request.body;
+      const { templates } = validate('emailDesigner.importTemplates', ctx.request.body);
 
       if (!Array.isArray(templates)) {
         return ctx.badRequest('Templates must be an array');
@@ -324,7 +326,7 @@ module.exports = ({ strapi }) => ({
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .updateCoreTemplate(coreEmailType, ctx.request.body);
+        .updateCoreTemplate(coreEmailType, validate('emailDesigner.updateCoreTemplate', ctx.request.body));
 
       return ctx.send({
         success: true,
@@ -408,7 +410,7 @@ module.exports = ({ strapi }) => ({
   async testSend(ctx) {
     try {
       const { id } = ctx.params;
-      const { to, accountName } = ctx.request.body;
+      const { to, accountName } = validate('emailDesigner.testSend', ctx.request.body);
 
       // Validate required fields
       if (!to) {

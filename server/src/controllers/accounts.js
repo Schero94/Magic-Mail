@@ -1,5 +1,7 @@
 'use strict';
 
+const { validate } = require('../validation');
+
 /**
  * Accounts Controller
  * Manages email accounts CRUD operations
@@ -30,7 +32,7 @@ module.exports = {
   async create(ctx) {
     try {
       const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
-      const accountData = ctx.request.body;
+      const accountData = validate('accounts.create', ctx.request.body);
 
       // Check if provider is allowed by license
       const providerAllowed = await licenseGuard.isProviderAllowed(accountData.provider);
@@ -90,7 +92,8 @@ module.exports = {
     try {
       const { accountId } = ctx.params;
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
-      const account = await accountManager.updateAccount(accountId, ctx.request.body);
+      const data = validate('accounts.update', ctx.request.body);
+      const account = await accountManager.updateAccount(accountId, data);
 
       if (!account) {
         return ctx.notFound('Email account not found');
@@ -112,12 +115,8 @@ module.exports = {
   async test(ctx) {
     try {
       const { accountId } = ctx.params;
-      const { testEmail, to, priority, type, unsubscribeUrl } = ctx.request.body;
+      const { testEmail, to, priority, type, unsubscribeUrl } = validate('accounts.test', ctx.request.body);
       const recipientEmail = testEmail || to;
-      
-      if (!recipientEmail) {
-        return ctx.badRequest('testEmail is required');
-      }
       
       const testOptions = {
         priority: priority || 'normal',
@@ -141,11 +140,7 @@ module.exports = {
    */
   async testStrapiService(ctx) {
     try {
-      const { testEmail, accountName } = ctx.request.body;
-
-      if (!testEmail) {
-        ctx.throw(400, 'testEmail is required');
-      }
+      const { testEmail, accountName } = validate('accounts.testStrapiService', ctx.request.body);
 
       strapi.log.info('[magic-mail] [TEST] Testing Strapi Email Service integration...');
       strapi.log.info('[magic-mail] [EMAIL] Calling strapi.plugin("email").service("email").send()');

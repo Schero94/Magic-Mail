@@ -196,6 +196,9 @@ module.exports = ({ strapi }) => ({
    */
   async debug(ctx) {
     try {
+      if (process.env.NODE_ENV === 'production') {
+        return ctx.forbidden('Debug endpoint is disabled in production');
+      }
       strapi.log.info('[magic-mail] [CHECK] Running Analytics Debug...');
 
       // Get email logs using Document Service
