@@ -1,3 +1,10 @@
+## [2.8.4](https://github.com/Schero94/Magic-Mail/compare/v2.8.3...v2.8.4) (2026-04-15)
+
+
+### Bug Fixes
+
+* **rbac:** keep routes functional, only hide UI for unpermitted roles ([ebb9ed3](https://github.com/Schero94/Magic-Mail/commit/ebb9ed32225c1cdabc783fd72d88a8abe0962905))
+
 ## [2.8.3](https://github.com/Schero94/Magic-Mail/compare/v2.8.2...v2.8.3) (2026-03-13)
 
 
