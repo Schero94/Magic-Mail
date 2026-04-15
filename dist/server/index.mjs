@@ -11,6 +11,14 @@ function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
 var register$1 = ({ strapi: strapi2 }) => {
+  strapi2.admin.services.permission.actionProvider.registerMany([
+    {
+      section: "plugins",
+      displayName: "Access the MagicMail plugin",
+      uid: "access",
+      pluginName: "magic-mail"
+    }
+  ]);
 };
 const PLUGIN_NAME = "magic-mail";
 const PREFIX = "[magic-mail]";
@@ -6105,7 +6113,7 @@ var oauth$1 = ({ strapi: strapi2 }) => ({
     return account;
   }
 });
-const version = "2.8.1";
+const version = "2.8.2";
 const require$$2 = {
   version
 };

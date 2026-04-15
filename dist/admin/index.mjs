@@ -59,6 +59,7 @@ const prefixPluginTranslations = (data, pluginId2) => {
 };
 const index = {
   register(app) {
+    const pluginPermissions = [{ action: `plugin::${pluginId}.access`, subject: null }];
     app.addMenuLink({
       to: `plugins/${pluginId}`,
       icon: PluginIcon,
@@ -66,7 +67,8 @@ const index = {
         id: `${pluginId}.plugin.name`,
         defaultMessage: "MagicMail"
       },
-      Component: () => import("../_chunks/App-CaT5U0uM.mjs")
+      Component: () => import("../_chunks/App-BkKLwqZw.mjs"),
+      permissions: pluginPermissions
     });
     app.createSettingSection(
       {
@@ -82,7 +84,8 @@ const index = {
           },
           id: "plugin-settings",
           to: `${pluginId}/plugin-settings`,
-          Component: () => import("../_chunks/PluginSettings-XwyzH95_.mjs")
+          Component: () => import("../_chunks/PluginSettings-XwyzH95_.mjs"),
+          permissions: pluginPermissions
         },
         {
           intlLabel: {
@@ -91,7 +94,8 @@ const index = {
           },
           id: "upgrade",
           to: `${pluginId}/upgrade`,
-          Component: () => import("../_chunks/LicensePage-B61HnhyD.mjs")
+          Component: () => import("../_chunks/LicensePage-B61HnhyD.mjs"),
+          permissions: pluginPermissions
         },
         {
           intlLabel: {
@@ -100,7 +104,8 @@ const index = {
           },
           id: "license",
           to: `${pluginId}/license`,
-          Component: () => import("../_chunks/Settings-DoSrZKfp.mjs")
+          Component: () => import("../_chunks/Settings-DoSrZKfp.mjs"),
+          permissions: pluginPermissions
         }
       ]
     );

@@ -16,7 +16,8 @@ const prefixPluginTranslations = (data, pluginId) => {
 
 export default {
   register(app) {
-    // Menu link - path should be relative to root (no leading slash)
+    const pluginPermissions = [{ action: `plugin::${pluginId}.access`, subject: null }];
+
     app.addMenuLink({
       to: `plugins/${pluginId}`,
       icon: PluginIcon,
@@ -25,6 +26,7 @@ export default {
         defaultMessage: 'MagicMail',
       },
       Component: () => import('./pages/App'),
+      permissions: pluginPermissions,
     });
 
     // Settings section - paths should be relative to /settings (no /settings/ prefix)
@@ -43,6 +45,7 @@ export default {
           id: 'plugin-settings',
           to: `${pluginId}/plugin-settings`,
           Component: () => import('./pages/PluginSettings'),
+          permissions: pluginPermissions,
         },
         {
           intlLabel: {
@@ -52,6 +55,7 @@ export default {
           id: 'upgrade',
           to: `${pluginId}/upgrade`,
           Component: () => import('./pages/LicensePage'),
+          permissions: pluginPermissions,
         },
         {
           intlLabel: {
@@ -61,6 +65,7 @@ export default {
           id: 'license',
           to: `${pluginId}/license`,
           Component: () => import('./pages/Settings'),
+          permissions: pluginPermissions,
         },
       ]
     );

@@ -60,6 +60,7 @@ const prefixPluginTranslations = (data, pluginId2) => {
 };
 const index = {
   register(app) {
+    const pluginPermissions = [{ action: `plugin::${pluginId}.access`, subject: null }];
     app.addMenuLink({
       to: `plugins/${pluginId}`,
       icon: PluginIcon,
@@ -67,7 +68,8 @@ const index = {
         id: `${pluginId}.plugin.name`,
         defaultMessage: "MagicMail"
       },
-      Component: () => Promise.resolve().then(() => require("../_chunks/App-DGGqHEPC.js"))
+      Component: () => Promise.resolve().then(() => require("../_chunks/App-DQ1MrJnt.js")),
+      permissions: pluginPermissions
     });
     app.createSettingSection(
       {
@@ -83,7 +85,8 @@ const index = {
           },
           id: "plugin-settings",
           to: `${pluginId}/plugin-settings`,
-          Component: () => Promise.resolve().then(() => require("../_chunks/PluginSettings-cZXE_vy8.js"))
+          Component: () => Promise.resolve().then(() => require("../_chunks/PluginSettings-cZXE_vy8.js")),
+          permissions: pluginPermissions
         },
         {
           intlLabel: {
@@ -92,7 +95,8 @@ const index = {
           },
           id: "upgrade",
           to: `${pluginId}/upgrade`,
-          Component: () => Promise.resolve().then(() => require("../_chunks/LicensePage-sB-xDRL9.js"))
+          Component: () => Promise.resolve().then(() => require("../_chunks/LicensePage-sB-xDRL9.js")),
+          permissions: pluginPermissions
         },
         {
           intlLabel: {
@@ -101,7 +105,8 @@ const index = {
           },
           id: "license",
           to: `${pluginId}/license`,
-          Component: () => Promise.resolve().then(() => require("../_chunks/Settings-BRFoD1yZ.js"))
+          Component: () => Promise.resolve().then(() => require("../_chunks/Settings-BRFoD1yZ.js")),
+          permissions: pluginPermissions
         }
       ]
     );

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, Tabs, Flex } from '@strapi/design-system';
+import { Page } from '@strapi/strapi/admin';
 import { EnvelopeIcon, FunnelIcon, DocumentTextIcon, ChartBarIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import HomePage from './HomePage';
 import RoutingRules from './RoutingRules';
@@ -10,6 +11,7 @@ import Analytics from './Analytics';
 import WhatsAppPage from './WhatsApp';
 import LicenseGuard from '../components/LicenseGuard';
 import { useLicense } from '../hooks/useLicense';
+import pluginPermissions from '../permissions';
 
 const App = () => {
   const location = useLocation();
@@ -42,16 +44,18 @@ const App = () => {
     if (tab === 'whatsapp') navigate('/plugins/magic-mail/whatsapp');
   };
   
-  // If we're in editor, render editor directly without tabs
   if (isEditorRoute) {
     return (
-      <LicenseGuard>
-        <EditorPage />
-      </LicenseGuard>
+      <Page.Protect permissions={pluginPermissions.access}>
+        <LicenseGuard>
+          <EditorPage />
+        </LicenseGuard>
+      </Page.Protect>
     );
   }
 
   return (
+    <Page.Protect permissions={pluginPermissions.access}>
     <LicenseGuard>
       <Box>
         <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
@@ -118,6 +122,7 @@ const App = () => {
         </Tabs.Root>
       </Box>
     </LicenseGuard>
+    </Page.Protect>
   );
 };
 
