@@ -55,6 +55,7 @@
     "@heroicons/react": "^2.2.0",
     "@strapi/design-system": "^2.1.2",
     "@strapi/icons": "^2.1.2",
+    "baileys": "^7.0.0-rc.9",
     "decode-html": "^2.0.0",
     "form-data": "^4.0.4",
     "html-to-text": "^9.0.5",
@@ -66,9 +67,6 @@
     "react-intl": "^7.1.14",
     "striptags": "^3.2.0",
     "yup": "^1.7.1"
-  },
-  "optionalDependencies": {
-    "baileys": "^7.0.0-rc.9"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

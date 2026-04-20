@@ -1580,6 +1580,47 @@ If MagicMail helps your project, please:
 
 ---
 
+## 🔒 Security Advisories & Dependency Overrides
+
+MagicMail's direct dependencies are audited on every release, but two
+transitive paths are governed by upstream packages we do not control.
+If your own `npm audit` flags either of them, add the matching entry
+to your **Strapi project's** `package.json` (not this plugin's — npm
+`overrides` only take effect on the root project):
+
+```jsonc
+{
+  "overrides": {
+    // GHSA-xq3m-2v4x-88gg — protobufjs <7.5.5 arbitrary code execution.
+    // Reaches us via baileys → libsignal → protobufjs. We already ship
+    // this override for local plugin development; apply it in your
+    // Strapi project so the fix propagates to the installed tree.
+    "protobufjs": "^7.5.5"
+  }
+}
+```
+
+After editing `package.json`, run:
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+npm audit
+```
+
+The critical `protobufjs` advisory disappears once the override is in
+place. Remaining `@strapi/design-system → lodash` advisories are
+Strapi-core issues and will clear up automatically when you upgrade
+`@strapi/strapi` to the latest patch release.
+
+If you don't use the WhatsApp delivery feature at all, you can also
+install without the Baileys optional paths via
+`npm install strapi-plugin-magic-mail --ignore-scripts` — the plugin
+already guards every Baileys import with a try/catch and will log
+"WhatsApp features disabled" rather than crash.
+
+---
+
 **Made for the Strapi Community**
 
 **MagicMail - Because email management should be magical, not painful.**
