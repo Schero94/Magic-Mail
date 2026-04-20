@@ -10,6 +10,101 @@ const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 
+/**
+ * HTML-escape a string so we can safely drop it into the fallback page
+ * without opening an XSS vector. We only ever echo server-side values
+ * (the configured fallback URL, a static message) but this belt-and-
+ * braces escaping keeps the helper safe if someone later inlines user
+ * input.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+/**
+ * Builds a minimal, self-contained HTML fallback page that the end-user
+ * sees when a tracking link can no longer be resolved (retention
+ * cleanup, invalid hash, malformed URL, …).
+ *
+ * Behaviour:
+ *  - If `fallbackUrl` is provided, the page meta-refreshes to it after
+ *    3 seconds AND offers a manual link. We use meta refresh instead of
+ *    ctx.redirect so the user still sees an explanation first — many
+ *    marketing recipients report "the link went nowhere" when they hit a
+ *    silent 302 after a long delay.
+ *  - Without a fallback URL, the page is a static expired-link
+ *    apology.
+ *
+ * @param {string} reason - Short human message used as the page subtitle.
+ * @param {string|null} fallbackUrl - Optional URL to redirect to.
+ * @returns {string} HTML document ready to return as ctx.body.
+ */
+const renderTrackingFallbackHtml = (reason, fallbackUrl) => {
+  const safeReason = escapeHtml(reason);
+  const safeUrl = fallbackUrl ? escapeHtml(fallbackUrl) : '';
+  const refreshMeta = fallbackUrl
+    ? `<meta http-equiv="refresh" content="3;url=${safeUrl}">`
+    : '';
+  const manualLink = fallbackUrl
+    ? `<p style="margin-top:24px;font-size:14px;color:#6b7280;">
+         You will be redirected in a few seconds. If nothing happens,
+         <a href="${safeUrl}" style="color:#4f46e5;">click here</a>.
+       </p>`
+    : `<p style="margin-top:24px;font-size:14px;color:#6b7280;">
+         You can safely close this tab.
+       </p>`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    ${refreshMeta}
+    <title>Link unavailable</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f9fafb; margin:0; padding:40px 20px; color:#111827; }
+      .card { max-width: 480px; margin: 60px auto; background:#fff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); text-align:center; }
+      h1 { font-size: 22px; margin: 0 0 12px; }
+      p  { font-size: 15px; line-height: 1.5; color:#374151; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>This link is no longer available</h1>
+      <p>${safeReason}</p>
+      ${manualLink}
+    </main>
+  </body>
+</html>`;
+};
+
+/**
+ * Serves a tracking-failure HTML page with the correct Content-Type.
+ * Returns a soft 410 Gone (not 400) so search engines and mail clients
+ * mark the URL as stale rather than treating it as a client error.
+ *
+ * @param {import('koa').Context} ctx
+ * @param {string} reason
+ */
+const respondWithTrackingFallback = async (ctx, reason) => {
+  let fallbackUrl = null;
+  try {
+    const settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
+    fallbackUrl = settings?.trackingFallbackUrl || null;
+  } catch (err) {
+    strapi.log.debug(`[magic-mail] Could not load tracking fallback setting: ${err.message}`);
+  }
+  ctx.status = 410;
+  ctx.type = 'text/html; charset=utf-8';
+  ctx.body = renderTrackingFallbackHtml(reason, fallbackUrl);
+};
+
 module.exports = ({ strapi }) => ({
   /**
    * Tracking pixel endpoint
@@ -35,13 +130,23 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Click tracking endpoint with open-redirect protection
+   * Click tracking endpoint with open-redirect protection.
+   *
+   * Resolves the destination URL exclusively from the database — never
+   * from query parameters — so the endpoint cannot be used as an open
+   * redirect. When the URL is no longer resolvable (retention cleanup
+   * deleted the row, the hash is wrong, the stored URL is malformed),
+   * the end-user used to receive a Strapi JSON error envelope, which is
+   * the single biggest UX regression in any tracking setup. Now the
+   * user sees a branded HTML fallback page that either redirects to the
+   * admin-configured `trackingFallbackUrl` or apologises and invites
+   * them to close the tab.
+   *
    * GET /magic-mail/track/click/:emailId/:linkHash/:recipientHash
    */
   async trackClick(ctx) {
     const { emailId, linkHash, recipientHash } = ctx.params;
 
-    // Always resolve URL from database only (never from query params) to prevent open redirect
     let url;
     try {
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
@@ -51,17 +156,27 @@ module.exports = ({ strapi }) => ({
     }
 
     if (!url) {
-      return ctx.badRequest('Invalid or expired tracking link');
+      return respondWithTrackingFallback(
+        ctx,
+        'The page behind this link is no longer tracked. It may have been removed by our retention policy.'
+      );
     }
 
-    // Validate URL protocol
+    // Validate URL protocol — only http(s) redirects are allowed.
     try {
       const parsed = new URL(url);
       if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return ctx.badRequest('Invalid URL protocol');
+        strapi.log.warn(`[magic-mail] Blocked non-http(s) tracking URL for email ${emailId}`);
+        return respondWithTrackingFallback(
+          ctx,
+          'This link points to an unsupported destination and cannot be opened for your safety.'
+        );
       }
     } catch {
-      return ctx.badRequest('Invalid URL format');
+      return respondWithTrackingFallback(
+        ctx,
+        'This link is no longer valid.'
+      );
     }
 
     try {
@@ -70,6 +185,8 @@ module.exports = ({ strapi }) => ({
         .service('analytics')
         .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
     } catch (err) {
+      // Log and keep going — we don't want to penalise the user just
+      // because our analytics write failed. They still reach their page.
       strapi.log.error('[magic-mail] Error recording click event:', err.message);
     }
 

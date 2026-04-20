@@ -27,6 +27,7 @@ module.exports = ({ strapi }) => ({
             defaultFromEmail: null,
             unsubscribeUrl: null,
             enableUnsubscribeHeader: true,
+            trackingFallbackUrl: null,
           },
         });
         strapi.log.info('[magic-mail] [SETTINGS] Created default plugin settings');
@@ -44,6 +45,7 @@ module.exports = ({ strapi }) => ({
         defaultFromEmail: null,
         unsubscribeUrl: null,
         enableUnsubscribeHeader: true,
+        trackingFallbackUrl: null,
       };
     }
   },
@@ -62,6 +64,7 @@ module.exports = ({ strapi }) => ({
         defaultFromName: data.defaultFromName?.trim() || null,
         defaultFromEmail: data.defaultFromEmail?.trim()?.toLowerCase() || null,
         unsubscribeUrl: data.unsubscribeUrl?.trim() || null,
+        trackingFallbackUrl: data.trackingFallbackUrl?.trim() || null,
       };
       
       // Get existing settings
@@ -85,6 +88,7 @@ module.exports = ({ strapi }) => ({
             defaultFromEmail: sanitizedData.defaultFromEmail,
             unsubscribeUrl: sanitizedData.unsubscribeUrl,
             enableUnsubscribeHeader: sanitizedData.enableUnsubscribeHeader ?? true,
+            trackingFallbackUrl: sanitizedData.trackingFallbackUrl,
           },
         });
         strapi.log.info('[magic-mail] [SETTINGS] Created plugin settings');

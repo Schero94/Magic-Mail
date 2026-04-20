@@ -196,6 +196,10 @@ const schemas = {
     defaultFromEmail: emailString.optional().or(z.literal('')),
     unsubscribeUrl: z.string().url().optional().or(z.literal('')),
     enableUnsubscribeHeader: z.boolean().optional(),
+    // Where to redirect the recipient when a tracking link is no longer
+    // resolvable (e.g. retention cleanup removed the row). If empty the
+    // tracker renders a static HTML fallback page instead.
+    trackingFallbackUrl: z.string().url().optional().or(z.literal('')),
   }),
 
   // ── Content-API send payloads ───────────────────────────────────────────

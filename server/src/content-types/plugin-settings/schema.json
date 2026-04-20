@@ -49,6 +49,10 @@
       "type": "boolean",
       "default": true,
       "configurable": false
+    },
+    "trackingFallbackUrl": {
+      "type": "string",
+      "configurable": false
     }
   }
 }
