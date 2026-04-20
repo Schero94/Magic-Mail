@@ -2,6 +2,7 @@
   "version": "2.9.2",
   "keywords": [
     "strapi",
+    "plugin",
     "strapi-plugin",
     "strapi-v5",
     "email",
