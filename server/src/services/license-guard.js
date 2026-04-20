@@ -1,6 +1,12 @@
 /**
  * License Guard Service for MagicMail
- * Handles license creation, verification, and ping tracking
+ * Handles license creation, verification, and ping tracking.
+ *
+ * All outbound HTTP calls go through `fetchWithTimeout` which adds a
+ * hard timeout via AbortController plus one automatic retry, so a
+ * cold-starting license server does not crash the call. Without this
+ * guard users saw spurious "This operation was aborted" warnings on
+ * boot whenever the upstream needed a few seconds to wake up.
  */
 
 const crypto = require('crypto');
@@ -10,6 +16,46 @@ const { createLogger } = require('../utils/logger');
 
 // FIXED LICENSE SERVER URL
 const LICENSE_SERVER_URL = 'https://magicapi.fitlex.me';
+
+// 12s default tolerates a cold-start on the license server (serverless
+// containers need 5–10s for the first TLS handshake). Configurable via
+// MAGIC_LICENSE_TIMEOUT_MS for unusually fast or slow networks.
+const envTimeout = Number(process.env.MAGIC_LICENSE_TIMEOUT_MS);
+const DEFAULT_FETCH_TIMEOUT_MS = Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : 12000;
+const FETCH_RETRIES = 1;
+const FETCH_RETRY_BACKOFF_MS = 750;
+
+/**
+ * Wraps `fetch` with a hard timeout via AbortController and one retry
+ * so a cold-start on the license server does not crash the call. Each
+ * attempt uses a fresh AbortController (a shared one would cancel the
+ * retry before it could connect).
+ *
+ * @param {string} url
+ * @param {object} [options]
+ * @param {number} [timeoutMs]
+ * @returns {Promise<Response>}
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+  let lastError;
+  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (err) {
+      lastError = err;
+      if (attempt < FETCH_RETRIES) {
+        await new Promise((r) => setTimeout(r, FETCH_RETRY_BACKOFF_MS));
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
 
 module.exports = ({ strapi }) => {
   const log = createLogger(strapi);
@@ -86,7 +132,7 @@ module.exports = ({ strapi }) => {
       const userAgent = this.getUserAgent();
 
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/create`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,32 +165,31 @@ module.exports = ({ strapi }) => {
 
   async verifyLicense(licenseKey, allowGracePeriod = false) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/verify`, {
+      // Timeout + retry handled by fetchWithTimeout.
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           licenseKey,
           pluginName: 'magic-mail',
           productName: 'MagicMail - Email Business Suite',
         }),
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
+
       const data = await response.json();
 
       if (data.success && data.data) {
         return { valid: true, data: data.data, gracePeriod: false };
-      } else {
-        return { valid: false, data: null };
       }
+      return { valid: false, data: null };
     } catch (error) {
       if (allowGracePeriod) {
-        log.warn('[WARNING] License verification timeout - grace period active');
+        // fetchWithTimeout already retried once — logging as info here
+        // because grace-period is a graceful fallback, not a defect.
+        log.info(
+          `License server unreachable after retry, continuing on grace period (${error.message})`
+        );
         return { valid: true, data: null, gracePeriod: true };
       }
       log.error('[ERROR] License verification error:', error.message);
@@ -156,8 +201,8 @@ module.exports = ({ strapi }) => {
     try {
       const licenseServerUrl = this.getLicenseServerUrl();
       const url = `${licenseServerUrl}/api/licenses/key/${licenseKey}`;
-      
-      const response = await fetch(url, {
+
+      const response = await fetchWithTimeout(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -183,7 +228,7 @@ module.exports = ({ strapi }) => {
       const userAgent = this.getUserAgent();
 
       const licenseServerUrl = this.getLicenseServerUrl();
-      const response = await fetch(`${licenseServerUrl}/api/licenses/ping`, {
+      const response = await fetchWithTimeout(`${licenseServerUrl}/api/licenses/ping`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
