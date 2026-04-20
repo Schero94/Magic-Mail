@@ -1,3 +1,10 @@
+# [2.9.0](https://github.com/Schero94/Magic-Mail/compare/v2.8.4...v2.9.0) (2026-04-20)
+
+
+### Features
+
+* **security:** zod validation, strict from-header, masked secrets, rate-limit ([6328dd1](https://github.com/Schero94/Magic-Mail/commit/6328dd199797c53283f4b45e01443418589f8153))
+
 ## [2.8.4](https://github.com/Schero94/Magic-Mail/compare/v2.8.3...v2.8.4) (2026-04-15)
 
 
