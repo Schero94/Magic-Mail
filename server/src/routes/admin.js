@@ -1,15 +1,58 @@
 'use strict';
 
+/**
+ * Admin API routes for magic-mail.
+ *
+ * SECURITY MODEL
+ * --------------
+ * Every admin route is gated by the two-step policy chain returned from
+ * `adminPolicy()`:
+ *
+ *   1. `admin::isAuthenticatedAdmin`
+ *        Requires a valid admin JWT (blocks anonymous callers and
+ *        end-user Content-API tokens).
+ *
+ *   2. `admin::hasPermissions` with `plugin::magic-mail.access`
+ *        Requires the caller to actually hold the plugin-access
+ *        permission. Super-Admin gets it automatically; other admin
+ *        roles only gain access if a Super-Admin explicitly grants the
+ *        permission in Settings → Administration Panel → Roles →
+ *        Plugins → Magic Mail.
+ *
+ * Exception: the 3 OAuth callback endpoints must stay public because
+ * the upstream OAuth provider (Google / Microsoft / Yahoo) performs a
+ * redirect back to us and cannot attach a bearer token. Those routes
+ * are secured via the signed, single-use `state` parameter that the
+ * callback verifies server-side — no admin JWT needed.
+ */
+
+const PLUGIN_ACCESS_ACTION = 'plugin::magic-mail.access';
+
+/**
+ * Fresh array per call because Strapi mutates policy arrays during
+ * boot, and sharing one instance across routes would leak config
+ * between them.
+ *
+ * @returns {Array<string|object>}
+ */
+const adminPolicy = () => [
+  'admin::isAuthenticatedAdmin',
+  {
+    name: 'admin::hasPermissions',
+    config: { actions: [PLUGIN_ACCESS_ACTION] },
+  },
+];
+
 module.exports = {
   type: 'admin',
   routes: [
-    // Account Management
+    // ─────────────────────── Account Management ───────────────────────
     {
       method: 'GET',
       path: '/accounts',
       handler: 'accounts.getAll',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get all email accounts',
       },
     },
@@ -18,7 +61,7 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.getOne',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get single email account with decrypted config',
       },
     },
@@ -27,7 +70,7 @@ module.exports = {
       path: '/accounts',
       handler: 'accounts.create',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Create email account',
       },
     },
@@ -36,7 +79,7 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.update',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Update email account',
       },
     },
@@ -45,7 +88,7 @@ module.exports = {
       path: '/accounts/:accountId/test',
       handler: 'accounts.test',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Test email account',
       },
     },
@@ -54,7 +97,7 @@ module.exports = {
       path: '/test-strapi-service',
       handler: 'accounts.testStrapiService',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Test Strapi Email Service integration (MagicMail intercept)',
       },
     },
@@ -63,17 +106,18 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.delete',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete email account',
       },
     },
-    // Routing Rules
+
+    // ─────────────────────── Routing Rules ───────────────────────
     {
       method: 'GET',
       path: '/routing-rules',
       handler: 'routingRules.getAll',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get all routing rules',
       },
     },
@@ -82,7 +126,7 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.getOne',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get single routing rule',
       },
     },
@@ -91,7 +135,7 @@ module.exports = {
       path: '/routing-rules',
       handler: 'routingRules.create',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Create routing rule',
       },
     },
@@ -100,7 +144,7 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.update',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Update routing rule',
       },
     },
@@ -109,23 +153,22 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.delete',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete routing rule',
       },
     },
-    // OAuth Routes - Gmail
-    // The /auth endpoints are admin-only (they produce OAuth URLs for the
-    // currently-authenticated admin). The /callback endpoints must stay
-    // public because the upstream OAuth provider (Google/Microsoft/Yahoo)
-    // cannot send a bearer token on the redirect back — security is
-    // enforced by the signed, one-time-use state parameter that callback
-    // + token exchange verify.
+
+    // ─────────────────────── OAuth – Gmail ───────────────────────
+    // /auth endpoints are admin-only (they generate the OAuth URL for
+    // the currently-authenticated admin). /callback MUST remain public
+    // because Google/Microsoft/Yahoo can't send a bearer token on the
+    // redirect — security is enforced by the signed single-use state.
     {
       method: 'GET',
       path: '/oauth/gmail/auth',
       handler: 'oauth.gmailAuth',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Initiate Gmail OAuth flow',
       },
     },
@@ -138,13 +181,14 @@ module.exports = {
         description: 'Gmail OAuth callback',
       },
     },
-    // OAuth Routes - Microsoft
+
+    // ─────────────────────── OAuth – Microsoft ───────────────────────
     {
       method: 'GET',
       path: '/oauth/microsoft/auth',
       handler: 'oauth.microsoftAuth',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Initiate Microsoft OAuth flow',
       },
     },
@@ -157,13 +201,14 @@ module.exports = {
         description: 'Microsoft OAuth callback',
       },
     },
-    // OAuth Routes - Yahoo
+
+    // ─────────────────────── OAuth – Yahoo ───────────────────────
     {
       method: 'GET',
       path: '/oauth/yahoo/auth',
       handler: 'oauth.yahooAuth',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Initiate Yahoo OAuth flow',
       },
     },
@@ -176,23 +221,25 @@ module.exports = {
         description: 'Yahoo OAuth callback',
       },
     },
-    // OAuth Routes - Generic
+
+    // ─────────────────────── OAuth – Generic ───────────────────────
     {
       method: 'POST',
       path: '/oauth/create-account',
       handler: 'oauth.createOAuthAccount',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Create account from OAuth',
       },
     },
-    // License Routes
+
+    // ─────────────────────── License ───────────────────────
     {
       method: 'GET',
       path: '/license/status',
       handler: 'license.getStatus',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get license status',
       },
     },
@@ -201,7 +248,7 @@ module.exports = {
       path: '/license/auto-create',
       handler: 'license.autoCreate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Auto-create license with admin user data',
       },
     },
@@ -210,7 +257,7 @@ module.exports = {
       path: '/license/store-key',
       handler: 'license.storeKey',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Store and validate existing license key',
       },
     },
@@ -219,7 +266,7 @@ module.exports = {
       path: '/license/limits',
       handler: 'license.getLimits',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get license limits and available features',
       },
     },
@@ -228,17 +275,18 @@ module.exports = {
       path: '/license/debug',
       handler: 'license.debugLicense',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Debug license data',
       },
     },
-    // Email Designer Routes
+
+    // ─────────────────────── Email Designer ───────────────────────
     {
       method: 'GET',
       path: '/designer/templates',
       handler: 'emailDesigner.findAll',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get all email templates',
       },
     },
@@ -247,7 +295,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.findOne',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get email template by ID',
       },
     },
@@ -256,7 +304,7 @@ module.exports = {
       path: '/designer/templates',
       handler: 'emailDesigner.create',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Create email template',
       },
     },
@@ -265,7 +313,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.update',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Update email template',
       },
     },
@@ -274,7 +322,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.delete',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete email template',
       },
     },
@@ -283,7 +331,7 @@ module.exports = {
       path: '/designer/templates/:id/versions',
       handler: 'emailDesigner.getVersions',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get template versions',
       },
     },
@@ -292,7 +340,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/:versionId/restore',
       handler: 'emailDesigner.restoreVersion',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Restore template from version',
       },
     },
@@ -301,7 +349,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/:versionId/delete',
       handler: 'emailDesigner.deleteVersion',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete a single version',
       },
     },
@@ -310,7 +358,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/delete-all',
       handler: 'emailDesigner.deleteAllVersions',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete all versions for a template',
       },
     },
@@ -319,7 +367,7 @@ module.exports = {
       path: '/designer/render/:templateReferenceId',
       handler: 'emailDesigner.renderTemplate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Render template with data',
       },
     },
@@ -328,7 +376,7 @@ module.exports = {
       path: '/designer/export',
       handler: 'emailDesigner.exportTemplates',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Export templates (ADVANCED+)',
       },
     },
@@ -337,7 +385,7 @@ module.exports = {
       path: '/designer/import',
       handler: 'emailDesigner.importTemplates',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Import templates (ADVANCED+)',
       },
     },
@@ -346,7 +394,7 @@ module.exports = {
       path: '/designer/stats',
       handler: 'emailDesigner.getStats',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get template statistics',
       },
     },
@@ -355,7 +403,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.getCoreTemplate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get core email template',
       },
     },
@@ -364,7 +412,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.updateCoreTemplate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Update core email template',
       },
     },
@@ -373,7 +421,7 @@ module.exports = {
       path: '/designer/templates/:id/download',
       handler: 'emailDesigner.download',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Download template as HTML or JSON',
       },
     },
@@ -382,7 +430,7 @@ module.exports = {
       path: '/designer/templates/:id/duplicate',
       handler: 'emailDesigner.duplicate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Duplicate template',
       },
     },
@@ -391,17 +439,18 @@ module.exports = {
       path: '/designer/templates/:id/test-send',
       handler: 'emailDesigner.testSend',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Send test email for template',
       },
     },
-    // Analytics & Tracking
+
+    // ─────────────────────── Analytics & Tracking ───────────────────────
     {
       method: 'GET',
       path: '/analytics/stats',
       handler: 'analytics.getStats',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get analytics statistics',
       },
     },
@@ -410,7 +459,7 @@ module.exports = {
       path: '/analytics/emails',
       handler: 'analytics.getEmailLogs',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get email logs',
       },
     },
@@ -419,7 +468,7 @@ module.exports = {
       path: '/analytics/emails/:emailId',
       handler: 'analytics.getEmailDetails',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get email details',
       },
     },
@@ -428,7 +477,7 @@ module.exports = {
       path: '/analytics/users/:userId',
       handler: 'analytics.getUserActivity',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get user email activity',
       },
     },
@@ -437,7 +486,7 @@ module.exports = {
       path: '/analytics/debug',
       handler: 'analytics.debug',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Debug analytics state',
       },
     },
@@ -446,7 +495,7 @@ module.exports = {
       path: '/analytics/emails/:emailId',
       handler: 'analytics.deleteEmailLog',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete single email log',
       },
     },
@@ -455,27 +504,29 @@ module.exports = {
       path: '/analytics/emails',
       handler: 'analytics.clearAllEmailLogs',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Clear all email logs',
       },
     },
-    // Test Routes (Development)
+
+    // ─────────────────────── Test (Dev) ───────────────────────
     {
       method: 'POST',
       path: '/test/relations',
       handler: 'test.testRelations',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Test template-version relations',
       },
     },
-    // WhatsApp Routes
+
+    // ─────────────────────── WhatsApp ───────────────────────
     {
       method: 'GET',
       path: '/whatsapp/available',
       handler: 'whatsapp.checkAvailable',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Check if WhatsApp/Baileys is available',
       },
     },
@@ -484,7 +535,7 @@ module.exports = {
       path: '/whatsapp/status',
       handler: 'whatsapp.getStatus',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get WhatsApp connection status',
       },
     },
@@ -493,7 +544,7 @@ module.exports = {
       path: '/whatsapp/connect',
       handler: 'whatsapp.connect',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Connect to WhatsApp (generates QR if needed)',
       },
     },
@@ -502,7 +553,7 @@ module.exports = {
       path: '/whatsapp/disconnect',
       handler: 'whatsapp.disconnect',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Disconnect from WhatsApp',
       },
     },
@@ -511,7 +562,7 @@ module.exports = {
       path: '/whatsapp/send-test',
       handler: 'whatsapp.sendTest',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Send a test WhatsApp message',
       },
     },
@@ -520,7 +571,7 @@ module.exports = {
       path: '/whatsapp/send-template',
       handler: 'whatsapp.sendTemplateMessage',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Send WhatsApp message using template',
       },
     },
@@ -529,7 +580,7 @@ module.exports = {
       path: '/whatsapp/check-number',
       handler: 'whatsapp.checkNumber',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Check if phone number is on WhatsApp',
       },
     },
@@ -538,7 +589,7 @@ module.exports = {
       path: '/whatsapp/templates',
       handler: 'whatsapp.getTemplates',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get all WhatsApp message templates',
       },
     },
@@ -547,7 +598,7 @@ module.exports = {
       path: '/whatsapp/templates',
       handler: 'whatsapp.saveTemplate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Save a WhatsApp message template',
       },
     },
@@ -556,7 +607,7 @@ module.exports = {
       path: '/whatsapp/templates/:templateName',
       handler: 'whatsapp.deleteTemplate',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Delete a WhatsApp message template',
       },
     },
@@ -565,17 +616,18 @@ module.exports = {
       path: '/whatsapp/session',
       handler: 'whatsapp.getSession',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get WhatsApp session info',
       },
     },
-    // Plugin Settings Routes
+
+    // ─────────────────────── Plugin Settings ───────────────────────
     {
       method: 'GET',
       path: '/settings',
       handler: 'pluginSettings.getSettings',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Get plugin settings',
       },
     },
@@ -584,10 +636,9 @@ module.exports = {
       path: '/settings',
       handler: 'pluginSettings.updateSettings',
       config: {
-        policies: ['admin::isAuthenticatedAdmin'],
+        policies: adminPolicy(),
         description: 'Update plugin settings',
       },
     },
   ],
 };
-
