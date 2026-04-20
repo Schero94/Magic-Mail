@@ -457,39 +457,41 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
       });
     }
 
-    // Listen for postMessage from OAuth popup
+    // Listen for postMessage from OAuth popup.
+    //
+    // Hardening beyond the origin check:
+    //  - require event.data to be a plain object
+    //  - require `type` to be one of the exact expected strings
+    //  - require `code` and `state` to be non-empty strings of a sane length
+    //  - treat any deviation as "ignore the message" rather than error out,
+    //    so a benign cross-frame chat message cannot DoS the page
+    const OAUTH_MESSAGE_TYPES = {
+      'gmail-oauth-success': 'Gmail',
+      'microsoft-oauth-success': 'Microsoft',
+      'yahoo-oauth-success': 'Yahoo Mail',
+    };
+
+    const isValidOAuthToken = (value) =>
+      typeof value === 'string' && value.length > 0 && value.length < 8192;
+
     const handleMessage = (event) => {
       if (event.origin !== window.location.origin) return;
-      
-      if (event.data.type === 'gmail-oauth-success') {
-        setOauthCode(event.data.code);
-        setOauthState(event.data.state);
-        
-        toggleNotification({
-          type: 'success',
-          message: '✅ Gmail OAuth authorized! Please complete the account setup.',
-        });
+      if (!event.data || typeof event.data !== 'object') return;
+
+      const providerLabel = OAUTH_MESSAGE_TYPES[event.data.type];
+      if (!providerLabel) return;
+
+      if (!isValidOAuthToken(event.data.code) || !isValidOAuthToken(event.data.state)) {
+        return;
       }
-      
-      if (event.data.type === 'microsoft-oauth-success') {
-        setOauthCode(event.data.code);
-        setOauthState(event.data.state);
-        
-        toggleNotification({
-          type: 'success',
-          message: '✅ Microsoft OAuth authorized! Please complete the account setup.',
-        });
-      }
-      
-      if (event.data.type === 'yahoo-oauth-success') {
-        setOauthCode(event.data.code);
-        setOauthState(event.data.state);
-        
-        toggleNotification({
-          type: 'success',
-          message: '✅ Yahoo Mail OAuth authorized! Please complete the account setup.',
-        });
-      }
+
+      setOauthCode(event.data.code);
+      setOauthState(event.data.state);
+
+      toggleNotification({
+        type: 'success',
+        message: `✅ ${providerLabel} OAuth authorized! Please complete the account setup.`,
+      });
     };
 
     window.addEventListener('message', handleMessage);

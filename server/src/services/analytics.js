@@ -502,11 +502,31 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Store link mapping in database
+   * Persists a link mapping used for click tracking. Validates the URL
+   * protocol at storage time so nothing unsafe can be persisted even when a
+   * future caller bypasses the rewrite helper.
+   *
+   * @param {string} emailLogDocId
+   * @param {string} linkHash
+   * @param {string} originalUrl
+   * @returns {Promise<object>}
+   * @throws {Error} When the URL is not an http(s) absolute URL
    */
   async storeLinkMapping(emailLogDocId, linkHash, originalUrl) {
     try {
-      // Check if link already exists - filter relation with documentId object
+      if (typeof originalUrl !== 'string' || originalUrl.trim().length === 0) {
+        throw new Error('originalUrl is required');
+      }
+      let parsed;
+      try {
+        parsed = new URL(originalUrl);
+      } catch {
+        throw new Error(`Invalid originalUrl (not a valid absolute URL): ${originalUrl.substring(0, 200)}`);
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`Disallowed URL protocol "${parsed.protocol}" for tracking link`);
+      }
+
       const existing = await strapi.documents(EMAIL_LINK_UID).findFirst({
         filters: {
           emailLog: { documentId: emailLogDocId },
@@ -519,7 +539,6 @@ module.exports = ({ strapi }) => ({
         return existing;
       }
 
-      // Create new link mapping
       const linkMapping = await strapi.documents(EMAIL_LINK_UID).create({
         data: {
           emailLog: emailLogDocId,

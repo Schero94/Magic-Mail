@@ -196,8 +196,16 @@ module.exports = ({ strapi }) => ({
    */
   async debug(ctx) {
     try {
+      // Two guards: the obvious prod check plus an opt-in env var that must
+      // be enabled even in non-production. Many staging environments run
+      // without NODE_ENV=production but should not expose internal state.
       if (process.env.NODE_ENV === 'production') {
         return ctx.forbidden('Debug endpoint is disabled in production');
+      }
+      if (process.env.MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT !== 'true') {
+        return ctx.forbidden(
+          'Debug endpoint requires MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT=true to be set'
+        );
       }
       strapi.log.info('[magic-mail] [CHECK] Running Analytics Debug...');
 
@@ -323,55 +331,70 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Clear all email logs
-   * DELETE /magic-mail/analytics/emails
+   * Clears email logs in bounded batches so a huge backlog cannot block the
+   * event loop or OOM the heap. Each invocation deletes up to MAX_TOTAL
+   * entries; the caller can re-invoke the endpoint until `deletedCount: 0`
+   * is reported to drain the backlog.
+   *
+   * DELETE /magic-mail/analytics/emails[?olderThan=YYYY-MM-DD]
    */
   async clearAllEmailLogs(ctx) {
+    const PAGE_SIZE = 200;
+    const MAX_TOTAL = 10_000;
+
     try {
-      // Optional: Add query params for filtered deletion
-      const { olderThan } = ctx.query; // e.g., ?olderThan=2024-01-01
+      const { olderThan } = ctx.query;
 
       const filters = {};
       if (olderThan) {
-        filters.sentAt = { $lt: new Date(olderThan) };
+        const boundary = new Date(olderThan);
+        if (Number.isNaN(boundary.getTime())) {
+          return ctx.badRequest('Invalid olderThan date');
+        }
+        filters.sentAt = { $lt: boundary };
       }
 
-      // Get all email logs to delete using Document Service
-      const emailLogs = await strapi.documents(EMAIL_LOG_UID).findMany({
-        filters,
-        fields: ['id', 'documentId'],
-        limit: 100000,
-      });
+      let totalDeleted = 0;
 
-      if (emailLogs.length === 0) {
-        return ctx.send({
-          success: true,
-          message: 'No email logs to delete',
-          deletedCount: 0,
+      while (totalDeleted < MAX_TOTAL) {
+        const emailLogs = await strapi.documents(EMAIL_LOG_UID).findMany({
+          filters,
+          fields: ['id', 'documentId'],
+          sort: [{ sentAt: 'asc' }],
+          limit: PAGE_SIZE,
         });
-      }
 
-      // Delete all associated events and logs
-      for (const log of emailLogs) {
-        // Delete events for this log - filter relation with documentId object (Strapi v5)
-        const events = await strapi.documents(EMAIL_EVENT_UID).findMany({
-          filters: { emailLog: { documentId: log.documentId } },
-      });
+        if (!emailLogs || emailLogs.length === 0) break;
 
-        for (const event of events) {
-          await strapi.documents(EMAIL_EVENT_UID).delete({ documentId: event.documentId });
+        for (const log of emailLogs) {
+          const events = await strapi.documents(EMAIL_EVENT_UID).findMany({
+            filters: { emailLog: { documentId: log.documentId } },
+          });
+
+          for (const event of events) {
+            await strapi.documents(EMAIL_EVENT_UID).delete({ documentId: event.documentId });
+          }
+
+          await strapi.documents(EMAIL_LOG_UID).delete({ documentId: log.documentId });
+          totalDeleted++;
+          if (totalDeleted >= MAX_TOTAL) break;
         }
 
-        // Delete the log itself
-        await strapi.documents(EMAIL_LOG_UID).delete({ documentId: log.documentId });
+        if (emailLogs.length < PAGE_SIZE) break;
       }
 
-      strapi.log.info(`[magic-mail] [DELETE]  Cleared ${emailLogs.length} email logs`);
+      if (totalDeleted > 0) {
+        strapi.log.info(`[magic-mail] [DELETE] Cleared ${totalDeleted} email logs this run`);
+      }
 
       return ctx.send({
         success: true,
-        message: `Successfully deleted ${emailLogs.length} email log(s)`,
-        deletedCount: emailLogs.length,
+        message:
+          totalDeleted === 0
+            ? 'No email logs to delete'
+            : `Deleted ${totalDeleted} email log(s)${totalDeleted >= MAX_TOTAL ? ' (more remain, re-run to continue)' : ''}`,
+        deletedCount: totalDeleted,
+        hasMore: totalDeleted >= MAX_TOTAL,
       });
     } catch (error) {
       strapi.log.error('[magic-mail] Error clearing email logs:', error.message);

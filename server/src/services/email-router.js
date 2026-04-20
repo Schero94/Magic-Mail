@@ -15,6 +15,57 @@ function stripHeaderInjection(value) {
 }
 
 /**
+ * Returns true when the List-Unsubscribe header should be emitted for this
+ * email. By RFC 8058 it is always safe to include for marketing mail. When
+ * the admin has flipped `enableUnsubscribeHeader` in the plugin settings,
+ * we also include it for transactional/notification mail so the end user
+ * always has a one-click way to stop receiving messages.
+ *
+ * @param {object} emailData
+ * @returns {boolean}
+ */
+function shouldEmitUnsubscribe(emailData) {
+  if (!emailData || !emailData.unsubscribeUrl) return false;
+  if (emailData.type === 'marketing') return true;
+  return emailData.__forceUnsubscribe === true;
+}
+
+/**
+ * Parses an RFC-5322-style address ("Display Name" <user@domain>) and
+ * returns the bare e-mail portion, or the trimmed input if no angle
+ * brackets are present. Returns empty string for non-strings.
+ * @param {*} value
+ * @returns {string}
+ */
+function extractEmailAddress(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (trimmed.includes('<')) {
+    const match = trimmed.match(/<([^>]+)>/);
+    return match ? match[1].trim() : trimmed;
+  }
+  return trimmed;
+}
+
+/**
+ * Returns true if a candidate sender matches an account's configured
+ * `fromEmail`. The display name may differ, but the bare address must
+ * match exactly (case-insensitive). Used to prevent callers of /send
+ * from choosing an arbitrary `from` header while still allowing their
+ * own formatting like `"Custom Display" <account@domain>`.
+ *
+ * @param {string} candidate - Raw `from` value from the caller
+ * @param {string} accountFrom - Account's trusted fromEmail
+ * @returns {boolean}
+ */
+function isFromAllowed(candidate, accountFrom) {
+  if (!candidate) return true; // caller didn't set from; we fall back to account.fromEmail
+  const c = extractEmailAddress(candidate).toLowerCase();
+  const a = (accountFrom || '').toLowerCase().trim();
+  return c.length > 0 && a.length > 0 && c === a;
+}
+
+/**
  * Email Router Service
  * Smart routing of emails to appropriate accounts
  * Handles failover, rate limiting, and load balancing
@@ -171,6 +222,47 @@ module.exports = ({ strapi }) => ({
       }
     }
 
+    // Load global plugin settings once and apply three classes of defaults:
+    //  1. Sender identity — `defaultFromName` / `defaultFromEmail` fill gaps
+    //     when the caller or account don't supply them.
+    //  2. Unsubscribe handling — `unsubscribeUrl` + `enableUnsubscribeHeader`
+    //     control whether List-Unsubscribe is emitted for ALL emails (opt-in)
+    //     or only for `type: marketing` (default off).
+    //  3. Tracking — link/open tracking toggles (already implemented).
+    const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
+    const pluginSettings = (await settingsService.getSettings()) || {};
+
+    // Sender-identity fallback chain:
+    //   emailData.from > account.fromName/fromEmail > pluginSettings defaults
+    if (!emailData.from) {
+      const nameCandidate = pluginSettings.defaultFromName || null;
+      const emailCandidate = pluginSettings.defaultFromEmail || null;
+      if (emailCandidate) {
+        emailData.from = nameCandidate
+          ? `${stripHeaderInjection(nameCandidate)} <${emailCandidate}>`
+          : emailCandidate;
+      }
+    }
+
+    // Recipient name falls back to the sender's name so templates can use
+    // `{{recipient}}` variables where explicit recipientName was not given.
+    if (!emailData.fromName && pluginSettings.defaultFromName) {
+      emailData.fromName = pluginSettings.defaultFromName;
+    }
+
+    // Unsubscribe URL fallback: per-email wins, then plugin global.
+    if (!emailData.unsubscribeUrl && pluginSettings.unsubscribeUrl) {
+      emailData.unsubscribeUrl = pluginSettings.unsubscribeUrl;
+    }
+
+    // If the admin opted in to always-emit List-Unsubscribe, tag the email
+    // so the per-provider renderers include the header even for non-marketing
+    // types. Default behavior (only marketing) stays unchanged.
+    const alwaysEmitUnsubscribe = pluginSettings.enableUnsubscribeHeader === true;
+    if (alwaysEmitUnsubscribe) {
+      emailData.__forceUnsubscribe = true;
+    }
+
     // NEW: Email Tracking - Create log & inject tracking
     let emailLog = null;
     let recipientHash = null;
@@ -179,10 +271,7 @@ module.exports = ({ strapi }) => ({
     if (enableTracking && html) {
       try {
         const analyticsService = strapi.plugin('magic-mail').service('analytics');
-        const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
-        
-        // Get global plugin settings
-        const pluginSettings = await settingsService.getSettings();
+
         const globalLinkTrackingEnabled = pluginSettings.enableLinkTracking !== false;
         const globalOpenTrackingEnabled = pluginSettings.enableOpenTracking !== false;
         
@@ -290,6 +379,23 @@ module.exports = ({ strapi }) => ({
       const providerAllowed = await licenseGuard.isProviderAllowed(account.provider);
       if (!providerAllowed) {
         throw new Error(`Provider "${account.provider}" requires a higher license tier. Please upgrade or use a different account.`);
+      }
+
+      // Anti-spoofing: pin `from` to the account's configured address.
+      // Callers may still set a custom display name via `fromName` on the
+      // account itself, or pass their own "Display <same@address>" form.
+      // Any attempt to impersonate a different sender is logged and
+      // silently corrected to the account's real address. This is
+      // critical for providers that do NOT rewrite the From header
+      // (SMTP, SendGrid, Mailgun) and where DMARC alignment would
+      // otherwise fail.
+      if (!isFromAllowed(emailData.from, account.fromEmail)) {
+        strapi.log.warn(
+          `[magic-mail] Rejected from-override "${emailData.from}" != account.fromEmail "${account.fromEmail}" — using account address`
+        );
+        emailData.from = account.fromName
+          ? `${stripHeaderInjection(account.fromName)} <${account.fromEmail}>`
+          : account.fromEmail;
       }
 
       // Check rate limits
@@ -490,9 +596,18 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Send via SMTP (Nodemailer)
-   * With enhanced security: DKIM, proper headers, TLS enforcement
+   * With enhanced security: DKIM, proper headers, TLS enforcement.
+   *
+   * Runs the same validateEmailSecurity() pass as every other provider so
+   * HTML sanitization, header-injection guards, and recipient-format checks
+   * apply uniformly to SMTP too.
    */
   async sendViaSMTP(account, emailData) {
+    // Apply the same content validation as the OAuth/API providers.
+    // Previously this step was only run in those paths, leaving SMTP open
+    // to <script>/<iframe> injection and invalid recipient formats.
+    this.validateEmailSecurity(emailData);
+
     const config = decryptCredentials(account.config);
 
     // Enhanced SMTP configuration with security features
@@ -578,15 +693,20 @@ module.exports = ({ strapi }) => ({
       textEncoding: 'base64',
     };
 
-    // Add List-Unsubscribe header for marketing emails (RFC 8058 - GDPR/CAN-SPAM)
-    if (emailData.type === 'marketing') {
-      if (emailData.unsubscribeUrl) {
-        mailOptions.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-        mailOptions.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-        mailOptions.headers['Precedence'] = 'bulk'; // Mark as bulk mail
-      } else {
-        strapi.log.warn('[magic-mail] [WARNING] Marketing email without unsubscribe URL - may violate GDPR/CAN-SPAM');
+    // Add List-Unsubscribe header when appropriate (RFC 8058 - GDPR/CAN-SPAM).
+    // Marketing mail always gets it (+ Precedence: bulk). Transactional mail
+    // only gets it when the admin enabled `enableUnsubscribeHeader` globally.
+    if (shouldEmitUnsubscribe(emailData)) {
+      mailOptions.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
+      mailOptions.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+      if (emailData.type === 'marketing') {
+        mailOptions.headers['Precedence'] = 'bulk';
       }
+    } else if (emailData.type === 'marketing') {
+      strapi.log.warn(
+        '[magic-mail] Marketing email without unsubscribe URL — may violate GDPR/CAN-SPAM. ' +
+        'Set emailData.unsubscribeUrl or configure pluginSettings.unsubscribeUrl.'
+      );
     }
 
     // Add custom headers if provided
@@ -671,7 +791,14 @@ module.exports = ({ strapi }) => ({
 
     // Use Gmail API directly instead of SMTP with OAuth
     strapi.log.info('[magic-mail] Using Gmail API to send email...');
-    
+
+    // Strip CR/LF from header-bound fields before building the raw MIME.
+    // validateEmailSecurity() already normalizes these on string inputs, but
+    // we do it again defensively so an attacker who bypasses validation
+    // cannot inject new headers via Subject or the from display name.
+    const safeSubject = stripHeaderInjection(emailData.subject);
+    const safeFromName = stripHeaderInjection(account.fromName || 'MagicMail');
+
     try {
       // Create email in RFC 2822 format with MIME multipart for attachments
       const boundary = `----=_Part_${Date.now()}`;
@@ -701,7 +828,7 @@ module.exports = ({ strapi }) => ({
         }
 
         // Add List-Unsubscribe for marketing emails
-        if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+        if (shouldEmitUnsubscribe(emailData)) {
           emailLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
           emailLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
         }
@@ -789,7 +916,7 @@ module.exports = ({ strapi }) => ({
         }
 
         // Add List-Unsubscribe for marketing emails
-        if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+        if (shouldEmitUnsubscribe(emailData)) {
           emailLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
           emailLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
         }
@@ -950,7 +1077,7 @@ module.exports = ({ strapi }) => ({
         }
 
         // List-Unsubscribe for marketing
-        if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+        if (shouldEmitUnsubscribe(emailData)) {
           mimeLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
           mimeLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
         }
@@ -1021,7 +1148,7 @@ module.exports = ({ strapi }) => ({
         }
 
         // List-Unsubscribe for marketing
-        if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+        if (shouldEmitUnsubscribe(emailData)) {
           mimeLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
           mimeLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
         }
@@ -1180,7 +1307,7 @@ module.exports = ({ strapi }) => ({
       };
 
       // Add List-Unsubscribe for marketing emails
-      if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+      if (shouldEmitUnsubscribe(emailData)) {
         mailOptions.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
         mailOptions.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
       }
@@ -1269,7 +1396,7 @@ module.exports = ({ strapi }) => ({
       }
 
       // Add List-Unsubscribe for marketing emails (GDPR/CAN-SPAM compliance)
-      if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+      if (shouldEmitUnsubscribe(emailData)) {
         msg.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
         msg.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
       }
@@ -1391,7 +1518,7 @@ module.exports = ({ strapi }) => ({
       form.append('h:X-Email-Type', emailData.type || 'transactional');
 
       // Add List-Unsubscribe for marketing emails (GDPR/CAN-SPAM compliance)
-      if (emailData.type === 'marketing' && emailData.unsubscribeUrl) {
+      if (shouldEmitUnsubscribe(emailData)) {
         form.append('h:List-Unsubscribe', `<${emailData.unsubscribeUrl}>`);
         form.append('h:List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
       }
@@ -1519,13 +1646,43 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Validate email content for security best practices
-   * Prevents common security issues and spam triggers
+   * Validates and sanitizes email content against common attack classes:
+   * - Header injection (CR/LF in subject, recipients, replyTo, from)
+   * - Dangerous HTML (`<script>`, `<iframe>`, `javascript:`, inline event handlers)
+   * - Missing subject / missing content
+   *
+   * Mutates `emailData` in place by stripping CR/LF from string header fields.
+   * Uses `sanitize-html` when available for deep HTML cleaning; otherwise
+   * falls back to conservative regex-based checks that BLOCK unsafe content.
+   *
+   * @param {object} emailData - Email data to validate (mutated)
+   * @throws {Error} When validation fails
    */
   validateEmailSecurity(emailData) {
+    const headerFields = ['subject', 'from', 'replyTo'];
+    for (const field of headerFields) {
+      if (typeof emailData[field] === 'string') {
+        emailData[field] = stripHeaderInjection(emailData[field]);
+      }
+    }
+
+    const sanitizeAddrList = (value) => {
+      if (Array.isArray(value)) {
+        return value
+          .map((v) => (typeof v === 'string' ? stripHeaderInjection(v) : v))
+          .filter((v) => typeof v === 'string' && v.length > 0);
+      }
+      if (typeof value === 'string') {
+        return stripHeaderInjection(value);
+      }
+      return value;
+    };
+    emailData.to = sanitizeAddrList(emailData.to);
+    emailData.cc = sanitizeAddrList(emailData.cc);
+    emailData.bcc = sanitizeAddrList(emailData.bcc);
+
     const { to, subject, html, text } = emailData;
 
-    // 1. Validate recipient email format (supports display names and arrays)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const extractEmail = (addr) => {
       if (!addr || typeof addr !== 'string') return '';
@@ -1535,7 +1692,6 @@ module.exports = ({ strapi }) => ({
       }
       return addr.trim();
     };
-
     const validateAddr = (addr) => emailRegex.test(extractEmail(addr));
 
     if (Array.isArray(to)) {
@@ -1553,22 +1709,18 @@ module.exports = ({ strapi }) => ({
       }
     }
 
-    // 2. Prevent empty subject (spam trigger)
     if (!subject || subject.trim().length === 0) {
       throw new Error('Email subject is required for security and deliverability');
     }
 
-    // 3. Prevent excessively long subjects (spam trigger)
     if (subject.length > 200) {
       strapi.log.warn('[magic-mail] Subject line exceeds 200 characters - may trigger spam filters');
     }
 
-    // 4. Require either text or html content
     if (!html && !text) {
       throw new Error('Email must have either text or html content');
     }
 
-    // 5. Check for common spam trigger patterns in subject
     const spamTriggers = [
       /\bfree\b.*\bmoney\b/i,
       /\b100%\s*free\b/i,
@@ -1577,7 +1729,6 @@ module.exports = ({ strapi }) => ({
       /\bviagra\b/i,
       /\bcasino\b/i,
     ];
-
     for (const pattern of spamTriggers) {
       if (pattern.test(subject)) {
         strapi.log.warn(`[magic-mail] Subject contains potential spam trigger: "${subject}"`);
@@ -1585,18 +1736,59 @@ module.exports = ({ strapi }) => ({
       }
     }
 
-    // 6. Validate HTML doesn't contain dangerous scripts
     if (html) {
-      if (/<script[^>]*>.*?<\/script>/i.test(html)) {
-        throw new Error('Email HTML must not contain <script> tags for security');
+      let sanitizeHtml = null;
+      try {
+        sanitizeHtml = require('sanitize-html');
+      } catch {
+        sanitizeHtml = null;
       }
-      
-      if (/javascript:/i.test(html)) {
-        throw new Error('Email HTML must not contain javascript: protocol for security');
+
+      if (sanitizeHtml) {
+        emailData.html = sanitizeHtml(html, {
+          allowedTags: [
+            'html', 'body', 'head', 'title', 'meta',
+            'div', 'span', 'p', 'br', 'hr', 'a', 'img',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'strong', 'em', 'b', 'i', 'u',
+            'ul', 'ol', 'li',
+            'table', 'thead', 'tbody', 'tr', 'td', 'th',
+            'blockquote', 'code', 'pre',
+          ],
+          allowedAttributes: {
+            '*': ['style', 'class', 'id'],
+            a: ['href', 'title', 'target', 'rel'],
+            img: ['src', 'alt', 'width', 'height'],
+            table: ['border', 'cellspacing', 'cellpadding', 'width'],
+            td: ['colspan', 'rowspan', 'align', 'valign', 'width'],
+            th: ['colspan', 'rowspan', 'align', 'valign', 'width'],
+            meta: ['name', 'content', 'http-equiv', 'charset'],
+          },
+          allowedSchemes: ['http', 'https', 'mailto', 'cid'],
+          allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
+          allowProtocolRelative: false,
+          disallowedTagsMode: 'discard',
+        });
+      } else {
+        const dangerousPatterns = [
+          { pattern: /<script\b[^>]*>[\s\S]*?<\/script>/gi, name: '<script> tag' },
+          { pattern: /<iframe\b[^>]*>/gi, name: '<iframe> tag' },
+          { pattern: /<object\b[^>]*>/gi, name: '<object> tag' },
+          { pattern: /<embed\b[^>]*>/gi, name: '<embed> tag' },
+          { pattern: /<form\b[^>]*>/gi, name: '<form> tag' },
+          { pattern: /\son[a-z]+\s*=/gi, name: 'inline event handler' },
+          { pattern: /javascript\s*:/gi, name: 'javascript: URI' },
+          { pattern: /vbscript\s*:/gi, name: 'vbscript: URI' },
+          { pattern: /data\s*:\s*text\/html/gi, name: 'data:text/html URI' },
+        ];
+        for (const { pattern, name } of dangerousPatterns) {
+          if (pattern.test(html)) {
+            throw new Error(`Email HTML contains a dangerous ${name}. Install 'sanitize-html' to accept richer HTML content.`);
+          }
+        }
       }
     }
 
-    // 7. Check for proper content balance (text vs html)
     if (html && !text) {
       strapi.log.warn('[magic-mail] Email has HTML but no text alternative - may reduce deliverability');
     }
@@ -1620,14 +1812,14 @@ module.exports = ({ strapi }) => ({
       headers['Importance'] = 'high';
     }
 
-    // Add List-Unsubscribe for marketing emails (RFC 8058)
-    if (emailData.type === 'marketing') {
-      if (emailData.unsubscribeUrl) {
-        headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-        headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-      } else {
-        strapi.log.warn('[magic-mail] Marketing email without unsubscribe URL - may violate regulations');
-      }
+    // Add List-Unsubscribe when appropriate (RFC 8058). Same rule as in
+    // the actual sendVia* paths: marketing always, transactional only when
+    // the admin opted in via enableUnsubscribeHeader.
+    if (shouldEmitUnsubscribe(emailData)) {
+      headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
+      headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+    } else if (emailData.type === 'marketing') {
+      strapi.log.warn('[magic-mail] Marketing email without unsubscribe URL - may violate regulations');
     }
 
     return {

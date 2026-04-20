@@ -93,6 +93,19 @@ module.exports = {
       const { accountId } = ctx.params;
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const data = validate('accounts.update', ctx.request.body);
+
+      // License-gate provider changes. A free/low tier must not be able to
+      // sneak a Premium provider via edit after failing the license check
+      // at creation time.
+      if (data.provider) {
+        const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
+        const providerAllowed = await licenseGuard.isProviderAllowed(data.provider);
+        if (!providerAllowed) {
+          ctx.throw(403, `Provider "${data.provider}" requires a higher license tier.`);
+          return;
+        }
+      }
+
       const account = await accountManager.updateAccount(accountId, data);
 
       if (!account) {
@@ -149,9 +162,11 @@ module.exports = {
       }
 
       // Call native Strapi email service - should be intercepted by MagicMail!
+      // Do NOT pass a hardcoded `from` — the router picks the account's own
+      // fromEmail, and supplying a non-existent sender domain would hurt
+      // deliverability / spam reputation.
       const result = await strapi.plugin('email').service('email').send({
         to: testEmail,
-        from: 'test@magicmail.com',
         subject: 'MagicMail Integration Test',
         text: 'This email was sent using Strapi\'s native email service but routed through MagicMail!',
         html: `

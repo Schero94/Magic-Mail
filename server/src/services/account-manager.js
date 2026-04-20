@@ -115,8 +115,16 @@ module.exports = ({ strapi }) => ({
       hourlyLimit,
     } = accountData;
 
-    // Encrypt sensitive config data (preserve existing if not updating)
-    const encryptedConfig = config ? encryptCredentials(config) : existingAccount.config;
+    // Merge incoming config with the existing encrypted one. The edit UI
+    // receives masked secrets (see getAccountWithDecryptedConfig) and MAY
+    // submit them back unchanged, e.g. `****a1b2`. We detect those and
+    // preserve the existing plaintext instead of persisting the mask.
+    let encryptedConfig = existingAccount.config;
+    if (config) {
+      const existingPlain = existingAccount.config ? decryptCredentials(existingAccount.config) : {};
+      const merged = this._mergeMaskedConfig(existingPlain || {}, config);
+      encryptedConfig = encryptCredentials(merged);
+    }
 
     // If this is being set to primary, unset other primaries
     if (isPrimary && !existingAccount.isPrimary) {
@@ -249,29 +257,140 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get single account with decrypted config (for editing)
+   * Get a single account with its config prepared for the edit UI.
+   *
+   * Secret fields (clientSecret, apiKey, SMTP pass, etc.) are returned in
+   * a masked form like `****5bf3`. This lets the edit form render placeholders
+   * indicating "a secret is stored" without ever shipping the plaintext to
+   * the browser. To rotate a secret the admin supplies a new value; if they
+   * leave the field as the mask, the server preserves the existing ciphertext
+   * (handled in updateAccount).
+   *
+   * Non-secret fields (host, port, user, clientId, tenantId, domain, region…)
+   * are returned in clear so the form is useful.
+   *
+   * @param {string|number} idOrDocumentId
+   * @returns {Promise<object>}
    */
   async getAccountWithDecryptedConfig(idOrDocumentId) {
     const documentId = await this.resolveDocumentId(idOrDocumentId);
     if (!documentId) {
       throw new Error('Account not found');
     }
-    
+
     const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({
       documentId,
     });
-    
+
     if (!account) {
       throw new Error('Account not found');
     }
 
-    // Decrypt the config for editing
     const decryptedConfig = account.config ? decryptCredentials(account.config) : {};
-    
+    const maskedConfig = this._maskSecrets(decryptedConfig || {});
+
     return {
       ...account,
-      config: decryptedConfig,
+      config: maskedConfig,
     };
+  },
+
+  /**
+   * Known secret field names across all supported providers. Matching is
+   * case-insensitive so we also catch `ClientSecret`, `API_KEY`, etc.
+   */
+  _SECRET_FIELDS: [
+    'clientSecret',
+    'client_secret',
+    'apiKey',
+    'api_key',
+    'pass',
+    'password',
+    'privateKey',
+    'private_key',
+    'secret',
+    'dkim',
+    'refreshToken',
+    'refresh_token',
+    'accessToken',
+    'access_token',
+  ],
+
+  /**
+   * Produces a short, non-reversible tag for a secret so the UI can
+   * display a placeholder without the plaintext. Format: ****<last 4>.
+   * Returns a generic placeholder if the value is shorter than 6 chars.
+   *
+   * @param {string} value
+   * @returns {string}
+   */
+  _maskSecret(value) {
+    if (typeof value !== 'string') return '****';
+    const trimmed = value.trim();
+    if (trimmed.length < 6) return '****';
+    return `****${trimmed.slice(-4)}`;
+  },
+
+  /**
+   * Returns a shallow copy of `config` where every known secret field is
+   * replaced with its masked form. Handles nested `dkim` object specially.
+   *
+   * @param {object} config
+   * @returns {object}
+   */
+  _maskSecrets(config) {
+    const out = { ...config };
+    for (const key of Object.keys(out)) {
+      const lower = key.toLowerCase();
+      const isSecret = this._SECRET_FIELDS.some((f) => f.toLowerCase() === lower);
+      if (isSecret && out[key]) {
+        if (typeof out[key] === 'string') {
+          out[key] = this._maskSecret(out[key]);
+        } else if (typeof out[key] === 'object') {
+          // Recurse once for structures like { dkim: { privateKey } }
+          out[key] = this._maskSecrets(out[key]);
+        }
+      }
+    }
+    return out;
+  },
+
+  /**
+   * Detects whether a string looks like the mask produced by _maskSecret.
+   * Safe against ambiguity — the mask is always `****<4 hex-ish chars>`,
+   * a pattern that real secrets almost never start with.
+   *
+   * @param {string} value
+   * @returns {boolean}
+   */
+  _looksMasked(value) {
+    return typeof value === 'string' && /^\*{4,}/.test(value);
+  },
+
+  /**
+   * Returns a merged config for updateAccount: every field from `incoming`
+   * wins EXCEPT when its value is the mask placeholder (`****…`), in which
+   * case the original `existingPlain` value is kept. This lets the edit
+   * form round-trip without the admin re-typing every secret.
+   *
+   * @param {object} existingPlain - The decrypted config currently stored
+   * @param {object} incoming - The config payload from the PUT request
+   * @returns {object} Merged config ready for encryptCredentials()
+   */
+  _mergeMaskedConfig(existingPlain, incoming) {
+    const out = { ...existingPlain, ...incoming };
+    for (const [key, value] of Object.entries(incoming)) {
+      const lower = key.toLowerCase();
+      const isSecret = this._SECRET_FIELDS.some((f) => f.toLowerCase() === lower);
+
+      if (isSecret && this._looksMasked(value)) {
+        out[key] = existingPlain[key];
+      } else if (isSecret && value && typeof value === 'object' && typeof existingPlain[key] === 'object') {
+        // Nested structures like dkim: recurse so individual masked fields inside survive.
+        out[key] = this._mergeMaskedConfig(existingPlain[key] || {}, value);
+      }
+    }
+    return out;
   },
 
   /**

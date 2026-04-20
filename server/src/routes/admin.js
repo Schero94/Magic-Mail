@@ -114,12 +114,18 @@ module.exports = {
       },
     },
     // OAuth Routes - Gmail
+    // The /auth endpoints are admin-only (they produce OAuth URLs for the
+    // currently-authenticated admin). The /callback endpoints must stay
+    // public because the upstream OAuth provider (Google/Microsoft/Yahoo)
+    // cannot send a bearer token on the redirect back — security is
+    // enforced by the signed, one-time-use state parameter that callback
+    // + token exchange verify.
     {
       method: 'GET',
       path: '/oauth/gmail/auth',
       handler: 'oauth.gmailAuth',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Initiate Gmail OAuth flow',
       },
     },
@@ -128,7 +134,7 @@ module.exports = {
       path: '/oauth/gmail/callback',
       handler: 'oauth.gmailCallback',
       config: {
-        auth: false, // Public callback
+        auth: false, // Public callback - secured via signed state
         description: 'Gmail OAuth callback',
       },
     },
@@ -138,7 +144,7 @@ module.exports = {
       path: '/oauth/microsoft/auth',
       handler: 'oauth.microsoftAuth',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Initiate Microsoft OAuth flow',
       },
     },
@@ -147,7 +153,7 @@ module.exports = {
       path: '/oauth/microsoft/callback',
       handler: 'oauth.microsoftCallback',
       config: {
-        auth: false, // Public callback
+        auth: false, // Public callback - secured via signed state
         description: 'Microsoft OAuth callback',
       },
     },
@@ -157,7 +163,7 @@ module.exports = {
       path: '/oauth/yahoo/auth',
       handler: 'oauth.yahooAuth',
       config: {
-        policies: [],
+        policies: ['admin::isAuthenticatedAdmin'],
         description: 'Initiate Yahoo OAuth flow',
       },
     },
@@ -166,7 +172,7 @@ module.exports = {
       path: '/oauth/yahoo/callback',
       handler: 'oauth.yahooCallback',
       config: {
-        auth: false, // Public callback
+        auth: false, // Public callback - secured via signed state
         description: 'Yahoo OAuth callback',
       },
     },

@@ -9,13 +9,18 @@ const { encryptCredentials } = require('../utils/encryption');
 
 module.exports = ({ strapi }) => ({
   /**
-   * Get Gmail OAuth URL
+   * Builds the Gmail OAuth2 authorize URL.
+   *
    * @param {string} clientId - OAuth Client ID (from UI, not .env!)
-   * @param {string} state - State parameter for security
+   * @param {string} state - State parameter for CSRF protection
+   * @param {object} [options]
+   * @param {string} [options.codeChallenge] - PKCE S256 challenge
+   * @param {string} [options.codeChallengeMethod] - 'S256'
+   * @returns {string}
    */
-  getGmailAuthUrl(clientId, state) {
+  getGmailAuthUrl(clientId, state, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/gmail/callback`;
-    
+
     if (!clientId) {
       throw new Error('Client ID is required for OAuth');
     }
@@ -26,7 +31,7 @@ module.exports = ({ strapi }) => ({
       'openid',
     ].join(' ');
 
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    let authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -35,32 +40,47 @@ module.exports = ({ strapi }) => ({
       `prompt=consent&` +
       `state=${encodeURIComponent(state)}`;
 
+    if (options.codeChallenge) {
+      authUrl += `&code_challenge=${encodeURIComponent(options.codeChallenge)}`;
+      authUrl += `&code_challenge_method=${encodeURIComponent(options.codeChallengeMethod || 'S256')}`;
+    }
+
     return authUrl;
   },
 
   /**
-   * Exchange Google OAuth code for tokens
-   * @param {string} code - OAuth authorization code
-   * @param {string} clientId - OAuth Client ID (from UI!)
-   * @param {string} clientSecret - OAuth Client Secret (from UI!)
+   * Exchanges a Gmail OAuth authorization code for tokens.
+   *
+   * @param {string} code
+   * @param {string} clientId
+   * @param {string} clientSecret
+   * @param {object} [options]
+   * @param {string} [options.codeVerifier] - PKCE code_verifier (required when PKCE was used)
+   * @returns {Promise<{email: string, accessToken: string, refreshToken?: string, expiresAt: Date}>}
+   * @throws {Error} When the token exchange fails or userinfo is missing
    */
-  async exchangeGoogleCode(code, clientId, clientSecret) {
+  async exchangeGoogleCode(code, clientId, clientSecret, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/gmail/callback`;
 
     strapi.log.info('[magic-mail] Exchanging OAuth code for tokens...');
     strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
     strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
+    const bodyParams = {
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    };
+    if (options.codeVerifier) {
+      bodyParams.code_verifier = options.codeVerifier;
+    }
+
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
+      body: new URLSearchParams(bodyParams),
     });
 
     if (!response.ok) {
@@ -141,29 +161,37 @@ module.exports = ({ strapi }) => ({
    * @param {string} tenantId - Tenant (Directory) ID
    * @param {string} state - State parameter for security
    */
-  getMicrosoftAuthUrl(clientId, tenantId, state) {
+  /**
+   * Builds the Microsoft Identity Platform authorize URL.
+   *
+   * @param {string} clientId
+   * @param {string} tenantId
+   * @param {string} state
+   * @param {object} [options]
+   * @param {string} [options.codeChallenge]
+   * @param {string} [options.codeChallengeMethod]
+   * @returns {string}
+   */
+  getMicrosoftAuthUrl(clientId, tenantId, state, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/microsoft/callback`;
-    
+
     if (!clientId) {
       throw new Error('Client ID is required for Microsoft OAuth');
     }
-    
+
     if (!tenantId) {
       throw new Error('Tenant ID is required for Microsoft OAuth');
     }
 
-    // Microsoft Graph API Scopes (official format)
     const scopes = [
-      'https://graph.microsoft.com/Mail.Send',      // Send emails
-      'https://graph.microsoft.com/User.Read',       // Read user profile
-      'offline_access',                              // Refresh tokens
-      'openid',                                       // OpenID Connect
-      'email',                                        // Email address
+      'https://graph.microsoft.com/Mail.Send',
+      'https://graph.microsoft.com/User.Read',
+      'offline_access',
+      'openid',
+      'email',
     ].join(' ');
 
-    // Microsoft Identity Platform v2.0 endpoint with tenant-specific URL
-    // Using tenantId instead of /common to support single-tenant apps
-    const authUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?` +
+    let authUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?` +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -172,19 +200,28 @@ module.exports = ({ strapi }) => ({
       `prompt=consent&` +
       `state=${encodeURIComponent(state)}`;
 
+    if (options.codeChallenge) {
+      authUrl += `&code_challenge=${encodeURIComponent(options.codeChallenge)}`;
+      authUrl += `&code_challenge_method=${encodeURIComponent(options.codeChallengeMethod || 'S256')}`;
+    }
+
     strapi.log.info(`[magic-mail] Microsoft OAuth URL: Using tenant ${tenantId}`);
 
     return authUrl;
   },
 
   /**
-   * Exchange Microsoft OAuth code for tokens
-   * @param {string} code - OAuth authorization code
-   * @param {string} clientId - Application (Client) ID
-   * @param {string} clientSecret - Client Secret Value
-   * @param {string} tenantId - Tenant (Directory) ID
+   * Exchanges a Microsoft OAuth authorization code for tokens.
+   *
+   * @param {string} code
+   * @param {string} clientId
+   * @param {string} clientSecret
+   * @param {string} tenantId
+   * @param {object} [options]
+   * @param {string} [options.codeVerifier] - PKCE verifier (required when PKCE was used)
+   * @returns {Promise<object>}
    */
-  async exchangeMicrosoftCode(code, clientId, clientSecret, tenantId) {
+  async exchangeMicrosoftCode(code, clientId, clientSecret, tenantId, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/microsoft/callback`;
 
     if (!tenantId) {
@@ -196,21 +233,25 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
     strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
-    // Microsoft Identity Platform v2.0 token endpoint (tenant-specific!)
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     strapi.log.info(`[magic-mail] Token endpoint: ${tokenEndpoint}`);
+
+    const bodyParams = {
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+      scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+    };
+    if (options.codeVerifier) {
+      bodyParams.code_verifier = options.codeVerifier;
+    }
 
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-        scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
-      }),
+      body: new URLSearchParams(bodyParams),
     });
 
     if (!response.ok) {
@@ -326,59 +367,77 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get Yahoo OAuth URL
-   * @param {string} clientId - Yahoo Client ID
-   * @param {string} state - State parameter for security
+   * Builds the Yahoo OAuth2 authorize URL.
+   *
+   * @param {string} clientId
+   * @param {string} state
+   * @param {object} [options]
+   * @param {string} [options.codeChallenge]
+   * @param {string} [options.codeChallengeMethod]
+   * @returns {string}
    */
-  getYahooAuthUrl(clientId, state) {
+  getYahooAuthUrl(clientId, state, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/yahoo/callback`;
-    
+
     if (!clientId) {
       throw new Error('Client ID is required for Yahoo OAuth');
     }
 
     const scopes = [
-      'mail-w', // Write/send emails
-      'sdps-r', // Read profile
+      'mail-w',
+      'sdps-r',
     ].join(' ');
 
-    const authUrl = `https://api.login.yahoo.com/oauth2/request_auth?` +
+    let authUrl = 'https://api.login.yahoo.com/oauth2/request_auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scopes)}&` +
       `state=${encodeURIComponent(state)}`;
 
+    if (options.codeChallenge) {
+      authUrl += `&code_challenge=${encodeURIComponent(options.codeChallenge)}`;
+      authUrl += `&code_challenge_method=${encodeURIComponent(options.codeChallengeMethod || 'S256')}`;
+    }
+
     return authUrl;
   },
 
   /**
-   * Exchange Yahoo OAuth code for tokens
-   * @param {string} code - OAuth authorization code
-   * @param {string} clientId - Yahoo Client ID
-   * @param {string} clientSecret - Yahoo Client Secret
+   * Exchanges a Yahoo OAuth authorization code for tokens.
+   *
+   * @param {string} code
+   * @param {string} clientId
+   * @param {string} clientSecret
+   * @param {object} [options]
+   * @param {string} [options.codeVerifier] - PKCE verifier (optional)
+   * @returns {Promise<object>}
    */
-  async exchangeYahooCode(code, clientId, clientSecret) {
+  async exchangeYahooCode(code, clientId, clientSecret, options = {}) {
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/yahoo/callback`;
 
     strapi.log.info('[magic-mail] Exchanging Yahoo OAuth code for tokens...');
     strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
     strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
-    // Create Basic Auth header
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const bodyParams = {
+      code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    };
+    if (options.codeVerifier) {
+      bodyParams.code_verifier = options.codeVerifier;
+    }
 
     const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': `Basic ${basicAuth}`,
       },
-      body: new URLSearchParams({
-        code,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
+      body: new URLSearchParams(bodyParams),
     });
 
     if (!response.ok) {

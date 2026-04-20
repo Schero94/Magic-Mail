@@ -10,8 +10,20 @@ const { createLogger } = require('./utils/logger');
 
 module.exports = async ({ strapi }) => {
   const log = createLogger(strapi);
-  
+
   log.info('[BOOTSTRAP] Starting...');
+
+  // Fail fast on missing production secrets. getEncryptionKey() throws when
+  // NODE_ENV=production and MAGIC_MAIL_ENCRYPTION_KEY is missing, so a bad
+  // deploy dies here with a clear error instead of silently failing later
+  // when the first encrypted-credential read/write happens.
+  try {
+    const { encryptCredentials } = require('./utils/encryption');
+    encryptCredentials({ __self_test: true });
+  } catch (e) {
+    log.error(`[BOOTSTRAP] ${e.message}`);
+    throw e;
+  }
 
   try {
     // Initialize License Guard
