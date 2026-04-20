@@ -1,3 +1,10 @@
+## [2.9.2](https://github.com/Schero94/Magic-Mail/compare/v2.9.1...v2.9.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **enduser,tracking:** replace JSON error with branded HTML fallback for broken click-tracking links ([837d926](https://github.com/Schero94/Magic-Mail/commit/837d9265b584811438640f02999677227d40d6d7))
+
 ## [2.9.1](https://github.com/Schero94/Magic-Mail/compare/v2.9.0...v2.9.1) (2026-04-20)
 
 
