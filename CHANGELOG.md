@@ -1,3 +1,10 @@
+## [2.10.5](https://github.com/Schero94/Magic-Mail/compare/v2.10.4...v2.10.5) (2026-04-21)
+
+
+### Bug Fixes
+
+* **deps:** declare zod ^3.25.76 as direct dependency (was phantom / transitive) ([70f82c4](https://github.com/Schero94/Magic-Mail/commit/70f82c44c8cf80e60e66a632748f724f1df487b2))
+
 ## [2.10.4](https://github.com/Schero94/Magic-Mail/compare/v2.10.3...v2.10.4) (2026-04-21)
 
 
