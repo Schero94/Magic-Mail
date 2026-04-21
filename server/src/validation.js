@@ -1,6 +1,13 @@
 'use strict';
 
-const { z } = require('zod');
+// NOTE: Do not destructure `z` at require-time.
+// @strapi/sdk-plugin's bundler (pack-up → @rollup/plugin-commonjs) rewrites
+// `const { z } = require('zod')` as an ESM-style named import, which resolves
+// to `_interopDefault(require('zod')).default.z` — undefined in zod 3.25+
+// because the dual ESM/CJS `.default` branch does not expose the `z`
+// namespace. Plain `require('zod')` gives the same API via direct property
+// access and sidesteps the rewrite.
+const z = require('zod');
 
 const emailString = z.string().email().max(254);
 const safeString = z.string().max(1000);
@@ -327,7 +334,7 @@ function validate(schemaName, body) {
 
   const result = schema.safeParse(body);
   if (!result.success) {
-    const { errors: strapiErrors } = require('@strapi/utils');
+    const strapiErrors = require('@strapi/utils').errors;
     const flattened = result.error.flatten();
     // eslint-disable-next-line global-require
     const strapiLog = (typeof strapi !== 'undefined' && strapi && strapi.log) ? strapi.log : null;
