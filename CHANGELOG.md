@@ -1,3 +1,10 @@
+## [2.10.8](https://github.com/Schero94/Magic-Mail/compare/v2.10.7...v2.10.8) (2026-04-21)
+
+
+### Bug Fixes
+
+* **editor:** navigate to newly created templates by templateReferenceId, not DB id ([617dc01](https://github.com/Schero94/Magic-Mail/commit/617dc01106101a7407bcfadbb61bbe49ef8eb43e))
+
 ## [2.10.7](https://github.com/Schero94/Magic-Mail/compare/v2.10.6...v2.10.7) (2026-04-21)
 
 
