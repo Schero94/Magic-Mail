@@ -1,3 +1,10 @@
+## [2.10.3](https://github.com/Schero94/Magic-Mail/compare/v2.10.2...v2.10.3) (2026-04-21)
+
+
+### Bug Fixes
+
+* **build:** declare @strapi/utils as peerDependency — preventive fix against zod/v4 crash ([7794b3d](https://github.com/Schero94/Magic-Mail/commit/7794b3db99447a9172b9226e5f13b7f0c763fa10))
+
 ## [2.10.2](https://github.com/Schero94/Magic-Mail/compare/v2.10.1...v2.10.2) (2026-04-21)
 
 
