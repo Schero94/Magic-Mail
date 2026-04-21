@@ -1,3 +1,10 @@
+## [2.10.10](https://github.com/Schero94/Magic-Mail/compare/v2.10.9...v2.10.10) (2026-04-21)
+
+
+### Bug Fixes
+
+* **validation:** auto-strip Strapi system metadata before .strict() check ([039b889](https://github.com/Schero94/Magic-Mail/commit/039b889d96d6a076e199bec7497304c6900b8165))
+
 ## [2.10.9](https://github.com/Schero94/Magic-Mail/compare/v2.10.8...v2.10.9) (2026-04-21)
 
 
