@@ -327,13 +327,69 @@ const schemas = {
  * @returns {object} Parsed and validated data
  * @throws {import('@strapi/utils').errors.ValidationError}
  */
+/**
+ * Strapi populates every read-model response with the following "system"
+ * fields. They are not writable through the Document Service and must NOT
+ * be part of a request body. But: any caller that loads a record and then
+ * PUTs it back — which includes every admin-UI form that spreads the
+ * response into the next request — ends up sending them anyway.
+ *
+ * Instead of forcing every caller to hand-roll a whitelist, we strip these
+ * specific keys ourselves before handing the body to the schema. Business
+ * fields (the ones the plugin actually cares about) remain subject to
+ * `.strict()` validation — unknown business keys still error out, which
+ * is what `.strict()` is there for. Typo-level bugs keep getting caught.
+ */
+const STRAPI_METADATA_FIELDS = Object.freeze([
+  'id',
+  'documentId',
+  'createdAt',
+  'updatedAt',
+  'publishedAt',
+  'locale',
+  'localizations',
+  'createdBy',
+  'updatedBy',
+  '__component',
+  // Populated relations/components we never want to round-trip as a write:
+  'versions',
+]);
+
+/**
+ * Returns a shallow copy of `body` with Strapi system fields removed.
+ * Logs at debug-level when anything was stripped so operators can diagnose
+ * a misbehaving client without it becoming log-spam.
+ *
+ * @param {unknown} body
+ * @param {string} schemaName
+ * @returns {unknown}
+ */
+function stripStrapiMetadata(body, schemaName) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const cleaned = { ...body };
+  const removed = [];
+  for (const key of STRAPI_METADATA_FIELDS) {
+    if (key in cleaned) {
+      delete cleaned[key];
+      removed.push(key);
+    }
+  }
+  if (removed.length > 0 && typeof strapi !== 'undefined' && strapi?.log?.debug) {
+    strapi.log.debug(
+      `[magic-mail] Stripped Strapi metadata from ${schemaName} payload: ${removed.join(', ')}`
+    );
+  }
+  return cleaned;
+}
+
 function validate(schemaName, body) {
   const schema = schemas[schemaName];
   if (!schema) {
     throw new Error(`Unknown validation schema: ${schemaName}`);
   }
 
-  const result = schema.safeParse(body);
+  const sanitized = stripStrapiMetadata(body, schemaName);
+  const result = schema.safeParse(sanitized);
   if (!result.success) {
     const strapiErrors = require('@strapi/utils').errors;
     const flattened = result.error.flatten();
