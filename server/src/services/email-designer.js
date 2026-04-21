@@ -101,39 +101,71 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get template by numeric ID (supports both templateReferenceId and internal db id)
-   * First tries templateReferenceId, then falls back to internal database id via entityService
+   * Get template by numeric ID.
+   *
+   * HISTORICAL NOTE — this method supports two semantics for historical
+   * compatibility: the internal Strapi DB id AND the user-settable
+   * `templateReferenceId`. They are both `integer`, both `unique`, and
+   * they CAN collide (e.g. Template A has db.id=5 and Template B has
+   * templateReferenceId=5). Up until now the lookup tried
+   * templateReferenceId *first* and fell back to the DB id — which
+   * meant "Send Test" on the admin UI (which passes the DB id) would
+   * silently send the WRONG template if another template happened to
+   * have a templateReferenceId matching that number.
+   *
+   * Correct ordering: ask the DB id first (that is the value every
+   * `findAll()` response carries as `.id`, and that is what the admin
+   * UI and Strapi's own routing use). Only if that truly misses, try
+   * the reference id as a best-effort fallback for legacy callers that
+   * already persisted a reference id as their template key.
+   *
+   * When the fallback actually fires we log WARN + print both IDs so
+   * the operator can spot and fix a collision in their data.
    */
   async findById(id) {
     const numericId = Number(id);
     strapi.log.info(`[magic-mail] [LOOKUP] Finding template by numeric ID: ${numericId}`);
-    
-    // 1. First try: Filter by templateReferenceId (unique integer field) - Document Service
+
+    // 1. Primary: internal DB id via entityService. This is what
+    //    findAll() returns as `.id` and what the admin UI passes.
+    //    entityService is deprecated in Strapi v5 but remains the only
+    //    way to resolve a numeric DB id — Document Service takes only
+    //    documentId strings.
+    let byInternalId = null;
+    try {
+      byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
+        populate: { versions: true },
+      });
+    } catch (err) {
+      // entityService throws on NaN / non-existent ids on some Strapi builds
+      strapi.log.debug(`[magic-mail] [LOOKUP] entityService.findOne(${numericId}) threw: ${err.message}`);
+    }
+
+    if (byInternalId) {
+      strapi.log.info(`[magic-mail] [SUCCESS] Found template by internal id ${numericId}: documentId=${byInternalId.documentId}, name="${byInternalId.name}"`);
+      return byInternalId;
+    }
+
+    // 2. Fallback: maybe the caller passed a templateReferenceId. This
+    //    is how pre-5.x magic-mail installs referenced templates from
+    //    outside the admin UI (e.g. magic-link's magic_mail_template_id
+    //    setting). We log WARN because, if a collision ever surfaces,
+    //    the operator needs to see which ID actually resolved.
     const byRefId = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
       filters: { templateReferenceId: numericId },
       limit: 1,
       populate: { versions: true },
     });
-    
+
     if (byRefId.length > 0) {
-      strapi.log.info(`[magic-mail] [SUCCESS] Found template by templateReferenceId ${numericId}: documentId=${byRefId[0].documentId}, name="${byRefId[0].name}"`);
+      strapi.log.warn(
+        `[magic-mail] [FALLBACK] No template with internal id=${numericId}; resolved via templateReferenceId=${numericId} → "${byRefId[0].name}" (documentId=${byRefId[0].documentId}). ` +
+        `If the caller meant the DB id, this is the wrong record — update the caller to pass templateReferenceId explicitly or use findByReferenceId().`
+      );
       return byRefId[0];
     }
-    
-    // 2. Fallback: Try internal database id via entityService (for backward compatibility)
-    // NOTE: entityService is deprecated in Strapi v5, but required here for numeric ID lookups
-    // Document Service API only supports documentId (string), not numeric database IDs
-    strapi.log.info(`[magic-mail] [FALLBACK] templateReferenceId not found, trying internal db id: ${numericId}`);
-    const byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
-      populate: { versions: true },
-    });
-    
-    if (byInternalId) {
-      strapi.log.info(`[magic-mail] [SUCCESS] Found template by internal id ${numericId}: documentId=${byInternalId.documentId}, name="${byInternalId.name}"`);
-      return byInternalId;
-    }
-    
-    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried templateReferenceId and internal id)`);
+
+    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried internal id and templateReferenceId)`);
     return null;
   },
 

@@ -982,7 +982,14 @@ const TemplateList = () => {
     }
 
     try {
-      const response = await post(`/magic-mail/designer/templates/${selectedTemplate.id}/test-send`, {
+      // Use templateReferenceId (the stable, user-visible identifier)
+      // instead of the internal DB id. In combination with the backend's
+      // findById fix, this makes test-send address THIS template even
+      // if another template happens to have a colliding numeric DB id.
+      // Falls back to .id only for legacy records where the reference
+      // id was never written — those records cannot collide in practice.
+      const templateIdForLookup = selectedTemplate.templateReferenceId ?? selectedTemplate.id;
+      const response = await post(`/magic-mail/designer/templates/${templateIdForLookup}/test-send`, {
         to: testEmail,
         accountName: testAccount || null,
       });
