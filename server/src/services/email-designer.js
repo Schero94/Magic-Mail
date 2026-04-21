@@ -80,20 +80,20 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get template by ID (documentId or numeric id) with populated versions
-   * Supports both documentId (string) and numeric id for backward compatibility
+   * Get template by ID (numeric id or documentId) with populated versions.
+   *
+   * Numeric IDs are interpreted as `templateReferenceId` first (this is the
+   * app-wide convention — see findById() below), then as legacy DB id.
+   * Non-numeric strings are treated as Strapi v5 `documentId`s.
    */
   async findOne(idOrDocumentId) {
-    // Check if it's a numeric ID (backward compatibility)
     const isNumericId = /^\d+$/.test(String(idOrDocumentId));
-    
+
     if (isNumericId) {
-      // Try to find by numeric id first
       const result = await this.findById(Number(idOrDocumentId));
       if (result) return result;
     }
-    
-    // Try as documentId (Strapi v5 standard)
+
     return strapi.documents(EMAIL_TEMPLATE_UID).findOne({
       documentId: String(idOrDocumentId),
       populate: { versions: true },
@@ -103,34 +103,43 @@ module.exports = ({ strapi }) => ({
   /**
    * Get template by numeric ID.
    *
-   * HISTORICAL NOTE — this method supports two semantics for historical
-   * compatibility: the internal Strapi DB id AND the user-settable
-   * `templateReferenceId`. They are both `integer`, both `unique`, and
-   * they CAN collide (e.g. Template A has db.id=5 and Template B has
-   * templateReferenceId=5). Up until now the lookup tried
-   * templateReferenceId *first* and fell back to the DB id — which
-   * meant "Send Test" on the admin UI (which passes the DB id) would
-   * silently send the WRONG template if another template happened to
-   * have a templateReferenceId matching that number.
+   * CONTRACT — every HTTP route that carries `:id` (admin UI, REST callers,
+   * magic-link's `magic_mail_template_id`, Strapi's own test-send) refers to
+   * the user-visible `templateReferenceId`. That is what `TemplateList`
+   * navigates with, what `EditorPage` reads from `useParams()`, and what the
+   * `findAll()` response surfaces as `templateReferenceId` (alongside `.id`).
    *
-   * Correct ordering: ask the DB id first (that is the value every
-   * `findAll()` response carries as `.id`, and that is what the admin
-   * UI and Strapi's own routing use). Only if that truly misses, try
-   * the reference id as a best-effort fallback for legacy callers that
-   * already persisted a reference id as their template key.
+   * So: we resolve the reference id FIRST. The DB id is only kept as a
+   * best-effort fallback for very old installs that might have persisted
+   * the Strapi primary key as their template key before the reference id
+   * was introduced. Collisions between the two ID spaces are prevented on
+   * create() (refId uniqueness is enforced there).
    *
-   * When the fallback actually fires we log WARN + print both IDs so
-   * the operator can spot and fix a collision in their data.
+   * We intentionally do NOT spam warn-logs in the success path: the
+   * reference-id lookup IS the primary path.
    */
   async findById(id) {
     const numericId = Number(id);
-    strapi.log.info(`[magic-mail] [LOOKUP] Finding template by numeric ID: ${numericId}`);
+    strapi.log.info(`[magic-mail] [LOOKUP] Finding template by ID: ${numericId}`);
 
-    // 1. Primary: internal DB id via entityService. This is what
-    //    findAll() returns as `.id` and what the admin UI passes.
-    //    entityService is deprecated in Strapi v5 but remains the only
-    //    way to resolve a numeric DB id — Document Service takes only
-    //    documentId strings.
+    // 1. Primary: templateReferenceId. Every admin-UI route and every
+    //    known external caller (magic-link, test-send, etc.) passes this.
+    const byRefId = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
+      filters: { templateReferenceId: numericId },
+      limit: 1,
+      populate: { versions: true },
+    });
+
+    if (byRefId.length > 0) {
+      strapi.log.info(
+        `[magic-mail] [SUCCESS] Found template by templateReferenceId ${numericId}: documentId=${byRefId[0].documentId}, name="${byRefId[0].name}"`
+      );
+      return byRefId[0];
+    }
+
+    // 2. Legacy fallback: internal Strapi DB id. Kept for pre-ref-id
+    //    installs only. Emits INFO (not WARN) because this path is rare
+    //    but valid; we want it visible without looking like an error.
     let byInternalId = null;
     try {
       byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
@@ -142,30 +151,14 @@ module.exports = ({ strapi }) => ({
     }
 
     if (byInternalId) {
-      strapi.log.info(`[magic-mail] [SUCCESS] Found template by internal id ${numericId}: documentId=${byInternalId.documentId}, name="${byInternalId.name}"`);
+      strapi.log.info(
+        `[magic-mail] [LEGACY-LOOKUP] No templateReferenceId=${numericId}; resolved via internal DB id=${numericId} → "${byInternalId.name}" (documentId=${byInternalId.documentId}). ` +
+        `Consider storing the template's templateReferenceId (${byInternalId.templateReferenceId ?? 'none set'}) instead of its DB id to keep callers stable across migrations.`
+      );
       return byInternalId;
     }
 
-    // 2. Fallback: maybe the caller passed a templateReferenceId. This
-    //    is how pre-5.x magic-mail installs referenced templates from
-    //    outside the admin UI (e.g. magic-link's magic_mail_template_id
-    //    setting). We log WARN because, if a collision ever surfaces,
-    //    the operator needs to see which ID actually resolved.
-    const byRefId = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
-      filters: { templateReferenceId: numericId },
-      limit: 1,
-      populate: { versions: true },
-    });
-
-    if (byRefId.length > 0) {
-      strapi.log.warn(
-        `[magic-mail] [FALLBACK] No template with internal id=${numericId}; resolved via templateReferenceId=${numericId} → "${byRefId[0].name}" (documentId=${byRefId[0].documentId}). ` +
-        `If the caller meant the DB id, this is the wrong record — update the caller to pass templateReferenceId explicitly or use findByReferenceId().`
-      );
-      return byRefId[0];
-    }
-
-    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried internal id and templateReferenceId)`);
+    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried templateReferenceId and internal DB id)`);
     return null;
   },
 

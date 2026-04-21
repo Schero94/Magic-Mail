@@ -68,7 +68,7 @@ const index = {
         id: `${pluginId}.plugin.name`,
         defaultMessage: "MagicMail"
       },
-      Component: () => Promise.resolve().then(() => require("../_chunks/App-DQ1MrJnt.js")),
+      Component: () => Promise.resolve().then(() => require("../_chunks/App-BJBweFJi.js")),
       permissions: pluginPermissions
     });
     app.createSettingSection(
