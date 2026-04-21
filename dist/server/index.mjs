@@ -15838,7 +15838,7 @@ var oauth$1 = ({ strapi: strapi2 }) => ({
     return account;
   }
 });
-const version = "2.10.5";
+const version = "2.10.6";
 const require$$2 = {
   version
 };

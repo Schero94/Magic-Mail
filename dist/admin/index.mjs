@@ -67,7 +67,7 @@ const index = {
         id: `${pluginId}.plugin.name`,
         defaultMessage: "MagicMail"
       },
-      Component: () => import("../_chunks/App-PxOT9hIQ.mjs"),
+      Component: () => import("../_chunks/App-CDFT2wYy.mjs"),
       permissions: pluginPermissions
     });
     app.createSettingSection(

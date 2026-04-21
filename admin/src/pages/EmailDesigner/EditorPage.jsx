@@ -902,8 +902,15 @@ const EditorPage = () => {
         message: isNewTemplate ? 'Template created!' : 'Template saved!',
       });
 
-      if (isNewTemplate && response.data?.data?.id) {
-        navigate(`/plugins/magic-mail/designer/${response.data.data.id}`);
+      if (isNewTemplate) {
+        // The admin UI convention is to address templates by their
+        // user-visible `templateReferenceId`. Fall back to the DB `id`
+        // only if the backend — for whatever reason — did not return one.
+        const created = response.data?.data;
+        const navId = created?.templateReferenceId ?? created?.id;
+        if (navId !== undefined && navId !== null) {
+          navigate(`/plugins/magic-mail/designer/${navId}`);
+        }
       }
     } catch (error) {
       toggleNotification({
