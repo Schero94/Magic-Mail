@@ -1,3 +1,10 @@
+## [2.10.11](https://github.com/Schero94/Magic-Mail/compare/v2.10.10...v2.10.11) (2026-04-21)
+
+
+### Bug Fixes
+
+* **email-designer:** generate duplicate-template refId within int4 range ([d1ecae8](https://github.com/Schero94/Magic-Mail/commit/d1ecae8d657ead41521b08fcad35d9c483f779d9))
+
 ## [2.10.10](https://github.com/Schero94/Magic-Mail/compare/v2.10.9...v2.10.10) (2026-04-21)
 
 
