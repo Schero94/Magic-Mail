@@ -116,13 +116,33 @@ module.exports = ({ strapi }) => ({
     } = accountData;
 
     // Merge incoming config with the existing encrypted one. The edit UI
-    // receives masked secrets (see getAccountWithDecryptedConfig) and MAY
-    // submit them back unchanged, e.g. `****a1b2`. We detect those and
-    // preserve the existing plaintext instead of persisting the mask.
+    // receives masked secrets (see getAccountForDisplay) and MAY submit
+    // them back unchanged, e.g. `****a1b2`. We detect those and preserve
+    // the existing plaintext instead of persisting the mask.
+    //
+    // Special case: if the existing ciphertext can no longer be decrypted
+    // (MAGIC_MAIL_ENCRYPTION_KEY changed since this account was saved),
+    // we treat `existingPlain` as an empty object. The admin then MUST
+    // provide every secret in plaintext in this PUT — a masked value
+    // cannot be preserved because there is no readable source to merge
+    // it against. _mergeMaskedConfig leaves a masked field as mask in
+    // that case, which encryptCredentials will refuse on next load, so
+    // the UI will clearly report the missing field.
     let encryptedConfig = existingAccount.config;
     if (config) {
-      const existingPlain = existingAccount.config ? decryptCredentials(existingAccount.config) : {};
-      const merged = this._mergeMaskedConfig(existingPlain || {}, config);
+      let existingPlain = {};
+      if (existingAccount.config) {
+        try {
+          existingPlain = decryptCredentials(existingAccount.config) || {};
+        } catch (err) {
+          strapi.log.warn(
+            `[magic-mail] updateAccount: existing credentials for account "${existingAccount.accountName || existingAccount.id}" ` +
+            `could not be decrypted (${err.message}). Treating as empty — admin must re-enter all secrets in this PUT.`
+          );
+          existingPlain = {};
+        }
+      }
+      const merged = this._mergeMaskedConfig(existingPlain, config);
       encryptedConfig = encryptCredentials(merged);
     }
 
@@ -292,6 +312,72 @@ module.exports = ({ strapi }) => ({
     return {
       ...account,
       config: maskedConfig,
+    };
+  },
+
+  /**
+   * Returns an account record in a shape suitable for the edit-form UI.
+   *
+   * SECURITY NOTE: This helper is the ONLY place where a decrypt failure
+   * is turned into a soft result instead of an exception. The strict
+   * `getAccountWithDecryptedConfig` stays untouched — the email-router
+   * must NEVER be allowed to send mail with partial/empty credentials,
+   * because a DB-write attacker could otherwise corrupt ciphertext and
+   * force the router into a `if (!config) ... ` branch. The admin UI
+   * doesn't have that problem: we only paint the form, and the user
+   * decides whether to re-enter the credentials.
+   *
+   * Returns the account with:
+   *   - `config`: the masked decrypted config on success, `{}` otherwise;
+   *   - `credentialsUnreadable`: `true` iff decryption threw (usually
+   *     because the MAGIC_MAIL_ENCRYPTION_KEY env var changed since the
+   *     account was stored).
+   *
+   * @param {string|number} idOrDocumentId
+   * @returns {Promise<object>}
+   */
+  async getAccountForDisplay(idOrDocumentId) {
+    const documentId = await this.resolveDocumentId(idOrDocumentId);
+    if (!documentId) {
+      throw new Error('Account not found');
+    }
+
+    const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({
+      documentId,
+    });
+
+    if (!account) {
+      throw new Error('Account not found');
+    }
+
+    let maskedConfig = {};
+    let credentialsUnreadable = false;
+    let credentialsUnreadableReason = null;
+
+    if (account.config) {
+      try {
+        const decryptedConfig = decryptCredentials(account.config);
+        maskedConfig = this._maskSecrets(decryptedConfig || {});
+      } catch (err) {
+        // Most common cause in real deployments: the encryption key
+        // (MAGIC_MAIL_ENCRYPTION_KEY or the dev-fallback derivation)
+        // has changed since this account row was written. The account
+        // data itself (provider, fromEmail, routing settings) is still
+        // fine — the admin just needs to re-enter the secrets once.
+        credentialsUnreadable = true;
+        credentialsUnreadableReason = err.message;
+        strapi.log.warn(
+          `[magic-mail] Credentials for account "${account.accountName || account.id}" could not be decrypted: ${err.message}. ` +
+          'The encryption key likely changed since the account was saved — the admin must re-enter the secrets to restore it.'
+        );
+      }
+    }
+
+    return {
+      ...account,
+      config: maskedConfig,
+      credentialsUnreadable,
+      credentialsUnreadableReason,
     };
   },
 

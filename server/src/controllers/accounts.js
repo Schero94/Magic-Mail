@@ -70,7 +70,12 @@ module.exports = {
     try {
       const { accountId } = ctx.params;
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
-      const account = await accountManager.getAccountWithDecryptedConfig(accountId);
+      // Use the graceful variant here — if credentials cannot be
+      // decrypted (typical when MAGIC_MAIL_ENCRYPTION_KEY has changed
+      // since the account was saved) we still surface the account row
+      // with a `credentialsUnreadable: true` flag so the UI can render
+      // a "re-enter credentials" state instead of crashing with 500.
+      const account = await accountManager.getAccountForDisplay(accountId);
 
       if (!account) {
         return ctx.notFound('Email account not found');
