@@ -181,100 +181,173 @@ const StepLabel = styled(Typography)`
   transition: all 0.3s ease;
 `;
 
-const ProvidersGrid = styled(Box)`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-  animation: ${slideIn} 0.5s ease;
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
+const ProviderCategoryHeader = styled(Box)`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  animation: ${fadeIn} 0.4s ease;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, ${colors.border}, transparent);
+  }
 `;
 
+const ProviderCategoryLabel = styled(Typography)`
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${colors.textLight};
+`;
+
+const ProviderCategoryHint = styled.span`
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: ${colors.primaryLight};
+  color: ${colors.primary};
+  letter-spacing: 0.02em;
+  text-transform: none;
+`;
+
+const ProvidersGrid = styled(Box)`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 0 auto 28px;
+  animation: ${slideIn} 0.5s ease;
+  max-width: 960px;
+
+  @media (max-width: 960px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+/**
+ * Redesigned provider tile.
+ *
+ * Portrait aspect-ratio was dropped — the old 1:1 tiles forced the
+ * provider name into a narrow column so "Microsoft OAuth" and
+ * "Yahoo Mail OAuth" were getting squeezed. The new layout is a
+ * breathable landscape card with:
+ *   - a prominent icon row (68px),
+ *   - a bold, high-contrast title,
+ *   - a one-line tagline that explains what the provider actually is,
+ *   - a clearly visible selection ring with success-green check badge.
+ *
+ * Colours are taken from the plugin palette and dark-mode-safe: the
+ * card background falls back to a transparent wash that sits cleanly
+ * on top of the admin panel surface in both light and dark themes.
+ */
 const ProviderCard = styled(Box)`
-  background: ${props => props.$selected ? colors.successLight : props.theme.colors.neutral0};
-  border: 2px solid ${props => props.$selected ? colors.success : colors.border};
-  border-radius: 12px;
-  padding: 24px;
+  background: ${props => props.$selected
+    ? `linear-gradient(180deg, ${colors.successLight}, rgba(92, 177, 118, 0.04))`
+    : 'var(--colors-neutral100, rgba(255,255,255,0.02))'};
+  border: 1.5px solid ${props => props.$selected ? colors.success : colors.border};
+  border-radius: 14px;
+  padding: 22px 20px 20px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  text-align: center;
-  aspect-ratio: 1;
-  min-height: 180px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, border-color 0.2s, background 0.2s;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
   position: relative;
   overflow: hidden;
-  
+  min-height: 170px;
+
   &::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, transparent, rgba(73, 69, 255, 0.05));
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(73, 69, 255, 0.06));
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: opacity 0.25s;
+    pointer-events: none;
   }
-  
+
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(73, 69, 255, 0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(73, 69, 255, 0.18);
     border-color: ${props => props.$selected ? colors.success : colors.primary};
-    
+
     &::before {
       opacity: 1;
     }
   }
-  
-  ${props => props.$selected && `
+
+  &:focus-visible {
+    outline: 2px solid ${colors.primary};
+    outline-offset: 2px;
+  }
+
+  ${props => props.$selected && css`
+    box-shadow: 0 0 0 1px ${colors.success}, 0 10px 28px rgba(92, 177, 118, 0.18);
+
     &::after {
       content: '✓';
       position: absolute;
-      top: 8px;
-      right: 8px;
+      top: 12px;
+      right: 12px;
       width: 24px;
       height: 24px;
       background: ${colors.success};
-      color: white;
+      color: #fff;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      font-weight: bold;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(92, 177, 118, 0.35);
     }
   `}
 `;
 
 const ProviderIcon = styled.div`
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: ${props => props.$round ? '50%' : '12px'};
-  background: ${props => props.$bgColor || colors.primaryLight};
+  /* Dark-mode-friendly: mix the accent colour onto an opaque surface
+     instead of using a semi-transparent wash. Semi-transparent colours
+     disappeared against the plugin's dark modal background. */
+  background: ${props => props.$bgColor || 'rgba(73, 69, 255, 0.2)'};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: ${props => props.$fontSize || '24px'};
-  font-weight: bold;
+  font-size: ${props => props.$fontSize || '22px'};
+  font-weight: 700;
   color: ${props => props.$color || colors.primary};
-  box-shadow: 0 4px 12px ${props => props.$shadowColor || 'rgba(73, 69, 255, 0.15)'};
+  box-shadow: 0 4px 14px ${props => props.$shadowColor || 'rgba(73, 69, 255, 0.25)'};
+  flex-shrink: 0;
+`;
+
+const ProviderTextBlock = styled(Box)`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
 `;
 
 const ProviderName = styled(Typography)`
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.25;
   color: ${colors.text};
   margin: 0;
 `;
 
 const ProviderTagline = styled(Typography)`
-  font-size: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: ${colors.textLight};
   margin: 0;
 `;
@@ -938,80 +1011,137 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
             {/* Step 1: Choose Provider */}
             {currentStep === 1 && (
               <Box>
+                <ProviderCategoryHeader>
+                  <ProviderCategoryLabel>OAuth Providers</ProviderCategoryLabel>
+                  <ProviderCategoryHint>Recommended</ProviderCategoryHint>
+                </ProviderCategoryHeader>
                 <ProvidersGrid>
-                  <ProviderCard 
+                  <ProviderCard
                     $selected={provider === 'gmail-oauth'}
                     onClick={() => setProvider('gmail-oauth')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('gmail-oauth')}
                   >
-                    <ProviderIcon 
-                      $round 
-                      $bgColor="#4285F433" 
+                    <ProviderIcon
+                      $round
+                      $bgColor="rgba(66, 133, 244, 0.22)"
                       $color="#4285F4"
-                      $shadowColor="rgba(66, 133, 244, 0.2)"
+                      $shadowColor="rgba(66, 133, 244, 0.3)"
                     >
                       G
                     </ProviderIcon>
-                    <ProviderName>Gmail OAuth</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>Gmail</ProviderName>
+                      <ProviderTagline>Google Workspace & personal accounts · 1-click OAuth</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
 
-                  <ProviderCard 
+                  <ProviderCard
                     $selected={provider === 'microsoft-oauth'}
                     onClick={() => setProvider('microsoft-oauth')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('microsoft-oauth')}
                   >
-                    <ProviderIcon 
-                      $round 
-                      $bgColor="#00A4EF33" 
+                    <ProviderIcon
+                      $round
+                      $bgColor="rgba(0, 164, 239, 0.22)"
                       $color="#00A4EF"
-                      $shadowColor="rgba(0, 164, 239, 0.2)"
+                      $shadowColor="rgba(0, 164, 239, 0.3)"
                     >
                       M
                     </ProviderIcon>
-                    <ProviderName>Microsoft OAuth</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>Microsoft 365</ProviderName>
+                      <ProviderTagline>Outlook · Exchange · Azure AD · 1-click OAuth</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
 
-                  <ProviderCard 
+                  <ProviderCard
                     $selected={provider === 'yahoo-oauth'}
                     onClick={() => setProvider('yahoo-oauth')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('yahoo-oauth')}
                   >
-                    <ProviderIcon 
-                      $round 
-                      $bgColor="#6001D233" 
-                      $color="#6001D2"
-                      $shadowColor="rgba(96, 1, 210, 0.2)"
+                    <ProviderIcon
+                      $round
+                      $bgColor="rgba(96, 1, 210, 0.22)"
+                      $color="#9C6BF0"
+                      $shadowColor="rgba(96, 1, 210, 0.3)"
                     >
                       Y
                     </ProviderIcon>
-                    <ProviderName>Yahoo Mail OAuth</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>Yahoo Mail</ProviderName>
+                      <ProviderTagline>Yahoo & AOL accounts · 1-click OAuth</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
+                </ProvidersGrid>
 
-                  <ProviderCard 
+                <ProviderCategoryHeader>
+                  <ProviderCategoryLabel>Custom & Transactional APIs</ProviderCategoryLabel>
+                </ProviderCategoryHeader>
+                <ProvidersGrid>
+                  <ProviderCard
                     $selected={provider === 'smtp'}
                     onClick={() => setProvider('smtp')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('smtp')}
                   >
-                    <ProviderIcon>
-                      <Server style={{ width: 28, height: 28 }} />
+                    <ProviderIcon
+                      $bgColor="rgba(73, 69, 255, 0.22)"
+                      $color="#7B78FF"
+                      $shadowColor="rgba(73, 69, 255, 0.3)"
+                    >
+                      <Server style={{ width: 26, height: 26 }} />
                     </ProviderIcon>
-                    <ProviderName>SMTP</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>SMTP</ProviderName>
+                      <ProviderTagline>Any SMTP server · full control over host, port & auth</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
 
-                  <ProviderCard 
+                  <ProviderCard
                     $selected={provider === 'sendgrid'}
                     onClick={() => setProvider('sendgrid')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('sendgrid')}
                   >
-                    <ProviderIcon $bgColor="#1E90FF22" $color="#1E90FF" $shadowColor="rgba(30, 144, 255, 0.2)">
-                      <Cloud style={{ width: 28, height: 28 }} />
+                    <ProviderIcon
+                      $bgColor="rgba(30, 144, 255, 0.22)"
+                      $color="#4FA8FF"
+                      $shadowColor="rgba(30, 144, 255, 0.3)"
+                    >
+                      <Cloud style={{ width: 26, height: 26 }} />
                     </ProviderIcon>
-                    <ProviderName>SendGrid</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>SendGrid</ProviderName>
+                      <ProviderTagline>Transactional API · high deliverability · analytics</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
 
-                  <ProviderCard 
+                  <ProviderCard
                     $selected={provider === 'mailgun'}
                     onClick={() => setProvider('mailgun')}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setProvider('mailgun')}
                   >
-                    <ProviderIcon $bgColor="#FF6B6B22" $color="#FF6B6B" $shadowColor="rgba(255, 107, 107, 0.2)">
-                      <Mail style={{ width: 28, height: 28 }} />
+                    <ProviderIcon
+                      $bgColor="rgba(255, 107, 107, 0.22)"
+                      $color="#FF8A8A"
+                      $shadowColor="rgba(255, 107, 107, 0.3)"
+                    >
+                      <Mail style={{ width: 26, height: 26 }} />
                     </ProviderIcon>
-                    <ProviderName>Mailgun</ProviderName>
+                    <ProviderTextBlock>
+                      <ProviderName>Mailgun</ProviderName>
+                      <ProviderTagline>Developer-first API · EU/US regions · routes & webhooks</ProviderTagline>
+                    </ProviderTextBlock>
                   </ProviderCard>
                 </ProvidersGrid>
               </Box>
