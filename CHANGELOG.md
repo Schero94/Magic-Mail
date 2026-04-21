@@ -1,3 +1,10 @@
+## [2.10.4](https://github.com/Schero94/Magic-Mail/compare/v2.10.3...v2.10.4) (2026-04-21)
+
+
+### Bug Fixes
+
+* **build:** use non-destructured require for zod + @strapi/utils ([054a091](https://github.com/Schero94/Magic-Mail/commit/054a0914b24ef336d56ffd1638ca43dd9a121bee))
+
 ## [2.10.3](https://github.com/Schero94/Magic-Mail/compare/v2.10.2...v2.10.3) (2026-04-21)
 
 
