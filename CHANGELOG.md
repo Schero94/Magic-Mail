@@ -1,3 +1,10 @@
+## [2.10.6](https://github.com/Schero94/Magic-Mail/compare/v2.10.5...v2.10.6) (2026-04-21)
+
+
+### Bug Fixes
+
+* **designer:** correct template lookup order so 'Send Test' hits the actual template ([c62c0e4](https://github.com/Schero94/Magic-Mail/commit/c62c0e461d39275dca2a176276d2797c9743a8fd))
+
 ## [2.10.5](https://github.com/Schero94/Magic-Mail/compare/v2.10.4...v2.10.5) (2026-04-21)
 
 
