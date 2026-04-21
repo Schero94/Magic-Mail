@@ -1,11 +1,40 @@
 'use strict';
 
+const { handleControllerError } = require('../validation');
+
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
 
-const ALLOWED_RULE_FIELDS = ['name', 'conditions', 'accountName', 'priority', 'isActive', 'matchType', 'matchField', 'matchValue', 'description'];
+/**
+ * The fields we let the admin UI write to a routing-rule row.
+ *
+ * Kept strictly in sync with `server/src/content-types/routing-rule/schema.json`
+ * — the previous list contained two dead fields (`conditions`, `matchField`)
+ * that do not exist in the DB, while silently dropping three legitimate
+ * frontend fields (`fallbackAccountName`, `whatsappFallback`,
+ * `whatsappPhoneField`). The result: saving a rule ignored the fallback
+ * account, the WhatsApp toggle and the phone field without any error.
+ */
+const ALLOWED_RULE_FIELDS = [
+  'name',
+  'description',
+  'isActive',
+  'priority',
+  'matchType',
+  'matchValue',
+  'accountName',
+  'fallbackAccountName',
+  'whatsappFallback',
+  'whatsappPhoneField',
+];
 
 /**
- * Sanitize request body to only include allowed fields
+ * Sanitize request body to only include allowed fields.
+ *
+ * Unlike the Zod-based validator used elsewhere, this whitelist is
+ * permissive: unknown keys are silently dropped rather than throwing.
+ * That's intentional for a free-form edit form where the UI may evolve
+ * faster than the backend — but it is a trade-off. If we want strict
+ * rejection later, migrate this endpoint to a zod schema in validation.js.
  */
 function sanitizeRuleData(body) {
   const data = {};
@@ -31,8 +60,7 @@ module.exports = {
         data: rules,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting routing rules:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error fetching routing rules');
+      handleControllerError(ctx, err, '[magic-mail] Error getting routing rules', 'Error fetching routing rules');
     }
   },
 
@@ -54,8 +82,7 @@ module.exports = {
         data: rule,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting routing rule:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error fetching routing rule');
+      handleControllerError(ctx, err, '[magic-mail] Error getting routing rule', 'Error fetching routing rule');
     }
   },
 
@@ -83,8 +110,7 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule created: ${rule.name}`);
     } catch (err) {
-      strapi.log.error('[magic-mail] Error creating routing rule:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error creating routing rule');
+      handleControllerError(ctx, err, '[magic-mail] Error creating routing rule', 'Error creating routing rule');
     }
   },
 
@@ -113,8 +139,7 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule updated: ${rule.name}`);
     } catch (err) {
-      strapi.log.error('[magic-mail] Error updating routing rule:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error updating routing rule');
+      handleControllerError(ctx, err, '[magic-mail] Error updating routing rule', 'Error updating routing rule');
     }
   },
 
@@ -140,8 +165,7 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] Routing rule deleted: ${ruleId}`);
     } catch (err) {
-      strapi.log.error('[magic-mail] Error deleting routing rule:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error deleting routing rule');
+      handleControllerError(ctx, err, '[magic-mail] Error deleting routing rule', 'Error deleting routing rule');
     }
   },
 };

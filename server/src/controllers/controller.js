@@ -1,6 +1,6 @@
 'use strict';
 
-const { validate } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
 
 /**
  * Strips file-path attachments from API requests.
@@ -37,8 +37,7 @@ module.exports = {
 
       ctx.body = { success: true, ...result };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending email:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Failed to send email');
+      handleControllerError(ctx, err, '[magic-mail] Error sending email', 'Failed to send email');
     }
   },
 
@@ -52,8 +51,7 @@ module.exports = {
 
       ctx.body = { success: true, ...result };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending message:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Failed to send message');
+      handleControllerError(ctx, err, '[magic-mail] Error sending message', 'Failed to send message');
     }
   },
 
@@ -66,8 +64,7 @@ module.exports = {
 
       ctx.body = { success: true, ...result };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error sending WhatsApp:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Failed to send WhatsApp message');
+      handleControllerError(ctx, err, '[magic-mail] Error sending WhatsApp', 'Failed to send WhatsApp message');
     }
   },
 
@@ -100,8 +97,7 @@ module.exports = {
 
       ctx.body = { success: true, data: result };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error checking WhatsApp number:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Failed to check phone number');
+      handleControllerError(ctx, err, '[magic-mail] Error checking WhatsApp number', 'Failed to check phone number');
     }
   },
 };

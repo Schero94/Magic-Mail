@@ -102,6 +102,10 @@ const schemas = {
           fromName: headerSafe.optional(),
           fromEmail: emailString.optional(),
           replyTo: emailString.optional(),
+          // Kept in sync with `accounts.create` — if the wizard ever
+          // starts submitting isActive through the OAuth flow, this
+          // schema accepts it without blowing up.
+          isActive: z.boolean().optional(),
           isPrimary: z.boolean().optional(),
           priority: z.number().int().min(0).max(100).optional(),
           dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
@@ -121,7 +125,11 @@ const schemas = {
 
   'emailDesigner.create': z
     .object({
-      templateReferenceId: safeString.optional(),
+      // The admin UI stores the reference as a string but coerces it to
+      // a number via parseInt() before POSTing. Accepting both shapes
+      // keeps the wizard working either way — the service layer stores
+      // the DB column as a string regardless.
+      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
       name: safeString.optional(),
       subject: headerSafe.optional(),
       bodyHtml: safeText.optional(),
@@ -135,6 +143,10 @@ const schemas = {
 
   'emailDesigner.update': z
     .object({
+      // Parity with emailDesigner.create. Some edit flows re-send the
+      // reference id; admitting both number and string matches what the
+      // wizard payload actually looks like over the wire.
+      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
       name: safeString.optional(),
       subject: headerSafe.optional(),
       bodyHtml: safeText.optional(),
@@ -165,6 +177,11 @@ const schemas = {
       message: safeText,
       subject: headerSafe,
       design: z.record(z.unknown()).optional().nullable(),
+      // The editor always submits the plain-text fallback alongside the
+      // rich body. Previously strict() rejected this field and every
+      // "Save core template" click crashed with a 400 "Validation
+      // failed" before the body ever reached the service.
+      bodyText: safeText.optional(),
     })
     .strict(),
 
