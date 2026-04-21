@@ -1,3 +1,10 @@
+## [2.10.9](https://github.com/Schero94/Magic-Mail/compare/v2.10.8...v2.10.9) (2026-04-21)
+
+
+### Bug Fixes
+
+* **email-designer:** resolve PUT 500s on template update by whitelisting payload + proper error propagation ([29dd0c0](https://github.com/Schero94/Magic-Mail/commit/29dd0c0f6744a87108323ba511246502c5c3fc84))
+
 ## [2.10.8](https://github.com/Schero94/Magic-Mail/compare/v2.10.7...v2.10.8) (2026-04-21)
 
 
