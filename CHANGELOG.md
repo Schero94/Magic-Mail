@@ -1,3 +1,10 @@
+## [2.10.7](https://github.com/Schero94/Magic-Mail/compare/v2.10.6...v2.10.7) (2026-04-21)
+
+
+### Bug Fixes
+
+* **email-designer:** prioritize templateReferenceId in findById() to match actual admin UI usage ([bcd7a4b](https://github.com/Schero94/Magic-Mail/commit/bcd7a4bd3b9640f8bc58694ec7a81fddb262245f))
+
 ## [2.10.6](https://github.com/Schero94/Magic-Mail/compare/v2.10.5...v2.10.6) (2026-04-21)
 
 
