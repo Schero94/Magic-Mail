@@ -1,6 +1,6 @@
 'use strict';
 
-const { validate } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
 
 /**
  * Accounts Controller
@@ -58,8 +58,7 @@ module.exports = {
         message: 'Email account created successfully',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error creating account:', err);
-      ctx.throw(err.status || 500, err.message || 'Error creating email account');
+      handleControllerError(ctx, err, '[magic-mail] Error creating account', 'Error creating email account');
     }
   },
 
@@ -85,8 +84,7 @@ module.exports = {
         data: account,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting account:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error fetching email account');
+      handleControllerError(ctx, err, '[magic-mail] Error getting account', 'Error fetching email account');
     }
   },
 
@@ -122,8 +120,7 @@ module.exports = {
         message: 'Email account updated successfully',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error updating account:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error updating email account');
+      handleControllerError(ctx, err, '[magic-mail] Error updating account', 'Error updating email account');
     }
   },
 
@@ -147,8 +144,7 @@ module.exports = {
 
       ctx.body = result;
     } catch (err) {
-      strapi.log.error('[magic-mail] Error testing account:', err.message);
-      ctx.throw(err.status || 500, err.message || 'Error testing email account');
+      handleControllerError(ctx, err, '[magic-mail] Error testing account', 'Error testing email account');
     }
   },
 

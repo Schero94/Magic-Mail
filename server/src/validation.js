@@ -48,6 +48,11 @@ const schemas = {
       fromEmail: emailString.optional(),
       fromName: headerSafe.optional(),
       replyTo: emailString.optional(),
+      // Was missing here even though the admin-UI wizard and accounts.update
+      // both include it — strict() was rejecting every create request with
+      // "Unrecognized key: isActive" which surfaced as a bare
+      // "Validation failed" 500. Parity with accounts.update restored.
+      isActive: z.boolean().optional(),
       isPrimary: z.boolean().optional(),
       priority: z.number().int().min(0).max(100).optional(),
       dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
@@ -286,6 +291,12 @@ const schemas = {
  * Validates request body against a named schema.
  * Returns the parsed data on success, throws ValidationError on failure.
  *
+ * Logs the detailed field errors at warn-level on the server so the
+ * plugin admin can see exactly which field caused the failure, even
+ * without reading the client response. The thrown error still carries
+ * the same fieldErrors in its `.details` so `handleControllerError`
+ * can propagate them to the API consumer.
+ *
  * @param {string} schemaName - Key in the schemas map
  * @param {object} body - ctx.request.body
  * @returns {object} Parsed and validated data
@@ -300,13 +311,69 @@ function validate(schemaName, body) {
   const result = schema.safeParse(body);
   if (!result.success) {
     const { errors: strapiErrors } = require('@strapi/utils');
-    throw new strapiErrors.ValidationError(
-      'Validation failed',
-      result.error.flatten().fieldErrors
-    );
+    const flattened = result.error.flatten();
+    // eslint-disable-next-line global-require
+    const strapiLog = (typeof strapi !== 'undefined' && strapi && strapi.log) ? strapi.log : null;
+    if (strapiLog) {
+      strapiLog.warn(
+        `[magic-mail] Validation failed for schema '${schemaName}': ` +
+        JSON.stringify({
+          fieldErrors: flattened.fieldErrors,
+          formErrors: flattened.formErrors,
+        })
+      );
+    }
+    throw new strapiErrors.ValidationError('Validation failed', flattened.fieldErrors);
   }
 
   return result.data;
 }
 
-module.exports = { validate, schemas };
+/**
+ * Uniform controller error handler for every MagicMail controller.
+ *
+ * Why this exists: the original per-controller pattern was
+ *
+ *   catch (err) {
+ *     strapi.log.error('...:', err.message);
+ *     ctx.throw(err.status || 500, err.message || '...');
+ *   }
+ *
+ * …which swallowed the `.details` payload of any Strapi error class
+ * (ValidationError, ApplicationError, ForbiddenError, NotFoundError).
+ * A ValidationError with per-field errors became a bare 500 with the
+ * generic text "Validation failed" — the UI had no way to tell the
+ * user which field to fix.
+ *
+ * The fix is to detect the standard Strapi error shape (anything
+ * exported from `@strapi/utils`.errors) and let Strapi's own
+ * error-rendering middleware handle it — it knows the right HTTP
+ * status and emits the `{ data: null, error: { status, name,
+ * message, details } }` envelope the admin UI already understands.
+ *
+ * Only genuinely unexpected errors are wrapped as 500.
+ *
+ * @param {import('koa').Context} ctx
+ * @param {Error} err
+ * @param {string} logPrefix - Prefix for the server log line, e.g.
+ *   '[magic-mail] Error creating account'
+ * @param {string} [fallbackMessage] - Message for the 500 wrapper
+ */
+function handleControllerError(ctx, err, logPrefix, fallbackMessage) {
+  const isStrapiError = err && typeof err.status === 'number' && typeof err.name === 'string';
+
+  if (isStrapiError) {
+    // Don't log the full stack for a client-side 4xx — log compactly
+    // with the useful bits so the admin can still debug from the logs.
+    strapi.log.warn(
+      `${logPrefix}: ${err.name} (${err.status}) — ${err.message}` +
+      (err.details ? ` | details=${JSON.stringify(err.details)}` : '')
+    );
+    throw err;
+  }
+
+  strapi.log.error(`${logPrefix}:`, err);
+  ctx.throw(500, fallbackMessage || err.message || 'Internal server error');
+}
+
+module.exports = { validate, schemas, handleControllerError };
