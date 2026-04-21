@@ -383,6 +383,39 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Generate a new `templateReferenceId` guaranteed to fit in PostgreSQL's
+   * `integer` column (max 2_147_483_647). We retry a few times to dodge
+   * the astronomically unlikely collision with an already-used reference
+   * id — the schema declares `unique: true`, so picking a duplicate here
+   * would otherwise fail at insert time.
+   *
+   * Previous implementation used `Date.now()` which overflows the int4
+   * range (13 digits vs. 10-digit max), producing a "value is out of range
+   * for type integer" error on every duplicate call.
+   *
+   * @returns {Promise<number>}
+   * @throws {Error} if no unique id can be found after MAX_ATTEMPTS tries
+   */
+  async _generateUniqueTemplateReferenceId() {
+    const MAX_ATTEMPTS = 5;
+    // Upper bound 2_000_000_000 leaves headroom under int4 max (~2.147B).
+    const UPPER_BOUND = 2_000_000_000;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const candidate = Math.floor(Math.random() * UPPER_BOUND) + 1;
+      const existing = await this.findByReferenceId(candidate);
+      if (!existing) return candidate;
+      strapi.log.warn(
+        `[magic-mail] [DUPLICATE] templateReferenceId collision on ${candidate} (attempt ${attempt + 1}/${MAX_ATTEMPTS}); retrying`
+      );
+    }
+
+    throw new Error(
+      `Could not generate a unique templateReferenceId after ${MAX_ATTEMPTS} attempts`
+    );
+  },
+
+  /**
    * Duplicate template
    * @param {string|number} idOrDocumentId - Either numeric id or documentId
    */
@@ -396,6 +429,8 @@ module.exports = ({ strapi }) => ({
 
     strapi.log.info(`[magic-mail] [PACKAGE] Original template: documentId=${original.documentId}, name="${original.name}"`);
 
+    const newRefId = await this._generateUniqueTemplateReferenceId();
+
     const duplicateData = {
       name: `${original.name} copy`,
       subject: original.subject,
@@ -405,12 +440,12 @@ module.exports = ({ strapi }) => ({
       category: original.category,
       tags: original.tags,
       isActive: original.isActive,
-      templateReferenceId: Date.now() + Math.floor(Math.random() * 1000),
+      templateReferenceId: newRefId,
     };
 
     const duplicated = await this.create(duplicateData);
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Template duplicated: documentId=${duplicated.documentId}`);
+    strapi.log.info(`[magic-mail] [SUCCESS] Template duplicated: documentId=${duplicated.documentId}, newRefId=${newRefId}`);
     return duplicated;
   },
 
