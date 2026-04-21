@@ -1,3 +1,10 @@
+## [2.10.2](https://github.com/Schero94/Magic-Mail/compare/v2.10.1...v2.10.2) (2026-04-21)
+
+
+### Bug Fixes
+
+* **rbac:** make plugin::magic-mail.access visible in role editor ([63c80ce](https://github.com/Schero94/Magic-Mail/commit/63c80ce9351d455a96fb7b8637a4abdb5ed2c39e))
+
 ## [2.10.1](https://github.com/Schero94/Magic-Mail/compare/v2.10.0...v2.10.1) (2026-04-21)
 
 
