@@ -1,3 +1,21 @@
+# [2.10.0](https://github.com/Schero94/Magic-Mail/compare/v2.9.2...v2.10.0) (2026-04-21)
+
+
+### Bug Fixes
+
+* **accounts:** accept isActive on create + surface Zod field errors through a 400 envelope ([b685746](https://github.com/Schero94/Magic-Mail/commit/b685746e82f4797326027730de9b78e08987d473))
+* **accounts:** return 500 -> graceful soft result when account credentials cannot be decrypted ([f6d92d0](https://github.com/Schero94/Magic-Mail/commit/f6d92d060a6da0f69c5bc37a129166b8b190cd0f))
+* **deps:** move baileys to optionalDependencies + bump runtime deps ([ac92c5f](https://github.com/Schero94/Magic-Mail/commit/ac92c5fe1442599cd8a8a78b8781b60df8dc72a9)), closes [package.json#exports](https://github.com/package.json/issues/exports)
+* **deps:** pin styled-components to ^6.3.9 to avoid npm ci ERESOLVE ([2a84b8b](https://github.com/Schero94/Magic-Mail/commit/2a84b8be2dc328333965235e45b080dbdca0274d))
+* **deps:** revert baileys back to dependencies, document protobufjs override for consumers ([9a8726e](https://github.com/Schero94/Magic-Mail/commit/9a8726e2b8bdd908b7a2edc47c885c01695cab82))
+* **license:** centralise license-server calls behind fetchWithTimeout (12s + 1 retry) ([f2aba82](https://github.com/Schero94/Magic-Mail/commit/f2aba827db3278cfebbe6cb58723c4b42ac6d554))
+* sweep remaining schema/payload mismatches and swallowed validation errors ([91781f5](https://github.com/Schero94/Magic-Mail/commit/91781f574e67fbde1604c7973bb6b5abe7bb3f36))
+
+
+### Features
+
+* **ui:** redesign Edit/Add Account provider picker for legibility in dark mode ([eb227b4](https://github.com/Schero94/Magic-Mail/commit/eb227b4a3a220352f0f2383a150d92128998d007))
+
 ## [2.9.2](https://github.com/Schero94/Magic-Mail/compare/v2.9.1...v2.9.2) (2026-04-20)
 
 
