@@ -5,7 +5,17 @@
 
 'use strict';
 
-const { validate } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
+
+/**
+ * True when the service threw a plain "not found" Error (i.e. not a
+ * Strapi error class with a status). We keep the string-sniff here for
+ * backwards compat — the services currently throw `new Error('… not found')`
+ * instead of NotFoundError.
+ */
+function isNotFoundMessage(err) {
+  return err && typeof err.message === 'string' && err.message.includes('not found');
+}
 
 module.exports = ({ strapi }) => ({
   /**
@@ -23,7 +33,7 @@ module.exports = ({ strapi }) => ({
         data: templates,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error listing templates');
     }
   },
 
@@ -47,7 +57,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error fetching template');
     }
   },
 
@@ -66,10 +76,14 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      if (error.message.includes('limit reached') || error.message.includes('already exists')) {
+      if (
+        error &&
+        typeof error.message === 'string' &&
+        (error.message.includes('limit reached') || error.message.includes('already exists'))
+      ) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error creating template');
     }
   },
 
@@ -89,10 +103,10 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error updating template');
     }
   },
 
@@ -109,7 +123,10 @@ module.exports = ({ strapi }) => ({
         message: 'Template deleted successfully',
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      if (isNotFoundMessage(error)) {
+        return ctx.notFound(error.message);
+      }
+      handleControllerError(ctx, error, '[magic-mail] Error deleting template');
     }
   },
 
@@ -129,7 +146,10 @@ module.exports = ({ strapi }) => ({
         data: versions,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      if (isNotFoundMessage(error)) {
+        return ctx.notFound(error.message);
+      }
+      handleControllerError(ctx, error, '[magic-mail] Error fetching versions');
     }
   },
 
@@ -149,10 +169,10 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error restoring version');
     }
   },
 
@@ -172,13 +192,17 @@ module.exports = ({ strapi }) => ({
         data: result,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      if (error.message.includes('does not belong')) {
+      if (
+        error &&
+        typeof error.message === 'string' &&
+        error.message.includes('does not belong')
+      ) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error deleting version');
     }
   },
 
@@ -198,10 +222,10 @@ module.exports = ({ strapi }) => ({
         data: result,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error deleting all versions');
     }
   },
 
@@ -223,10 +247,10 @@ module.exports = ({ strapi }) => ({
         data: rendered,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error rendering template');
     }
   },
 
@@ -246,10 +270,14 @@ module.exports = ({ strapi }) => ({
         data: templates,
       });
     } catch (error) {
-      if (error.message.includes('requires')) {
+      if (
+        error &&
+        typeof error.message === 'string' &&
+        error.message.includes('requires')
+      ) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error exporting templates');
     }
   },
 
@@ -274,10 +302,14 @@ module.exports = ({ strapi }) => ({
         data: results,
       });
     } catch (error) {
-      if (error.message.includes('requires')) {
+      if (
+        error &&
+        typeof error.message === 'string' &&
+        error.message.includes('requires')
+      ) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error importing templates');
     }
   },
 
@@ -293,7 +325,7 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error fetching stats');
     }
   },
 
@@ -313,7 +345,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error fetching core template');
     }
   },
 
@@ -333,7 +365,7 @@ module.exports = ({ strapi }) => ({
         data: template,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error updating core template');
     }
   },
 
@@ -345,7 +377,6 @@ module.exports = ({ strapi }) => ({
       const { id } = ctx.params;
       const { type = 'json' } = ctx.query;
 
-      // Get the template
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
@@ -355,15 +386,14 @@ module.exports = ({ strapi }) => ({
         return ctx.notFound('Template not found');
       }
 
-      let fileContent, fileName;
+      let fileContent;
+      let fileName;
 
       if (type === 'json') {
-        // Serve JSON design
         fileContent = JSON.stringify(template.design, null, 2);
         fileName = `template-${id}.json`;
         ctx.set('Content-Type', 'application/json');
       } else if (type === 'html') {
-        // Serve HTML
         fileContent = template.bodyHtml;
         fileName = `template-${id}.html`;
         ctx.set('Content-Type', 'text/html');
@@ -371,12 +401,10 @@ module.exports = ({ strapi }) => ({
         return ctx.badRequest('Invalid type, must be either "json" or "html".');
       }
 
-      // Set the content disposition to prompt a file download
       ctx.set('Content-Disposition', `attachment; filename="${fileName}"`);
       ctx.send(fileContent);
     } catch (error) {
-      strapi.log.error('[magic-mail] Error downloading template:', error.message);
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error downloading template');
     }
   },
 
@@ -397,10 +425,10 @@ module.exports = ({ strapi }) => ({
         data: duplicated,
       });
     } catch (error) {
-      if (error.message.includes('not found')) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error duplicating template');
     }
   },
 
@@ -412,12 +440,10 @@ module.exports = ({ strapi }) => ({
       const { id } = ctx.params;
       const { to, accountName } = validate('emailDesigner.testSend', ctx.request.body);
 
-      // Validate required fields
       if (!to) {
         return ctx.badRequest('Recipient email (to) is required');
       }
 
-      // Get template
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
@@ -427,30 +453,25 @@ module.exports = ({ strapi }) => ({
         return ctx.notFound('Template not found');
       }
 
-      // Render template with empty test data (you can add default test data if needed)
       const rendered = await strapi
         .plugin('magic-mail')
         .service('email-designer')
         .renderTemplate(template.templateReferenceId, {
           name: 'Test User',
           email: to,
-          // Add more default test variables as needed
         });
 
-      // Send email using the email router service
       const emailRouterService = strapi.plugin('magic-mail').service('email-router');
-      
+
       const sendOptions = {
         to,
         subject: rendered.subject || template.subject,
         html: rendered.html,
         text: rendered.text,
-        // Add template tracking info
         templateId: template.templateReferenceId,
         templateName: template.name,
       };
 
-      // If accountName is specified, include it
       if (accountName) {
         sendOptions.accountName = accountName;
       }
@@ -467,9 +488,7 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error sending test email:', error);
-      return ctx.badRequest(error.message || 'Failed to send test email');
+      handleControllerError(ctx, error, '[magic-mail] Error sending test email');
     }
   },
 });
-

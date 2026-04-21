@@ -1118,29 +1118,30 @@ const schemas = {
     // a number via parseInt() before POSTing. Accepting both shapes
     // keeps the wizard working either way — the service layer stores
     // the DB column as a string regardless.
-    templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
-    name: safeString.optional(),
-    subject: headerSafe.optional(),
-    bodyHtml: safeText.optional(),
-    bodyText: safeText.optional(),
+    templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+    // Optional/nullable mirrors the content-type schema: Strapi serves
+    // absent DB columns as `null`, and the editor re-sends the whole
+    // document on save. Accepting null avoids spurious 400s whenever a
+    // template has no category/bodyText/tags yet.
+    name: safeString.optional().nullable(),
+    subject: headerSafe.optional().nullable(),
+    bodyHtml: safeText.optional().nullable(),
+    bodyText: safeText.optional().nullable(),
     design: z.record(z.unknown()).optional().nullable(),
-    category: safeString.optional(),
-    isActive: z.boolean().optional(),
-    tags: z.array(safeString).max(50).optional()
+    category: safeString.optional().nullable(),
+    isActive: z.boolean().optional().nullable(),
+    tags: z.array(safeString).max(50).optional().nullable()
   }).strict(),
   "emailDesigner.update": z.object({
-    // Parity with emailDesigner.create. Some edit flows re-send the
-    // reference id; admitting both number and string matches what the
-    // wizard payload actually looks like over the wire.
-    templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
-    name: safeString.optional(),
-    subject: headerSafe.optional(),
-    bodyHtml: safeText.optional(),
-    bodyText: safeText.optional(),
+    templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+    name: safeString.optional().nullable(),
+    subject: headerSafe.optional().nullable(),
+    bodyHtml: safeText.optional().nullable(),
+    bodyText: safeText.optional().nullable(),
     design: z.record(z.unknown()).optional().nullable(),
-    category: safeString.optional(),
-    isActive: z.boolean().optional(),
-    tags: z.array(safeString).max(50).optional()
+    category: safeString.optional().nullable(),
+    isActive: z.boolean().optional().nullable(),
+    tags: z.array(safeString).max(50).optional().nullable()
   }).strict(),
   "emailDesigner.renderTemplate": z.object({
     data: z.record(z.unknown()).optional()
@@ -1265,6 +1266,10 @@ function validate$5(schemaName, body) {
     const strapiErrors = require$$1__default.default.errors;
     const flattened = result2.error.flatten();
     const strapiLog = typeof strapi !== "undefined" && strapi && strapi.log ? strapi.log : null;
+    const details = { ...flattened.fieldErrors };
+    if (Array.isArray(flattened.formErrors) && flattened.formErrors.length > 0) {
+      details._form = flattened.formErrors;
+    }
     if (strapiLog) {
       strapiLog.warn(
         `[magic-mail] Validation failed for schema '${schemaName}': ` + JSON.stringify({
@@ -1273,23 +1278,38 @@ function validate$5(schemaName, body) {
         })
       );
     }
-    throw new strapiErrors.ValidationError("Validation failed", flattened.fieldErrors);
+    throw new strapiErrors.ValidationError("Validation failed", details);
   }
   return result2.data;
 }
-function handleControllerError$3(ctx, err, logPrefix, fallbackMessage) {
-  const isStrapiError = err && typeof err.status === "number" && typeof err.name === "string";
+function handleControllerError$4(ctx, err, logPrefix, fallbackMessage) {
+  const strapiErrors = require$$1__default.default.errors;
+  const knownStrapiNames = /* @__PURE__ */ new Set([
+    "ApplicationError",
+    "ValidationError",
+    "YupValidationError",
+    "PaginationError",
+    "NotFoundError",
+    "ForbiddenError",
+    "UnauthorizedError",
+    "PayloadTooLargeError",
+    "PolicyError",
+    "NotImplementedError",
+    "RateLimitError",
+    "HttpError"
+  ]);
+  const isStrapiError = err && typeof err === "object" && err instanceof strapiErrors.ApplicationError || err && typeof err.name === "string" && knownStrapiNames.has(err.name);
   if (isStrapiError) {
     strapi.log.warn(
-      `${logPrefix}: ${err.name} (${err.status}) — ${err.message}` + (err.details ? ` | details=${JSON.stringify(err.details)}` : "")
+      `${logPrefix}: ${err.name} — ${err.message}` + (err.details && Object.keys(err.details).length > 0 ? ` | details=${JSON.stringify(err.details)}` : "")
     );
     throw err;
   }
   strapi.log.error(`${logPrefix}:`, err);
   ctx.throw(500, fallbackMessage || err.message || "Internal server error");
 }
-var validation = { validate: validate$5, schemas, handleControllerError: handleControllerError$3 };
-const { validate: validate$4, handleControllerError: handleControllerError$2 } = validation;
+var validation = { validate: validate$5, schemas, handleControllerError: handleControllerError$4 };
+const { validate: validate$4, handleControllerError: handleControllerError$3 } = validation;
 function stripAttachmentPaths(body) {
   if (body && Array.isArray(body.attachments)) {
     body.attachments = body.attachments.map(({ path: path2, ...safe }) => safe);
@@ -1305,7 +1325,7 @@ var controller$1 = {
       const result2 = await emailRouter2.send(body);
       ctx.body = { success: true, ...result2 };
     } catch (err) {
-      handleControllerError$2(ctx, err, "[magic-mail] Error sending email", "Failed to send email");
+      handleControllerError$3(ctx, err, "[magic-mail] Error sending email", "Failed to send email");
     }
   },
   async sendMessage(ctx) {
@@ -1316,7 +1336,7 @@ var controller$1 = {
       const result2 = await emailRouter2.sendMessage(body);
       ctx.body = { success: true, ...result2 };
     } catch (err) {
-      handleControllerError$2(ctx, err, "[magic-mail] Error sending message", "Failed to send message");
+      handleControllerError$3(ctx, err, "[magic-mail] Error sending message", "Failed to send message");
     }
   },
   async sendWhatsApp(ctx) {
@@ -1326,7 +1346,7 @@ var controller$1 = {
       const result2 = await emailRouter2.sendWhatsApp(body);
       ctx.body = { success: true, ...result2 };
     } catch (err) {
-      handleControllerError$2(ctx, err, "[magic-mail] Error sending WhatsApp", "Failed to send WhatsApp message");
+      handleControllerError$3(ctx, err, "[magic-mail] Error sending WhatsApp", "Failed to send WhatsApp message");
     }
   },
   async getWhatsAppStatus(ctx) {
@@ -1354,11 +1374,11 @@ var controller$1 = {
       const result2 = await emailRouter2.checkWhatsAppNumber(phoneNumber);
       ctx.body = { success: true, data: result2 };
     } catch (err) {
-      handleControllerError$2(ctx, err, "[magic-mail] Error checking WhatsApp number", "Failed to check phone number");
+      handleControllerError$3(ctx, err, "[magic-mail] Error checking WhatsApp number", "Failed to check phone number");
     }
   }
 };
-const { validate: validate$3, handleControllerError: handleControllerError$1 } = validation;
+const { validate: validate$3, handleControllerError: handleControllerError$2 } = validation;
 var accounts$1 = {
   /**
    * Get all email accounts
@@ -1401,7 +1421,7 @@ var accounts$1 = {
         message: "Email account created successfully"
       };
     } catch (err) {
-      handleControllerError$1(ctx, err, "[magic-mail] Error creating account", "Error creating email account");
+      handleControllerError$2(ctx, err, "[magic-mail] Error creating account", "Error creating email account");
     }
   },
   /**
@@ -1419,7 +1439,7 @@ var accounts$1 = {
         data: account
       };
     } catch (err) {
-      handleControllerError$1(ctx, err, "[magic-mail] Error getting account", "Error fetching email account");
+      handleControllerError$2(ctx, err, "[magic-mail] Error getting account", "Error fetching email account");
     }
   },
   /**
@@ -1447,7 +1467,7 @@ var accounts$1 = {
         message: "Email account updated successfully"
       };
     } catch (err) {
-      handleControllerError$1(ctx, err, "[magic-mail] Error updating account", "Error updating email account");
+      handleControllerError$2(ctx, err, "[magic-mail] Error updating account", "Error updating email account");
     }
   },
   /**
@@ -1467,7 +1487,7 @@ var accounts$1 = {
       const result2 = await accountManager2.testAccount(accountId, recipientEmail, testOptions);
       ctx.body = result2;
     } catch (err) {
-      handleControllerError$1(ctx, err, "[magic-mail] Error testing account", "Error testing email account");
+      handleControllerError$2(ctx, err, "[magic-mail] Error testing account", "Error testing email account");
     }
   },
   /**
@@ -2116,7 +2136,7 @@ var oauth$3 = {
     }
   }
 };
-const { handleControllerError } = validation;
+const { handleControllerError: handleControllerError$1 } = validation;
 const ROUTING_RULE_UID = "plugin::magic-mail.routing-rule";
 const ALLOWED_RULE_FIELDS = [
   "name",
@@ -2152,7 +2172,7 @@ var routingRules$1 = {
         data: rules
       };
     } catch (err) {
-      handleControllerError(ctx, err, "[magic-mail] Error getting routing rules", "Error fetching routing rules");
+      handleControllerError$1(ctx, err, "[magic-mail] Error getting routing rules", "Error fetching routing rules");
     }
   },
   /**
@@ -2171,7 +2191,7 @@ var routingRules$1 = {
         data: rule2
       };
     } catch (err) {
-      handleControllerError(ctx, err, "[magic-mail] Error getting routing rule", "Error fetching routing rule");
+      handleControllerError$1(ctx, err, "[magic-mail] Error getting routing rule", "Error fetching routing rule");
     }
   },
   /**
@@ -2193,7 +2213,7 @@ var routingRules$1 = {
       };
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule created: ${rule2.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, "[magic-mail] Error creating routing rule", "Error creating routing rule");
+      handleControllerError$1(ctx, err, "[magic-mail] Error creating routing rule", "Error creating routing rule");
     }
   },
   /**
@@ -2217,7 +2237,7 @@ var routingRules$1 = {
       };
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule updated: ${rule2.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, "[magic-mail] Error updating routing rule", "Error updating routing rule");
+      handleControllerError$1(ctx, err, "[magic-mail] Error updating routing rule", "Error updating routing rule");
     }
   },
   /**
@@ -2238,7 +2258,7 @@ var routingRules$1 = {
       };
       strapi.log.info(`[magic-mail] Routing rule deleted: ${ruleId}`);
     } catch (err) {
-      handleControllerError(ctx, err, "[magic-mail] Error deleting routing rule", "Error deleting routing rule");
+      handleControllerError$1(ctx, err, "[magic-mail] Error deleting routing rule", "Error deleting routing rule");
     }
   }
 };
@@ -2679,7 +2699,10 @@ var license$1 = ({ strapi: strapi2 }) => ({
     }
   }
 });
-const { validate: validate$2 } = validation;
+const { validate: validate$2, handleControllerError } = validation;
+function isNotFoundMessage(err) {
+  return err && typeof err.message === "string" && err.message.includes("not found");
+}
 var emailDesigner$3 = ({ strapi: strapi2 }) => ({
   /**
    * Get all templates
@@ -2692,7 +2715,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: templates
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error listing templates");
     }
   },
   /**
@@ -2710,7 +2733,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error fetching template");
     }
   },
   /**
@@ -2724,10 +2747,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      if (error.message.includes("limit reached") || error.message.includes("already exists")) {
+      if (error && typeof error.message === "string" && (error.message.includes("limit reached") || error.message.includes("already exists"))) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error creating template");
     }
   },
   /**
@@ -2742,10 +2765,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error updating template");
     }
   },
   /**
@@ -2760,7 +2783,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         message: "Template deleted successfully"
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      if (isNotFoundMessage(error)) {
+        return ctx.notFound(error.message);
+      }
+      handleControllerError(ctx, error, "[magic-mail] Error deleting template");
     }
   },
   /**
@@ -2775,7 +2801,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: versions
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      if (isNotFoundMessage(error)) {
+        return ctx.notFound(error.message);
+      }
+      handleControllerError(ctx, error, "[magic-mail] Error fetching versions");
     }
   },
   /**
@@ -2790,10 +2819,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error restoring version");
     }
   },
   /**
@@ -2808,13 +2837,13 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: result2
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      if (error.message.includes("does not belong")) {
+      if (error && typeof error.message === "string" && error.message.includes("does not belong")) {
         return ctx.badRequest(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error deleting version");
     }
   },
   /**
@@ -2829,10 +2858,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: result2
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error deleting all versions");
     }
   },
   /**
@@ -2848,10 +2877,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: rendered
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error rendering template");
     }
   },
   /**
@@ -2866,10 +2895,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: templates
       });
     } catch (error) {
-      if (error.message.includes("requires")) {
+      if (error && typeof error.message === "string" && error.message.includes("requires")) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error exporting templates");
     }
   },
   /**
@@ -2887,10 +2916,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: results
       });
     } catch (error) {
-      if (error.message.includes("requires")) {
+      if (error && typeof error.message === "string" && error.message.includes("requires")) {
         return ctx.forbidden(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error importing templates");
     }
   },
   /**
@@ -2904,7 +2933,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: stats
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error fetching stats");
     }
   },
   /**
@@ -2919,7 +2948,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error fetching core template");
     }
   },
   /**
@@ -2934,7 +2963,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: template
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error updating core template");
     }
   },
   /**
@@ -2948,7 +2977,8 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
       if (!template) {
         return ctx.notFound("Template not found");
       }
-      let fileContent, fileName;
+      let fileContent;
+      let fileName;
       if (type === "json") {
         fileContent = JSON.stringify(template.design, null, 2);
         fileName = `template-${id}.json`;
@@ -2963,8 +2993,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
       ctx.set("Content-Disposition", `attachment; filename="${fileName}"`);
       ctx.send(fileContent);
     } catch (error) {
-      strapi2.log.error("[magic-mail] Error downloading template:", error.message);
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error downloading template");
     }
   },
   /**
@@ -2979,10 +3008,10 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         data: duplicated
       });
     } catch (error) {
-      if (error.message.includes("not found")) {
+      if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, "[magic-mail] Error duplicating template");
     }
   },
   /**
@@ -3002,7 +3031,6 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
       const rendered = await strapi2.plugin("magic-mail").service("email-designer").renderTemplate(template.templateReferenceId, {
         name: "Test User",
         email: to
-        // Add more default test variables as needed
       });
       const emailRouterService = strapi2.plugin("magic-mail").service("email-router");
       const sendOptions = {
@@ -3010,7 +3038,6 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         subject: rendered.subject || template.subject,
         html: rendered.html,
         text: rendered.text,
-        // Add template tracking info
         templateId: template.templateReferenceId,
         templateName: template.name
       };
@@ -3028,8 +3055,7 @@ var emailDesigner$3 = ({ strapi: strapi2 }) => ({
         }
       });
     } catch (error) {
-      strapi2.log.error("[magic-mail] Error sending test email:", error);
-      return ctx.badRequest(error.message || "Failed to send test email");
+      handleControllerError(ctx, error, "[magic-mail] Error sending test email");
     }
   }
 });
@@ -15851,7 +15877,7 @@ var oauth$1 = ({ strapi: strapi2 }) => ({
     return account;
   }
 });
-const version = "2.10.6";
+const version = "2.10.7";
 const require$$2 = {
   version
 };

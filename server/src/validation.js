@@ -136,32 +136,33 @@ const schemas = {
       // a number via parseInt() before POSTing. Accepting both shapes
       // keeps the wizard working either way — the service layer stores
       // the DB column as a string regardless.
-      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
-      name: safeString.optional(),
-      subject: headerSafe.optional(),
-      bodyHtml: safeText.optional(),
-      bodyText: safeText.optional(),
+      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+      // Optional/nullable mirrors the content-type schema: Strapi serves
+      // absent DB columns as `null`, and the editor re-sends the whole
+      // document on save. Accepting null avoids spurious 400s whenever a
+      // template has no category/bodyText/tags yet.
+      name: safeString.optional().nullable(),
+      subject: headerSafe.optional().nullable(),
+      bodyHtml: safeText.optional().nullable(),
+      bodyText: safeText.optional().nullable(),
       design: z.record(z.unknown()).optional().nullable(),
-      category: safeString.optional(),
-      isActive: z.boolean().optional(),
-      tags: z.array(safeString).max(50).optional(),
+      category: safeString.optional().nullable(),
+      isActive: z.boolean().optional().nullable(),
+      tags: z.array(safeString).max(50).optional().nullable(),
     })
     .strict(),
 
   'emailDesigner.update': z
     .object({
-      // Parity with emailDesigner.create. Some edit flows re-send the
-      // reference id; admitting both number and string matches what the
-      // wizard payload actually looks like over the wire.
-      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional(),
-      name: safeString.optional(),
-      subject: headerSafe.optional(),
-      bodyHtml: safeText.optional(),
-      bodyText: safeText.optional(),
+      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+      name: safeString.optional().nullable(),
+      subject: headerSafe.optional().nullable(),
+      bodyHtml: safeText.optional().nullable(),
+      bodyText: safeText.optional().nullable(),
       design: z.record(z.unknown()).optional().nullable(),
-      category: safeString.optional(),
-      isActive: z.boolean().optional(),
-      tags: z.array(safeString).max(50).optional(),
+      category: safeString.optional().nullable(),
+      isActive: z.boolean().optional().nullable(),
+      tags: z.array(safeString).max(50).optional().nullable(),
     })
     .strict(),
 
@@ -338,6 +339,17 @@ function validate(schemaName, body) {
     const flattened = result.error.flatten();
     // eslint-disable-next-line global-require
     const strapiLog = (typeof strapi !== 'undefined' && strapi && strapi.log) ? strapi.log : null;
+
+    // Merge Zod's formErrors (e.g. ".strict() unrecognized keys") into the
+    // details payload under a `_form` key so the admin UI can surface them
+    // together with per-field errors. Without this, a request that only
+    // fails ".strict()" validation would come back with an empty details
+    // object — the UI would know it's a 400 but have nothing to display.
+    const details = { ...flattened.fieldErrors };
+    if (Array.isArray(flattened.formErrors) && flattened.formErrors.length > 0) {
+      details._form = flattened.formErrors;
+    }
+
     if (strapiLog) {
       strapiLog.warn(
         `[magic-mail] Validation failed for schema '${schemaName}': ` +
@@ -347,7 +359,7 @@ function validate(schemaName, body) {
         })
       );
     }
-    throw new strapiErrors.ValidationError('Validation failed', flattened.fieldErrors);
+    throw new strapiErrors.ValidationError('Validation failed', details);
   }
 
   return result.data;
@@ -384,14 +396,42 @@ function validate(schemaName, body) {
  * @param {string} [fallbackMessage] - Message for the 500 wrapper
  */
 function handleControllerError(ctx, err, logPrefix, fallbackMessage) {
-  const isStrapiError = err && typeof err.status === 'number' && typeof err.name === 'string';
+  // Strapi v5's @strapi/utils error classes do NOT set an `err.status` field
+  // — the HTTP status is assigned later by the error-rendering middleware
+  // based on the class name. So we identify Strapi errors by prototype
+  // chain (primary) or error name (fallback, in case the class reference
+  // from this bundle differs from the one thrown inside Strapi core — e.g.
+  // when bundlers dedupe differently). Anything matching gets re-thrown
+  // unchanged so Strapi's middleware emits the standard
+  // `{ data: null, error: { status, name, message, details } }` envelope.
+  // eslint-disable-next-line global-require
+  const strapiErrors = require('@strapi/utils').errors;
+
+  const knownStrapiNames = new Set([
+    'ApplicationError',
+    'ValidationError',
+    'YupValidationError',
+    'PaginationError',
+    'NotFoundError',
+    'ForbiddenError',
+    'UnauthorizedError',
+    'PayloadTooLargeError',
+    'PolicyError',
+    'NotImplementedError',
+    'RateLimitError',
+    'HttpError',
+  ]);
+
+  const isStrapiError =
+    (err && typeof err === 'object' && err instanceof strapiErrors.ApplicationError) ||
+    (err && typeof err.name === 'string' && knownStrapiNames.has(err.name));
 
   if (isStrapiError) {
-    // Don't log the full stack for a client-side 4xx — log compactly
-    // with the useful bits so the admin can still debug from the logs.
     strapi.log.warn(
-      `${logPrefix}: ${err.name} (${err.status}) — ${err.message}` +
-      (err.details ? ` | details=${JSON.stringify(err.details)}` : '')
+      `${logPrefix}: ${err.name} — ${err.message}` +
+      (err.details && Object.keys(err.details).length > 0
+        ? ` | details=${JSON.stringify(err.details)}`
+        : '')
     );
     throw err;
   }

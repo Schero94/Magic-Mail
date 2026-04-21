@@ -883,12 +883,37 @@ const EditorPage = () => {
         return;
       }
 
+      // Build a whitelist payload. Spreading `templateData` (which is the
+      // full Strapi document incl. `id`, `documentId`, `createdAt`,
+      // `updatedAt`, `publishedAt`, `locale`, populated `versions`, etc.)
+      // into the request body is rejected by the .strict() Zod schema on
+      // the server and surfaces as a bare 500. Sending only the fields the
+      // schema actually accepts keeps the request valid regardless of
+      // what Strapi adds to the read model in the future.
+      const refIdRaw = templateData.templateReferenceId;
+      const refIdParsed = refIdRaw === '' || refIdRaw === null || refIdRaw === undefined
+        ? undefined
+        : Number.parseInt(refIdRaw, 10);
+
       const payload = {
-        ...templateData,
-        design,
+        name: templateData.name,
+        subject: templateData.subject,
         bodyHtml,
-        templateReferenceId: parseInt(templateData.templateReferenceId),
+        bodyText: templateData.bodyText,
+        design,
+        category: templateData.category,
+        isActive: templateData.isActive,
+        tags: templateData.tags,
       };
+      if (Number.isFinite(refIdParsed)) {
+        payload.templateReferenceId = refIdParsed;
+      }
+
+      // Strip undefined values so the server's .strict() schema does not
+      // see explicit `undefined`s (some serializers drop them, some don't).
+      Object.keys(payload).forEach((k) => {
+        if (payload[k] === undefined) delete payload[k];
+      });
 
       let response;
       if (isNewTemplate) {
