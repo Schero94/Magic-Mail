@@ -1,3 +1,10 @@
+## [2.10.1](https://github.com/Schero94/Magic-Mail/compare/v2.10.0...v2.10.1) (2026-04-21)
+
+
+### Bug Fixes
+
+* **build:** pin @strapi/sdk-plugin to ^5.4.0 — v6 produces broken 23-line stub bundles ([1a40b1a](https://github.com/Schero94/Magic-Mail/commit/1a40b1adebe475009addb06a0fb285b871529f4e))
+
 # [2.10.0](https://github.com/Schero94/Magic-Mail/compare/v2.9.2...v2.10.0) (2026-04-21)
 
 
