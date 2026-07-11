@@ -1,3 +1,35 @@
+# [3.0.0](https://github.com/Schero94/Magic-Mail/compare/v2.10.11...v3.0.0) (2026-07-11)
+
+
+* feat(free)!: make MagicMail fully free and remove all licensing and telemetry ([d713246](https://github.com/Schero94/Magic-Mail/commit/d71324630bd9fb00d838dbbc25581f73e815bb5c))
+
+
+### Bug Fixes
+
+* **admin:** repair broken admin contracts and toggle accessibility ([e436849](https://github.com/Schero94/Magic-Mail/commit/e436849d404bf66a7093f7b5980f2f7b45bfc26f))
+* **delivery:** correct provider adapters, failover accounting and quota atomicity ([755ccfe](https://github.com/Schero94/Magic-Mail/commit/755ccfea866c16cd54dbe7cfcd203421362aa241))
+* **domain:** correct account, settings, template, routing and lifecycle contracts ([e81bea9](https://github.com/Schero94/Magic-Mail/commit/e81bea99a942e776265673b813e63772715062d8))
+* **security:** close OAuth XSS, duplicate delivery, tracking and sanitization gaps ([e7a1bc9](https://github.com/Schero94/Magic-Mail/commit/e7a1bc9c9514fcb3405ca6155d6b90b970b0a56b))
+
+
+### BREAKING CHANGES
+
+* The license system is removed. The admin /license/* endpoints,
+the license-guard service, the paid-tier feature gates, the license admin pages,
+and all device/telemetry pings to the former license server no longer exist.
+Every feature (all providers, unlimited accounts, routing rules, templates, and
+version history) is available to everyone with no license key or activation.
+Existing installations keep working; any stored license key is ignored.
+
+- Server: delete license-guard service, license controller, /license/* routes,
+  config/features.js, and every license call site (email-router, accounts,
+  oauth, routing-rules, email-designer).
+- Admin: delete LicensePage, license Settings page, useLicense hook and
+  LicenseGuard; drop the Upgrade/License settings links and the license
+  heartbeat; render every tab/feature and template versioning unconditionally;
+  remove paywalls and upgrade CTAs; drop license/tier translation keys.
+- README: remove the license-validation "additional condition" and tier limits.
+
 ## [2.10.11](https://github.com/Schero94/Magic-Mail/compare/v2.10.10...v2.10.11) (2026-04-21)
 
 
