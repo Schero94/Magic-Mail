@@ -39,12 +39,11 @@ const affectedFiles = [
 }));
 
 function importsFromDesignSystem(source, componentName) {
-  const designSystemImports = source.matchAll(
-    /import\s+([^;]+?)\s+from\s+['"]@strapi\/design-system['"]\s*;?/g
+  return scanStaticImportDeclarations(source).some(
+    ({ moduleName, importedIdentifiers }) =>
+      moduleName === '@strapi/design-system' &&
+      importedIdentifiers.includes(componentName)
   );
-
-  return Array.from(designSystemImports, ([, importClause]) => importClause)
-    .some((importClause) => new RegExp(`\\b${componentName}\\b`).test(importClause));
 }
 
 function skipQuotedString(source, start) {
@@ -75,6 +74,144 @@ function skipBlockComment(source, start) {
     throw new Error(`Unterminated block comment at source offset ${start}`);
   }
   return commentEnd + 2;
+}
+
+function skipWhitespaceAndComments(source, start) {
+  let index = start;
+
+  while (index < source.length) {
+    if (/\s/.test(source[index])) {
+      index += 1;
+    } else if (source.startsWith('//', index)) {
+      index = skipLineComment(source, index);
+    } else if (source.startsWith('/*', index)) {
+      index = skipBlockComment(source, index);
+    } else {
+      break;
+    }
+  }
+
+  return index;
+}
+
+function isIdentifierCharacter(character) {
+  return /[A-Za-z0-9_$]/.test(character || '');
+}
+
+function readIdentifier(source, start) {
+  let index = start;
+  while (isIdentifierCharacter(source[index])) index += 1;
+  return {
+    name: source.slice(start, index),
+    end: index,
+  };
+}
+
+function isIdentifierAt(source, start, identifier) {
+  return (
+    source.startsWith(identifier, start) &&
+    !isIdentifierCharacter(source[start - 1]) &&
+    !isIdentifierCharacter(source[start + identifier.length])
+  );
+}
+
+function readStaticImportDeclaration(source, start) {
+  let index = skipWhitespaceAndComments(source, start + 'import'.length);
+
+  if (source[index] === '(' || source[index] === '.') return null;
+
+  if (source[index] === "'" || source[index] === '"') {
+    const moduleStart = index;
+    const end = skipQuotedString(source, index);
+    return {
+      end,
+      moduleName: source.slice(moduleStart + 1, end - 1),
+      importedIdentifiers: [],
+    };
+  }
+
+  const importedIdentifiers = [];
+  let namedImportDepth = 0;
+
+  while (index < source.length) {
+    index = skipWhitespaceAndComments(source, index);
+    const character = source[index];
+
+    if (character === '{') {
+      namedImportDepth += 1;
+      index += 1;
+    } else if (character === '}') {
+      namedImportDepth -= 1;
+      index += 1;
+    } else if (isIdentifierCharacter(character)) {
+      const identifier = readIdentifier(source, index);
+      index = identifier.end;
+
+      if (identifier.name === 'from' && namedImportDepth === 0) {
+        index = skipWhitespaceAndComments(source, index);
+        if (source[index] !== "'" && source[index] !== '"') return null;
+
+        const moduleStart = index;
+        const end = skipQuotedString(source, index);
+        return {
+          end,
+          moduleName: source.slice(moduleStart + 1, end - 1),
+          importedIdentifiers,
+        };
+      }
+
+      importedIdentifiers.push(identifier.name);
+    } else if (
+      character === ';' ||
+      character === "'" ||
+      character === '"' ||
+      character === '`'
+    ) {
+      return null;
+    } else {
+      index += 1;
+    }
+  }
+
+  return null;
+}
+
+function scanStaticImportDeclarations(source) {
+  const declarations = [];
+  let index = 0;
+
+  while (index < source.length) {
+    const character = source[index];
+
+    if (character === "'" || character === '"') {
+      index = skipQuotedString(source, index);
+    } else if (character === '`') {
+      index = scanTemplateLiteral(source, index, []);
+    } else if (source.startsWith('//', index)) {
+      index = skipLineComment(source, index);
+    } else if (source.startsWith('/*', index)) {
+      index = skipBlockComment(source, index);
+    } else if (character === '/' && canStartRegexLiteral(source, index)) {
+      index = skipRegexLiteral(source, index);
+    } else if (character === '<' && canStartJsxFromJavaScript(source, index)) {
+      index = scanJsxElement(source, index, []);
+    } else if (
+      isIdentifierAt(source, index, 'import') &&
+      source[previousSignificantIndex(source, index)] !== '.'
+    ) {
+      const declaration = readStaticImportDeclaration(source, index);
+      if (declaration) {
+        declarations.push(declaration);
+        index = declaration.end;
+      } else {
+        index += 'import'.length;
+      }
+    } else {
+      index += 1;
+    }
+  }
+
+  return declarations;
 }
 
 function previousSignificantIndex(source, start) {
@@ -227,6 +364,16 @@ function parseDirectAttributes(source, start, end) {
     while (index < end && /\s/.test(source[index])) index += 1;
     if (index >= end) break;
 
+    if (source.startsWith('//', index)) {
+      index = skipLineComment(source, index);
+      continue;
+    }
+
+    if (source.startsWith('/*', index)) {
+      index = skipBlockComment(source, index);
+      continue;
+    }
+
     if (source[index] === '{') {
       index = scanJavaScriptExpression(source, index, []);
       continue;
@@ -295,7 +442,11 @@ function readJsxOpeningTag(source, start, switches) {
 
   let index = nameEnd;
   while (index < source.length) {
-    if (source[index] === "'" || source[index] === '"') {
+    if (source.startsWith('//', index)) {
+      index = skipLineComment(source, index);
+    } else if (source.startsWith('/*', index)) {
+      index = skipBlockComment(source, index);
+    } else if (source[index] === "'" || source[index] === '"') {
       index = skipQuotedString(source, index);
     } else if (source[index] === '{') {
       index = scanJavaScriptExpression(source, index, switches);
@@ -491,6 +642,8 @@ test('Switch extractor ignores non-code tokens and isolates direct attributes', 
     '      checked={state.real}',
     '      decoration={<span aria-label="nested" onLabel="nested" offLabel="nested" />}',
     '      metadata={{ text: "quoted } />", nested: { enabled: true } }}',
+    '      /* aria-label="commented block" offLabel="commented block" /> */',
+    '      // onLabel="commented line" visibleLabels={true} />',
     '      aria-label="Real control"',
     '      onLabel="On"',
     '      offLabel="Off"',
@@ -506,7 +659,53 @@ test('Switch extractor ignores non-code tokens and isolates direct attributes', 
   assert.equal(directAttributes(switches[0], 'checked')[0].value, 'state.real');
   assert.equal(directAttributes(switches[0], 'aria-label').length, 1);
   assert.equal(directAttributes(switches[0], 'aria-label')[0].value, 'Real control');
+  assert.equal(directAttributes(switches[0], 'onLabel').length, 1);
+  assert.equal(directAttributes(switches[0], 'onLabel')[0].value, 'On');
+  assert.equal(directAttributes(switches[0], 'offLabel').length, 1);
+  assert.equal(directAttributes(switches[0], 'offLabel')[0].value, 'Off');
+  assert.equal(directAttributes(switches[0], 'visibleLabels').length, 1);
   assert.equal(directAttributes(switches[0], 'visibleLabels')[0].value, 'false');
+});
+
+test('design-system import scanner rejects import-looking non-code text', () => {
+  const fakeImports = [
+    {
+      context: 'block comment',
+      source: "/* import { Toggle } from '@strapi/design-system'; */",
+    },
+    {
+      context: 'line comment',
+      source: "// import { Toggle } from '@strapi/design-system';",
+    },
+    {
+      context: 'ordinary string',
+      source: "const example = \"import { Toggle } from '@strapi/design-system';\";",
+    },
+    {
+      context: 'template literal',
+      source: "const example = `import { Toggle } from '@strapi/design-system';`;",
+    },
+  ];
+
+  for (const { context, source } of fakeImports) {
+    assert.equal(
+      importsFromDesignSystem(source, 'Toggle'),
+      false,
+      `${context} must not be treated as a design-system import`
+    );
+  }
+
+  const realMultilineImport = [
+    'import {',
+    '  /* Toggle, */',
+    '  // Toggle,',
+    '  Box,',
+    '  Switch,',
+    "} from '@strapi/design-system';",
+  ].join('\n');
+
+  assert.equal(importsFromDesignSystem(realMultilineImport, 'Switch'), true);
+  assert.equal(importsFromDesignSystem(realMultilineImport, 'Toggle'), false);
 });
 
 test('Switch extractor preserves the intended real-file control distribution', () => {
