@@ -1299,8 +1299,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                         padding={4}
                         background="neutral100"
                         hasRadius
+                        borderColor="neutral200"
+                        borderStyle="solid"
+                        borderWidth="1px"
                         style={{
-                          border: '1px solid var(--colors-neutral200)',
                           borderRadius: '8px',
                         }}
                       >
@@ -1945,8 +1947,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                     padding={4} 
                     background="neutral100"
                     hasRadius
+                    borderColor="neutral200"
+                    borderStyle="solid"
+                    borderWidth="1px"
                     style={{ 
-                      border: '1px solid var(--colors-neutral200)',
                       borderRadius: '8px',
                     }}
                   >
@@ -1980,8 +1984,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                     padding={4} 
                     background="neutral100"
                     hasRadius
+                    borderColor="neutral200"
+                    borderStyle="solid"
+                    borderWidth="1px"
                     style={{ 
-                      border: '1px solid var(--colors-neutral200)',
                       borderRadius: '8px',
                     }}
                   >
