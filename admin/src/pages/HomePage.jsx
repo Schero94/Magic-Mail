@@ -1149,10 +1149,10 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
               <Flex alignItems="center" gap={3}>
                 <PlayIcon style={{ width: 20, height: 20, color: testMode === 'direct' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
                 <Box style={{ flex: 1 }}>
-                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
+                  <Typography tag="div" fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
                     Direct Test
                   </Typography>
-                  <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
+                  <Typography tag="div" variant="pi" textColor="neutral500" style={{ fontSize: '12px', marginTop: '2px' }}>
                     Send directly through this account
                   </Typography>
                 </Box>
@@ -1166,10 +1166,10 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
               <Flex alignItems="center" gap={3}>
                 <SparklesIcon style={{ width: 20, height: 20, color: testMode === 'strapi' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
                 <Box style={{ flex: 1 }}>
-                  <Typography fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
+                  <Typography tag="div" fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
                     Strapi Service Test
                   </Typography>
-                  <Typography variant="pi" textColor="neutral500" style={{ fontSize: '12px' }}>
+                  <Typography tag="div" variant="pi" textColor="neutral500" style={{ fontSize: '12px', marginTop: '2px' }}>
                     Verify MagicMail intercepts Strapi's email service
                   </Typography>
                 </Box>
