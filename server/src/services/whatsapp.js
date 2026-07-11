@@ -50,7 +50,24 @@ module.exports = ({ strapi }) => {
   let eventListeners = [];
   let wasConnectedBefore = false;
   let reconnectAttempts = 0;
+  let reconnectTimers = [];
+  let shuttingDown = false;
   const MAX_RECONNECT_ATTEMPTS = 3;
+
+  /**
+   * Schedules a reconnect attempt that is tracked (so shutdown can cancel it)
+   * and suppressed once shutdown has begun.
+   * @param {number} ms
+   */
+  const scheduleReconnect = (ms) => {
+    if (shuttingDown) return;
+    const handle = setTimeout(() => {
+      if (shuttingDown) return;
+      service.connect();
+    }, ms);
+    if (handle && typeof handle.unref === 'function') handle.unref();
+    reconnectTimers.push(handle);
+  };
 
   /**
    * Check if WhatsApp debug logging is enabled
@@ -260,9 +277,7 @@ module.exports = ({ strapi }) => {
               } else if (isRestartRequired) {
                 await debugLog('[MagicMail WhatsApp] Restart required - reconnecting...');
                 connectionStatus = 'connecting';
-                setTimeout(() => {
-                  service.connect();
-                }, 1000);
+                scheduleReconnect(1000);
               } else if (isConnectionFailure && reconnectAttempts < 2) {
                 reconnectAttempts++;
                 await debugLog(`[MagicMail WhatsApp] Connection rejected (405) - retrying (${reconnectAttempts}/2)`);
@@ -271,9 +286,7 @@ module.exports = ({ strapi }) => {
                 } catch (e) {}
                 connectionStatus = 'disconnected';
                 qrCode = null;
-                setTimeout(() => {
-                  service.connect();
-                }, 3000);
+                scheduleReconnect(3000);
               } else if (isConnectionFailure) {
                 connectionStatus = 'disconnected';
                 lastError = 'WhatsApp connection rejected (405). Please try again later.';
@@ -283,9 +296,7 @@ module.exports = ({ strapi }) => {
                 reconnectAttempts++;
                 connectionStatus = 'connecting';
                 await debugLog(`[MagicMail WhatsApp] Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-                setTimeout(() => {
-                  service.connect();
-                }, 3000 * reconnectAttempts);
+                scheduleReconnect(3000 * reconnectAttempts);
               } else if (!wasConnectedBefore) {
                 connectionStatus = 'disconnected';
                 qrCode = null;
@@ -339,6 +350,49 @@ module.exports = ({ strapi }) => {
       emit('status', { status: connectionStatus });
       strapi.log.info('[MagicMail WhatsApp] Disconnected');
       return { success: true };
+    },
+
+    /**
+     * Gracefully shut down the socket and cancel reconnect timers WITHOUT
+     * logging out (credentials are preserved). Idempotent; safe to call on
+     * plugin destroy / hot reload.
+     *
+     * @param {{ logout?: boolean }} [opts]
+     * @returns {Promise<void>}
+     * @sideeffect Closes the WhatsApp socket and clears reconnect timers
+     */
+    async shutdown({ logout = false } = {}) {
+      shuttingDown = true;
+      for (const handle of reconnectTimers) {
+        try { clearTimeout(handle); } catch { /* ignore */ }
+      }
+      reconnectTimers = [];
+
+      if (sock) {
+        try {
+          if (logout) {
+            await sock.logout();
+          } else if (typeof sock.end === 'function') {
+            // Close the WebSocket but keep the saved auth state on disk.
+            sock.end(undefined);
+          } else if (sock.ws && typeof sock.ws.close === 'function') {
+            sock.ws.close();
+          }
+        } catch (e) {
+          // best-effort
+        }
+        try {
+          if (sock.ev && typeof sock.ev.removeAllListeners === 'function') {
+            sock.ev.removeAllListeners();
+          }
+        } catch (e) { /* ignore */ }
+        sock = null;
+      }
+      eventListeners = [];
+      connectionStatus = 'disconnected';
+      qrCode = null;
+      // Allow a later explicit connect() to work again after shutdown.
+      shuttingDown = false;
     },
 
     /**

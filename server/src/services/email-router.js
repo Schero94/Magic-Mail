@@ -468,7 +468,11 @@ module.exports = ({ strapi }) => ({
           case 'emailType': matches = rule.matchValue === type; break;
           case 'recipient': matches = to && to.toLowerCase().includes(rule.matchValue.toLowerCase()); break;
           case 'subject': matches = subject && subject.toLowerCase().includes(rule.matchValue.toLowerCase()); break;
-          case 'template': matches = emailData.template && emailData.template === rule.matchValue; break;
+          case 'template':
+            matches = !!(emailData.templateName && emailData.templateName === rule.matchValue)
+              || !!(emailData.templateReferenceId
+                && String(emailData.templateReferenceId) === String(rule.matchValue));
+            break;
           case 'custom': matches = emailData.customField && emailData.customField === rule.matchValue; break;
         }
         if (matches) {
@@ -625,8 +629,11 @@ module.exports = ({ strapi }) => ({
           break;
         
         case 'template':
-          // Match if template name equals match value
-          matches = emailData.template && emailData.template === rule.matchValue;
+          // Match by resolved template name or reference id (the emailData
+          // carries `templateName`/`templateReferenceId`, never `template`).
+          matches = !!(emailData.templateName && emailData.templateName === rule.matchValue)
+            || !!(emailData.templateReferenceId
+              && String(emailData.templateReferenceId) === String(rule.matchValue));
           break;
         
         case 'custom':
@@ -642,9 +649,11 @@ module.exports = ({ strapi }) => ({
           strapi.log.info(`[magic-mail] [ROUTE] Routing rule matched: ${rule.name} -> ${account.name}`);
           return account;
         }
-        // If primary account not found, try fallback
+        // If primary account not found, try fallback (case-insensitive name).
         if (rule.fallbackAccountName) {
-          const fallbackAccount = accounts.find(a => a.name === rule.fallbackAccountName);
+          const fallbackAccount = accounts.find(
+            (a) => a.name.toLowerCase() === rule.fallbackAccountName.toLowerCase()
+          );
           if (fallbackAccount) {
             strapi.log.info(`[magic-mail] [FALLBACK] Using fallback account: ${fallbackAccount.name}`);
             return fallbackAccount;
@@ -1783,23 +1792,25 @@ module.exports = ({ strapi }) => ({
       throw new Error('WhatsApp is not connected. Please connect WhatsApp first in the admin panel.');
     }
 
-    // If template is specified, render it
-    let finalMessage = message;
+    // If a template is specified, delegate to the WhatsApp service which owns
+    // template lookup + literal-safe variable substitution. (The previous
+    // `whatsapp.getTemplate()` method never existed, so template sends silently
+    // fell back to an empty/plain message.)
     if (templateId) {
-      try {
-        const template = await whatsapp.getTemplate(templateId);
-        if (template) {
-          finalMessage = template.content;
-          // Replace variables in template
-          Object.keys(templateData).forEach(key => {
-            finalMessage = finalMessage.replace(new RegExp(`{{${key}}}`, 'g'), templateData[key]);
-          });
-        }
-      } catch (error) {
-        strapi.log.warn(`[magic-mail] WhatsApp template ${templateId} not found, using plain message`);
+      strapi.log.info(`[magic-mail] [WHATSAPP] Sending template "${templateId}" to ${cleanPhone}`);
+      const templateResult = await whatsapp.sendTemplateMessage(cleanPhone, templateId, templateData || {});
+      if (templateResult.success) {
+        return {
+          success: true,
+          channel: 'whatsapp',
+          phoneNumber: cleanPhone,
+          jid: templateResult.jid,
+        };
       }
+      throw new Error(templateResult.error || 'Failed to send WhatsApp template message');
     }
 
+    const finalMessage = message;
     if (!finalMessage) {
       throw new Error('Message content is required');
     }

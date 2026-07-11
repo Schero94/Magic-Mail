@@ -550,6 +550,14 @@ module.exports = ({ strapi }) => ({
       expiresAt: tokenData.expiresAt,
     });
 
+    const isPrimary = accountDetails.isPrimary || false;
+    // Keep the single-primary invariant: clear any existing primary before
+    // creating a new primary OAuth account (the OAuth path previously skipped
+    // this, allowing multiple primary accounts).
+    if (isPrimary) {
+      await strapi.plugin('magic-mail').service('account-manager').unsetAllPrimary();
+    }
+
     const account = await strapi.documents('plugin::magic-mail.email-account').create({
       data: {
         name: accountDetails.name,
@@ -560,8 +568,8 @@ module.exports = ({ strapi }) => ({
         fromEmail: tokenData.email ? tokenData.email.trim().toLowerCase() : tokenData.email,
         fromName: accountDetails.fromName || tokenData.email.split('@')[0],
         replyTo: (accountDetails.replyTo || tokenData.email || '').trim().toLowerCase(),
-        isActive: true,
-        isPrimary: accountDetails.isPrimary || false,
+        isActive: accountDetails.isActive !== undefined ? accountDetails.isActive : true,
+        isPrimary,
         priority: accountDetails.priority || 1,
         dailyLimit: accountDetails.dailyLimit || 0,
         hourlyLimit: accountDetails.hourlyLimit || 0,

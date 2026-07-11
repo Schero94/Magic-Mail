@@ -46,12 +46,16 @@ module.exports = ({ strapi }) => ({
   async createAccount(accountData) {
     const {
       name,
+      description,
       provider,
       config,
       fromEmail,
       fromName,
       replyTo,
       isPrimary = false,
+      // Honour the caller's active flag instead of forcing every account
+      // active — an explicitly disabled account must not be selectable.
+      isActive = true,
       priority = 1,
       dailyLimit = 0,
       hourlyLimit = 0,
@@ -70,6 +74,7 @@ module.exports = ({ strapi }) => ({
     const account = await strapi.documents(EMAIL_ACCOUNT_UID).create({
       data: {
         name,
+        description: description ?? null,
         provider,
         config: encryptedConfig,
         fromEmail,
@@ -79,7 +84,7 @@ module.exports = ({ strapi }) => ({
         priority,
         dailyLimit,
         hourlyLimit,
-        isActive: true,
+        isActive,
         emailsSentToday: 0,
         emailsSentThisHour: 0,
         totalEmailsSent: 0,

@@ -25,34 +25,19 @@ module.exports = async ({ strapi }) => {
     throw e;
   }
 
-  try {
-    // Initialize License Guard
-    const licenseGuardService = strapi.plugin('magic-mail').service('license-guard');
-    
-    // Wait a bit for all services to be ready
-    setTimeout(async () => {
-      try {
-        const licenseStatus = await licenseGuardService.initialize();
-        
-        if (!licenseStatus.valid && licenseStatus.demo) {
-          log.error('╔════════════════════════════════════════════════════════════════╗');
-          log.error('║  [ERROR] MAGICMAIL - NO VALID LICENSE                         ║');
-          log.error('║                                                                ║');
-          log.error('║  This plugin requires a valid license to operate.             ║');
-          log.error('║  Please activate your license via Admin UI:                   ║');
-          log.error('║  Go to MagicMail -> License tab                               ║');
-          log.error('║                                                                ║');
-          log.error('║  Click "Generate Free License" to get started!                ║');
-          log.error('╚════════════════════════════════════════════════════════════════╝');
-        } else if (licenseStatus.gracePeriod) {
-          log.warn('[WARNING] Running on grace period (license server unreachable)');
-        }
-      } catch (err) {
-        log.error('[ERROR] License initialization failed:', err.message);
-      }
-    }, 2000);
+  // Plugin-scoped runtime registry (timers, wrapped email service). Kept on
+  // the strapi instance instead of `global` so destroy()/hot-reload can clean
+  // up deterministically and repeated bootstraps do not leak timers.
+  strapi.magicMail = strapi.magicMail || {};
+  strapi.magicMail.timers = strapi.magicMail.timers || [];
+  const registerTimer = (handle) => {
+    // unref so a pending timer never keeps the process alive on shutdown.
+    if (handle && typeof handle.unref === 'function') handle.unref();
+    strapi.magicMail.timers.push(handle);
+    return handle;
+  };
 
-    const accountManager = strapi.plugin('magic-mail').service('account-manager');
+  try {
     const emailRouter = strapi.plugin('magic-mail').service('email-router');
 
     // ============================================================
@@ -118,60 +103,54 @@ module.exports = async ({ strapi }) => {
     // ============================================================
 
     // Reset hourly counters every hour
-    const hourlyResetInterval = setInterval(async () => {
+    registerTimer(setInterval(async () => {
       try {
-        if (!strapi || !strapi.plugin) {
-          strapi.log.warn('[magic-mail] Strapi not available for hourly reset');
-          return;
-        }
+        if (!strapi || !strapi.plugin) return;
         const accountMgr = strapi.plugin('magic-mail').service('account-manager');
         await accountMgr.resetCounters('hourly');
         log.info('[RESET] Hourly counters reset');
       } catch (err) {
         strapi.log.error('[magic-mail] Hourly reset error:', err.message);
       }
-    }, 60 * 60 * 1000); // Every hour
-    
-    // Store interval for cleanup
-    if (!global.magicMailIntervals) global.magicMailIntervals = {};
-    global.magicMailIntervals.hourly = hourlyResetInterval;
+    }, 60 * 60 * 1000));
 
-    // Reset daily counters at midnight
+    // Reset daily counters at midnight, then every 24h.
     const now = new Date();
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
     const msUntilMidnight = midnight - now;
 
-    setTimeout(async () => {
+    registerTimer(setTimeout(async () => {
       try {
-        if (!strapi || !strapi.plugin) {
-          strapi.log.warn('[magic-mail] Strapi not available for daily reset');
-          return;
-        }
+        if (!strapi || !strapi.plugin) return;
         const accountMgr = strapi.plugin('magic-mail').service('account-manager');
         await accountMgr.resetCounters('daily');
         log.info('[RESET] Daily counters reset');
 
-        // Then set daily interval
-        const dailyResetInterval = setInterval(async () => {
+        registerTimer(setInterval(async () => {
           try {
-            if (!strapi || !strapi.plugin) {
-              strapi.log.warn('[magic-mail] Strapi not available for daily reset');
-              return;
-            }
-            const accountMgr = strapi.plugin('magic-mail').service('account-manager');
-            await accountMgr.resetCounters('daily');
+            if (!strapi || !strapi.plugin) return;
+            const mgr = strapi.plugin('magic-mail').service('account-manager');
+            await mgr.resetCounters('daily');
             log.info('[RESET] Daily counters reset');
           } catch (err) {
             strapi.log.error('[magic-mail] Daily reset error:', err.message);
           }
-        }, 24 * 60 * 60 * 1000); // Every 24 hours
-        
-        // Store interval for cleanup
-        global.magicMailIntervals.daily = dailyResetInterval;
+        }, 24 * 60 * 60 * 1000));
       } catch (err) {
         strapi.log.error('[magic-mail] Initial daily reset error:', err.message);
       }
-    }, msUntilMidnight);
+    }, msUntilMidnight));
+
+    // One-time purge of any historic tracking link mappings that captured a
+    // sensitive/authentication URL before the tracking policy existed. Runs
+    // shortly after boot, guarded by a store flag so it happens once.
+    registerTimer(setTimeout(async () => {
+      try {
+        await purgeSensitiveLinkMappings(strapi, log);
+      } catch (err) {
+        strapi.log.debug('[magic-mail] Sensitive link purge skipped:', err.message);
+      }
+    }, 10 * 1000));
 
     log.info('[SUCCESS] Counter reset schedules initialized');
     log.info('[SUCCESS] Bootstrap complete');
@@ -179,3 +158,58 @@ module.exports = async ({ strapi }) => {
     log.error('[ERROR] Bootstrap error:', err);
   }
 };
+
+/**
+ * One-time cleanup that removes historic click-tracking link mappings whose
+ * stored `originalUrl` is a sensitive/authentication URL (password reset,
+ * confirmation, magic-link, token-bearing). Such rows may predate the tracking
+ * policy and would otherwise keep exposing credentials via the tracking table.
+ *
+ * Guarded by a plugin-store flag so it only runs once per installation.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @returns {Promise<void>}
+ * @sideeffect Deletes matching email-link rows; sets a store flag
+ */
+async function purgeSensitiveLinkMappings(strapi, log) {
+  const store = strapi.store({ type: 'plugin', name: 'magic-mail' });
+  const done = await store.get({ key: 'sensitiveLinkPurgeV1' });
+  if (done) return;
+
+  const { isSensitiveTrackingUrl } = require('./utils/tracking-url-policy');
+  const LINK_UID = 'plugin::magic-mail.email-link';
+  const pageSize = 200;
+  let start = 0;
+  let removed = 0;
+
+  // Iterate defensively; the table is usually small.
+  for (let guard = 0; guard < 10000; guard += 1) {
+    const rows = await strapi.documents(LINK_UID).findMany({
+      fields: ['documentId', 'originalUrl'],
+      limit: pageSize,
+      start,
+    });
+    if (!rows || rows.length === 0) break;
+
+    for (const row of rows) {
+      if (isSensitiveTrackingUrl(row.originalUrl)) {
+        try {
+          await strapi.documents(LINK_UID).delete({ documentId: row.documentId });
+          removed += 1;
+        } catch {
+          // best-effort
+        }
+      }
+    }
+
+    if (rows.length < pageSize) break;
+    // Only advance when we did not delete the whole page (deletes shift rows).
+    start += pageSize - 0;
+  }
+
+  await store.set({ key: 'sensitiveLinkPurgeV1', value: { done: true, removed, at: new Date().toISOString() } });
+  if (removed > 0) {
+    log.info(`[magic-mail] [PURGE] Removed ${removed} historic sensitive tracking link mapping(s)`);
+  }
+}

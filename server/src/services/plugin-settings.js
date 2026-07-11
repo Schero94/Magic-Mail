@@ -57,15 +57,20 @@ module.exports = ({ strapi }) => ({
    */
   async updateSettings(data) {
     try {
-      // Sanitize data - convert empty strings to null for optional fields
-      const sanitizedData = {
-        ...data,
-        trackingBaseUrl: data.trackingBaseUrl?.trim() || null,
-        defaultFromName: data.defaultFromName?.trim() || null,
-        defaultFromEmail: data.defaultFromEmail?.trim()?.toLowerCase() || null,
-        unsubscribeUrl: data.unsubscribeUrl?.trim() || null,
-        trackingFallbackUrl: data.trackingFallbackUrl?.trim() || null,
-      };
+      // TRUE partial update: only normalize keys actually present in the
+      // payload. The previous code force-set every optional URL/name field to
+      // null, so a partial PUT (e.g. toggling one boolean) wiped unrelated
+      // configuration.
+      const trimToNull = (value) => (typeof value === 'string' ? (value.trim() || null) : value);
+      const sanitizedData = { ...data };
+      if ('trackingBaseUrl' in data) sanitizedData.trackingBaseUrl = trimToNull(data.trackingBaseUrl);
+      if ('defaultFromName' in data) sanitizedData.defaultFromName = trimToNull(data.defaultFromName);
+      if ('defaultFromEmail' in data) {
+        const email = trimToNull(data.defaultFromEmail);
+        sanitizedData.defaultFromEmail = email ? email.toLowerCase() : null;
+      }
+      if ('unsubscribeUrl' in data) sanitizedData.unsubscribeUrl = trimToNull(data.unsubscribeUrl);
+      if ('trackingFallbackUrl' in data) sanitizedData.trackingFallbackUrl = trimToNull(data.trackingFallbackUrl);
       
       // Get existing settings
       let settings = await strapi.documents(SETTINGS_UID).findFirst({});

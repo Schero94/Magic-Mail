@@ -463,12 +463,15 @@ module.exports = ({ strapi }) => ({
 
       const emailRouterService = strapi.plugin('magic-mail').service('email-router');
 
+      // The body is ALREADY rendered with the test data above. Do NOT also pass
+      // templateId, or the router would render the template a second time with
+      // empty data and overwrite the substituted content. templateName is kept
+      // for logging/analytics only.
       const sendOptions = {
         to,
         subject: rendered.subject || template.subject,
         html: rendered.html,
         text: rendered.text,
-        templateId: template.templateReferenceId,
         templateName: template.name,
       };
 

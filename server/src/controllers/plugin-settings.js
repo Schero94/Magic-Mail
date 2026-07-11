@@ -1,6 +1,6 @@
 'use strict';
 
-const { validate } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
 
 /**
  * Plugin Settings Controller
@@ -45,8 +45,9 @@ module.exports = ({ strapi }) => ({
         message: 'Settings updated successfully',
       };
     } catch (error) {
-      strapi.log.error('[magic-mail] [SETTINGS] Error updating settings:', error);
-      ctx.throw(500, 'Failed to update settings');
+      // Map Zod/Strapi ValidationError to 400 with details instead of a
+      // generic 500.
+      handleControllerError(ctx, error, '[magic-mail] [SETTINGS] Error updating settings', 'Failed to update settings');
     }
   },
 });

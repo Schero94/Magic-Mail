@@ -702,9 +702,21 @@ module.exports = ({ strapi }) => ({
     const decodedText = decode(bodyText);
     const decodedSubject = decode(subject);
 
+    // HTML body keeps Mustache's default HTML escaping. Plain text and the
+    // subject line are NOT HTML, so escaping there corrupts values (e.g.
+    // "Tom & Jerry" -> "Tom &amp; Jerry"). Render those with escaping disabled.
     const renderedHtml = Mustache.render(decodedHtml, data);
-    const renderedText = Mustache.render(decodedText, data);
-    const renderedSubject = Mustache.render(decodedSubject, data);
+
+    const previousEscape = Mustache.escape;
+    Mustache.escape = (value) => value;
+    let renderedText;
+    let renderedSubject;
+    try {
+      renderedText = Mustache.render(decodedText, data);
+      renderedSubject = Mustache.render(decodedSubject, data);
+    } finally {
+      Mustache.escape = previousEscape;
+    }
 
     return {
       html: renderedHtml,
@@ -762,7 +774,12 @@ module.exports = ({ strapi }) => ({
       try {
         // Normalize template data - support different export formats
         const templateData = this.normalizeImportData(rawData);
-        
+
+        // Assign an int4-safe unique reference id when the import omitted one.
+        if (!templateData.templateReferenceId) {
+          templateData.templateReferenceId = await this._generateUniqueTemplateReferenceId();
+        }
+
         strapi.log.info(`[magic-mail] [IMPORT] Processing: "${templateData.name}" (ref: ${templateData.templateReferenceId})`);
 
         const existing = await this.findByReferenceId(templateData.templateReferenceId);
@@ -804,10 +821,11 @@ module.exports = ({ strapi }) => ({
       ? rawData.isActive 
       : (rawData.enabled !== undefined ? rawData.enabled : true);
 
-    // Generate reference ID if missing
-    const templateReferenceId = rawData.templateReferenceId 
-      || rawData.referenceId 
-      || Date.now() + Math.floor(Math.random() * 1000);
+    // Only carry an explicitly provided reference id here. A missing id is
+    // filled in by the importer via _generateUniqueTemplateReferenceId(), which
+    // guarantees an int4-safe unique value — Date.now() overflowed PostgreSQL's
+    // integer column and broke every id-less import.
+    const templateReferenceId = rawData.templateReferenceId || rawData.referenceId || null;
 
     // Determine category (default to 'custom' if not specified)
     const category = rawData.category || 'custom';
