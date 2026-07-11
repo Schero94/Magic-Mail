@@ -85,6 +85,7 @@ nbproject
 .tsbuildinfo
 .eslintcache
 .env
+.worktrees/
 
 
 ############################
