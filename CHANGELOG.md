@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/Schero94/Magic-Mail/compare/v3.0.0...v3.0.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* **docs:** state MagicMail is fully free and drop remaining tier markers ([47118e5](https://github.com/Schero94/Magic-Mail/commit/47118e55e3ca5cc8c5c8202b55b55f81c8080497))
+
 # [3.0.0](https://github.com/Schero94/Magic-Mail/compare/v2.10.11...v3.0.0) (2026-07-11)
 
 
