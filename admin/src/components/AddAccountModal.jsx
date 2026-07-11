@@ -390,19 +390,6 @@ const SectionTitle = styled(Typography)`
   gap: 8px;
 `;
 
-const PrimaryToggleBox = styled(Box)`
-  background: linear-gradient(135deg, ${colors.primaryLight}, ${colors.successLight});
-  border: 2px solid ${colors.primary}33;
-  border-radius: 12px;
-  padding: 20px;
-  transition: all 0.3s;
-  
-  &:hover {
-    border-color: ${colors.primary}66;
-    box-shadow: 0 4px 12px rgba(73, 69, 255, 0.1);
-  }
-`;
-
 // ============= COMPONENT =============
 const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }) => {
   const { post, get, put } = useFetchClient();
