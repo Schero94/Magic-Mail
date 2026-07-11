@@ -392,6 +392,8 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [emailLogs, setEmailLogs] = useState([]);
+  const [logsError, setLogsError] = useState(null);
+  const [pagination, setPagination] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -421,10 +423,20 @@ const Analytics = () => {
   const fetchEmailLogs = async () => {
     setLoading(true);
     try {
-      const response = await get('/magic-mail/analytics/emails?_limit=50&_sort=sentAt:DESC');
+      const response = await get('/magic-mail/analytics/emails?page=1&pageSize=50');
       setEmailLogs(response.data?.data || []);
+      setPagination(response.data?.pagination || null);
+      setLogsError(null);
     } catch (error) {
       console.error('Failed to fetch email logs:', error);
+      const message =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        'Failed to load email logs';
+      setEmailLogs([]);
+      setPagination(null);
+      setLogsError(message);
+      toggleNotification({ type: 'danger', message });
     } finally {
       setLoading(false);
     }
@@ -537,7 +549,7 @@ const Analytics = () => {
       <FilterBar>
         <Flex justifyContent="space-between" alignItems="center">
           <Typography variant="omega" fontWeight="semiBold" textColor="neutral700">
-            Recent Emails ({filteredLogs.length})
+            Recent Emails ({filteredLogs.length}{pagination?.total ? ` of ${pagination.total}` : ''})
           </Typography>
           <Flex gap={2}>
             <TextInput
@@ -561,7 +573,21 @@ const Analytics = () => {
       </FilterBar>
 
       {/* Email Logs Table */}
-      {filteredLogs.length === 0 ? (
+      {logsError ? (
+        <EmptyState>
+          <EmptyContent>
+            <EmptyIcon>
+              <ExclamationTriangleIcon />
+            </EmptyIcon>
+            <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '12px', display: 'block' }}>
+              Couldn't load email logs
+            </Typography>
+            <Typography variant="omega" textColor="neutral600" style={{ lineHeight: '1.6', display: 'block' }}>
+              {logsError}
+            </Typography>
+          </EmptyContent>
+        </EmptyState>
+      ) : filteredLogs.length === 0 ? (
         <EmptyState>
           <EmptyContent>
             <EmptyIcon>

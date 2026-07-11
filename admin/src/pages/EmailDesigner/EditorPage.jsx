@@ -936,7 +936,7 @@ const EditorPage = () => {
     } catch (error) {
       toggleNotification({
         type: 'danger',
-        message: error.response?.data?.message || 'Failed to save',
+        message: error.response?.data?.error?.message || error.response?.data?.message || 'Failed to save',
       });
     } finally {
       setSaving(false);
@@ -1123,6 +1123,8 @@ const EditorPage = () => {
                 onChange={() =>
                   setTemplateData({ ...templateData, isActive: !templateData.isActive })
                 }
+                onLabel="Active"
+                offLabel="Inactive"
               />
               <Typography variant="omega">
                 {templateData.isActive ? 'Active' : 'Inactive'}

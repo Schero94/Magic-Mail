@@ -1309,6 +1309,8 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                           <Toggle
                             checked={formData.secure}
                             onChange={() => handleChange('secure', !formData.secure)}
+                            onLabel="Enabled"
+                            offLabel="Disabled"
                           />
                           <Flex direction="column" gap={1} style={{ flex: 1 }}>
                             <Flex alignItems="center" gap={2}>
@@ -1960,6 +1962,8 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                         <Toggle
                           checked={formData.isActive}
                           onChange={() => handleChange('isActive', !formData.isActive)}
+                          onLabel="Active"
+                          offLabel="Inactive"
                         />
                       </Box>
                       <Box style={{ flex: 1 }}>
@@ -2003,6 +2007,8 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                         <Toggle
                           checked={formData.isPrimary}
                           onChange={() => handleChange('isPrimary', !formData.isPrimary)}
+                          onLabel="Primary"
+                          offLabel="Off"
                         />
                       </Box>
                       <Box style={{ flex: 1 }}>

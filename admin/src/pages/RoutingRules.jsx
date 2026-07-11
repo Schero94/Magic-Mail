@@ -747,7 +747,7 @@ const RoutingRulesPage = () => {
                 </Thead>
                 <Tbody>
                   {filteredRules.map((rule) => (
-                    <Tr key={rule.id}>
+                    <Tr key={rule.documentId || rule.id}>
                       {/* Status */}
                       <Td>
                         <Flex alignItems="center" gap={2}>
@@ -838,7 +838,7 @@ const RoutingRulesPage = () => {
                             <PencilIcon />
                           </IconButton>
                           <IconButtonDanger
-                            onClick={() => deleteRule(rule.id, rule.name)}
+                            onClick={() => deleteRule(rule.documentId || rule.id, rule.name)}
                             aria-label="Delete Rule"
                           >
                             <TrashIcon />
@@ -903,7 +903,7 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
     setLoading(true);
     try {
       if (isEditMode) {
-        await put(`/magic-mail/routing-rules/${rule.id}`, formData);
+        await put(`/magic-mail/routing-rules/${rule.documentId || rule.id}`, formData);
         toggleNotification({
           type: 'success',
           message: 'Routing rule updated successfully',
@@ -1081,6 +1081,8 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
                   <Toggle
                     checked={formData.whatsappFallback}
                     onChange={() => handleChange('whatsappFallback', !formData.whatsappFallback)}
+                    onLabel="Enabled"
+                    offLabel="Disabled"
                   />
                   <Box style={{ flex: 1 }}>
                     <Flex alignItems="center" gap={2}>
@@ -1134,6 +1136,8 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
                   <Toggle
                     checked={formData.isActive}
                     onChange={() => handleChange('isActive', !formData.isActive)}
+                    onLabel="Active"
+                    offLabel="Inactive"
                   />
                   <Box style={{ flex: 1 }}>
                     <Flex alignItems="center" gap={2}>

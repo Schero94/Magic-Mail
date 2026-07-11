@@ -144,7 +144,9 @@ const schemas = {
     testEmail: emailString.optional(),
     to: emailString.optional(),
     priority: z.enum(['normal', 'high', 'low']).optional(),
-    type: z.enum(['transactional', 'marketing']).optional(),
+    // Accept every email type the send pipeline supports, including
+    // 'notification' which the admin Direct Test offers.
+    type: z.enum(['transactional', 'marketing', 'notification']).optional(),
     unsubscribeUrl: unsubscribeUrl.optional().nullable(),
   }).refine((d) => d.testEmail || d.to, { message: 'testEmail or to is required' }),
 

@@ -309,6 +309,8 @@ const PluginSettingsPage = () => {
               <Toggle
                 checked={settings.enableLinkTracking}
                 onChange={(e) => handleChange('enableLinkTracking', e.target.checked)}
+                onLabel="Enabled"
+                offLabel="Disabled"
               />
             </ToggleWrapper>
           </SettingRow>
@@ -371,6 +373,8 @@ const PluginSettingsPage = () => {
               <Toggle
                 checked={settings.enableOpenTracking}
                 onChange={(e) => handleChange('enableOpenTracking', e.target.checked)}
+                onLabel="Enabled"
+                offLabel="Disabled"
               />
             </ToggleWrapper>
           </SettingRow>
@@ -403,6 +407,8 @@ const PluginSettingsPage = () => {
               <Toggle
                 checked={settings.enableUnsubscribeHeader}
                 onChange={(e) => handleChange('enableUnsubscribeHeader', e.target.checked)}
+                onLabel="Enabled"
+                offLabel="Disabled"
               />
             </ToggleWrapper>
           </SettingRow>

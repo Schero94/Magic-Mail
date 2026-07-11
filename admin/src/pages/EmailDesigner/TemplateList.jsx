@@ -1075,7 +1075,7 @@ const TemplateList = () => {
     } catch (error) {
       toggleNotification({
         type: 'danger',
-        message: error.response?.data?.message || 'Export failed',
+        message: error.response?.data?.error?.message || error.response?.data?.message || 'Export failed',
       });
     }
   };
@@ -1102,7 +1102,10 @@ const TemplateList = () => {
       fetchTemplates();
       fetchStats();
     } catch (error) {
-      toggleNotification({ type: 'danger', message: 'Import failed' });
+      toggleNotification({
+        type: 'danger',
+        message: error.response?.data?.error?.message || error.response?.data?.message || 'Import failed',
+      });
     }
   };
 
@@ -1524,7 +1527,6 @@ const TemplateList = () => {
             variant="secondary"
             onClick={() => {
               setSearchTerm('');
-              setActiveCategory('all');
             }}
             style={{ marginTop: '20px' }}
           >
