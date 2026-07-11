@@ -10,7 +10,7 @@ import {
   TextInput,
   Textarea,
   NumberInput,
-  Toggle,
+  Switch,
   Alert,
   Divider,
   Badge,
@@ -1297,41 +1297,35 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                       
                       <Box
                         padding={4}
-                        background={formData.secure ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)'}
+                        background="neutral100"
                         hasRadius
                         style={{
-                          border: formData.secure ? '2px solid var(--colors-success600, #22C55E)' : '2px solid var(--colors-warning600, #F59E0B)',
+                          border: '1px solid var(--colors-neutral200)',
                           borderRadius: '8px',
-                          transition: 'all 0.2s ease',
                         }}
                       >
-                        <Flex gap={3} alignItems="center">
-                          <Toggle
-                            checked={formData.secure}
-                            onChange={() => handleChange('secure', !formData.secure)}
-                            onLabel="Enabled"
-                            offLabel="Disabled"
-                          />
-                          <Flex direction="column" gap={1} style={{ flex: 1 }}>
-                            <Flex alignItems="center" gap={2}>
-                              <Typography fontWeight="semiBold" style={{ fontSize: '14px' }}>
-                                {formData.secure ? '🔒' : '⚠️'} Use SSL/TLS Encryption
-                              </Typography>
-                              <Badge 
-                                backgroundColor={formData.secure ? 'success600' : 'warning600'} 
-                                textColor="neutral0" 
-                                size="S"
-                              >
-                                {formData.secure ? 'ENABLED' : 'DISABLED'}
-                              </Badge>
-                            </Flex>
+                        <Flex gap={4} alignItems="center" justifyContent="space-between">
+                          <Flex direction="column" gap={1} alignItems="flex-start" style={{ flex: 1, minWidth: 0 }}>
+                            <Typography fontWeight="semiBold" style={{ fontSize: '14px' }}>
+                              Use SSL/TLS Encryption
+                            </Typography>
                             <Typography variant="pi" textColor="neutral600" style={{ fontSize: '13px', lineHeight: '1.5' }}>
                               {formData.secure 
-                                ? 'SSL/TLS enabled - Use this for port 465' 
-                                : 'SSL/TLS disabled - Port 587 will use STARTTLS instead'
+                                ? 'Use this for implicit SSL/TLS connections, typically on port 465.'
+                                : 'Port 587 will use STARTTLS instead. Confirm the server supports STARTTLS before sending.'
                               }
                             </Typography>
                           </Flex>
+                          <Box style={{ flexShrink: 0 }}>
+                            <Switch
+                              checked={formData.secure}
+                              onCheckedChange={(checked) => handleChange('secure', checked)}
+                              aria-label="Use SSL/TLS encryption"
+                              onLabel="Enabled"
+                              offLabel="Disabled"
+                              visibleLabels={false}
+                            />
+                          </Box>
                         </Flex>
                       </Box>
                     </Flex>
@@ -1949,44 +1943,34 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   {/* Account Active Toggle */}
                   <Box 
                     padding={4} 
-                    background={formData.isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 38, 38, 0.12)'}
+                    background="neutral100"
                     hasRadius
                     style={{ 
-                      border: formData.isActive ? '2px solid var(--colors-success600, #22C55E)' : '2px solid var(--colors-danger600, #EF4444)',
+                      border: '1px solid var(--colors-neutral200)',
                       borderRadius: '8px',
-                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <Flex gap={3} alignItems="flex-start">
-                      <Box style={{ paddingTop: '2px' }}>
-                        <Toggle
-                          checked={formData.isActive}
-                          onChange={() => handleChange('isActive', !formData.isActive)}
-                          onLabel="Active"
-                          offLabel="Inactive"
-                        />
-                      </Box>
-                      <Box style={{ flex: 1 }}>
-                        <Flex alignItems="center" gap={2} marginBottom={1}>
-                          <Typography fontWeight="semiBold" style={{ fontSize: '15px' }}>
-                            {formData.isActive ? '✅' : '❌'} Account Active
-                          </Typography>
-                          {formData.isActive ? (
-                            <Badge backgroundColor="success600" textColor="neutral0" size="S">
-                              ENABLED
-                            </Badge>
-                          ) : (
-                            <Badge backgroundColor="danger600" textColor="neutral0" size="S">
-                              DISABLED
-                            </Badge>
-                          )}
-                        </Flex>
+                    <Flex gap={4} alignItems="center" justifyContent="space-between">
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Typography fontWeight="semiBold" marginBottom={1} style={{ fontSize: '15px' }}>
+                          Account Active
+                        </Typography>
                         <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6' }}>
                           {formData.isActive 
-                            ? 'This account is enabled and can send emails. Disable it to prevent sending without deleting the account.'
-                            : 'This account is disabled and will not send any emails. Enable it to start sending again.'
+                            ? 'This account can send emails. Turn it off to pause sending without deleting the account.'
+                            : 'This account will not send emails until it is turned on again.'
                           }
                         </Typography>
+                      </Box>
+                      <Box style={{ flexShrink: 0 }}>
+                        <Switch
+                          checked={formData.isActive}
+                          onCheckedChange={(checked) => handleChange('isActive', checked)}
+                          aria-label="Account active"
+                          onLabel="Active"
+                          offLabel="Inactive"
+                          visibleLabels={false}
+                        />
                       </Box>
                     </Flex>
                   </Box>
@@ -1994,37 +1978,31 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   {/* Primary Account Toggle */}
                   <Box 
                     padding={4} 
-                    background={formData.isPrimary ? 'rgba(245, 158, 11, 0.15)' : 'neutral100'}
+                    background="neutral100"
                     hasRadius
                     style={{ 
-                      border: formData.isPrimary ? '2px solid var(--colors-warning600, #F59E0B)' : `1px solid ${colors.border}`,
+                      border: '1px solid var(--colors-neutral200)',
                       borderRadius: '8px',
-                      transition: 'all 0.2s ease'
                     }}
                   >
-                    <Flex gap={3} alignItems="flex-start">
-                      <Box style={{ paddingTop: '2px' }}>
-                        <Toggle
-                          checked={formData.isPrimary}
-                          onChange={() => handleChange('isPrimary', !formData.isPrimary)}
-                          onLabel="Primary"
-                          offLabel="Off"
-                        />
-                      </Box>
-                      <Box style={{ flex: 1 }}>
-                        <Flex alignItems="center" gap={2} marginBottom={1}>
-                          <Typography fontWeight="semiBold" style={{ fontSize: '15px' }}>
-                            ⭐ Set as Primary Account
-                          </Typography>
-                          {formData.isPrimary && (
-                            <Badge backgroundColor="warning600" textColor="neutral0" size="S">
-                              PRIMARY
-                            </Badge>
-                          )}
-                        </Flex>
+                    <Flex gap={4} alignItems="center" justifyContent="space-between">
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Typography fontWeight="semiBold" marginBottom={1} style={{ fontSize: '15px' }}>
+                          Set as Primary Account
+                        </Typography>
                         <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6' }}>
                           This account will be used by default when sending emails if no specific account is selected. Only one account can be primary at a time.
                         </Typography>
+                      </Box>
+                      <Box style={{ flexShrink: 0 }}>
+                        <Switch
+                          checked={formData.isPrimary}
+                          onCheckedChange={(checked) => handleChange('isPrimary', checked)}
+                          aria-label="Primary account"
+                          onLabel="Primary"
+                          offLabel="Not primary"
+                          visibleLabels={false}
+                        />
                       </Box>
                     </Flex>
                   </Box>
