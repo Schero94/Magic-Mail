@@ -8,6 +8,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { isSensitiveTrackingUrl, redactUrlForLog } = require('../utils/tracking-url-policy');
 
 // Content Type UIDs
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -278,8 +279,12 @@ module.exports = ({ strapi }) => ({
         filters: where,
         sort: [{ sentAt: 'desc' }],
         limit: pageSize,
-        offset: (page - 1) * pageSize,
-        populate: ['user'],
+        // Strapi v5 Document Service paginates with `start`, not `offset`.
+        // Using `offset` silently returned page 1 for every page.
+        start: (page - 1) * pageSize,
+        // Field-limited populate: never expose private user columns
+        // (password, resetPasswordToken, confirmationToken).
+        populate: { user: { fields: ['id', 'documentId', 'email', 'username'] } },
       }),
       // Get total count using native count() method
       strapi.documents(EMAIL_LOG_UID).count({
@@ -304,7 +309,10 @@ module.exports = ({ strapi }) => ({
   async getEmailLogDetails(emailId) {
     const emailLog = await strapi.documents(EMAIL_LOG_UID).findFirst({
       filters: { emailId },
-      populate: ['user', 'events'],
+      populate: {
+        user: { fields: ['id', 'documentId', 'email', 'username'] },
+        events: true,
+      },
     });
 
     return emailLog;
@@ -354,7 +362,7 @@ module.exports = ({ strapi }) => ({
     const trackingUrl = `${baseUrl}/api/magic-mail/track/open/${emailId}/${recipientHash}?r=${randomToken}`;
     const trackingPixel = `<img src="${trackingUrl}" width="1" height="1" style="display:none;" alt="" />`;
     
-    strapi.log.info(`[magic-mail] [PIXEL] Tracking pixel URL: ${trackingUrl}`);
+    strapi.log.debug(`[magic-mail] [PIXEL] Tracking pixel injected for ${emailId}`);
     
     // Try to inject before </body>, otherwise append at the end
     if (html.includes('</body>')) {
@@ -414,10 +422,7 @@ module.exports = ({ strapi }) => ({
       
       // Skip if already processed
       if (processedUrls.has(originalUrl)) continue;
-      
-      // Debug: Log what we found
-      strapi.log.debug(`[magic-mail] [CHECK] Found link: ${originalUrl.substring(0, 100)}${originalUrl.length > 100 ? '...' : ''}`);
-      
+
       // Skip if already a tracking link, anchor, or mailto/tel
       if (
         originalUrl.startsWith('#') || 
@@ -426,13 +431,19 @@ module.exports = ({ strapi }) => ({
         originalUrl.startsWith('tel:') ||
         originalUrl.startsWith('javascript:')
       ) {
-        strapi.log.debug(`[magic-mail] [SKIP] Skipping special URL: ${originalUrl.substring(0, 50)}`);
         continue;
       }
 
       // Must be an absolute URL with protocol
       if (!originalUrl.match(/^https?:\/\//i)) {
-        strapi.log.debug(`[magic-mail] [SKIP] Skipping non-http URL: ${originalUrl.substring(0, 50)}`);
+        continue;
+      }
+
+      // SECURITY: never rewrite/store authentication or one-time-token URLs
+      // (password reset, confirmation, magic-link, OAuth, token-bearing links).
+      // Storing them would expose credentials via the tracking table/logs.
+      if (isSensitiveTrackingUrl(originalUrl)) {
+        strapi.log.debug(`[magic-mail] [SKIP] Not tracking sensitive URL: ${redactUrlForLog(originalUrl)}`);
         continue;
       }
 
@@ -451,7 +462,7 @@ module.exports = ({ strapi }) => ({
       const trackingUrl = `${baseUrl}/api/magic-mail/track/click/${emailId}/${linkHash}/${recipientHash}`;
       
       linkCount++;
-      strapi.log.info(`[magic-mail] [LINK] Link ${linkCount}: ${originalUrl.substring(0, 80)}${originalUrl.length > 80 ? '...' : ''}`);
+      strapi.log.debug(`[magic-mail] [LINK] Rewrote link ${linkCount}: ${redactUrlForLog(originalUrl)}`);
       
       // Store replacement info
       replacements.push({
@@ -468,6 +479,10 @@ module.exports = ({ strapi }) => ({
         
         if (processedUrls.has(originalUrl)) continue;
         if (originalUrl.includes('/track/click/')) continue;
+        if (isSensitiveTrackingUrl(originalUrl)) {
+          strapi.log.debug(`[magic-mail] [SKIP] Not tracking sensitive URL: ${redactUrlForLog(originalUrl)}`);
+          continue;
+        }
         
         processedUrls.add(originalUrl);
         
@@ -476,7 +491,7 @@ module.exports = ({ strapi }) => ({
         
         const trackingUrl = `${baseUrl}/api/magic-mail/track/click/${emailId}/${linkHash}/${recipientHash}`;
         linkCount++;
-        strapi.log.info(`[magic-mail] [LINK] Link ${linkCount} (simple): ${originalUrl.substring(0, 80)}`);
+        strapi.log.debug(`[magic-mail] [LINK] Rewrote link ${linkCount} (simple): ${redactUrlForLog(originalUrl)}`);
         
         replacements.push({ from: originalUrl, to: trackingUrl });
       }

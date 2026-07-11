@@ -1,6 +1,7 @@
 'use strict';
 
 const { validate, handleControllerError } = require('../validation');
+const { toAccountListDTO } = require('../utils/account-dto');
 
 /**
  * Accounts Controller
@@ -54,7 +55,7 @@ module.exports = {
       const account = await accountManager.createAccount(accountData);
 
       ctx.body = {
-        data: account,
+        data: toAccountListDTO(account),
         message: 'Email account created successfully',
       };
     } catch (err) {
@@ -116,7 +117,7 @@ module.exports = {
       }
 
       ctx.body = {
-        data: account,
+        data: toAccountListDTO(account),
         message: 'Email account updated successfully',
       };
     } catch (err) {

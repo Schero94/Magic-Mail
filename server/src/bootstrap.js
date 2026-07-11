@@ -58,47 +58,56 @@ module.exports = async ({ strapi }) => {
     // ============================================================
     // OVERRIDE STRAPI'S NATIVE EMAIL SERVICE
     // ============================================================
-    
+    //
+    // SECURITY / CORRECTNESS: The override never silently re-sends through the
+    // original provider when MagicMail throws. Doing so previously caused
+    // duplicate delivery (a post-acceptance bookkeeping failure looked like a
+    // send failure) and bypassed MagicMail's validation, routing, and rate
+    // limits. MagicMail is the mail router once installed; on failure we
+    // surface the real error so the caller can decide, and never dispatch the
+    // same message twice.
+
+    const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
+    strapi.magicMail = strapi.magicMail || {};
+
     // Try to get email service (support both v4 and v5 APIs)
-    const originalEmailService = strapi.plugin('email')?.service?.('email') || 
+    const originalEmailService = strapi.plugin('email')?.service?.('email') ||
                                   strapi.plugins?.email?.services?.email;
-    
+
     if (originalEmailService && originalEmailService.send) {
-      const originalSend = originalEmailService.send.bind(originalEmailService);
-      
-      // Override the send method
-      originalEmailService.send = async (emailData) => {
-        log.info('[EMAIL] Intercepted from native Strapi service');
-        log.debug('Email data:', {
-          to: emailData.to,
-          subject: emailData.subject,
-          templateId: emailData.templateId,
-          hasHtml: !!emailData.html,
-          hasText: !!emailData.text,
-        });
-        
-        try {
-          // Map 'data' to 'templateData' for backward compatibility
-          if (emailData.data && !emailData.templateData) {
-            emailData.templateData = emailData.data;
+      if (originalEmailService.send[WRAPPED]) {
+        // Idempotent across hot reloads: never stack wrappers on top of wrappers.
+        log.debug('[EMAIL] Native email service already routed through MagicMail');
+      } else {
+        const originalSend = originalEmailService.send.bind(originalEmailService);
+        strapi.magicMail.emailService = originalEmailService;
+        strapi.magicMail.originalEmailSend = originalSend;
+
+        const wrappedSend = async (emailData) => {
+          log.info('[EMAIL] Intercepted from native Strapi service');
+          log.debug('[EMAIL] Routing message', {
+            templateId: emailData.templateId,
+            hasHtml: !!emailData.html,
+            hasText: !!emailData.text,
+          });
+
+          // Map 'data' to 'templateData' for backward compatibility. Clone so a
+          // downstream failure never leaves the caller's object mutated.
+          const payload = { ...emailData };
+          if (payload.data && !payload.templateData) {
+            payload.templateData = payload.data;
           }
-          
-          // Route through MagicMail
-          const result = await emailRouter.send(emailData);
-          
+
+          const result = await emailRouter.send(payload);
           log.info('[SUCCESS] Email routed successfully through MagicMail');
           return result;
-        } catch (magicMailError) {
-          log.warn('[WARNING] MagicMail routing failed, falling back to original service');
-          log.error('Error:', magicMailError.message);
-          
-          // Fallback to original Strapi email service
-          return await originalSend(emailData);
-        }
-      };
-      
-      log.info('[SUCCESS] Native email service overridden!');
-      log.info('[INFO] All strapi.plugins.email.services.email.send() calls will route through MagicMail');
+        };
+        wrappedSend[WRAPPED] = true;
+        originalEmailService.send = wrappedSend;
+
+        log.info('[SUCCESS] Native email service overridden!');
+        log.info('[INFO] All strapi.plugin(\'email\').service(\'email\').send() calls route through MagicMail');
+      }
     } else {
       log.warn('[WARNING] Native email service not found - MagicMail will work standalone');
       log.warn('[INFO] Make sure @strapi/plugin-email is installed');

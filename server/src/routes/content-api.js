@@ -11,12 +11,14 @@
  * query, so they are not an open-redirect vector.
  */
 
+// One aggregate sending budget shared across /send, /send-message and
+// /send-whatsapp — a stable bucket id so dynamic path params cannot reset it.
 const sendRateLimit = [
-  { name: 'plugin::magic-mail.rate-limit', config: { max: 60, window: 60_000 } },
+  { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'send', max: 60, window: 60_000 } },
 ];
 
 const trackRateLimit = [
-  { name: 'plugin::magic-mail.rate-limit', config: { max: 300, window: 60_000 } },
+  { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'tracking', max: 300, window: 60_000 } },
 ];
 
 module.exports = {
@@ -68,7 +70,7 @@ module.exports = {
       handler: 'controller.checkWhatsAppNumber',
       config: {
         middlewares: [
-          { name: 'plugin::magic-mail.rate-limit', config: { max: 30, window: 60_000 } },
+          { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'whatsapp-check', max: 30, window: 60_000 } },
         ],
         description: 'Check if phone number is on WhatsApp (requires API token)',
       },

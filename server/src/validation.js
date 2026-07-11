@@ -21,6 +21,37 @@ const headerSafe = z.string().max(1000).refine(
   { message: 'Must not contain newline characters' }
 );
 
+/**
+ * Bounded string that must not contain CR/LF. Used for MIME part metadata
+ * (filenames) that is interpolated into raw message headers by the manual
+ * Gmail/Microsoft MIME builders and by provider multipart bodies.
+ */
+const noNewlineString = (max) => z.string().max(max).refine(
+  (v) => !/[\r\n]/.test(v),
+  { message: 'Must not contain newline characters' }
+);
+
+/**
+ * RFC-2045 style MIME type token, e.g. `application/pdf`. Rejects CR/LF and
+ * any structural characters that could smuggle extra MIME headers.
+ */
+const mimeType = z.string().max(128).regex(
+  /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/,
+  { message: 'Invalid content type' }
+);
+
+/** Allowed attachment transfer encodings understood by the providers. */
+const attachmentEncoding = z.enum([
+  'base64', 'hex', 'binary', 'utf-8', 'utf8', 'ascii', '7bit', '8bit',
+  'quoted-printable', 'latin1',
+]);
+
+/** Content-ID for inline attachments; interpolated into a `Content-ID` header. */
+const contentId = z.string().max(128).regex(
+  /^[A-Za-z0-9._%+\-@]+$/,
+  { message: 'Invalid content id' }
+);
+
 const httpUrl = z.string().url().max(2048).refine((value) => {
   try {
     return ['http:', 'https:'].includes(new URL(value).protocol);
@@ -344,13 +375,13 @@ const schemas = {
         .array(
           z
             .object({
-              filename: safeString.optional(),
+              filename: noNewlineString(255).optional(),
               content: z
                 .union([z.string().max(25 * 1024 * 1024), z.instanceof(Buffer)])
                 .optional(),
-              contentType: z.string().max(128).optional(),
-              encoding: z.string().max(32).optional(),
-              cid: z.string().max(128).optional(),
+              contentType: mimeType.optional(),
+              encoding: attachmentEncoding.optional(),
+              cid: contentId.optional(),
             })
             .strict()
         )

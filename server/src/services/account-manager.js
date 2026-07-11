@@ -1,6 +1,7 @@
 'use strict';
 
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
+const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -276,11 +277,8 @@ module.exports = ({ strapi }) => ({
       sort: [{ priority: 'desc' }],
     });
 
-    // Don't return encrypted config in list
-    return accounts.map(account => ({
-      ...account,
-      config: account.config ? '***encrypted***' : null,
-    }));
+    // Never expose the encrypted `config`/`oauth` blobs in list responses.
+    return accounts.map((account) => toAccountListDTO(account));
   },
 
   /**
@@ -380,12 +378,10 @@ module.exports = ({ strapi }) => ({
       }
     }
 
-    return {
-      ...account,
-      config: maskedConfig,
+    return toAccountEditDTO(account, maskedConfig, {
       credentialsUnreadable,
       credentialsUnreadableReason,
-    };
+    });
   },
 
   /**

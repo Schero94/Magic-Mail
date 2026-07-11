@@ -1,5 +1,7 @@
 'use strict';
 
+const crypto = require('crypto');
+
 /**
  * In-memory per-caller rate limiter for magic-mail Content-API endpoints.
  *
@@ -9,13 +11,13 @@
  * load balancer, the quota is per-instance. Replace with a Redis-backed
  * implementation if that is a concern.
  *
- * Keying:
- *   - authenticated callers: ctx.state.user.id (Users & Permissions user)
- *                            or ctx.state.auth?.credentials?.token (API token)
- *   - fallback: ctx.request.ip
+ * Keying uses a STABLE bucket id supplied per route (never the raw request
+ * path). Keying by `ctx.path` let a caller reset their quota simply by varying
+ * a path parameter (email id, link hash, phone number) and grew the Map without
+ * bound. The caller identity is hashed so tokens never live in memory as keys.
  *
  * Route-level config shape:
- *   { name: 'plugin::magic-mail.rate-limit', config: { max: 60, window: 60000 } }
+ *   { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'send', max: 60, window: 60000 } }
  */
 
 const buckets = new Map();
@@ -27,7 +29,7 @@ const prune = (now) => {
 };
 
 /**
- * Returns a stable key identifying the caller for rate-limiting purposes.
+ * Returns a stable, hashed key identifying the caller for rate-limiting.
  * @param {object} ctx - Koa context
  * @returns {string}
  */
@@ -38,22 +40,30 @@ const callerKey = (ctx) => {
     ctx.state?.auth?.credentials?.id ??
     ctx.state?.auth?.credentials?.token ??
     null;
-  if (tokenId) return `t:${String(tokenId).slice(-16)}`;
+  if (tokenId) {
+    const digest = crypto.createHash('sha256').update(String(tokenId)).digest('hex').slice(0, 16);
+    return `t:${digest}`;
+  }
   return `ip:${ctx.request.ip || ctx.ip || 'unknown'}`;
 };
 
 /**
- * @param {{ max?: number, window?: number }} cfg
+ * @param {{ bucket?: string, max?: number, window?: number }} cfg
  */
 const rateLimit = (cfg = {}, { strapi }) => {
   const max = Number.isFinite(cfg.max) ? cfg.max : 60;
   const windowMs = Number.isFinite(cfg.window) ? cfg.window : 60_000;
 
   return async (ctx, next) => {
-    const key = `${ctx.path}::${callerKey(ctx)}`;
+    // A stable bucket id keeps all requests to one logical endpoint in a single
+    // quota regardless of dynamic path segments. Prefer the explicit config
+    // bucket, then the matched route definition path, never the raw request URL.
+    const routeBucket = cfg.bucket || ctx.state?.route?.path || 'magic-mail';
+    const key = `${routeBucket}::${callerKey(ctx)}`;
     const now = Date.now();
 
-    if (buckets.size > 5000) prune(now);
+    // Opportunistically drop expired entries so the map cannot grow unbounded.
+    if (buckets.size > 1000) prune(now);
 
     let entry = buckets.get(key);
     if (!entry || entry.expiresAt <= now) {

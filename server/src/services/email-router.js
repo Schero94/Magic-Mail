@@ -1,7 +1,42 @@
 'use strict';
 
 const nodemailer = require('nodemailer');
+const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
+
+/**
+ * Allowlist-based HTML sanitizer configuration for outbound email bodies.
+ * `sanitize-html` is a hard runtime dependency: there is deliberately no
+ * regex fallback, because a partial regex sweep is not a sanitizer and would
+ * give a false sense of safety. If the dependency is missing the module fails
+ * to load, which fails closed.
+ */
+const HTML_SANITIZE_OPTIONS = {
+  allowedTags: [
+    'html', 'body', 'head', 'title', 'meta',
+    'div', 'span', 'p', 'br', 'hr', 'a', 'img',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'strong', 'em', 'b', 'i', 'u',
+    'ul', 'ol', 'li',
+    'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    'blockquote', 'code', 'pre',
+  ],
+  allowedAttributes: {
+    '*': ['style', 'class', 'id'],
+    a: ['href', 'title', 'target', 'rel'],
+    img: ['src', 'alt', 'width', 'height'],
+    table: ['border', 'cellspacing', 'cellpadding', 'width'],
+    td: ['colspan', 'rowspan', 'align', 'valign', 'width'],
+    th: ['colspan', 'rowspan', 'align', 'valign', 'width'],
+    // `meta http-equiv=refresh` enables redirect-based attacks, so it is
+    // intentionally excluded from the meta allowlist.
+    meta: ['name', 'content', 'charset'],
+  },
+  allowedSchemes: ['http', 'https', 'mailto', 'cid'],
+  allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
+  allowProtocolRelative: false,
+  disallowedTagsMode: 'discard',
+};
 
 /**
  * Strips CR/LF from a string to prevent SMTP header injection.
@@ -432,7 +467,10 @@ module.exports = ({ strapi }) => ({
         throw new Error(`Rate limit exceeded on ${account.name} and no fallback available`);
       }
 
-      // Send via selected account
+      // Send via selected account. Once this resolves the provider has accepted
+      // the message — every subsequent step is post-acceptance bookkeeping and
+      // MUST NOT throw, or the caller would treat an accepted send as a failure
+      // (which historically triggered a duplicate re-send).
       const result = await this.sendViaAccount(account, emailData);
 
       // Update email log with account info (if tracking enabled)
@@ -447,14 +485,18 @@ module.exports = ({ strapi }) => ({
             },
           });
         } catch (error) {
-          strapi.log.error('[magic-mail] Failed to update email log:', error.message);
+          strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error.message);
         }
       }
 
-      // Update stats
-      await this.updateAccountStats(account.documentId);
+      // Update stats (reconciliation only — never fail an accepted send here).
+      try {
+        await this.updateAccountStats(account.documentId);
+      } catch (error) {
+        strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error.message);
+      }
 
-      strapi.log.info(`[magic-mail] [SUCCESS] Email sent to ${to} via ${account.name}`);
+      strapi.log.info(`[magic-mail] [SUCCESS] Email accepted via ${account.name}`);
 
       return {
         success: true,
@@ -1767,56 +1809,9 @@ module.exports = ({ strapi }) => ({
     }
 
     if (html) {
-      let sanitizeHtml = null;
-      try {
-        sanitizeHtml = require('sanitize-html');
-      } catch {
-        sanitizeHtml = null;
-      }
-
-      if (sanitizeHtml) {
-        emailData.html = sanitizeHtml(html, {
-          allowedTags: [
-            'html', 'body', 'head', 'title', 'meta',
-            'div', 'span', 'p', 'br', 'hr', 'a', 'img',
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'strong', 'em', 'b', 'i', 'u',
-            'ul', 'ol', 'li',
-            'table', 'thead', 'tbody', 'tr', 'td', 'th',
-            'blockquote', 'code', 'pre',
-          ],
-          allowedAttributes: {
-            '*': ['style', 'class', 'id'],
-            a: ['href', 'title', 'target', 'rel'],
-            img: ['src', 'alt', 'width', 'height'],
-            table: ['border', 'cellspacing', 'cellpadding', 'width'],
-            td: ['colspan', 'rowspan', 'align', 'valign', 'width'],
-            th: ['colspan', 'rowspan', 'align', 'valign', 'width'],
-            meta: ['name', 'content', 'http-equiv', 'charset'],
-          },
-          allowedSchemes: ['http', 'https', 'mailto', 'cid'],
-          allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
-          allowProtocolRelative: false,
-          disallowedTagsMode: 'discard',
-        });
-      } else {
-        const dangerousPatterns = [
-          { pattern: /<script\b[^>]*>[\s\S]*?<\/script>/gi, name: '<script> tag' },
-          { pattern: /<iframe\b[^>]*>/gi, name: '<iframe> tag' },
-          { pattern: /<object\b[^>]*>/gi, name: '<object> tag' },
-          { pattern: /<embed\b[^>]*>/gi, name: '<embed> tag' },
-          { pattern: /<form\b[^>]*>/gi, name: '<form> tag' },
-          { pattern: /\son[a-z]+\s*=/gi, name: 'inline event handler' },
-          { pattern: /javascript\s*:/gi, name: 'javascript: URI' },
-          { pattern: /vbscript\s*:/gi, name: 'vbscript: URI' },
-          { pattern: /data\s*:\s*text\/html/gi, name: 'data:text/html URI' },
-        ];
-        for (const { pattern, name } of dangerousPatterns) {
-          if (pattern.test(html)) {
-            throw new Error(`Email HTML contains a dangerous ${name}. Install 'sanitize-html' to accept richer HTML content.`);
-          }
-        }
-      }
+      // Always sanitize with the allowlist. No regex fallback: sanitize-html is
+      // a declared runtime dependency and the module fails to load without it.
+      emailData.html = sanitizeHtml(html, HTML_SANITIZE_OPTIONS);
     }
 
     if (html && !text) {

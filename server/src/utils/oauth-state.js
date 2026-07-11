@@ -20,6 +20,49 @@ const USED_STATE_STORE_KEY = 'oauth:usedStates';
 const PKCE_STORE_KEY_PREFIX = 'oauth:pkce:';
 
 /**
+ * Per-nonce in-process serialization queue.
+ *
+ * The plugin store exposes no compare-and-set primitive, so a naive
+ * get -> check -> set consumption sequence has a TOCTOU race: two concurrent
+ * token exchanges with the same freshly minted state could both read the
+ * "used" list before either writes it and both succeed. Serializing the
+ * critical section per nonce guarantees exactly one winner within a Strapi
+ * instance.
+ *
+ * Note: this is single-instance atomicity. Horizontally scaled deployments
+ * should additionally front OAuth with a shared store (Redis GETDEL or a
+ * unique DB constraint); the signed + TTL-bounded + single-use design keeps
+ * the residual multi-instance window negligible.
+ */
+const nonceLocks = new Map();
+
+/**
+ * Runs `task` with exclusive access for `key`, serializing concurrent callers.
+ *
+ * @param {string} key
+ * @param {() => Promise<T>} task
+ * @returns {Promise<T>}
+ * @template T
+ */
+async function runExclusive(key, task) {
+  const previous = nonceLocks.get(key) || Promise.resolve();
+  let resolveCurrent;
+  const current = new Promise((resolve) => { resolveCurrent = resolve; });
+  const composed = previous.then(() => current);
+  nonceLocks.set(key, composed);
+
+  await previous;
+  try {
+    return await task();
+  } finally {
+    resolveCurrent();
+    if (nonceLocks.get(key) === composed) {
+      nonceLocks.delete(key);
+    }
+  }
+}
+
+/**
  * Returns the signing secret for state HMACs.
  * Derived from APP_KEYS / JWT_SECRET / API_TOKEN_SALT — any one is sufficient.
  *
@@ -141,38 +184,42 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
 
   const store = strapi.store({ type: 'plugin', name: 'magic-mail' });
 
-  const usedRaw = await store.get({ key: USED_STATE_STORE_KEY });
-  const used = Array.isArray(usedRaw) ? usedRaw : [];
+  // Serialize the check-then-consume window per nonce so exactly one concurrent
+  // caller can claim a given state.
+  return runExclusive(payload.nonce, async () => {
+    const usedRaw = await store.get({ key: USED_STATE_STORE_KEY });
+    const used = Array.isArray(usedRaw) ? usedRaw : [];
 
-  if (used.some((entry) => entry.nonce === payload.nonce)) {
-    throw new Error('State already used (replay protection)');
-  }
-
-  const now = Date.now();
-  const pruned = used.filter((entry) => now - entry.ts < STATE_TTL_MS);
-  pruned.push({ nonce: payload.nonce, ts: now });
-  const capped = pruned.slice(-500);
-  await store.set({ key: USED_STATE_STORE_KEY, value: capped });
-
-  let codeVerifier = null;
-  try {
-    const pkceKey = `${PKCE_STORE_KEY_PREFIX}${payload.nonce}`;
-    const record = await store.get({ key: pkceKey });
-    if (record && record.codeVerifier) {
-      codeVerifier = record.codeVerifier;
-      await store.delete({ key: pkceKey });
+    if (used.some((entry) => entry.nonce === payload.nonce)) {
+      throw new Error('State already used (replay protection)');
     }
-  } catch (err) {
-    if (payload.pkce) {
-      throw new Error(`PKCE verifier could not be consumed: ${err.message}`);
+
+    const now = Date.now();
+    const pruned = used.filter((entry) => now - entry.ts < STATE_TTL_MS);
+    pruned.push({ nonce: payload.nonce, ts: now });
+    const capped = pruned.slice(-500);
+    await store.set({ key: USED_STATE_STORE_KEY, value: capped });
+
+    let codeVerifier = null;
+    try {
+      const pkceKey = `${PKCE_STORE_KEY_PREFIX}${payload.nonce}`;
+      const record = await store.get({ key: pkceKey });
+      if (record && record.codeVerifier) {
+        codeVerifier = record.codeVerifier;
+        await store.delete({ key: pkceKey });
+      }
+    } catch (err) {
+      if (payload.pkce) {
+        throw new Error(`PKCE verifier could not be consumed: ${err.message}`);
+      }
     }
-  }
 
-  if (payload.pkce && !codeVerifier) {
-    throw new Error('PKCE verifier is missing or already consumed');
-  }
+    if (payload.pkce && !codeVerifier) {
+      throw new Error('PKCE verifier is missing or already consumed');
+    }
 
-  return { payload, codeVerifier };
+    return { payload, codeVerifier };
+  });
 }
 
 module.exports = {
