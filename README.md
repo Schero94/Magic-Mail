@@ -1,10 +1,12 @@
 # 📧 MagicMail - Email Business Suite for Strapi v5
 
-> **Professional-grade multi-account email management with smart routing, OAuth 2.0 support, and complete security compliance**
+> **Professional-grade multi-account email management with smart routing, OAuth 2.0 support, and complete security compliance — 100% free and open source**
 
 [![NPM Version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Strapi Version](https://img.shields.io/badge/Strapi-v5.30.1-blue.svg)](https://strapi.io)
+
+> 💚 **Fully free & open source (MIT).** Every feature is included for everyone — no license key, no activation, no paid tiers, and no usage limits.
 
 ---
 
@@ -12,6 +14,7 @@
 
 **Stop fighting with .env files and email configuration!** MagicMail brings professional email management to Strapi v5 with:
 
+- **100% Free & Open Source** - Every feature included, no license key, tiers, or limits (MIT)
 - **6 Email Providers** - Gmail, Microsoft 365, Yahoo, SMTP, SendGrid, Mailgun
 - **WhatsApp Messaging** - Send messages via WhatsApp (FREE!) 
 - **OAuth 2.0 Authentication** - No passwords needed for Gmail, Microsoft, Yahoo
@@ -54,7 +57,7 @@
 
 ### Template Version History
 ![Version History](pics/emailVersionHistory.png)
-*Track changes and restore previous template versions (ADVANCED+)*
+*Track changes and restore previous template versions*
 
 ### Template Send Test
 ![Send Test](pics/emailTemplateSendTest.png)
@@ -494,7 +497,7 @@ await strapi.plugin('magic-mail').service('email-router').send({
 // ✅ Automatically routes via SendGrid (based on category)
 ```
 
-### 🔄 Template Versioning (ADVANCED+)
+### 🔄 Template Versioning
 
 Every time you save a template, a new version is created automatically:
 
@@ -512,7 +515,7 @@ await strapi
   .restoreVersion(templateId, versionId);
 ```
 
-### 📦 Import/Export Templates (ADVANCED+)
+### 📦 Import/Export Templates
 
 **Export all templates:**
 
