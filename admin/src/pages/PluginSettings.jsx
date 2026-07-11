@@ -129,7 +129,7 @@ const SettingDescription = styled(Typography)`
   display: block;
 `;
 
-const ToggleWrapper = styled(Box)`
+const SwitchWrapper = styled(Box)`
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -305,7 +305,7 @@ const PluginSettingsPage = () => {
                 This helps measure email engagement and campaign effectiveness.
               </SettingDescription>
             </SettingInfo>
-            <ToggleWrapper>
+            <SwitchWrapper>
               <Switch
                 checked={settings.enableLinkTracking}
                 onCheckedChange={(checked) => handleChange('enableLinkTracking', checked)}
@@ -314,7 +314,7 @@ const PluginSettingsPage = () => {
                 offLabel="Disabled"
                 visibleLabels={false}
               />
-            </ToggleWrapper>
+            </SwitchWrapper>
           </SettingRow>
           
           {settings.enableLinkTracking && (
@@ -371,7 +371,7 @@ const PluginSettingsPage = () => {
                 Note: Some email clients block tracking pixels.
               </SettingDescription>
             </SettingInfo>
-            <ToggleWrapper>
+            <SwitchWrapper>
               <Switch
                 checked={settings.enableOpenTracking}
                 onCheckedChange={(checked) => handleChange('enableOpenTracking', checked)}
@@ -380,7 +380,7 @@ const PluginSettingsPage = () => {
                 offLabel="Disabled"
                 visibleLabels={false}
               />
-            </ToggleWrapper>
+            </SwitchWrapper>
           </SettingRow>
         </SectionContent>
       </SettingsSection>
@@ -407,7 +407,7 @@ const PluginSettingsPage = () => {
                 button in email clients like Gmail and Outlook.
               </SettingDescription>
             </SettingInfo>
-            <ToggleWrapper>
+            <SwitchWrapper>
               <Switch
                 checked={settings.enableUnsubscribeHeader}
                 onCheckedChange={(checked) => handleChange('enableUnsubscribeHeader', checked)}
@@ -416,7 +416,7 @@ const PluginSettingsPage = () => {
                 offLabel="Disabled"
                 visibleLabels={false}
               />
-            </ToggleWrapper>
+            </SwitchWrapper>
           </SettingRow>
           
           {settings.enableUnsubscribeHeader && (

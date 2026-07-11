@@ -165,7 +165,7 @@ const FieldWrapper = styled.div`
   width: ${(props) => props.width || 'auto'};
 `;
 
-const ToggleWrapper = styled.div`
+const SwitchWrapper = styled.div`
   padding-top: 28px;
   display: flex;
   gap: 12px;
@@ -1091,7 +1091,7 @@ const EditorPage = () => {
           )}
 
           {!isCoreEmail && (
-            <ToggleWrapper>
+            <SwitchWrapper>
               <Typography variant="omega" fontWeight="semiBold">
                 Template active
               </Typography>
@@ -1105,7 +1105,7 @@ const EditorPage = () => {
                 offLabel="Inactive"
                 visibleLabels={false}
               />
-            </ToggleWrapper>
+            </SwitchWrapper>
           )}
         </SettingsRow>
       </Header>

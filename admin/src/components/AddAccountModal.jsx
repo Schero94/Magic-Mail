@@ -1942,7 +1942,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   
                   <Divider />
                   
-                  {/* Account Active Toggle */}
+                  {/* Account Active Switch */}
                   <Box 
                     padding={4} 
                     background="neutral100"
@@ -1979,7 +1979,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                     </Flex>
                   </Box>
 
-                  {/* Primary Account Toggle */}
+                  {/* Primary Account Switch */}
                   <Box 
                     padding={4} 
                     background="neutral100"

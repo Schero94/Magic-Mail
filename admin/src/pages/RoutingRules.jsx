@@ -1118,7 +1118,7 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
                 </Field.Hint>
               </Field.Root>
 
-              {/* Active Toggle */}
+              {/* Active Switch */}
               <Box 
                 padding={4} 
                 background="neutral100"
