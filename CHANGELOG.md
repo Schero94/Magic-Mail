@@ -1,3 +1,11 @@
+## [3.0.4](https://github.com/Schero94/Magic-Mail/compare/v3.0.3...v3.0.4) (2026-07-11)
+
+
+### Bug Fixes
+
+* **admin:** correct dark-mode navigation and free template docs ([557534f](https://github.com/Schero94/Magic-Mail/commit/557534f520cf0b562e031dc27a5c2e93485f3de9))
+* **email:** preserve Bcc delivery for Gmail and Microsoft ([ea681ea](https://github.com/Schero94/Magic-Mail/commit/ea681ea87c04c65e69013b048646764f69c0729f))
+
 ## [3.0.3](https://github.com/Schero94/Magic-Mail/compare/v3.0.2...v3.0.3) (2026-07-11)
 
 
