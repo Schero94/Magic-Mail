@@ -12,7 +12,7 @@ import {
   SingleSelect,
   SingleSelectOption,
   Loader,
-  Toggle,
+  Switch,
 } from '@strapi/design-system';
 import {
   ArrowLeftIcon,
@@ -170,32 +170,6 @@ const ToggleWrapper = styled.div`
   display: flex;
   gap: 12px;
   align-items: center;
-  
-  /* Custom green styling for active toggle */
-  button[aria-checked="true"] {
-    background-color: var(--colors-success600, #22C55E) !important;
-    border-color: var(--colors-success600, #22C55E) !important;
-    
-    span {
-      background-color: white !important;
-    }
-  }
-  
-  button[aria-checked="false"] {
-    background-color: var(--colors-neutral200, rgba(128, 128, 128, 0.2)) !important;
-    border-color: rgba(128, 128, 128, 0.2) !important;
-    
-    span {
-      background-color: white !important;
-    }
-  }
-  
-  /* Label styling based on state */
-  p {
-    color: ${props => props.$isActive ? 'var(--colors-success600, #22C55E)' : 'var(--colors-neutral600, #6B7280)'};
-    font-weight: 600;
-    transition: color 0.2s;
-  }
 `;
 
 const TabsWrapper = styled.div`
@@ -1117,18 +1091,20 @@ const EditorPage = () => {
           )}
 
           {!isCoreEmail && (
-            <ToggleWrapper $isActive={templateData.isActive}>
-              <Toggle
+            <ToggleWrapper>
+              <Typography variant="omega" fontWeight="semiBold">
+                Template active
+              </Typography>
+              <Switch
                 checked={templateData.isActive}
-                onChange={() =>
-                  setTemplateData({ ...templateData, isActive: !templateData.isActive })
+                onCheckedChange={(checked) =>
+                  setTemplateData({ ...templateData, isActive: checked })
                 }
+                aria-label="Template active"
                 onLabel="Active"
                 offLabel="Inactive"
+                visibleLabels={false}
               />
-              <Typography variant="omega">
-                {templateData.isActive ? 'Active' : 'Inactive'}
-              </Typography>
             </ToggleWrapper>
           )}
         </SettingsRow>
