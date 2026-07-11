@@ -1,3 +1,10 @@
+## [3.0.2](https://github.com/Schero94/Magic-Mail/compare/v3.0.1...v3.0.2) (2026-07-11)
+
+
+### Bug Fixes
+
+* **admin:** make Test Mode option title and description readable ([ccb605c](https://github.com/Schero94/Magic-Mail/commit/ccb605c0998c4b5d05da309411adf81466b383cc))
+
 ## [3.0.1](https://github.com/Schero94/Magic-Mail/compare/v3.0.0...v3.0.1) (2026-07-11)
 
 
