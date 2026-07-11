@@ -571,8 +571,8 @@ console.log(stats);
 //     { category: 'marketing', count: 4 },
 //     { category: 'notification', count: 3 }
 //   ],
-//   maxTemplates: 3,  // FREE tier limit
-//   remaining: 0      // Upgrade needed!
+//   maxTemplates: -1, // unlimited (all features are free)
+//   remaining: -1     // unlimited
 // }
 ```
 
@@ -597,8 +597,7 @@ console.log(rendered.html); // Preview HTML
 
 **3. Version Control**
 ```javascript
-// ADVANCED+: Keep version history
-// Automatically enabled for ADVANCED and ENTERPRISE licenses
+// Template version history is always enabled (free for everyone).
 ```
 
 **4. Organize with Tags**
@@ -1551,8 +1550,8 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-**ADDITIONAL CONDITION:**
-The license validation system (including but not limited to license-guard.js, license controller, and related API endpoints) must remain intact and functional. Removing, bypassing, or disabling the license validation system is strictly prohibited.
+MagicMail is fully free and open source. Every feature is available to everyone
+with no license key, tier, activation, or usage limit.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 

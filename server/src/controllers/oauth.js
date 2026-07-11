@@ -146,8 +146,6 @@ module.exports = {
    * the PKCE verifier, then exchanges the code for tokens.
    *
    * @route POST /magic-mail/oauth/account
-   * @throws {ForbiddenError} When the license does not permit the provider or
-   *   account limit is reached
    * @throws {ValidationError} When state verification fails or inputs are missing
    */
   async createOAuthAccount(ctx) {
@@ -180,23 +178,6 @@ module.exports = {
       }
 
       const codeVerifier = stateVerification.codeVerifier;
-
-      const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
-      const providerKey = `${provider}-oauth`;
-      const providerAllowed = await licenseGuard.isProviderAllowed(providerKey);
-
-      if (!providerAllowed) {
-        ctx.throw(403, `OAuth provider "${provider}" requires a Premium license or higher. Please upgrade your license.`);
-        return;
-      }
-
-      const currentAccounts = await strapi.documents('plugin::magic-mail.email-account').count();
-      const maxAccounts = await licenseGuard.getMaxAccounts();
-
-      if (maxAccounts !== -1 && currentAccounts >= maxAccounts) {
-        ctx.throw(403, `Account limit reached (${maxAccounts}). Upgrade your license to add more accounts.`);
-        return;
-      }
 
       const oauthService = strapi.plugin('magic-mail').service('oauth');
 

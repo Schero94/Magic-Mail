@@ -485,18 +485,6 @@ module.exports = ({ strapi }) => ({
     }
 
     try {
-      // License check for premium features
-      const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
-      
-      // Check if priority headers are allowed (Advanced+)
-      if (priority === 'high') {
-        const hasFeature = await licenseGuard.hasFeature('priority-headers');
-        if (!hasFeature) {
-          strapi.log.warn('[magic-mail] [WARNING]  High priority emails require Advanced license - using normal priority');
-          emailData.priority = 'normal';
-        }
-      }
-
       // Get account to use
       const account = accountName
         ? await this.getAccountByName(accountName)
@@ -504,12 +492,6 @@ module.exports = ({ strapi }) => ({
 
       if (!account) {
         throw new Error('No email account available');
-      }
-
-      // Check if account's provider is allowed by license
-      const providerAllowed = await licenseGuard.isProviderAllowed(account.provider);
-      if (!providerAllowed) {
-        throw new Error(`Provider "${account.provider}" requires a higher license tier. Please upgrade or use a different account.`);
       }
 
       this.enforceFromAlignment(account, emailData);

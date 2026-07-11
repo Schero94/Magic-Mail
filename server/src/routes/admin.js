@@ -233,53 +233,6 @@ module.exports = {
       },
     },
 
-    // ─────────────────────── License ───────────────────────
-    {
-      method: 'GET',
-      path: '/license/status',
-      handler: 'license.getStatus',
-      config: {
-        policies: adminPolicy(),
-        description: 'Get license status',
-      },
-    },
-    {
-      method: 'POST',
-      path: '/license/auto-create',
-      handler: 'license.autoCreate',
-      config: {
-        policies: adminPolicy(),
-        description: 'Auto-create license with admin user data',
-      },
-    },
-    {
-      method: 'POST',
-      path: '/license/store-key',
-      handler: 'license.storeKey',
-      config: {
-        policies: adminPolicy(),
-        description: 'Store and validate existing license key',
-      },
-    },
-    {
-      method: 'GET',
-      path: '/license/limits',
-      handler: 'license.getLimits',
-      config: {
-        policies: adminPolicy(),
-        description: 'Get license limits and available features',
-      },
-    },
-    {
-      method: 'GET',
-      path: '/license/debug',
-      handler: 'license.debugLicense',
-      config: {
-        policies: adminPolicy(),
-        description: 'Debug license data',
-      },
-    },
-
     // ─────────────────────── Email Designer ───────────────────────
     {
       method: 'GET',

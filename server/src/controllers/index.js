@@ -4,7 +4,6 @@ const controller = require('./controller');
 const accounts = require('./accounts');
 const oauth = require('./oauth');
 const routingRules = require('./routing-rules');
-const license = require('./license');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const whatsapp = require('./whatsapp');
@@ -15,7 +14,6 @@ module.exports = {
   accounts,
   oauth,
   routingRules,
-  license,
   emailDesigner,
   analytics,
   whatsapp,

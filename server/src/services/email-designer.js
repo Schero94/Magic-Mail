@@ -220,22 +220,7 @@ module.exports = ({ strapi }) => ({
   async create(data) {
     strapi.log.info('[magic-mail] [TEST] Creating new template...');
 
-    // 1. Check license limits
-    const maxTemplates = await strapi
-      .plugin('magic-mail')
-      .service('license-guard')
-      .getMaxEmailTemplates();
-
-    // Use native count() method for efficiency
-    const currentCount = await strapi.documents(EMAIL_TEMPLATE_UID).count();
-
-    if (maxTemplates !== -1 && currentCount >= maxTemplates) {
-      throw new Error(
-        `Template limit reached (${maxTemplates}). Upgrade your license to create more templates.`
-      );
-    }
-
-    // 2. Resolve `templateReferenceId`.
+    // Resolve `templateReferenceId`.
     //
     // The content-type schema marks this field `required: true` and
     // `unique: true`, so every row MUST have an integer reference id.
@@ -280,28 +265,17 @@ module.exports = ({ strapi }) => ({
 
     strapi.log.info(`[magic-mail] [SUCCESS] Template created: documentId=${template.documentId}, name="${template.name}"`);
 
-    // 4. Create initial version if versioning enabled
-    const hasVersioning = await strapi
-      .plugin('magic-mail')
-      .service('license-guard')
-      .hasFeature('email-designer-versioning');
-
-    if (hasVersioning) {
-      strapi.log.info('[magic-mail] [SAVE] Creating initial version...');
-      
-      await this.createVersion(template.documentId, {
-        name: data.name,
-        subject: data.subject,
-        design: data.design,
-        bodyHtml: data.bodyHtml,
-        bodyText: data.bodyText,
-        tags: data.tags,
-      });
-      
-      strapi.log.info('[magic-mail] [SUCCESS] Initial version created');
-    } else {
-      strapi.log.info('[magic-mail] [SKIP] Versioning not enabled, skipping initial version');
-    }
+    // Create the initial version snapshot (versioning is always available).
+    strapi.log.info('[magic-mail] [SAVE] Creating initial version...');
+    await this.createVersion(template.documentId, {
+      name: data.name,
+      subject: data.subject,
+      design: data.design,
+      bodyHtml: data.bodyHtml,
+      bodyText: data.bodyText,
+      tags: data.tags,
+    });
+    strapi.log.info('[magic-mail] [SUCCESS] Initial version created');
 
     return template;
   },
@@ -324,26 +298,17 @@ module.exports = ({ strapi }) => ({
     const actualDocumentId = template.documentId;
     strapi.log.info(`[magic-mail] [INFO] Found template: documentId=${actualDocumentId}, name="${template.name}"`);
 
-    // 2. Create version snapshot BEFORE update (if versioning enabled)
-    const hasVersioning = await strapi
-      .plugin('magic-mail')
-      .service('license-guard')
-      .hasFeature('email-designer-versioning');
-
-    if (hasVersioning) {
-      strapi.log.info('[magic-mail] [SAVE] Creating version snapshot before update...');
-      
-      await this.createVersion(actualDocumentId, {
-        name: template.name,
-        subject: template.subject,
-        design: template.design,
-        bodyHtml: template.bodyHtml,
-        bodyText: template.bodyText,
-        tags: template.tags,
-      });
-      
-      strapi.log.info('[magic-mail] [SUCCESS] Version snapshot created');
-    }
+    // 2. Create a version snapshot BEFORE update (versioning always available).
+    strapi.log.info('[magic-mail] [SAVE] Creating version snapshot before update...');
+    await this.createVersion(actualDocumentId, {
+      name: template.name,
+      subject: template.subject,
+      design: template.design,
+      bodyHtml: template.bodyHtml,
+      bodyText: template.bodyText,
+      tags: template.tags,
+    });
+    strapi.log.info('[magic-mail] [SUCCESS] Version snapshot created');
 
     // 3. Update template using the actual documentId
     const updateData = { ...data };
@@ -879,18 +844,14 @@ module.exports = ({ strapi }) => ({
     
     const byCategory = Object.entries(categoryMap).map(([category, count]) => ({ category, count }));
 
-    const maxTemplates = await strapi
-      .plugin('magic-mail')
-      .service('license-guard')
-      .getMaxEmailTemplates();
-
+    // All features are free: templates are unlimited (-1).
     return {
       total,
       active,
       inactive: total - active,
       byCategory,
-      maxTemplates,
-      remaining: maxTemplates === -1 ? -1 : Math.max(0, maxTemplates - total),
+      maxTemplates: -1,
+      remaining: -1,
     };
   },
 

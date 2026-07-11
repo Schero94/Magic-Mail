@@ -25,7 +25,6 @@ import {
   TrashIcon,
   CodeBracketIcon,
 } from '@heroicons/react/24/outline';
-import { useLicense } from '../../hooks/useLicense';
 import * as ReactEmailEditor from 'react-email-editor';
 
 const EmailEditorComponent =
@@ -581,7 +580,6 @@ const EditorPage = () => {
   const { get, post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   const navigate = useNavigate();
-  const { hasFeature } = useLicense();
   const emailEditorRef = useRef(null);
 
   // Extract ID from pathname
@@ -611,8 +609,6 @@ const EditorPage = () => {
     bodyText: '',
     tags: [],
   });
-
-  const canVersion = hasFeature('email-designer-versioning');
 
   // Version History State
   const [showVersionHistory, setShowVersionHistory] = useState(false);
@@ -1019,7 +1015,7 @@ const EditorPage = () => {
                   : `${templateData.name}`
                 }
               </Typography>
-              {canVersion && !isNewTemplate && !isCoreEmail && (
+              {!isNewTemplate && !isCoreEmail && (
                 <Typography variant="pi" textColor="neutral600">
                   Versioning enabled
                 </Typography>
@@ -1044,7 +1040,7 @@ const EditorPage = () => {
               <ArrowDownTrayIcon />
               Export Design
             </ImportExportButton>
-            {!isCoreEmail && !isNewTemplate && canVersion && (
+            {!isCoreEmail && !isNewTemplate && (
               <VersionButton onClick={handleOpenVersionHistory}>
                 <ClockIcon />
                 Version History

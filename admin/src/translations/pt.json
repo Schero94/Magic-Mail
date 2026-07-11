@@ -4,7 +4,6 @@
   
   "tabs.accounts": "Contas de Email",
   "tabs.routing": "Regras de Roteamento",
-  "tabs.license": "Licença",
   
   "accounts.title": "Contas de Email",
   "accounts.subtitle": "Gerencie várias contas de email com Smart Routing",
@@ -34,23 +33,6 @@
   "routing.empty": "Nenhuma regra de roteamento",
   "routing.emptyDescription": "Crie sua primeira regra de roteamento",
   
-  "license.title": "Gerenciamento de Licença",
-  "license.subtitle": "Gerencie sua licença MagicMail",
-  "license.active": "Licença ativa",
-  "license.inactive": "Nenhuma licença ativa",
-  "license.demo": "Modo demo",
-  "license.generate": "Gerar licença gratuita",
-  "license.activate": "Ativar licença",
-  "license.key": "Chave de licença",
-  "license.email": "Endereço de email",
-  "license.copyKey": "Copiar chave",
-  "license.download": "Baixar como TXT",
-  "license.refresh": "Atualizar status",
-  
-  "features.premium": "Recursos Premium",
-  "features.advanced": "Recursos Avançados",
-  "features.enterprise": "Recursos Enterprise",
-  
   "notifications.accountCreated": "Conta de email criada com sucesso",
   "notifications.accountUpdated": "Conta de email atualizada com sucesso",
   "notifications.accountDeleted": "Conta de email excluída com sucesso",
@@ -59,13 +41,28 @@
   "notifications.ruleCreated": "Regra de roteamento criada com sucesso",
   "notifications.ruleUpdated": "Regra de roteamento atualizada com sucesso",
   "notifications.ruleDeleted": "Regra de roteamento excluída com sucesso",
-  "notifications.licenseActivated": "Licença ativada com sucesso",
-  "notifications.licenseCopied": "Chave de licença copiada",
   "notifications.error": "Ocorreu um erro",
   
   "errors.noAccounts": "Nenhuma conta de email disponível",
-  "errors.providerNotAllowed": "Este provedor requer uma licença superior",
-  "errors.accountLimitReached": "Limite de contas atingido. Atualização necessária",
-  "errors.ruleLimitReached": "Limite de regras atingido. Atualização necessária"
+  
+  "whatsapp.title": "Integração com WhatsApp",
+  "whatsapp.subtitle": "Envie mensagens via WhatsApp - totalmente grátis!",
+  "whatsapp.tab": "WhatsApp",
+  "whatsapp.status.connected": "Conectado",
+  "whatsapp.status.connecting": "Conectando...",
+  "whatsapp.status.qr_pending": "Aguardando leitura do QR",
+  "whatsapp.status.disconnected": "Desconectado",
+  "whatsapp.step1.title": "Verificar instalação",
+  "whatsapp.step2.title": "Conectar WhatsApp",
+  "whatsapp.step3.title": "Ler código QR",
+  "whatsapp.step4.title": "Pronto para usar",
+  "whatsapp.connect": "Conectar WhatsApp",
+  "whatsapp.disconnect": "Desconectar WhatsApp",
+  "whatsapp.sendTest": "Enviar mensagem de teste",
+  "whatsapp.phoneNumber": "Número de telefone",
+  "whatsapp.phoneHint": "Insira o número de telefone com código do país (ex. 351 para Portugal)",
+  "whatsapp.message": "Mensagem (opcional)",
+  "whatsapp.notInstalled": "Dependências não instaladas",
+  "whatsapp.installCommand": "npm install baileys pino qrcode",
+  "whatsapp.freeLabel": "GRÁTIS - Sem custos de API!"
 }
-

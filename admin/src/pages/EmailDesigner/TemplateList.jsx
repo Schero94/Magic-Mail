@@ -36,7 +36,6 @@ import {
   CheckIcon,
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
-import { useLicense } from '../../hooks/useLicense';
 import { 
   GradientButton, 
   SecondaryButton, 
@@ -256,33 +255,6 @@ const WarningBox = styled(Box)`
   display: flex;
   align-items: center;
   gap: 8px;
-`;
-
-const LimitWarning = styled(Box)`
-  background: linear-gradient(135deg, ${'rgba(234, 179, 8, 0.06)'}, rgba(251, 191, 36, 0.1));
-  border: 1px solid rgba(234, 179, 8, 0.2);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`;
-
-const UpgradeButton = styled(Button)`
-  background: linear-gradient(135deg, ${'var(--colors-warning600, #F59E0B)'}, ${'var(--colors-warning600, #D97706)'});
-  color: white;
-  font-weight: 600;
-  padding: 8px 16px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  
-  &:hover {
-    background: linear-gradient(135deg, ${'var(--colors-warning600, #D97706)'}, ${'var(--colors-warning600, #A16207)'});
-    transform: translateY(-1px);
-  }
 `;
 
 // ================ RESPONSIVE BREAKPOINTS ================
@@ -872,7 +844,6 @@ const TemplateList = () => {
   const { get, del, post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const navigate = useNavigate();
-  const { hasFeature } = useLicense();
   useAuthRefresh(); // Initialize token auto-refresh
 
   const [templates, setTemplates] = useState([]);
@@ -883,7 +854,6 @@ const TemplateList = () => {
   const [showCodeExample, setShowCodeExample] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null); // Track which code snippet was copied
-  const [limits, setLimits] = useState(null);
   const [showTestSendModal, setShowTestSendModal] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -912,7 +882,6 @@ const TemplateList = () => {
 
   useEffect(() => {
     fetchData();
-    fetchLimits();
     fetchAccounts();
   }, []);
 
@@ -931,19 +900,6 @@ const TemplateList = () => {
       toggleNotification({ type: 'danger', message: 'Failed to load templates' });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchLimits = async () => {
-    try {
-      const response = await get('/magic-mail/license/limits');
-
-      setLimits({
-        ...response.data?.limits,
-        tier: response.data?.tier || 'free'
-      });
-    } catch (error) {
-      console.error('Failed to fetch license limits:', error);
     }
   };
 
@@ -1000,39 +956,6 @@ const TemplateList = () => {
         message: error?.response?.data?.error?.message || 'Failed to send test email',
       });
     }
-  };
-
-  const getTierInfo = () => {
-    const tier = limits?.tier || 'free';
-    const tierInfo = {
-      free: {
-        name: 'FREE',
-        color: 'neutral',
-        next: 'PREMIUM',
-        nextTemplates: 50,
-        features: ['10 Templates', '1 Account', 'Import/Export'],
-      },
-      premium: {
-        name: 'PREMIUM',
-        color: 'secondary',
-        next: 'ADVANCED',
-        nextTemplates: 200,
-        features: ['50 Templates', '5 Accounts', 'Versioning', 'Basic Analytics'],
-      },
-      advanced: {
-        name: 'ADVANCED',
-        color: 'primary',
-        next: 'ENTERPRISE',
-        nextTemplates: -1,
-        features: ['200 Templates', 'Unlimited Accounts', 'Advanced Analytics', 'API Integrations'],
-      },
-      enterprise: {
-        name: 'ENTERPRISE',
-        color: 'warning',
-        features: ['Unlimited Everything', 'Priority Support', 'Custom Features', 'SLA'],
-      },
-    };
-    return tierInfo[tier] || tierInfo.free;
   };
 
   const fetchTemplates = async () => {
@@ -1133,31 +1056,7 @@ const TemplateList = () => {
   };
 
   const handleCreateTemplate = () => {
-    // Check if we can create more templates
-    if (limits?.emailTemplates && !limits.emailTemplates.canCreate) {
-      const max = limits.emailTemplates.max;
-      let upgradeMessage = '';
-      
-      if (max === 10) {
-        // Free tier
-        upgradeMessage = `You've reached the FREE tier limit of ${max} templates. Upgrade to PREMIUM for 50 templates, versioning, and more!`;
-      } else if (max === 50) {
-        // Premium tier
-        upgradeMessage = `You've reached the PREMIUM tier limit of ${max} templates. Upgrade to ADVANCED for 200 templates and advanced features!`;
-      } else if (max === 200) {
-        // Advanced tier
-        upgradeMessage = `You've reached the ADVANCED tier limit of ${max} templates. Upgrade to ENTERPRISE for unlimited templates!`;
-      }
-      
-      toggleNotification({
-        type: 'warning',
-        title: '🚀 Time to Upgrade!',
-        message: upgradeMessage,
-      });
-      return;
-    }
-    
-    // Navigate to create new template
+    // Navigate to create new template (unlimited templates)
     navigate('/plugins/magic-mail/designer/new');
   };
 
@@ -1250,30 +1149,10 @@ const TemplateList = () => {
                 Email Templates
               </Title>
             </Flex>
-            {stats && limits && (
+            {stats && (
               <Subtitle variant="epsilon">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                   <span>{stats.total} template{stats.total !== 1 ? 's' : ''} created</span>
-                  <span style={{ opacity: 0.8 }}>•</span>
-                  {!limits.emailTemplates.unlimited ? (
-                    <span style={{ 
-                      background: 'rgba(255, 255, 255, 0.2)', 
-                      padding: '2px 10px', 
-                      borderRadius: '12px',
-                      fontWeight: '600'
-                    }}>
-                      {limits.emailTemplates.max - limits.emailTemplates.current} of {limits.emailTemplates.max} slots remaining
-                    </span>
-                  ) : (
-                    <span style={{ 
-                      background: 'rgba(255, 255, 255, 0.2)', 
-                      padding: '2px 10px', 
-                      borderRadius: '12px',
-                      fontWeight: '600'
-                    }}>
-                      Unlimited templates
-                    </span>
-                  )}
                 </span>
               </Subtitle>
             )}
@@ -1302,18 +1181,6 @@ const TemplateList = () => {
           </StatValue>
           <StatLabel variant="pi">Active</StatLabel>
         </StatCard>
-
-        {(limits?.emailTemplates && !limits.emailTemplates.unlimited) && (
-          <StatCard $delay="0.3s" $color={'var(--colors-warning600, #F59E0B)'}>
-            <StatIcon className="stat-icon" $bg={'rgba(234, 179, 8, 0.12)'} $color={'var(--colors-warning600, #D97706)'}>
-              <SparklesIcon />
-            </StatIcon>
-            <StatValue className="stat-value" variant="alpha">
-              {showSkeleton ? '...' : (limits.emailTemplates.max - limits.emailTemplates.current)}
-            </StatValue>
-            <StatLabel variant="pi">Remaining</StatLabel>
-          </StatCard>
-        )}
       </StatsGrid>
 
       {/* Divider */}
@@ -1322,33 +1189,6 @@ const TemplateList = () => {
       </Box>
 
       {/* Tabs for Custom Templates vs Core Emails */}
-      {/* Upgrade Warning */}
-      {limits?.emailTemplates && !limits.emailTemplates.unlimited && 
-       limits.emailTemplates.current >= limits.emailTemplates.max * 0.8 && (
-        <LimitWarning>
-          <Flex alignItems="center" gap={3}>
-            <SparklesIcon style={{ width: 24, height: 24, color: 'var(--colors-warning600, #D97706)' }} />
-            <Box>
-              <Typography variant="omega" fontWeight="bold" textColor="neutral800">
-                {limits.emailTemplates.current >= limits.emailTemplates.max 
-                  ? `You've reached your ${getTierInfo().name} limit!`
-                  : `You're approaching your ${getTierInfo().name} limit!`}
-              </Typography>
-              <Typography variant="pi" textColor="neutral600" style={{ marginTop: '4px' }}>
-                Using {limits.emailTemplates.current} of {limits.emailTemplates.max} templates. 
-                {getTierInfo().next && ` Upgrade to ${getTierInfo().next} for ${getTierInfo().nextTemplates === -1 ? 'unlimited' : getTierInfo().nextTemplates} templates!`}
-              </Typography>
-            </Box>
-          </Flex>
-          <UpgradeButton 
-            onClick={() => navigate('/admin/settings/magic-mail/upgrade')}
-          >
-            <BoltIcon style={{ width: 16, height: 16, marginRight: '6px' }} />
-            Upgrade Now
-          </UpgradeButton>
-        </LimitWarning>
-      )}
-
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Trigger value="customTemplates">Custom Templates</Tabs.Trigger>

@@ -4,7 +4,6 @@
   
   "tabs.accounts": "Comptes Email",
   "tabs.routing": "Règles de Routage",
-  "tabs.license": "Licence",
   
   "accounts.title": "Comptes Email",
   "accounts.subtitle": "Gérez plusieurs comptes email avec Smart Routing",
@@ -34,23 +33,6 @@
   "routing.empty": "Aucune règle de routage",
   "routing.emptyDescription": "Créez votre première règle de routage",
   
-  "license.title": "Gestion de Licence",
-  "license.subtitle": "Gérez votre licence MagicMail",
-  "license.active": "Licence active",
-  "license.inactive": "Aucune licence active",
-  "license.demo": "Mode démo",
-  "license.generate": "Générer une licence gratuite",
-  "license.activate": "Activer la licence",
-  "license.key": "Clé de licence",
-  "license.email": "Adresse email",
-  "license.copyKey": "Copier la clé",
-  "license.download": "Télécharger en TXT",
-  "license.refresh": "Actualiser le statut",
-  
-  "features.premium": "Fonctionnalités Premium",
-  "features.advanced": "Fonctionnalités Avancées",
-  "features.enterprise": "Fonctionnalités Enterprise",
-  
   "notifications.accountCreated": "Compte email créé avec succès",
   "notifications.accountUpdated": "Compte email mis à jour avec succès",
   "notifications.accountDeleted": "Compte email supprimé avec succès",
@@ -59,13 +41,28 @@
   "notifications.ruleCreated": "Règle de routage créée avec succès",
   "notifications.ruleUpdated": "Règle de routage mise à jour avec succès",
   "notifications.ruleDeleted": "Règle de routage supprimée avec succès",
-  "notifications.licenseActivated": "Licence activée avec succès",
-  "notifications.licenseCopied": "Clé de licence copiée",
   "notifications.error": "Une erreur s'est produite",
   
   "errors.noAccounts": "Aucun compte email disponible",
-  "errors.providerNotAllowed": "Ce fournisseur nécessite une licence supérieure",
-  "errors.accountLimitReached": "Limite de comptes atteinte. Mise à niveau requise",
-  "errors.ruleLimitReached": "Limite de règles atteinte. Mise à niveau requise"
+  
+  "whatsapp.title": "Intégration WhatsApp",
+  "whatsapp.subtitle": "Envoyez des messages via WhatsApp - entièrement gratuit !",
+  "whatsapp.tab": "WhatsApp",
+  "whatsapp.status.connected": "Connecté",
+  "whatsapp.status.connecting": "Connexion...",
+  "whatsapp.status.qr_pending": "En attente du scan QR",
+  "whatsapp.status.disconnected": "Déconnecté",
+  "whatsapp.step1.title": "Vérifier l'installation",
+  "whatsapp.step2.title": "Connecter WhatsApp",
+  "whatsapp.step3.title": "Scanner le code QR",
+  "whatsapp.step4.title": "Prêt à l'emploi",
+  "whatsapp.connect": "Connecter WhatsApp",
+  "whatsapp.disconnect": "Déconnecter WhatsApp",
+  "whatsapp.sendTest": "Envoyer un message de test",
+  "whatsapp.phoneNumber": "Numéro de téléphone",
+  "whatsapp.phoneHint": "Entrez le numéro de téléphone avec l'indicatif du pays (ex. 33 pour la France)",
+  "whatsapp.message": "Message (optionnel)",
+  "whatsapp.notInstalled": "Dépendances non installées",
+  "whatsapp.installCommand": "npm install baileys pino qrcode",
+  "whatsapp.freeLabel": "GRATUIT - Aucun coût d'API !"
 }
-

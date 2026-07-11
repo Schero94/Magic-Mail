@@ -32,24 +32,7 @@ module.exports = {
    */
   async create(ctx) {
     try {
-      const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
       const accountData = validate('accounts.create', ctx.request.body);
-
-      // Check if provider is allowed by license
-      const providerAllowed = await licenseGuard.isProviderAllowed(accountData.provider);
-      if (!providerAllowed) {
-        ctx.throw(403, `Provider "${accountData.provider}" requires a Premium license or higher. Please upgrade your license.`);
-        return;
-      }
-
-      // Check account limit using Document Service count()
-      const currentAccounts = await strapi.documents('plugin::magic-mail.email-account').count();
-      const maxAccounts = await licenseGuard.getMaxAccounts();
-      
-      if (maxAccounts !== -1 && currentAccounts >= maxAccounts) {
-        ctx.throw(403, `Account limit reached (${maxAccounts}). Upgrade your license to add more accounts.`);
-        return;
-      }
 
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const account = await accountManager.createAccount(accountData);
@@ -97,18 +80,6 @@ module.exports = {
       const { accountId } = ctx.params;
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const data = validate('accounts.update', ctx.request.body);
-
-      // License-gate provider changes. A free/low tier must not be able to
-      // sneak a Premium provider via edit after failing the license check
-      // at creation time.
-      if (data.provider) {
-        const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
-        const providerAllowed = await licenseGuard.isProviderAllowed(data.provider);
-        if (!providerAllowed) {
-          ctx.throw(403, `Provider "${data.provider}" requires a higher license tier.`);
-          return;
-        }
-      }
 
       const account = await accountManager.updateAccount(accountId, data);
 

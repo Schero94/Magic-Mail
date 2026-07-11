@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useAuthRefresh } from '../hooks/useAuthRefresh';
-import { useLicense } from '../hooks/useLicense';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
@@ -25,7 +24,7 @@ import {
   MagnifyingGlassIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { GradientButton, TertiaryButton, DangerButton } from '../components/StyledButtons';
+import { TertiaryButton, DangerButton } from '../components/StyledButtons';
 
 // ================ THEME (kopiert von TemplateList) ================
 const theme = {
@@ -390,7 +389,6 @@ const Analytics = () => {
   useAuthRefresh();
   const { get, del } = useFetchClient();
   const { toggleNotification } = useNotification();
-  const { hasFeature } = useLicense();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [emailLogs, setEmailLogs] = useState([]);
@@ -398,16 +396,10 @@ const Analytics = () => {
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const hasBasicAnalytics = hasFeature('email-logging');
-
   useEffect(() => {
-    if (hasBasicAnalytics) {
-      fetchAnalytics();
-      fetchEmailLogs();
-    } else {
-      setLoading(false);
-    }
-  }, [hasBasicAnalytics]);
+    fetchAnalytics();
+    fetchEmailLogs();
+  }, []);
 
   const fetchAnalytics = async () => {
     try {
@@ -479,45 +471,6 @@ const Analytics = () => {
     log.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     log.templateName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  if (!hasBasicAnalytics) {
-    return (
-      <Container>
-        <Header>
-          <HeaderContent justifyContent="center" alignItems="center">
-            <div style={{ textAlign: 'center' }}>
-              <Title variant="alpha">
-                <ChartBarIcon />
-                Email Analytics
-              </Title>
-              <Subtitle variant="epsilon">
-                Upgrade to Premium to unlock detailed email analytics and tracking
-              </Subtitle>
-            </div>
-          </HeaderContent>
-        </Header>
-
-        <EmptyState>
-          <EmptyContent>
-            <EmptyIcon>
-              <ChartBarIcon />
-            </EmptyIcon>
-            <Typography variant="delta" fontWeight="bold" style={{ marginBottom: '12px', display: 'block' }}>
-              Analytics Available in Premium
-            </Typography>
-            <Typography variant="omega" textColor="neutral600" style={{ marginBottom: '32px', lineHeight: '1.6', display: 'block' }}>
-              Upgrade to Premium to unlock email analytics, tracking, open rates, click rates, and detailed reports about your email campaigns.
-            </Typography>
-            <GradientButton
-              onClick={() => window.location.href = '/admin/settings/magic-mail/upgrade'}
-            >
-              View Upgrade Plans
-            </GradientButton>
-          </EmptyContent>
-        </EmptyState>
-      </Container>
-    );
-  }
 
   if (loading) {
     return (

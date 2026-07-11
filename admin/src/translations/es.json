@@ -4,7 +4,6 @@
   
   "tabs.accounts": "Cuentas de Email",
   "tabs.routing": "Reglas de Enrutamiento",
-  "tabs.license": "Licencia",
   
   "accounts.title": "Cuentas de Email",
   "accounts.subtitle": "Administra múltiples cuentas de email con Smart Routing",
@@ -34,23 +33,6 @@
   "routing.empty": "No hay reglas de enrutamiento",
   "routing.emptyDescription": "Crea tu primera regla de enrutamiento",
   
-  "license.title": "Gestión de Licencia",
-  "license.subtitle": "Administra tu licencia de MagicMail",
-  "license.active": "Licencia activa",
-  "license.inactive": "Sin licencia activa",
-  "license.demo": "Modo demo",
-  "license.generate": "Generar licencia gratuita",
-  "license.activate": "Activar licencia",
-  "license.key": "Clave de licencia",
-  "license.email": "Correo electrónico",
-  "license.copyKey": "Copiar clave",
-  "license.download": "Descargar como TXT",
-  "license.refresh": "Actualizar estado",
-  
-  "features.premium": "Funciones Premium",
-  "features.advanced": "Funciones Avanzadas",
-  "features.enterprise": "Funciones Enterprise",
-  
   "notifications.accountCreated": "Cuenta de email creada exitosamente",
   "notifications.accountUpdated": "Cuenta de email actualizada exitosamente",
   "notifications.accountDeleted": "Cuenta de email eliminada exitosamente",
@@ -59,13 +41,28 @@
   "notifications.ruleCreated": "Regla de enrutamiento creada exitosamente",
   "notifications.ruleUpdated": "Regla de enrutamiento actualizada exitosamente",
   "notifications.ruleDeleted": "Regla de enrutamiento eliminada exitosamente",
-  "notifications.licenseActivated": "Licencia activada exitosamente",
-  "notifications.licenseCopied": "Clave de licencia copiada",
   "notifications.error": "Ocurrió un error",
   
   "errors.noAccounts": "No hay cuentas de email disponibles",
-  "errors.providerNotAllowed": "Este proveedor requiere una licencia superior",
-  "errors.accountLimitReached": "Límite de cuentas alcanzado. Actualización requerida",
-  "errors.ruleLimitReached": "Límite de reglas alcanzado. Actualización requerida"
+  
+  "whatsapp.title": "Integración de WhatsApp",
+  "whatsapp.subtitle": "Envía mensajes vía WhatsApp - ¡completamente gratis!",
+  "whatsapp.tab": "WhatsApp",
+  "whatsapp.status.connected": "Conectado",
+  "whatsapp.status.connecting": "Conectando...",
+  "whatsapp.status.qr_pending": "Esperando escaneo de QR",
+  "whatsapp.status.disconnected": "Desconectado",
+  "whatsapp.step1.title": "Verificar instalación",
+  "whatsapp.step2.title": "Conectar WhatsApp",
+  "whatsapp.step3.title": "Escanear código QR",
+  "whatsapp.step4.title": "Listo para usar",
+  "whatsapp.connect": "Conectar WhatsApp",
+  "whatsapp.disconnect": "Desconectar WhatsApp",
+  "whatsapp.sendTest": "Enviar mensaje de prueba",
+  "whatsapp.phoneNumber": "Número de teléfono",
+  "whatsapp.phoneHint": "Ingresa el número de teléfono con código de país (ej. 34 para España)",
+  "whatsapp.message": "Mensaje (opcional)",
+  "whatsapp.notInstalled": "Dependencias no instaladas",
+  "whatsapp.installCommand": "npm install baileys pino qrcode",
+  "whatsapp.freeLabel": "GRATIS - ¡Sin costos de API!"
 }
-

@@ -47,26 +47,6 @@ export default {
           Component: () => import('./pages/PluginSettings'),
           permissions: pluginPermissions,
         },
-        {
-          intlLabel: {
-            id: `${pluginId}.settings.upgrade`,
-            defaultMessage: 'Upgrade',
-          },
-          id: 'upgrade',
-          to: `${pluginId}/upgrade`,
-          Component: () => import('./pages/LicensePage'),
-          permissions: pluginPermissions,
-        },
-        {
-          intlLabel: {
-            id: `${pluginId}.settings.license`,
-            defaultMessage: 'License Details',
-          },
-          id: 'license',
-          to: `${pluginId}/license`,
-          Component: () => import('./pages/Settings'),
-          permissions: pluginPermissions,
-        },
       ]
     );
 

@@ -9,17 +9,13 @@ import TemplateList from './EmailDesigner/TemplateList';
 import EditorPage from './EmailDesigner/EditorPage';
 import Analytics from './Analytics';
 import WhatsAppPage from './WhatsApp';
-import LicenseGuard from '../components/LicenseGuard';
-import { useLicense } from '../hooks/useLicense';
+import { useAuthRefresh } from '../hooks/useAuthRefresh';
 import pluginPermissions from '../permissions';
 
 const App = () => {
+  useAuthRefresh(); // keep admin token auto-refresh running across all tabs
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasFeature } = useLicense();
-  
-  const hasEmailDesigner = hasFeature('email-designer-basic');
-  const hasAnalytics = hasFeature('email-logging'); // Basic analytics available with email logging
   
   // Check if we're in the editor (with specific ID, 'new', or 'core/...')
   const isEditorRoute = /\/designer\/(new|\d+|core\/.+)/.test(location.pathname);
@@ -47,16 +43,13 @@ const App = () => {
   if (isEditorRoute) {
     return (
       <Page.Protect permissions={pluginPermissions.access}>
-        <LicenseGuard>
-          <EditorPage />
-        </LicenseGuard>
+        <EditorPage />
       </Page.Protect>
     );
   }
 
   return (
     <Page.Protect permissions={pluginPermissions.access}>
-    <LicenseGuard>
       <Box>
         <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
           <Tabs.List>
@@ -72,22 +65,18 @@ const App = () => {
                 Routing Rules
               </Flex>
             </Tabs.Trigger>
-            {hasEmailDesigner && (
-              <Tabs.Trigger value="templates">
-                <Flex gap={2} alignItems="center">
-                  <DocumentTextIcon style={{ width: 16, height: 16 }} />
-                  Email Templates
-                </Flex>
-              </Tabs.Trigger>
-            )}
-            {hasAnalytics && (
-              <Tabs.Trigger value="analytics">
-                <Flex gap={2} alignItems="center">
-                  <ChartBarIcon style={{ width: 16, height: 16 }} />
-                  Analytics
-                </Flex>
-              </Tabs.Trigger>
-            )}
+            <Tabs.Trigger value="templates">
+              <Flex gap={2} alignItems="center">
+                <DocumentTextIcon style={{ width: 16, height: 16 }} />
+                Email Templates
+              </Flex>
+            </Tabs.Trigger>
+            <Tabs.Trigger value="analytics">
+              <Flex gap={2} alignItems="center">
+                <ChartBarIcon style={{ width: 16, height: 16 }} />
+                Analytics
+              </Flex>
+            </Tabs.Trigger>
             <Tabs.Trigger value="whatsapp">
               <Flex gap={2} alignItems="center">
                 <ChatBubbleLeftIcon style={{ width: 16, height: 16 }} />
@@ -104,24 +93,19 @@ const App = () => {
             <RoutingRules />
           </Tabs.Content>
           
-          {hasEmailDesigner && (
-            <Tabs.Content value="templates">
-              <TemplateList />
-            </Tabs.Content>
-          )}
+          <Tabs.Content value="templates">
+            <TemplateList />
+          </Tabs.Content>
           
-          {hasAnalytics && (
-            <Tabs.Content value="analytics">
-              <Analytics />
-            </Tabs.Content>
-          )}
+          <Tabs.Content value="analytics">
+            <Analytics />
+          </Tabs.Content>
           
           <Tabs.Content value="whatsapp">
             <WhatsAppPage />
           </Tabs.Content>
         </Tabs.Root>
       </Box>
-    </LicenseGuard>
     </Page.Protect>
   );
 };

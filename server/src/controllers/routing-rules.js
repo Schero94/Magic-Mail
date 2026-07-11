@@ -91,15 +91,6 @@ module.exports = {
    */
   async create(ctx) {
     try {
-      const licenseGuard = strapi.plugin('magic-mail').service('license-guard');
-
-      const currentRules = await strapi.documents(ROUTING_RULE_UID).count();
-      const maxRules = await licenseGuard.getMaxRoutingRules();
-      
-      if (maxRules !== -1 && currentRules >= maxRules) {
-        return ctx.forbidden(`Routing rule limit reached (${maxRules}). Upgrade to Advanced license for unlimited rules.`);
-      }
-
       const data = validate('routingRules.create', sanitizeRuleData(ctx.request.body));
       const rule = await strapi.documents(ROUTING_RULE_UID).create({ data });
 

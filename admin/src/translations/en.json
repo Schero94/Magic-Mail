@@ -4,7 +4,6 @@
   
   "tabs.accounts": "Email Accounts",
   "tabs.routing": "Routing Rules",
-  "tabs.license": "License",
   
   "accounts.title": "Email Accounts",
   "accounts.subtitle": "Manage multiple email accounts with Smart Routing",
@@ -34,23 +33,6 @@
   "routing.empty": "No routing rules yet",
   "routing.emptyDescription": "Create your first routing rule",
   
-  "license.title": "License Management",
-  "license.subtitle": "Manage your MagicMail license",
-  "license.active": "License Active",
-  "license.inactive": "No Active License",
-  "license.demo": "Demo Mode",
-  "license.generate": "Generate Free License",
-  "license.activate": "Activate License",
-  "license.key": "License Key",
-  "license.email": "Email Address",
-  "license.copyKey": "Copy Key",
-  "license.download": "Download as TXT",
-  "license.refresh": "Refresh Status",
-  
-  "features.premium": "Premium Features",
-  "features.advanced": "Advanced Features",
-  "features.enterprise": "Enterprise Features",
-  
   "notifications.accountCreated": "Email account created successfully",
   "notifications.accountUpdated": "Email account updated successfully",
   "notifications.accountDeleted": "Email account deleted successfully",
@@ -59,14 +41,9 @@
   "notifications.ruleCreated": "Routing rule created successfully",
   "notifications.ruleUpdated": "Routing rule updated successfully",
   "notifications.ruleDeleted": "Routing rule deleted successfully",
-  "notifications.licenseActivated": "License activated successfully",
-  "notifications.licenseCopied": "License key copied",
   "notifications.error": "An error occurred",
   
   "errors.noAccounts": "No email accounts available",
-  "errors.providerNotAllowed": "This provider requires a higher license",
-  "errors.accountLimitReached": "Account limit reached. Upgrade required",
-  "errors.ruleLimitReached": "Rule limit reached. Upgrade required",
   
   "whatsapp.title": "WhatsApp Integration",
   "whatsapp.subtitle": "Send messages via WhatsApp - completely free!",
