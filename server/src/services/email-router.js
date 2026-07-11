@@ -185,7 +185,16 @@ function buildRawMimeMessage(account, emailData) {
   };
 
   return new Promise((resolve, reject) => {
-    new MailComposer(mailOptions).compile().build((err, message) => {
+    const compiledMessage = new MailComposer(mailOptions).compile();
+
+    // MailComposer removes Bcc by default because SMTP transports deliver
+    // those recipients through a separate envelope. Gmail and Microsoft Graph
+    // receive only this raw MIME message, so they require the Bcc header to
+    // route hidden recipients. Both providers suppress it from recipient
+    // copies after delivery.
+    compiledMessage.keepBcc = true;
+
+    compiledMessage.build((err, message) => {
       if (err) reject(err);
       else resolve(message);
     });

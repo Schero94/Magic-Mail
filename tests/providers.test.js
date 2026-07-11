@@ -86,7 +86,7 @@ test('Mailgun sends a native FormData body without a manual content-type', async
   }
 });
 
-test('Gmail MIME includes Reply-To and labels text-only bodies as text/plain', async () => {
+test('Gmail raw MIME includes To, Cc, Bcc, Reply-To and a text/plain body', async () => {
   const restoreKey = setKey();
   const { encryptCredentials } = require('../server/src/utils/encryption');
   const router = loadRouter();
@@ -108,13 +108,83 @@ test('Gmail MIME includes Reply-To and labels text-only bodies as text/plain', a
       config: encryptCredentials({ clientId: 'cid', clientSecret: 'secret' }),
     };
     await router.sendViaGmailOAuth(account, {
-      to: 'user@example.com', subject: 'Plain', text: 'just text', replyTo: 'reply@example.com',
+      to: 'user@example.com',
+      cc: ['cc1@example.com', 'cc2@example.com'],
+      bcc: ['hidden1@example.com', 'hidden2@example.com'],
+      subject: 'Plain',
+      text: 'just text',
+      replyTo: 'reply@example.com',
     });
 
     const raw = Buffer.from(JSON.parse(captured.opts.body).raw, 'base64url').toString('utf-8');
+    assert.match(raw, /^To:\s*user@example\.com$/im, 'To header present');
+    assert.match(raw, /^Cc:\s*cc1@example\.com,\s*cc2@example\.com$/im, 'Cc header present');
+    assert.match(
+      raw,
+      /^Bcc:\s*hidden1@example\.com,\s*hidden2@example\.com$/im,
+      'Bcc header must be retained because Gmail API has no SMTP envelope'
+    );
     assert.match(raw, /Reply-To:\s*reply@example\.com/i, 'Reply-To header present');
     assert.match(raw, /text\/plain/i, 'text-only body is text/plain');
     assert.ok(!/Content-Type:\s*text\/html/i.test(raw), 'text-only body must not be labelled text/html');
+  } finally {
+    global.fetch = originalFetch;
+    restoreKey();
+  }
+});
+
+test('Microsoft raw MIME includes To, Cc and Bcc recipients', async () => {
+  const restoreKey = setKey();
+  const { encryptCredentials } = require('../server/src/utils/encryption');
+  const router = loadRouter();
+  const originalFetch = global.fetch;
+  let captured;
+  global.fetch = async (url, opts) => {
+    captured = { url, opts };
+    return {
+      ok: true,
+      status: 202,
+      statusText: 'Accepted',
+      json: async () => ({}),
+      text: async () => '',
+    };
+  };
+
+  try {
+    const account = {
+      name: 'ms',
+      provider: 'microsoft-oauth',
+      documentId: 'acc-2',
+      fromEmail: 'from@example.com',
+      fromName: 'From',
+      oauth: encryptCredentials({
+        email: 'from@example.com',
+        accessToken: 'tok',
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      }),
+      config: encryptCredentials({
+        clientId: 'cid',
+        clientSecret: 'secret',
+        tenantId: 'common',
+      }),
+    };
+
+    await router.sendViaMicrosoftOAuth(account, {
+      to: 'user@example.com',
+      cc: ['cc1@example.com', 'cc2@example.com'],
+      bcc: ['hidden1@example.com', 'hidden2@example.com'],
+      subject: 'Recipients',
+      text: 'body',
+    });
+
+    const raw = Buffer.from(captured.opts.body, 'base64').toString('utf-8');
+    assert.match(raw, /^To:\s*user@example\.com$/im, 'To header present');
+    assert.match(raw, /^Cc:\s*cc1@example\.com,\s*cc2@example\.com$/im, 'Cc header present');
+    assert.match(
+      raw,
+      /^Bcc:\s*hidden1@example\.com,\s*hidden2@example\.com$/im,
+      'Bcc header must be retained because Microsoft Graph MIME has no SMTP envelope'
+    );
   } finally {
     global.fetch = originalFetch;
     restoreKey();
