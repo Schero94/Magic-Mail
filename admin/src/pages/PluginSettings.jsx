@@ -4,7 +4,7 @@ import {
   Typography,
   Flex,
   Loader,
-  Toggle,
+  Switch,
   TextInput,
   Field,
 } from '@strapi/design-system';
@@ -306,11 +306,13 @@ const PluginSettingsPage = () => {
               </SettingDescription>
             </SettingInfo>
             <ToggleWrapper>
-              <Toggle
+              <Switch
                 checked={settings.enableLinkTracking}
-                onChange={(e) => handleChange('enableLinkTracking', e.target.checked)}
+                onCheckedChange={(checked) => handleChange('enableLinkTracking', checked)}
+                aria-label="Enable Link Tracking"
                 onLabel="Enabled"
                 offLabel="Disabled"
+                visibleLabels={false}
               />
             </ToggleWrapper>
           </SettingRow>
@@ -370,11 +372,13 @@ const PluginSettingsPage = () => {
               </SettingDescription>
             </SettingInfo>
             <ToggleWrapper>
-              <Toggle
+              <Switch
                 checked={settings.enableOpenTracking}
-                onChange={(e) => handleChange('enableOpenTracking', e.target.checked)}
+                onCheckedChange={(checked) => handleChange('enableOpenTracking', checked)}
+                aria-label="Enable Open Tracking"
                 onLabel="Enabled"
                 offLabel="Disabled"
+                visibleLabels={false}
               />
             </ToggleWrapper>
           </SettingRow>
@@ -404,11 +408,13 @@ const PluginSettingsPage = () => {
               </SettingDescription>
             </SettingInfo>
             <ToggleWrapper>
-              <Toggle
+              <Switch
                 checked={settings.enableUnsubscribeHeader}
-                onChange={(e) => handleChange('enableUnsubscribeHeader', e.target.checked)}
+                onCheckedChange={(checked) => handleChange('enableUnsubscribeHeader', checked)}
+                aria-label="Enable List-Unsubscribe Header"
                 onLabel="Enabled"
                 offLabel="Disabled"
+                visibleLabels={false}
               />
             </ToggleWrapper>
           </SettingRow>
