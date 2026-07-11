@@ -13,7 +13,7 @@ import {
   TextInput,
   Textarea,
   NumberInput,
-  Toggle,
+  Switch,
   SingleSelect,
   SingleSelectOption,
 } from '@strapi/design-system';
@@ -1068,39 +1068,37 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
               {/* WhatsApp Fallback */}
               <Box 
                 padding={4} 
-                background={formData.whatsappFallback ? 'rgba(22, 163, 74, 0.12)' : 'var(--colors-neutral100)'}
+                background="neutral100"
                 hasRadius
+                borderColor="neutral200"
+                borderStyle="solid"
+                borderWidth="1px"
                 style={{ 
                   width: '100%',
-                  border: formData.whatsappFallback ? `2px solid ${'var(--colors-success600, #16A34A)'}` : `1px solid ${'rgba(128, 128, 128, 0.2)'}`,
                   borderRadius: theme.borderRadius.md,
-                  transition: 'all 0.2s ease'
                 }}
               >
-                <Flex gap={3} alignItems="center">
-                  <Toggle
-                    checked={formData.whatsappFallback}
-                    onChange={() => handleChange('whatsappFallback', !formData.whatsappFallback)}
-                    onLabel="Enabled"
-                    offLabel="Disabled"
-                  />
-                  <Box style={{ flex: 1 }}>
-                    <Flex alignItems="center" gap={2}>
-                      <Typography fontWeight="semiBold">
-                        WhatsApp Fallback
-                      </Typography>
-                      {formData.whatsappFallback && (
-                        <Badge backgroundColor="success600" textColor="neutral0" size="S">
-                          ENABLED
-                        </Badge>
-                      )}
-                    </Flex>
+                <Flex gap={3} alignItems="center" justifyContent="space-between">
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Typography fontWeight="semiBold">
+                      WhatsApp Fallback
+                    </Typography>
                     <Typography variant="pi" textColor="neutral600" marginTop={1}>
                       {formData.whatsappFallback 
                         ? 'If ALL email accounts fail, message will be sent via WhatsApp (requires connected WhatsApp & phone number in email data)'
                         : 'Enable to use WhatsApp as last-resort fallback when email delivery fails'
                       }
                     </Typography>
+                  </Box>
+                  <Box style={{ flexShrink: 0 }}>
+                    <Switch
+                      checked={formData.whatsappFallback}
+                      onCheckedChange={(checked) => handleChange('whatsappFallback', checked)}
+                      aria-label="WhatsApp fallback"
+                      onLabel="Enabled"
+                      offLabel="Disabled"
+                      visibleLabels={false}
+                    />
                   </Box>
                 </Flex>
               </Box>
@@ -1123,41 +1121,37 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
               {/* Active Toggle */}
               <Box 
                 padding={4} 
-                background={formData.isActive ? 'rgba(22, 163, 74, 0.12)' : 'rgba(220, 38, 38, 0.12)'}
+                background="neutral100"
                 hasRadius
+                borderColor="neutral200"
+                borderStyle="solid"
+                borderWidth="1px"
                 style={{ 
                   width: '100%',
-                  border: formData.isActive ? `2px solid ${'var(--colors-success600, #16A34A)'}` : `2px solid ${'var(--colors-danger600, #DC2626)'}`,
                   borderRadius: theme.borderRadius.md,
-                  transition: 'all 0.2s ease'
                 }}
               >
-                <Flex gap={3} alignItems="center">
-                  <Toggle
-                    checked={formData.isActive}
-                    onChange={() => handleChange('isActive', !formData.isActive)}
-                    onLabel="Active"
-                    offLabel="Inactive"
-                  />
-                  <Box style={{ flex: 1 }}>
-                    <Flex alignItems="center" gap={2}>
-                      <Typography fontWeight="semiBold">
-                        {formData.isActive ? '✅ Rule Active' : '❌ Rule Inactive'}
-                      </Typography>
-                      <Badge 
-                        backgroundColor={formData.isActive ? 'success600' : 'danger600'} 
-                        textColor="neutral0" 
-                        size="S"
-                      >
-                        {formData.isActive ? 'ENABLED' : 'DISABLED'}
-                      </Badge>
-                    </Flex>
+                <Flex gap={3} alignItems="center" justifyContent="space-between">
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Typography fontWeight="semiBold">
+                      Rule Active
+                    </Typography>
                     <Typography variant="pi" textColor="neutral600" marginTop={1}>
                       {formData.isActive 
                         ? 'This rule is active and will be used for email routing'
                         : 'This rule is disabled and will be ignored'
                       }
                     </Typography>
+                  </Box>
+                  <Box style={{ flexShrink: 0 }}>
+                    <Switch
+                      checked={formData.isActive}
+                      onCheckedChange={(checked) => handleChange('isActive', checked)}
+                      aria-label="Routing rule active"
+                      onLabel="Active"
+                      offLabel="Inactive"
+                      visibleLabels={false}
+                    />
                   </Box>
                 </Flex>
               </Box>
