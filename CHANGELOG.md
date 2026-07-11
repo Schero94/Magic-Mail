@@ -1,3 +1,14 @@
+## [3.0.3](https://github.com/Schero94/Magic-Mail/compare/v3.0.2...v3.0.3) (2026-07-11)
+
+
+### Bug Fixes
+
+* **admin:** use compact switch in template editor ([710db87](https://github.com/Schero94/Magic-Mail/commit/710db87e3b1db2c4ed3c7a1f75f30cc528574823))
+* **admin:** use compact switches in account setup ([0b7abbb](https://github.com/Schero94/Magic-Mail/commit/0b7abbb24668de4199dc2b4cd1ff08f7551b0dc4))
+* **admin:** use compact switches in plugin settings ([81b17cf](https://github.com/Schero94/Magic-Mail/commit/81b17cf60b9ae192307380e1177c03eec84868a6))
+* **admin:** use compact switches in routing rules ([25e540e](https://github.com/Schero94/Magic-Mail/commit/25e540e0627e7e1b570696bdd5622ee32291faff))
+* **admin:** use theme-aware switch card borders ([c04600d](https://github.com/Schero94/Magic-Mail/commit/c04600d4c0f8fe1168c15d5e84824da5511f3cd9))
+
 ## [3.0.2](https://github.com/Schero94/Magic-Mail/compare/v3.0.1...v3.0.2) (2026-07-11)
 
 
