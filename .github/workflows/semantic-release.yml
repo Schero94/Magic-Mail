@@ -31,15 +31,34 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      # Node 22 ships npm 10.x. Upgrade to a modern npm so provenance
+      # generation (and OIDC, if a Trusted Publisher is later configured on
+      # npmjs.com) works reliably.
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build plugin
         run: npm run build
 
-      - name: Verify plugin
+      - name: Verify package exports
         run: npm run verify
 
+      - name: Verify server bundle runtime
+        run: npm run verify:runtime
+
+      - name: Pack sanity check
+        run: npm pack --dry-run
+
+      # Publishes with npm provenance (id-token: write above). Auth still uses
+      # NPM_TOKEN: fully tokenless OIDC additionally requires a Trusted
+      # Publisher to be configured for this package on npmjs.com. Once that is
+      # set up, NPM_TOKEN/NODE_AUTH_TOKEN can be removed from this step.
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
