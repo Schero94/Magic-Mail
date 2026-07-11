@@ -123,6 +123,76 @@ function isFromAllowed(candidate, accountFrom) {
 }
 
 /**
+ * Builds a complete RFC 822 MIME message for the API providers (Gmail and
+ * Microsoft Graph) using nodemailer's MailComposer.
+ *
+ * This replaces hand-built MIME that dropped `Reply-To`, always labelled the
+ * body as `text/html` (so text-only mail rendered as HTML), and re-encoded
+ * base64 attachments as UTF-8. MailComposer emits a correct
+ * multipart/alternative + multipart/mixed structure, honours attachment
+ * encoding and inline CIDs, and folds headers per RFC.
+ *
+ * @param {object} account - Sending account (fromEmail/fromName/replyTo)
+ * @param {object} emailData - Normalized, already-sanitized email payload
+ * @returns {Promise<Buffer>} Raw MIME message
+ */
+function buildRawMimeMessage(account, emailData) {
+  const MailComposer = require('nodemailer/lib/mail-composer');
+  const safeFromName = stripHeaderInjection(account.fromName || '');
+  const fromHeader = safeFromName
+    ? `"${safeFromName}" <${account.fromEmail}>`
+    : account.fromEmail;
+
+  const headers = {
+    'X-Mailer': 'MagicMail/1.0',
+    'X-Email-Type': emailData.type || 'transactional',
+  };
+  if (emailData.priority === 'high') {
+    headers['X-Priority'] = '1 (Highest)';
+    headers.Importance = 'high';
+  }
+  if (shouldEmitUnsubscribe(emailData)) {
+    headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
+    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+  mergeSafeHeaders(headers, emailData.headers);
+
+  const attachments = (emailData.attachments || [])
+    .filter((a) => a && (a.content !== undefined || a.path))
+    .map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      path: a.path,
+      contentType: a.contentType,
+      encoding: a.encoding,
+      cid: a.cid || undefined,
+      contentDisposition: a.cid ? 'inline' : 'attachment',
+    }));
+
+  const mailOptions = {
+    from: emailData.from || fromHeader,
+    to: emailData.to,
+    cc: emailData.cc || undefined,
+    bcc: emailData.bcc || undefined,
+    replyTo: emailData.replyTo || account.replyTo || undefined,
+    subject: stripHeaderInjection(emailData.subject),
+    text: emailData.text || undefined,
+    html: emailData.html || undefined,
+    headers,
+    attachments: attachments.length ? attachments : undefined,
+    messageId: `<${Date.now()}.${Math.random().toString(36).substring(2)}@${(account.fromEmail || '').split('@')[1] || 'localhost'}>`,
+    date: new Date(),
+  };
+
+  return new Promise((resolve, reject) => {
+    new MailComposer(mailOptions).compile().build((err, message) => {
+      if (err) reject(err);
+      else resolve(message);
+    });
+  });
+}
+
+/**
  * Email Router Service
  * Smart routing of emails to appropriate accounts
  * Handles failover, rate limiting, and load balancing
@@ -438,71 +508,24 @@ module.exports = ({ strapi }) => ({
         throw new Error(`Provider "${account.provider}" requires a higher license tier. Please upgrade or use a different account.`);
       }
 
-      // Anti-spoofing: pin `from` to the account's configured address.
-      // Callers may still set a custom display name via `fromName` on the
-      // account itself, or pass their own "Display <same@address>" form.
-      // Any attempt to impersonate a different sender is logged and
-      // silently corrected to the account's real address. This is
-      // critical for providers that do NOT rewrite the From header
-      // (SMTP, SendGrid, Mailgun) and where DMARC alignment would
-      // otherwise fail.
-      if (!isFromAllowed(emailData.from, account.fromEmail)) {
-        strapi.log.warn(
-          `[magic-mail] Rejected from-override "${emailData.from}" != account.fromEmail "${account.fromEmail}" — using account address`
-        );
-        emailData.from = account.fromName
-          ? `${stripHeaderInjection(account.fromName)} <${account.fromEmail}>`
-          : account.fromEmail;
-      }
+      this.enforceFromAlignment(account, emailData);
 
       // Check rate limits
       const canSend = await this.checkRateLimits(account);
       if (!canSend) {
-        // Try failover - pass documentId to exclude current account
+        // Fail over to another eligible account. The fallback is quota-checked
+        // and dispatched through the SAME accounting path (stats + log) as the
+        // primary — previously it bypassed both.
         const fallbackAccount = await this.selectAccount(type, priority, [account.documentId], emailData);
-        if (fallbackAccount) {
+        if (fallbackAccount && await this.checkRateLimits(fallbackAccount)) {
           strapi.log.info(`[magic-mail] Rate limit hit on ${account.name}, using fallback: ${fallbackAccount.name}`);
-          return await this.sendViaAccount(fallbackAccount, emailData);
+          this.enforceFromAlignment(fallbackAccount, emailData);
+          return await this.dispatchAndRecord(fallbackAccount, emailData, emailLog);
         }
         throw new Error(`Rate limit exceeded on ${account.name} and no fallback available`);
       }
 
-      // Send via selected account. Once this resolves the provider has accepted
-      // the message — every subsequent step is post-acceptance bookkeeping and
-      // MUST NOT throw, or the caller would treat an accepted send as a failure
-      // (which historically triggered a duplicate re-send).
-      const result = await this.sendViaAccount(account, emailData);
-
-      // Update email log with account info (if tracking enabled)
-      if (emailLog) {
-        try {
-          await strapi.documents('plugin::magic-mail.email-log').update({
-            documentId: emailLog.documentId,
-            data: {
-              accountId: account.documentId,
-              accountName: account.name,
-              deliveredAt: new Date(),
-            },
-          });
-        } catch (error) {
-          strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error.message);
-        }
-      }
-
-      // Update stats (reconciliation only — never fail an accepted send here).
-      try {
-        await this.updateAccountStats(account.documentId);
-      } catch (error) {
-        strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error.message);
-      }
-
-      strapi.log.info(`[magic-mail] [SUCCESS] Email accepted via ${account.name}`);
-
-      return {
-        success: true,
-        accountUsed: account.name,
-        messageId: result.messageId,
-      };
+      return await this.dispatchAndRecord(account, emailData, emailLog);
     } catch (error) {
       strapi.log.error('[magic-mail] [ERROR] Email send failed:', error);
 
@@ -638,6 +661,71 @@ module.exports = ({ strapi }) => ({
   /**
    * Send email via specific account
    */
+  /**
+   * Pins the outgoing `from` to the account's configured address to prevent
+   * sender spoofing and keep DMARC alignment. A custom display name is allowed
+   * only when the bare address still matches the account.
+   *
+   * @param {object} account
+   * @param {object} emailData - mutated in place
+   */
+  enforceFromAlignment(account, emailData) {
+    if (!isFromAllowed(emailData.from, account.fromEmail)) {
+      if (emailData.from) {
+        strapi.log.warn(
+          `[magic-mail] Rejected from-override for account "${account.name}" — using account address`
+        );
+      }
+      emailData.from = account.fromName
+        ? `${stripHeaderInjection(account.fromName)} <${account.fromEmail}>`
+        : account.fromEmail;
+    }
+  },
+
+  /**
+   * Dispatches an email through an account and runs post-acceptance
+   * bookkeeping. Once `sendViaAccount` resolves the provider has accepted the
+   * message, so log/stats failures are reconciliation-only and never surface
+   * as a send failure (which historically caused duplicate delivery).
+   *
+   * @param {object} account
+   * @param {object} emailData
+   * @param {object|null} emailLog
+   * @returns {Promise<{success: boolean, accountUsed: string, messageId: string}>}
+   */
+  async dispatchAndRecord(account, emailData, emailLog) {
+    const result = await this.sendViaAccount(account, emailData);
+
+    if (emailLog) {
+      try {
+        await strapi.documents('plugin::magic-mail.email-log').update({
+          documentId: emailLog.documentId,
+          data: {
+            accountId: account.documentId,
+            accountName: account.name,
+            deliveredAt: new Date(),
+          },
+        });
+      } catch (error) {
+        strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error.message);
+      }
+    }
+
+    try {
+      await this.updateAccountStats(account.documentId);
+    } catch (error) {
+      strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error.message);
+    }
+
+    strapi.log.info(`[magic-mail] [SUCCESS] Email accepted via ${account.name}`);
+
+    return {
+      success: true,
+      accountUsed: account.name,
+      messageId: result.messageId,
+    };
+  },
+
   async sendViaAccount(account, emailData) {
     const { to, subject, text, html, replyTo, attachments } = emailData;
 
@@ -860,147 +948,17 @@ module.exports = ({ strapi }) => ({
     // Use Gmail API directly instead of SMTP with OAuth
     strapi.log.info('[magic-mail] Using Gmail API to send email...');
 
-    // Strip CR/LF from header-bound fields before building the raw MIME.
-    // validateEmailSecurity() already normalizes these on string inputs, but
-    // we do it again defensively so an attacker who bypasses validation
-    // cannot inject new headers via Subject or the from display name.
-    const safeSubject = stripHeaderInjection(emailData.subject);
-    const safeFromName = stripHeaderInjection(account.fromName || 'MagicMail');
-
     try {
-      // Create email in RFC 2822 format with MIME multipart for attachments
-      const boundary = `----=_Part_${Date.now()}`;
-      const attachments = emailData.attachments || [];
-      
-      let emailContent = '';
-      
-      if (attachments.length > 0) {
-        const emailLines = [
-          `From: ${safeFromName ? `"${safeFromName}" ` : ''}<${account.fromEmail}>`,
-          `To: ${emailData.to}`,
-          `Subject: ${safeSubject}`,
-          `Date: ${new Date().toUTCString()}`,
-          `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
-          'MIME-Version: 1.0',
-          `Content-Type: multipart/mixed; boundary="${boundary}"`,
-          'X-Mailer: MagicMail/1.0',
-        ];
+      // Build a correct RFC 822 message (Reply-To, multipart/alternative for
+      // text+html, honoured attachment encoding/CID) and base64url-encode it
+      // for the Gmail send endpoint.
+      const rawMessage = await buildRawMimeMessage(account, emailData);
+      const encodedEmail = rawMessage.toString('base64url');
 
-        if (emailData.cc) emailLines.push(`Cc: ${emailData.cc}`);
-        if (emailData.bcc) emailLines.push(`Bcc: ${emailData.bcc}`);
-
-        // Add priority headers if high priority
-        if (emailData.priority === 'high') {
-          emailLines.push('X-Priority: 1 (Highest)');
-          emailLines.push('Importance: high');
-        }
-
-        // Add List-Unsubscribe for marketing emails
-        if (shouldEmitUnsubscribe(emailData)) {
-          emailLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
-          emailLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
-        }
-
-        emailLines.push('');
-        emailLines.push(`--${boundary}`);
-        emailLines.push('Content-Type: text/html; charset=utf-8');
-        emailLines.push('');
-        emailLines.push(emailData.html || emailData.text || '');
-        
-        // Add each attachment
-        const fs = require('fs');
-        const path = require('path');
-        
-        for (const attachment of attachments) {
-          emailLines.push(`--${boundary}`);
-          
-          let fileContent;
-          let filename;
-          let contentType = attachment.contentType || 'application/octet-stream';
-          
-          if (attachment.content) {
-            // Content provided as buffer or string
-            fileContent = Buffer.isBuffer(attachment.content) 
-              ? attachment.content 
-              : Buffer.from(attachment.content);
-            filename = attachment.filename || 'attachment';
-          } else if (attachment.path) {
-            // Read from file path
-            fileContent = fs.readFileSync(attachment.path);
-            filename = attachment.filename || path.basename(attachment.path);
-            
-            // Detect content type if not provided
-            if (!attachment.contentType) {
-              const ext = path.extname(filename).toLowerCase();
-              const types = {
-                '.pdf': 'application/pdf',
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.gif': 'image/gif',
-                '.txt': 'text/plain',
-                '.csv': 'text/csv',
-                '.doc': 'application/msword',
-                '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                '.xls': 'application/vnd.ms-excel',
-                '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              };
-              contentType = types[ext] || 'application/octet-stream';
-            }
-          } else {
-            continue; // Skip invalid attachment
-          }
-          
-          emailLines.push(`Content-Type: ${contentType}; name="${filename}"`);
-          emailLines.push(`Content-Disposition: attachment; filename="${filename}"`);
-          emailLines.push('Content-Transfer-Encoding: base64');
-          emailLines.push('');
-          emailLines.push(fileContent.toString('base64'));
-        }
-        
-        emailLines.push(`--${boundary}--`);
-        emailContent = emailLines.join('\r\n');
-        
-        strapi.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
-      } else {
-        const emailLines = [
-          `From: ${safeFromName ? `"${safeFromName}" ` : ''}<${account.fromEmail}>`,
-          `To: ${emailData.to}`,
-          `Subject: ${safeSubject}`,
-          `Date: ${new Date().toUTCString()}`,
-          `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
-          'MIME-Version: 1.0',
-          'Content-Type: text/html; charset=utf-8',
-          'X-Mailer: MagicMail/1.0',
-        ];
-
-        if (emailData.cc) emailLines.push(`Cc: ${emailData.cc}`);
-        if (emailData.bcc) emailLines.push(`Bcc: ${emailData.bcc}`);
-
-        // Add priority headers if high priority
-        if (emailData.priority === 'high') {
-          emailLines.push('X-Priority: 1 (Highest)');
-          emailLines.push('Importance: high');
-        }
-
-        // Add List-Unsubscribe for marketing emails
-        if (shouldEmitUnsubscribe(emailData)) {
-          emailLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
-          emailLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
-        }
-
-        emailLines.push('');
-        emailLines.push(emailData.html || emailData.text || '');
-        
-        emailContent = emailLines.join('\r\n');
+      if ((emailData.attachments || []).length > 0) {
+        strapi.log.info(`[magic-mail] Email with ${emailData.attachments.length} attachment(s) prepared`);
       }
-      
-      const encodedEmail = Buffer.from(emailContent)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-      
+
       // Send via Gmail API
       const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
@@ -1111,130 +1069,20 @@ module.exports = ({ strapi }) => ({
       }
     }
 
-    // Use Microsoft Graph API with MIME format
-    // Key: Let Microsoft add From/DKIM headers automatically for DMARC compliance
+    // Use Microsoft Graph API with MIME format.
     strapi.log.info('[magic-mail] Using Microsoft Graph API with MIME format (DMARC-safe)...');
-    
+
     try {
-      // Build MIME content WITHOUT From header (Microsoft adds it with proper DKIM)
-      const boundary = `----=_Part_${Date.now()}`;
-      const attachments = emailData.attachments || [];
-      
-      let mimeContent = '';
-      
-      if (attachments.length > 0) {
-        // Multipart MIME with attachments
-        const mimeLines = [
-          // DON'T include From - Microsoft adds it with DKIM!
-          `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
-          `Date: ${new Date().toUTCString()}`,
-          `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
-          'MIME-Version: 1.0',
-          `Content-Type: multipart/mixed; boundary="${boundary}"`,
-          'X-Mailer: MagicMail/1.0',
-        ];
+      // Build a correct RFC 822 message (Reply-To, multipart/alternative for
+      // text+html, honoured attachment encoding/CID) and base64-encode it for
+      // the Graph sendMail MIME endpoint.
+      const rawMessage = await buildRawMimeMessage(account, emailData);
+      const base64Mime = rawMessage.toString('base64');
 
-        if (emailData.cc) mimeLines.push(`Cc: ${emailData.cc}`);
-        if (emailData.bcc) mimeLines.push(`Bcc: ${emailData.bcc}`);
-
-        // Priority headers
-        if (emailData.priority === 'high') {
-          mimeLines.push('X-Priority: 1 (Highest)');
-          mimeLines.push('Importance: high');
-        }
-
-        // List-Unsubscribe for marketing
-        if (shouldEmitUnsubscribe(emailData)) {
-          mimeLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
-          mimeLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
-        }
-
-        // Reply-To
-        if (emailData.replyTo || account.replyTo) {
-          mimeLines.push(`Reply-To: ${emailData.replyTo || account.replyTo}`);
-        }
-
-        mimeLines.push('');
-        mimeLines.push(`--${boundary}`);
-        mimeLines.push('Content-Type: text/html; charset=utf-8');
-        mimeLines.push('');
-        mimeLines.push(emailData.html || emailData.text || '');
-        
-        // Add attachments
-        const fs = require('fs');
-        const path = require('path');
-        
-        for (const attachment of attachments) {
-          mimeLines.push(`--${boundary}`);
-          
-          let fileContent;
-          let filename;
-          let contentType = attachment.contentType || 'application/octet-stream';
-          
-          if (attachment.content) {
-            fileContent = Buffer.isBuffer(attachment.content) 
-              ? attachment.content 
-              : Buffer.from(attachment.content);
-            filename = attachment.filename || 'attachment';
-          } else if (attachment.path) {
-            fileContent = fs.readFileSync(attachment.path);
-            filename = attachment.filename || path.basename(attachment.path);
-          } else {
-            continue;
-          }
-          
-          mimeLines.push(`Content-Type: ${contentType}; name="${filename}"`);
-          mimeLines.push(`Content-Disposition: attachment; filename="${filename}"`);
-          mimeLines.push('Content-Transfer-Encoding: base64');
-          mimeLines.push('');
-          mimeLines.push(fileContent.toString('base64'));
-        }
-        
-        mimeLines.push(`--${boundary}--`);
-        mimeContent = mimeLines.join('\r\n');
-      } else {
-        // Simple MIME email without attachments
-        const mimeLines = [
-          // DON'T include From - Microsoft adds it with DKIM!
-          `To: ${emailData.to}`,
-          `Subject: ${emailData.subject}`,
-          `Date: ${new Date().toUTCString()}`,
-          `Message-ID: <${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
-          'MIME-Version: 1.0',
-          'Content-Type: text/html; charset=utf-8',
-          'X-Mailer: MagicMail/1.0',
-        ];
-
-        if (emailData.cc) mimeLines.push(`Cc: ${emailData.cc}`);
-        if (emailData.bcc) mimeLines.push(`Bcc: ${emailData.bcc}`);
-
-        // Priority headers
-        if (emailData.priority === 'high') {
-          mimeLines.push('X-Priority: 1 (Highest)');
-          mimeLines.push('Importance: high');
-        }
-
-        // List-Unsubscribe for marketing
-        if (shouldEmitUnsubscribe(emailData)) {
-          mimeLines.push(`List-Unsubscribe: <${emailData.unsubscribeUrl}>`);
-          mimeLines.push('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
-        }
-
-        // Reply-To
-        if (emailData.replyTo || account.replyTo) {
-          mimeLines.push(`Reply-To: ${emailData.replyTo || account.replyTo}`);
-        }
-
-        mimeLines.push('');
-        mimeLines.push(emailData.html || emailData.text || '');
-        
-        mimeContent = mimeLines.join('\r\n');
+      if ((emailData.attachments || []).length > 0) {
+        strapi.log.info(`[magic-mail] Email with ${emailData.attachments.length} attachment(s) prepared`);
       }
-      
-      // Encode MIME to base64
-      const base64Mime = Buffer.from(mimeContent).toString('base64');
-      
+
       // Send via Microsoft Graph using MIME format
       const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
         method: 'POST',
@@ -1418,16 +1266,27 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Sending via SendGrid for account: ${account.name}`);
 
     try {
-      // Build personalizations for SendGrid v3 API
-      const personalization = { to: [{ email: emailData.to }] };
-      if (emailData.cc) {
-        const ccList = Array.isArray(emailData.cc) ? emailData.cc : emailData.cc.split(',').map(e => e.trim());
-        personalization.cc = ccList.map(email => ({ email }));
+      // Parse any recipient shape (single, array, or comma-separated string)
+      // into SendGrid's required array-of-objects form. Previously a `to`
+      // array/CSV was collapsed into a single `{ email: [...] }`, which
+      // SendGrid rejects.
+      const toRecipientList = (value) => {
+        if (!value) return [];
+        const list = Array.isArray(value) ? value : String(value).split(',');
+        return list
+          .map((entry) => extractEmailAddress(String(entry).trim()))
+          .filter((email) => email.length > 0)
+          .map((email) => ({ email }));
+      };
+
+      const personalization = { to: toRecipientList(emailData.to) };
+      if (personalization.to.length === 0) {
+        throw new Error('SendGrid send requires at least one valid recipient');
       }
-      if (emailData.bcc) {
-        const bccList = Array.isArray(emailData.bcc) ? emailData.bcc : emailData.bcc.split(',').map(e => e.trim());
-        personalization.bcc = bccList.map(email => ({ email }));
-      }
+      const ccRecipients = toRecipientList(emailData.cc);
+      if (ccRecipients.length > 0) personalization.cc = ccRecipients;
+      const bccRecipients = toRecipientList(emailData.bcc);
+      if (bccRecipients.length > 0) personalization.bcc = bccRecipients;
 
       const msg = {
         personalizations: [personalization],
@@ -1440,14 +1299,14 @@ module.exports = ({ strapi }) => ({
           ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
           ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
         ],
-        
-        // Security and tracking headers
-        customArgs: {
+
+        // SendGrid v3 uses snake_case `custom_args` (camelCase was ignored).
+        custom_args: {
           'magicmail_version': '1.0',
           'email_type': emailData.type || 'transactional',
           'priority': emailData.priority || 'normal',
         },
-        
+
         // Headers object for custom headers
         headers: {
           'X-Mailer': 'MagicMail/1.0',
@@ -1460,10 +1319,10 @@ module.exports = ({ strapi }) => ({
         msg.headers['Importance'] = 'high';
       }
 
-      // Add ReplyTo if provided
+      // Add ReplyTo if provided. SendGrid v3 REST expects snake_case `reply_to`.
       if (emailData.replyTo || account.replyTo) {
-        msg.replyTo = {
-          email: emailData.replyTo || account.replyTo,
+        msg.reply_to = {
+          email: extractEmailAddress(emailData.replyTo || account.replyTo),
         };
       }
 
@@ -1558,20 +1417,24 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Domain: ${config.domain}`);
 
     try {
-      // Build FormData for Mailgun API
-      const FormData = require('form-data');
+      // Build a WHATWG FormData for the global fetch. The legacy `form-data`
+      // package is NOT a valid `fetch` body — native fetch serialized it as
+      // "[object FormData]", so Mailgun rejected every message. Native FormData
+      // lets fetch set the correct multipart boundary automatically.
       const form = new FormData();
 
+      const joinAddrs = (value) => (Array.isArray(value) ? value.join(', ') : value);
+
       // Required fields
-      form.append('from', account.fromName 
+      form.append('from', account.fromName
         ? `${account.fromName} <${account.fromEmail}>`
         : account.fromEmail
       );
-      form.append('to', emailData.to);
-      if (emailData.cc) form.append('cc', emailData.cc);
-      if (emailData.bcc) form.append('bcc', emailData.bcc);
+      form.append('to', joinAddrs(emailData.to));
+      if (emailData.cc) form.append('cc', joinAddrs(emailData.cc));
+      if (emailData.bcc) form.append('bcc', joinAddrs(emailData.bcc));
       form.append('subject', emailData.subject);
-      
+
       // Add text or html content
       if (emailData.html) {
         form.append('html', emailData.html);
@@ -1600,16 +1463,17 @@ module.exports = ({ strapi }) => ({
       if (attachments.length > 0) {
         const fs = require('fs');
         const path = require('path');
-        
+
         for (const attachment of attachments) {
           let fileContent;
           let filename;
-          
+
           if (attachment.content) {
-            // Content provided as buffer or string
-            fileContent = Buffer.isBuffer(attachment.content) 
-              ? attachment.content 
-              : Buffer.from(attachment.content);
+            // Content provided as buffer or string. Respect base64 encoding so
+            // binary attachments are not corrupted by a UTF-8 round-trip.
+            fileContent = Buffer.isBuffer(attachment.content)
+              ? attachment.content
+              : Buffer.from(attachment.content, attachment.encoding === 'base64' ? 'base64' : 'utf-8');
             filename = attachment.filename || 'attachment';
           } else if (attachment.path) {
             // Read from file path
@@ -1618,23 +1482,25 @@ module.exports = ({ strapi }) => ({
           } else {
             continue;
           }
-          
-          // Mailgun expects attachments as form data with buffer
-          form.append('attachment', fileContent, {
-            filename: filename,
-            contentType: attachment.contentType || 'application/octet-stream',
-          });
+
+          const contentType = attachment.contentType || 'application/octet-stream';
+          const field = attachment.cid ? 'inline' : 'attachment';
+          form.append(
+            field,
+            new Blob([fileContent], { type: contentType }),
+            attachment.cid || filename
+          );
         }
-        
+
         strapi.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
       }
 
-      // Send via Mailgun API
+      // Send via Mailgun API. Do NOT set Content-Type manually — fetch derives
+      // the multipart boundary from the FormData body.
       const response = await fetch(`https://api.mailgun.net/v3/${config.domain}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${Buffer.from(`api:${config.apiKey}`).toString('base64')}`,
-          ...form.getHeaders(),
         },
         body: form,
       });
@@ -1672,23 +1538,47 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Update account statistics
-   * Note: This function now expects documentId
+   * Atomically increments an account's usage counters.
+   *
+   * Uses a single SQL UPDATE with in-database arithmetic so concurrent sends
+   * cannot lose counter updates (the previous read-modify-write via the
+   * Document Service dropped increments under load, understating usage and
+   * defeating quotas). Falls back to the Document Service if the raw update is
+   * unavailable for the active connection.
+   *
+   * @param {string} documentId
+   * @returns {Promise<void>}
+   * @sideeffect Increments emailsSentToday/ThisHour/totalEmailsSent, sets lastUsed
    */
   async updateAccountStats(documentId) {
-    const account = await strapi.documents('plugin::magic-mail.email-account').findOne({
-      documentId,
-    });
+    const now = new Date();
+    try {
+      const knex = strapi.db.connection;
+      const tableName = strapi.db.metadata.get('plugin::magic-mail.email-account').tableName;
+      const affected = await knex(tableName)
+        .where({ document_id: documentId })
+        .update({
+          emails_sent_today: knex.raw('COALESCE(emails_sent_today, 0) + 1'),
+          emails_sent_this_hour: knex.raw('COALESCE(emails_sent_this_hour, 0) + 1'),
+          total_emails_sent: knex.raw('COALESCE(total_emails_sent, 0) + 1'),
+          last_used: now,
+          updated_at: now,
+        });
+      if (affected > 0) return;
+    } catch (err) {
+      strapi.log.debug('[magic-mail] Atomic stats increment unavailable, falling back:', err.message);
+    }
 
+    // Fallback: non-atomic read-modify-write (best effort).
+    const account = await strapi.documents('plugin::magic-mail.email-account').findOne({ documentId });
     if (!account) return;
-
     await strapi.documents('plugin::magic-mail.email-account').update({
       documentId,
       data: {
         emailsSentToday: (account.emailsSentToday || 0) + 1,
         emailsSentThisHour: (account.emailsSentThisHour || 0) + 1,
         totalEmailsSent: (account.totalEmailsSent || 0) + 1,
-        lastUsed: new Date(),
+        lastUsed: now,
       },
     });
   },

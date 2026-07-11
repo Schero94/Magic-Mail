@@ -383,9 +383,14 @@ module.exports = ({ strapi }) => ({
       throw new Error('Client ID is required for Yahoo OAuth');
     }
 
+    // `openid` + `email` are required for the /openid/v1/userinfo lookup that
+    // resolves the account address; `mail-w` grants mail send access. The old
+    // `sdps-r` (social directory) scope is not valid for Mail apps and caused
+    // `invalid_scope` / missing-email failures.
     const scopes = [
+      'openid',
+      'email',
       'mail-w',
-      'sdps-r',
     ].join(' ');
 
     let authUrl = 'https://api.login.yahoo.com/oauth2/request_auth?' +
