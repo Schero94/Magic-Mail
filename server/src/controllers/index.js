@@ -7,7 +7,6 @@ const routingRules = require('./routing-rules');
 const license = require('./license');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
-const test = require('./test');
 const whatsapp = require('./whatsapp');
 const pluginSettings = require('./plugin-settings');
 
@@ -19,7 +18,6 @@ module.exports = {
   license,
   emailDesigner,
   analytics,
-  test,
   whatsapp,
   pluginSettings,
 };

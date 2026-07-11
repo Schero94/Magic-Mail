@@ -620,9 +620,9 @@ const PaginationWrapper = styled(Flex)`
 `;
 
 const PaginationButton = styled.button`
-  background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%)' : '${(p) => p.theme.colors.neutral0}'};
-  color: ${props => props.active ? 'white' : 'var(--colors-neutral700)'};
-  border: 1px solid ${props => props.active ? 'transparent' : 'rgba(128, 128, 128, 0.3)'};
+  background: ${props => props.$active ? 'linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-secondary500, #A855F7) 100%)' : props.theme.colors.neutral0};
+  color: ${props => props.$active ? 'white' : 'var(--colors-neutral700)'};
+  border: 1px solid ${props => props.$active ? 'transparent' : 'rgba(128, 128, 128, 0.3)'};
   padding: 6px 12px;
   min-width: 36px;
   height: 36px;
@@ -633,8 +633,8 @@ const PaginationButton = styled.button`
   transition: all 0.2s ease;
   
   &:hover:not(:disabled) {
-    background: ${props => props.active ? 'linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%)' : 'var(--colors-neutral100)'};
-    border-color: ${props => props.active ? 'transparent' : 'rgba(128, 128, 128, 0.4)'};
+    background: ${props => props.$active ? 'linear-gradient(135deg, var(--colors-primary700, #0284C7) 0%, var(--colors-secondary600, #9333EA) 100%)' : 'var(--colors-neutral100)'};
+    border-color: ${props => props.$active ? 'transparent' : 'rgba(128, 128, 128, 0.4)'};
   }
   
   &:disabled {
@@ -937,16 +937,7 @@ const TemplateList = () => {
   const fetchLimits = async () => {
     try {
       const response = await get('/magic-mail/license/limits');
-      console.log('[DEBUG] License limits response:', response.data);
-      
-      // Also fetch debug data
-      try {
-        const debugResponse = await get('/magic-mail/license/debug');
-        console.log('[DEBUG] License debug data:', debugResponse.data);
-      } catch (debugError) {
-        console.error('[DEBUG] Failed to fetch debug data:', debugError);
-      }
-      
+
       setLimits({
         ...response.data?.limits,
         tier: response.data?.tier || 'free'
@@ -1655,7 +1646,7 @@ const TemplateList = () => {
                   return (
                     <PaginationButton
                       key={pageNum}
-                      active={currentPage === pageNum}
+                      $active={currentPage === pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                     >
                       {pageNum}

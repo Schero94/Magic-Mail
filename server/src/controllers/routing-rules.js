@@ -1,6 +1,6 @@
 'use strict';
 
-const { handleControllerError } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
 
@@ -100,7 +100,7 @@ module.exports = {
         return ctx.forbidden(`Routing rule limit reached (${maxRules}). Upgrade to Advanced license for unlimited rules.`);
       }
 
-      const data = sanitizeRuleData(ctx.request.body);
+      const data = validate('routingRules.create', sanitizeRuleData(ctx.request.body));
       const rule = await strapi.documents(ROUTING_RULE_UID).create({ data });
 
       ctx.body = {
@@ -126,7 +126,7 @@ module.exports = {
         return ctx.notFound('Routing rule not found');
       }
 
-      const data = sanitizeRuleData(ctx.request.body);
+      const data = validate('routingRules.update', sanitizeRuleData(ctx.request.body));
       const rule = await strapi.documents(ROUTING_RULE_UID).update({
         documentId: ruleId,
         data,

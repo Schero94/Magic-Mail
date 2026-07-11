@@ -2,6 +2,13 @@
 
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 /**
  * Account Manager Service
  * Manages email accounts (create, update, test, delete)
@@ -212,8 +219,8 @@ module.exports = ({ strapi }) => ({
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #0EA5E9;">MagicMail Test Email</h2>
-            <p>This is a test email from account: <strong>${account.name}</strong></p>
-            
+            <p>This is a test email from account: <strong>${escapeHtml(account.name)}</strong></p>
+
             <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 15px; margin: 20px 0;">
               <h3 style="margin-top: 0; color: #0369A1;">Test Configuration</h3>
               <ul style="margin: 10px 0; padding-left: 20px;">
@@ -241,8 +248,8 @@ module.exports = ({ strapi }) => ({
               Via: MagicMail Email Router<br>
               Version: 1.0
             </p>
-            
-            ${unsubscribeUrl ? `<p style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB;"><a href="${unsubscribeUrl}" style="color: #6B7280; font-size: 12px;">Unsubscribe</a></p>` : ''}
+
+            ${unsubscribeUrl ? `<p style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB;"><a href="${escapeHtml(unsubscribeUrl)}" style="color: #6B7280; font-size: 12px;">Unsubscribe</a></p>` : ''}
           </div>
         `,
         accountName: account.name,

@@ -14,6 +14,28 @@ function stripHeaderInjection(value) {
   return value.replace(/[\r\n]/g, '').trim();
 }
 
+const PROTECTED_HEADERS = new Set([
+  'from', 'to', 'cc', 'bcc', 'subject', 'reply-to', 'sender',
+  'list-unsubscribe', 'list-unsubscribe-post', 'message-id', 'date',
+  'content-type', 'content-transfer-encoding',
+]);
+
+function mergeSafeHeaders(target, source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+
+  for (const [rawName, rawValue] of Object.entries(source)) {
+    const name = stripHeaderInjection(rawName);
+    const value = stripHeaderInjection(rawValue);
+    const lower = name.toLowerCase();
+
+    if (!name || !value || name.length > 128 || value.length > 4000) continue;
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)) continue;
+    if (PROTECTED_HEADERS.has(lower) || ['__proto__', 'prototype', 'constructor'].includes(lower)) continue;
+
+    target[name] = value;
+  }
+}
+
 /**
  * Returns true when the List-Unsubscribe header should be emitted for this
  * email. By RFC 8058 it is always safe to include for marketing mail. When
@@ -625,6 +647,8 @@ module.exports = ({ strapi }) => ({
         rejectUnauthorized: true, // Verify server certificates
         minVersion: 'TLSv1.2', // Minimum TLS 1.2
       },
+      disableFileAccess: true,
+      disableUrlAccess: true,
     };
 
     // Add DKIM signing if configured
@@ -653,6 +677,8 @@ module.exports = ({ strapi }) => ({
       text: emailData.text,
       html: emailData.html,
       attachments: emailData.attachments || [],
+      disableFileAccess: true,
+      disableUrlAccess: true,
       
       // RFC 5322 required headers
       date: new Date(),
@@ -711,7 +737,7 @@ module.exports = ({ strapi }) => ({
 
     // Add custom headers if provided
     if (emailData.headers && typeof emailData.headers === 'object') {
-      Object.assign(mailOptions.headers, emailData.headers);
+      mergeSafeHeaders(mailOptions.headers, emailData.headers);
     }
 
     if (mailOptions.attachments.length > 0) {
@@ -1282,6 +1308,8 @@ module.exports = ({ strapi }) => ({
           user: oauth.email,
           accessToken: currentAccessToken,
         },
+        disableFileAccess: true,
+        disableUrlAccess: true,
       });
 
       const mailOptions = {
@@ -1294,6 +1322,8 @@ module.exports = ({ strapi }) => ({
         text: emailData.text,
         html: emailData.html,
         attachments: emailData.attachments || [],
+        disableFileAccess: true,
+        disableUrlAccess: true,
         
         // Security and deliverability headers
         headers: {
@@ -2021,4 +2051,3 @@ module.exports = ({ strapi }) => ({
     }
   },
 });
-

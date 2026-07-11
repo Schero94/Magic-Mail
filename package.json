@@ -40,63 +40,75 @@
     "pics"
   ],
   "engines": {
-    "node": ">=18.0.0 <=22.x.x",
+    "node": ">=20.19.0 <=26.x.x",
     "npm": ">=6.0.0"
   },
   "scripts": {
-    "build": "strapi-plugin build",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && strapi-plugin build && node scripts/build-server-bundle.mjs",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
-    "test": "node test-magic-mail.js --quick",
-    "test:full": "node test-magic-mail.js --full"
+    "verify:runtime": "node scripts/verify-server-bundle.mjs",
+    "test": "node --test tests/*.test.js",
+    "test:integration": "node .dev/test-magic-mail.js --quick",
+    "test:full": "node .dev/test-magic-mail.js --full",
+    "prepublishOnly": "npm test && npm run build && npm run verify && npm run verify:runtime"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "@strapi/design-system": "^2.1.2",
-    "@strapi/icons": "^2.1.2",
-    "baileys": "^7.0.0-rc.9",
+    "@strapi/design-system": "^2.2.2",
+    "@strapi/icons": "^2.2.2",
+    "baileys": "^7.0.0-rc13",
     "decode-html": "^2.0.0",
-    "form-data": "^4.0.4",
-    "html-to-text": "^9.0.5",
+    "form-data": "^4.0.6",
+    "html-to-text": "^10.0.0",
     "mustache": "^4.2.0",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.0.3",
     "pino": "^10.3.1",
     "qrcode": "^1.5.4",
-    "react-email-editor": "^1.8.0",
-    "react-intl": "^7.1.14",
+    "react-email-editor": "^2.0.0",
+    "react-intl": "^10.1.15",
     "striptags": "^3.2.0",
     "yup": "^1.7.1",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^12.0.6",
-    "@semantic-release/npm": "^13.1.2",
-    "@semantic-release/release-notes-generator": "^14.0.1",
-    "@strapi/sdk-plugin": "^5.4.0",
-    "@strapi/strapi": "^5.36.0",
-    "prettier": "^3.8.3",
+    "@semantic-release/github": "^12.0.9",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.1",
+    "@strapi/sdk-plugin": "^6.1.1",
+    "@strapi/strapi": "^5.50.1",
+    "esbuild": "^0.28.1",
+    "prettier": "^3.9.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1",
-    "semantic-release": "^25.0.3",
-    "styled-components": "^6.3.9"
+    "semantic-release": "^25.0.5",
+    "styled-components": "6.4.2"
   },
   "peerDependencies": {
-    "@strapi/sdk-plugin": "^5.4.0",
-    "@strapi/strapi": "^5.36.0",
+    "@strapi/strapi": "^5.50.1",
     "@strapi/utils": "^5.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1",
-    "styled-components": "^6.3.8"
+    "styled-components": "^6.4.2"
   },
   "overrides": {
     "libsignal": "npm:@baileys-md/libsignal@2.0.1",
-    "protobufjs": "^7.5.5"
+    "protobufjs": "^7.5.6",
+    "ws": "^8.21.0",
+    "vite": "6.4.3",
+    "esbuild": "$esbuild",
+    "undici": "7.28.0",
+    "@rushstack/node-core-library": {
+      ".": "5.23.1",
+      "ajv": "^8.18.0"
+    }
   },
   "strapi": {
     "kind": "plugin",

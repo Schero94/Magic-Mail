@@ -35,10 +35,12 @@
     },
     "config": {
       "type": "json",
-      "required": true
+      "required": true,
+      "private": true
     },
     "oauth": {
-      "type": "json"
+      "type": "json",
+      "private": true
     },
     "fromEmail": {
       "type": "email",
@@ -90,4 +92,3 @@
     }
   }
 }
-

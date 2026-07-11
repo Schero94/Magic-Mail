@@ -27,6 +27,9 @@ const isProduction = () => process.env.NODE_ENV === 'production';
 function getEncryptionKey() {
   const primary = process.env.MAGIC_MAIL_ENCRYPTION_KEY;
   if (primary && primary.length > 0) {
+    if (Buffer.byteLength(primary, 'utf8') < 32) {
+      throw new Error('[magic-mail] MAGIC_MAIL_ENCRYPTION_KEY must contain at least 32 bytes');
+    }
     return crypto.createHash('sha256').update(primary).digest();
   }
 
@@ -120,6 +123,13 @@ function decryptCredentials(encryptedData) {
     throw new Error('[magic-mail] decrypt: missing ciphertext components');
   }
 
+  if (!/^[a-f0-9]{32}$/i.test(ivHex) || !/^[a-f0-9]{32}$/i.test(authTagHex)) {
+    throw new Error('[magic-mail] decrypt: invalid IV or authentication tag');
+  }
+  if (!/^(?:[a-f0-9]{2})+$/i.test(encrypted)) {
+    throw new Error('[magic-mail] decrypt: ciphertext is not valid hex');
+  }
+
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
 
@@ -140,4 +150,3 @@ module.exports = {
   encryptCredentials,
   decryptCredentials,
 };
-

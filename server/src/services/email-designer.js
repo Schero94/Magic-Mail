@@ -235,18 +235,45 @@ module.exports = ({ strapi }) => ({
       );
     }
 
-    // 2. Validate reference ID is unique
-    if (data.templateReferenceId) {
-      const existing = await this.findByReferenceId(data.templateReferenceId);
-      if (existing) {
-        throw new Error(`Template with reference ID ${data.templateReferenceId} already exists`);
+    // 2. Resolve `templateReferenceId`.
+    //
+    // The content-type schema marks this field `required: true` and
+    // `unique: true`, so every row MUST have an integer reference id.
+    // Historically `create()` only validated when the caller passed one
+    // and never auto-generated, which meant any UI/API request without
+    // an explicit id (the wizard's default flow) failed at insert time
+    // with a schema validation error. The validation layer also accepts
+    // string OR number (see validation.js#emailDesigner.create) for
+    // wizard compatibility, but the DB column is `integer` — so we coerce
+    // here too. `_generateUniqueTemplateReferenceId()` already exists for
+    // exactly this case (used by `duplicate()`); we just call it from the
+    // standard creation path as well.
+    let templateReferenceId;
+
+    if (data.templateReferenceId !== undefined && data.templateReferenceId !== null && data.templateReferenceId !== '') {
+      const parsed = parseInt(data.templateReferenceId, 10);
+      if (Number.isNaN(parsed) || parsed <= 0) {
+        throw new Error(
+          `Invalid templateReferenceId: '${data.templateReferenceId}' is not a positive integer`
+        );
       }
+
+      const existing = await this.findByReferenceId(parsed);
+      if (existing) {
+        throw new Error(`Template with reference ID ${parsed} already exists`);
+      }
+
+      templateReferenceId = parsed;
+    } else {
+      templateReferenceId = await this._generateUniqueTemplateReferenceId();
+      strapi.log.info(`[magic-mail] [INFO] Auto-generated templateReferenceId=${templateReferenceId}`);
     }
 
     // 3. Create template
     const template = await strapi.documents(EMAIL_TEMPLATE_UID).create({
       data: {
         ...data,
+        templateReferenceId,
         isActive: data.isActive !== undefined ? data.isActive : true,
       },
     });

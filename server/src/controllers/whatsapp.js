@@ -1,6 +1,6 @@
 'use strict';
 
-const { validate } = require('../validation');
+const { validate, handleControllerError } = require('../validation');
 
 /**
  * WhatsApp Controller for MagicMail
@@ -29,7 +29,7 @@ module.exports = {
         },
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp availability check failed', 'WhatsApp request failed');
     }
   },
 
@@ -51,7 +51,7 @@ module.exports = {
         },
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp status request failed', 'WhatsApp request failed');
     }
   },
 
@@ -69,7 +69,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp connection failed', 'WhatsApp request failed');
     }
   },
 
@@ -87,7 +87,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp disconnect failed', 'WhatsApp request failed');
     }
   },
 
@@ -108,7 +108,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp test send failed', 'WhatsApp request failed');
     }
   },
 
@@ -127,7 +127,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp template send failed', 'WhatsApp request failed');
     }
   },
 
@@ -146,7 +146,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp number check failed', 'WhatsApp request failed');
     }
   },
 
@@ -164,7 +164,7 @@ module.exports = {
         data: templates,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp templates request failed', 'WhatsApp request failed');
     }
   },
 
@@ -183,7 +183,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp template save failed', 'WhatsApp request failed');
     }
   },
 
@@ -193,11 +193,7 @@ module.exports = {
    */
   async deleteTemplate(ctx) {
     try {
-      const { templateName } = ctx.params;
-      
-      if (!templateName) {
-        return ctx.badRequest('Template name is required');
-      }
+      const { templateName } = validate('whatsapp.templateParam', ctx.params);
       
       const whatsappService = strapi.plugin('magic-mail').service('whatsapp');
       const result = await whatsappService.deleteTemplate(templateName);
@@ -207,7 +203,7 @@ module.exports = {
         data: result,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp template delete failed', 'WhatsApp request failed');
     }
   },
 
@@ -225,8 +221,7 @@ module.exports = {
         data: sessionInfo,
       };
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] WhatsApp session request failed', 'WhatsApp request failed');
     }
   },
 };
-

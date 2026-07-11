@@ -138,7 +138,10 @@ await strapi.plugin('magic-mail').service('email-router').sendMessage({
 // POST /api/magic-mail/send-whatsapp
 await fetch('/api/magic-mail/send-whatsapp', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer YOUR_STRAPI_API_TOKEN'
+  },
   body: JSON.stringify({
     phoneNumber: '+491234567890',
     message: 'Hello from MagicMail!'
@@ -148,7 +151,10 @@ await fetch('/api/magic-mail/send-whatsapp', {
 // POST /api/magic-mail/send-message (unified)
 await fetch('/api/magic-mail/send-message', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer YOUR_STRAPI_API_TOKEN'
+  },
   body: JSON.stringify({
     channel: 'whatsapp',
     phoneNumber: '+491234567890',
@@ -233,6 +239,8 @@ When both **MagicMail** and **Magic-Link** are installed:
 ## Quick Start
 
 ### Installation
+
+Requires Node.js 20.19 or newer and Strapi 5.50 or newer.
 
 ```bash
 npm install strapi-plugin-magic-mail
@@ -1386,8 +1394,12 @@ DATABASE_NAME=strapi
 DATABASE_USERNAME=strapi
 DATABASE_PASSWORD=password
 
-# Optional - Custom encryption key
-ENCRYPTION_KEY=your-32-byte-secret-key-here
+# Required in production. Keep this stable across deploys and backups.
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+MAGIC_MAIL_ENCRYPTION_KEY=your-generated-secret-with-at-least-32-bytes
+
+# Optional dedicated OAuth-state signing secret. APP_KEYS is used otherwise.
+MAGIC_MAIL_OAUTH_STATE_SECRET=your-generated-secret-with-at-least-32-bytes
 ```
 
 ### OAuth Callback URLs

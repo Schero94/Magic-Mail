@@ -509,17 +509,6 @@ module.exports = {
       },
     },
 
-    // ─────────────────────── Test (Dev) ───────────────────────
-    {
-      method: 'POST',
-      path: '/test/relations',
-      handler: 'test.testRelations',
-      config: {
-        policies: adminPolicy(),
-        description: 'Test template-version relations',
-      },
-    },
-
     // ─────────────────────── WhatsApp ───────────────────────
     {
       method: 'GET',

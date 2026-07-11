@@ -14,6 +14,23 @@ const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const EMAIL_LINK_UID = 'plugin::magic-mail.email-link';
 
+const hashesEqual = (actual, expected) => {
+  if (typeof actual !== 'string' || typeof expected !== 'string') return false;
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+};
+
+const normalizeHttpBaseUrl = (value, fallback = 'http://localhost:1337') => {
+  try {
+    const parsed = new URL(value || fallback);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return fallback.replace(/\/$/, '');
+  }
+};
+
 module.exports = ({ strapi }) => ({
   /**
    * Generate unique email ID for tracking
@@ -89,7 +106,7 @@ module.exports = ({ strapi }) => ({
 
       // Verify recipient hash
       const validHash = this.generateRecipientHash(emailId, emailLog.recipient);
-      if (recipientHash !== validHash) {
+      if (!hashesEqual(recipientHash, validHash)) {
         strapi.log.warn(`[magic-mail] Invalid recipient hash for: ${emailId}`);
         return null;
       }
@@ -142,7 +159,7 @@ module.exports = ({ strapi }) => ({
 
       // Verify recipient hash
       const validHash = this.generateRecipientHash(emailId, emailLog.recipient);
-      if (recipientHash !== validHash) {
+      if (!hashesEqual(recipientHash, validHash)) {
         return null;
       }
 
@@ -329,7 +346,7 @@ module.exports = ({ strapi }) => ({
    */
   injectTrackingPixel(html, emailId, recipientHash) {
     // Use /api/ path for content-api routes (publicly accessible)
-    const baseUrl = strapi.config.get('server.url') || 'http://localhost:1337';
+    const baseUrl = normalizeHttpBaseUrl(strapi.config.get('server.url'));
     
     // Add random parameter to prevent email client caching
     // This ensures each email open loads the pixel fresh
@@ -353,7 +370,9 @@ module.exports = ({ strapi }) => ({
     // Get base URL - prefer plugin settings, then server config, then default
     const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
     const pluginSettings = await settingsService.getSettings();
-    const baseUrl = pluginSettings.trackingBaseUrl || strapi.config.get('server.url') || 'http://localhost:1337';
+    const baseUrl = normalizeHttpBaseUrl(
+      pluginSettings.trackingBaseUrl || strapi.config.get('server.url')
+    );
     
     strapi.log.debug(`[magic-mail] [LINK-TRACK] Using base URL: ${baseUrl}`);
     
@@ -420,7 +439,7 @@ module.exports = ({ strapi }) => ({
       processedUrls.add(originalUrl);
 
       // Create link hash - hash the full URL including any query params
-      const linkHash = crypto.createHash('md5').update(originalUrl).digest('hex').substring(0, 8);
+      const linkHash = crypto.createHash('sha256').update(originalUrl).digest('hex').substring(0, 32);
       
       // Store for database insert
       linkMappings.push({
@@ -452,7 +471,7 @@ module.exports = ({ strapi }) => ({
         
         processedUrls.add(originalUrl);
         
-        const linkHash = crypto.createHash('md5').update(originalUrl).digest('hex').substring(0, 8);
+        const linkHash = crypto.createHash('sha256').update(originalUrl).digest('hex').substring(0, 32);
         linkMappings.push({ linkHash, originalUrl });
         
         const trackingUrl = `${baseUrl}/api/magic-mail/track/click/${emailId}/${linkHash}/${recipientHash}`;
@@ -559,7 +578,7 @@ module.exports = ({ strapi }) => ({
   /**
    * Get original URL from link hash
    */
-  async getOriginalUrlFromHash(emailId, linkHash) {
+  async getOriginalUrlFromHash(emailId, linkHash, recipientHash) {
     try {
       // Find the email log
       const emailLog = await strapi.documents(EMAIL_LOG_UID).findFirst({
@@ -568,6 +587,12 @@ module.exports = ({ strapi }) => ({
 
       if (!emailLog) {
         strapi.log.warn(`[magic-mail] Email log not found: ${emailId}`);
+        return null;
+      }
+
+      const validHash = this.generateRecipientHash(emailId, emailLog.recipient);
+      if (!hashesEqual(recipientHash, validHash)) {
+        strapi.log.warn(`[magic-mail] Invalid recipient hash for click: ${emailId}`);
         return null;
       }
 

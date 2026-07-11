@@ -57,7 +57,7 @@ async function createState(strapi, { clientId, provider, usePKCE = true }) {
   const nonce = crypto.randomBytes(16).toString('hex');
   const timestamp = Date.now();
 
-  const payload = { clientId, provider, timestamp, nonce };
+  const payload = { clientId, provider, timestamp, nonce, pkce: usePKCE };
   const payloadJson = JSON.stringify(payload);
   const payloadB64 = Buffer.from(payloadJson).toString('base64url');
 
@@ -80,7 +80,7 @@ async function createState(strapi, { clientId, provider, usePKCE = true }) {
       const key = `${PKCE_STORE_KEY_PREFIX}${nonce}`;
       await store.set({ key, value: { codeVerifier, createdAt: timestamp } });
     } catch (err) {
-      strapi.log.warn('[magic-mail] Could not persist PKCE verifier:', err.message);
+      throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`);
     }
   }
 
@@ -126,11 +126,12 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
     throw new Error('Malformed state payload');
   }
 
-  if (!payload.timestamp || !payload.nonce) {
+  if (!Number.isFinite(payload.timestamp) || typeof payload.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(payload.nonce)) {
     throw new Error('Incomplete state payload');
   }
 
-  if (Date.now() - payload.timestamp > STATE_TTL_MS) {
+  const age = Date.now() - payload.timestamp;
+  if (age < -30_000 || age > STATE_TTL_MS) {
     throw new Error('State expired');
   }
 
@@ -161,8 +162,14 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
       codeVerifier = record.codeVerifier;
       await store.delete({ key: pkceKey });
     }
-  } catch {
-    // PKCE is optional for legacy flows; ignore lookup failures.
+  } catch (err) {
+    if (payload.pkce) {
+      throw new Error(`PKCE verifier could not be consumed: ${err.message}`);
+    }
+  }
+
+  if (payload.pkce && !codeVerifier) {
+    throw new Error('PKCE verifier is missing or already consumed');
   }
 
   return { payload, codeVerifier };

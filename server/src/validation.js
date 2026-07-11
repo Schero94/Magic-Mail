@@ -21,9 +21,34 @@ const headerSafe = z.string().max(1000).refine(
   { message: 'Must not contain newline characters' }
 );
 
+const httpUrl = z.string().url().max(2048).refine((value) => {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, { message: 'URL must use http or https' });
+
+const unsubscribeUrl = z.string().url().max(2048).refine((value) => {
+  try {
+    return ['http:', 'https:', 'mailto:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, { message: 'Unsubscribe URL must use http, https, or mailto' });
+
+const whatsappTemplateName = z.string()
+  .min(1)
+  .max(100)
+  .regex(/^[A-Za-z0-9._-]+$/)
+  .refine(
+    (value) => !['__proto__', 'prototype', 'constructor'].includes(value.toLowerCase()),
+    { message: 'Reserved template name' }
+  );
+
 // Provider enum used by both create and update.
 const providerEnum = z.enum([
-  'smtp', 'gmail', 'microsoft', 'yahoo', 'ses', 'sendgrid', 'mailgun', 'postmark', 'sparkpost',
+  'smtp', 'nodemailer', 'gmail-oauth', 'microsoft-oauth', 'yahoo-oauth', 'sendgrid', 'mailgun',
 ]);
 
 // Bounded config record. Keys are limited to 64 chars to prevent abuse
@@ -52,7 +77,7 @@ const schemas = {
       description: safeString.optional(),
       provider: providerEnum,
       config: configRecord,
-      fromEmail: emailString.optional(),
+      fromEmail: emailString,
       fromName: headerSafe.optional(),
       replyTo: emailString.optional(),
       // Was missing here even though the admin-UI wizard and accounts.update
@@ -61,7 +86,7 @@ const schemas = {
       // "Validation failed" 500. Parity with accounts.update restored.
       isActive: z.boolean().optional(),
       isPrimary: z.boolean().optional(),
-      priority: z.number().int().min(0).max(100).optional(),
+      priority: z.number().int().min(1).max(10).optional(),
       dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
       hourlyLimit: z.number().int().min(0).max(1_000_000).optional(),
     })
@@ -78,7 +103,7 @@ const schemas = {
       replyTo: emailString.optional(),
       isActive: z.boolean().optional(),
       isPrimary: z.boolean().optional(),
-      priority: z.number().int().min(0).max(100).optional(),
+      priority: z.number().int().min(1).max(10).optional(),
       dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
       hourlyLimit: z.number().int().min(0).max(1_000_000).optional(),
     })
@@ -89,7 +114,7 @@ const schemas = {
     to: emailString.optional(),
     priority: z.enum(['normal', 'high', 'low']).optional(),
     type: z.enum(['transactional', 'marketing']).optional(),
-    unsubscribeUrl: z.string().url().optional().nullable(),
+    unsubscribeUrl: unsubscribeUrl.optional().nullable(),
   }).refine((d) => d.testEmail || d.to, { message: 'testEmail or to is required' }),
 
   'accounts.testStrapiService': z.object({
@@ -114,7 +139,7 @@ const schemas = {
           // schema accepts it without blowing up.
           isActive: z.boolean().optional(),
           isPrimary: z.boolean().optional(),
-          priority: z.number().int().min(0).max(100).optional(),
+          priority: z.number().int().min(1).max(10).optional(),
           dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
           hourlyLimit: z.number().int().min(0).max(1_000_000).optional(),
           config: z
@@ -136,7 +161,10 @@ const schemas = {
       // a number via parseInt() before POSTing. Accepting both shapes
       // keeps the wizard working either way — the service layer stores
       // the DB column as a string regardless.
-      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+      templateReferenceId: z.union([
+        z.string().regex(/^[1-9]\d*$/).max(10),
+        z.number().int().positive(),
+      ]).optional().nullable(),
       // Optional/nullable mirrors the content-type schema: Strapi serves
       // absent DB columns as `null`, and the editor re-sends the whole
       // document on save. Accepting null avoids spurious 400s whenever a
@@ -145,7 +173,7 @@ const schemas = {
       subject: headerSafe.optional().nullable(),
       bodyHtml: safeText.optional().nullable(),
       bodyText: safeText.optional().nullable(),
-      design: z.record(z.unknown()).optional().nullable(),
+      design: z.record(z.string(), z.unknown()).optional().nullable(),
       category: safeString.optional().nullable(),
       isActive: z.boolean().optional().nullable(),
       tags: z.array(safeString).max(50).optional().nullable(),
@@ -154,12 +182,15 @@ const schemas = {
 
   'emailDesigner.update': z
     .object({
-      templateReferenceId: z.union([safeString, z.number().int().nonnegative()]).optional().nullable(),
+      templateReferenceId: z.union([
+        z.string().regex(/^[1-9]\d*$/).max(10),
+        z.number().int().positive(),
+      ]).optional().nullable(),
       name: safeString.optional().nullable(),
       subject: headerSafe.optional().nullable(),
       bodyHtml: safeText.optional().nullable(),
       bodyText: safeText.optional().nullable(),
-      design: z.record(z.unknown()).optional().nullable(),
+      design: z.record(z.string(), z.unknown()).optional().nullable(),
       category: safeString.optional().nullable(),
       isActive: z.boolean().optional().nullable(),
       tags: z.array(safeString).max(50).optional().nullable(),
@@ -168,7 +199,7 @@ const schemas = {
 
   'emailDesigner.renderTemplate': z
     .object({
-      data: z.record(z.unknown()).optional(),
+      data: z.record(z.string(), z.unknown()).optional(),
     })
     .strict(),
 
@@ -177,14 +208,14 @@ const schemas = {
   }),
 
   'emailDesigner.importTemplates': z.object({
-    templates: z.array(z.record(z.unknown())).min(1),
+    templates: z.array(z.record(z.string(), z.unknown())).min(1),
   }),
 
   'emailDesigner.updateCoreTemplate': z
     .object({
       message: safeText,
       subject: headerSafe,
-      design: z.record(z.unknown()).optional().nullable(),
+      design: z.record(z.string(), z.unknown()).optional().nullable(),
       // The editor always submits the plain-text fallback alongside the
       // rich body. Previously strict() rejected this field and every
       // "Save core template" click crashed with a 400 "Validation
@@ -205,8 +236,11 @@ const schemas = {
 
   'whatsapp.sendTemplateMessage': z.object({
     phoneNumber: z.string().min(5).max(20).regex(/^[\d+\-() ]+$/),
-    templateName: safeString,
-    variables: z.record(z.unknown()).optional(),
+    templateName: whatsappTemplateName,
+    variables: z.record(
+      z.string().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/),
+      z.union([z.string().max(10000), z.number(), z.boolean(), z.null()])
+    ).optional(),
   }),
 
   'whatsapp.checkNumber': z.object({
@@ -214,22 +248,68 @@ const schemas = {
   }),
 
   'whatsapp.saveTemplate': z.object({
-    templateName: safeString,
+    templateName: whatsappTemplateName,
     templateContent: safeText,
   }),
+
+  'whatsapp.templateParam': z.object({
+    templateName: whatsappTemplateName,
+  }),
+
+  'routingRules.create': z.object({
+    name: z.string().min(1).max(255),
+    description: safeText.optional().nullable(),
+    isActive: z.boolean().optional(),
+    priority: z.number().int().min(1).max(1_000_000).optional(),
+    matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']),
+    matchValue: z.string().min(1).max(10000),
+    accountName: z.string().min(1).max(255),
+    fallbackAccountName: z.string().max(255).optional().nullable(),
+    whatsappFallback: z.boolean().optional(),
+    whatsappPhoneField: z.string().max(255).optional().nullable(),
+  }).strict(),
+
+  'routingRules.update': z.object({
+    name: z.string().min(1).max(255).optional(),
+    description: safeText.optional().nullable(),
+    isActive: z.boolean().optional(),
+    priority: z.number().int().min(1).max(1_000_000).optional(),
+    matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']).optional(),
+    matchValue: z.string().min(1).max(10000).optional(),
+    accountName: z.string().min(1).max(255).optional(),
+    fallbackAccountName: z.string().max(255).optional().nullable(),
+    whatsappFallback: z.boolean().optional(),
+    whatsappPhoneField: z.string().max(255).optional().nullable(),
+  }).strict(),
+
+  'analytics.statsQuery': z.object({
+    userId: z.string().max(255).optional(),
+    templateId: z.coerce.number().int().positive().optional(),
+    accountId: z.string().max(255).optional(),
+    dateFrom: z.string().max(64).refine((value) => !Number.isNaN(Date.parse(value))).optional(),
+    dateTo: z.string().max(64).refine((value) => !Number.isNaN(Date.parse(value))).optional(),
+  }).strict(),
+
+  'analytics.logsQuery': z.object({
+    userId: z.string().max(255).optional(),
+    templateId: z.coerce.number().int().positive().optional(),
+    search: z.string().max(500).optional(),
+    page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  }).strict(),
 
   'pluginSettings.update': z.object({
     enableLinkTracking: z.boolean().optional(),
     enableOpenTracking: z.boolean().optional(),
-    trackingBaseUrl: z.string().url().optional().or(z.literal('')),
+    trackingBaseUrl: httpUrl.optional().or(z.literal('')),
     defaultFromName: headerSafe.optional(),
     defaultFromEmail: emailString.optional().or(z.literal('')),
-    unsubscribeUrl: z.string().url().optional().or(z.literal('')),
+    unsubscribeUrl: unsubscribeUrl.optional().or(z.literal('')),
     enableUnsubscribeHeader: z.boolean().optional(),
     // Where to redirect the recipient when a tracking link is no longer
     // resolvable (e.g. retention cleanup removed the row). If empty the
     // tracker renders a static HTML fallback page instead.
-    trackingFallbackUrl: z.string().url().optional().or(z.literal('')),
+    trackingFallbackUrl: httpUrl.optional().or(z.literal('')),
   }),
 
   // ── Content-API send payloads ───────────────────────────────────────────
@@ -243,8 +323,8 @@ const schemas = {
       to: z.union([emailString, z.array(emailString).max(100), z.string().max(4000)]),
       cc: z.union([emailString, z.array(emailString).max(50), z.string().max(4000)]).optional(),
       bcc: z.union([emailString, z.array(emailString).max(50), z.string().max(4000)]).optional(),
-      from: z.string().max(320).optional(),
-      replyTo: z.string().max(320).optional(),
+      from: headerSafe.max(320).optional(),
+      replyTo: headerSafe.max(320).optional(),
       subject: headerSafe.optional(),
       text: safeText.optional(),
       html: safeText.optional(),
@@ -253,11 +333,11 @@ const schemas = {
       accountName: safeString.optional(),
       templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
       templateReferenceId: safeString.optional(),
-      templateData: z.record(z.unknown()).optional(),
-      data: z.record(z.unknown()).optional(),
+      templateData: z.record(z.string(), z.unknown()).optional(),
+      data: z.record(z.string(), z.unknown()).optional(),
       skipLinkTracking: z.boolean().optional(),
       enableTracking: z.boolean().optional(),
-      unsubscribeUrl: z.string().url().max(2048).optional(),
+      unsubscribeUrl: unsubscribeUrl.optional(),
       userId: z.union([z.string(), z.number()]).optional(),
       recipientName: safeString.optional(),
       attachments: z
@@ -276,7 +356,7 @@ const schemas = {
         )
         .max(20)
         .optional(),
-      headers: z.record(z.string().max(4000)).optional(),
+      headers: z.record(z.string(), headerSafe.max(4000)).optional(),
       phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/).optional(),
     })
     .strict(),
@@ -291,7 +371,7 @@ const schemas = {
       text: safeText.optional(),
       html: safeText.optional(),
       templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
-      templateData: z.record(z.unknown()).optional(),
+      templateData: z.record(z.string(), z.unknown()).optional(),
     })
     .strict()
     .refine((d) => !!d.to || !!d.phoneNumber, {
@@ -303,7 +383,7 @@ const schemas = {
       phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/),
       message: safeText.optional(),
       templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
-      templateData: z.record(z.unknown()).optional(),
+      templateData: z.record(z.string(), z.unknown()).optional(),
     })
     .strict(),
 

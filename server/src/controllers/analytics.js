@@ -6,6 +6,8 @@
 
 'use strict';
 
+const { validate, handleControllerError } = require('../validation');
+
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -26,6 +28,15 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
+
+const normalizeHttpUrl = (value) => {
+  try {
+    const parsed = new URL(value);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Builds a minimal, self-contained HTML fallback page that the end-user
@@ -96,7 +107,7 @@ const respondWithTrackingFallback = async (ctx, reason) => {
   let fallbackUrl = null;
   try {
     const settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
-    fallbackUrl = settings?.trackingFallbackUrl || null;
+    fallbackUrl = normalizeHttpUrl(settings?.trackingFallbackUrl) || null;
   } catch (err) {
     strapi.log.debug(`[magic-mail] Could not load tracking fallback setting: ${err.message}`);
   }
@@ -125,8 +136,16 @@ module.exports = ({ strapi }) => ({
       'base64'
     );
 
-    ctx.type = 'image/gif';
-    ctx.body = pixel;
+    // Strapi's Content API response transformer serializes Buffers and even
+    // Readable streams as JSON. Bypass it for this binary endpoint and write
+    // the 1x1 GIF directly to Node's response object.
+    ctx.status = 200;
+    ctx.respond = false;
+    ctx.res.statusCode = 200;
+    ctx.res.setHeader('Content-Type', 'image/gif');
+    ctx.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    ctx.res.setHeader('Content-Length', String(pixel.length));
+    ctx.res.end(pixel);
   },
 
   /**
@@ -150,7 +169,7 @@ module.exports = ({ strapi }) => ({
     let url;
     try {
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
-      url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash);
+      url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash);
     } catch (err) {
       strapi.log.error('[magic-mail] Error getting original URL:', err.message);
     }
@@ -199,13 +218,14 @@ module.exports = ({ strapi }) => ({
    */
   async getStats(ctx) {
     try {
+      const query = validate('analytics.statsQuery', ctx.query);
       const filters = {
         // userId is documentId (string) in Strapi v5, NOT parseInt!
-        userId: ctx.query.userId || null,
-        templateId: ctx.query.templateId ? parseInt(ctx.query.templateId) : null,
-        accountId: ctx.query.accountId ? parseInt(ctx.query.accountId) : null,
-        dateFrom: ctx.query.dateFrom || null,
-        dateTo: ctx.query.dateTo || null,
+        userId: query.userId || null,
+        templateId: query.templateId || null,
+        accountId: query.accountId || null,
+        dateFrom: query.dateFrom || null,
+        dateTo: query.dateTo || null,
       };
 
       // Remove null values
@@ -218,7 +238,7 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error getting analytics stats', 'Error fetching analytics stats');
     }
   },
 
@@ -228,16 +248,17 @@ module.exports = ({ strapi }) => ({
    */
   async getEmailLogs(ctx) {
     try {
+      const query = validate('analytics.logsQuery', ctx.query);
       const filters = {
         // userId is documentId (string) in Strapi v5, NOT parseInt!
-        userId: ctx.query.userId || null,
-        templateId: ctx.query.templateId ? parseInt(ctx.query.templateId) : null,
-        search: ctx.query.search || null,
+        userId: query.userId || null,
+        templateId: query.templateId || null,
+        search: query.search || null,
       };
 
       const pagination = {
-        page: ctx.query.page ? parseInt(ctx.query.page) : 1,
-        pageSize: ctx.query.pageSize ? parseInt(ctx.query.pageSize) : 25,
+        page: query.page || 1,
+        pageSize: query.pageSize || 25,
       };
 
       // Remove null values
@@ -253,7 +274,7 @@ module.exports = ({ strapi }) => ({
         ...result,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(ctx, error, '[magic-mail] Error getting email logs', 'Error fetching email logs');
     }
   },
 

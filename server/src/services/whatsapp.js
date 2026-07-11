@@ -170,8 +170,9 @@ module.exports = ({ strapi }) => {
           
           // Ensure auth directory exists
           if (!fs.existsSync(authPath)) {
-            fs.mkdirSync(authPath, { recursive: true });
+            fs.mkdirSync(authPath, { recursive: true, mode: 0o700 });
           }
+          fs.chmodSync(authPath, 0o700);
           await debugLog(`[MagicMail WhatsApp] Auth path: ${authPath}`);
 
           const { state, saveCreds } = await baileys.useMultiFileAuthState(authPath);
@@ -392,7 +393,7 @@ module.exports = ({ strapi }) => {
         const pluginStore = strapi.store({ type: 'plugin', name: 'magic-mail' });
         const templates = await pluginStore.get({ key: 'whatsapp_templates' }) || {};
         
-        let template = templates[templateName];
+        let template = Object.hasOwn(templates, templateName) ? templates[templateName] : null;
         if (!template) {
           // Use default template
           template = `*{{subject}}*\n\n{{body}}`;
@@ -401,7 +402,7 @@ module.exports = ({ strapi }) => {
         // Replace variables
         let message = template;
         for (const [key, value] of Object.entries(variables)) {
-          message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
+          message = message.split(`{{${key}}}`).join(String(value ?? ''));
         }
 
         return this.sendMessage(phoneNumber, message);
@@ -475,7 +476,8 @@ module.exports = ({ strapi }) => {
     async saveTemplate(templateName, templateContent) {
       try {
         const pluginStore = strapi.store({ type: 'plugin', name: 'magic-mail' });
-        const templates = await pluginStore.get({ key: 'whatsapp_templates' }) || {};
+        const storedTemplates = await pluginStore.get({ key: 'whatsapp_templates' }) || {};
+        const templates = Object.assign(Object.create(null), storedTemplates);
         
         templates[templateName] = templateContent;
         
@@ -494,7 +496,8 @@ module.exports = ({ strapi }) => {
     async getTemplates() {
       try {
         const pluginStore = strapi.store({ type: 'plugin', name: 'magic-mail' });
-        const templates = await pluginStore.get({ key: 'whatsapp_templates' }) || {};
+        const storedTemplates = await pluginStore.get({ key: 'whatsapp_templates' }) || {};
+        const templates = Object.assign(Object.create(null), storedTemplates);
         return templates;
       } catch (error) {
         return {};
@@ -524,4 +527,3 @@ module.exports = ({ strapi }) => {
 
   return service;
 };
-
