@@ -313,6 +313,7 @@ const ImportLabel = styled.label`
 const BackButton = styled.button`
   background: ${(p) => p.theme.colors.neutral0};
   border: 1px solid rgba(128, 128, 128, 0.2);
+  color: ${(p) => p.theme.colors.neutral800};
   border-radius: 4px;
   padding: 8px 10px;
   height: 36px;
@@ -977,7 +978,11 @@ const EditorPage = () => {
       <Header>
         <HeaderRow>
           <HeaderLeft>
-            <BackButton onClick={() => navigate('/plugins/magic-mail/designer')}>
+            <BackButton
+              type="button"
+              aria-label="Back to email templates"
+              onClick={() => navigate('/plugins/magic-mail/designer')}
+            >
               <ArrowLeftIcon />
             </BackButton>
             <TitleContainer>

@@ -397,15 +397,16 @@ await strapi.plugin('magic-mail').service('email-router').send({
 
 ### ✨ Features
 
-| Feature | FREE | PREMIUM | ADVANCED |
-|---------|------|---------|----------|
-| **Visual Designer** | ✅ Basic builder | ✅ + template library | ✅ Pro components |
-| **Templates Included** | 25 | 100 | 500 |
-| **Drag & Drop + Mustache** | ✅ | ✅ | ✅ |
-| **Import / Export** | ✅ | ✅ | ✅ |
-| **Template Versioning** | ❌ | ✅ | ✅ |
-| **Analytics** | ❌ | Basic insights | Advanced dashboard |
-| **A/B Testing** | ❌ | ❌ | ✅ |
+Every Email Designer feature is included for free:
+
+| Feature | Included |
+|---------|----------|
+| **Visual Designer** | ✅ |
+| **Unlimited Templates** | ✅ |
+| **Drag & Drop + Mustache** | ✅ |
+| **Import / Export** | ✅ |
+| **Template Versioning** | ✅ |
+| **Email Analytics** | ✅ |
 
 ### 📧 Creating Email Templates
 
@@ -625,11 +626,11 @@ Target Account: SendGrid Marketing
 Priority: 10
 ```
 
-**2. Route VIP Customers via Premium SMTP:**
+**2. Route VIP Customers via Priority SMTP:**
 ```
 Match Type: Recipient
 Match Value: @vip-customers.com
-Target Account: Premium SMTP
+Target Account: Priority SMTP
 Fallback Account: Gmail OAuth
 Priority: 9
 ```
@@ -1343,11 +1344,11 @@ await strapi.plugin('email').service('email').send({
 ### VIP Customer Emails
 
 ```javascript
-// Route VIP customers via premium account
+// Route VIP customers via a priority account
 // Routing Rule:
 // Match Type: Recipient
 // Match Value: @vip-domain.com
-// Target Account: Premium SMTP
+// Target Account: Priority SMTP
 // Fallback Account: Gmail OAuth
 
 await strapi.plugin('email').service('email').send({
@@ -1356,9 +1357,9 @@ await strapi.plugin('email').service('email').send({
   html: content,
   priority: 'high',
 });
-// ✅ Routes via Premium SMTP
+// ✅ Routes via Priority SMTP
 // ✅ High priority headers added
-// ✅ Automatic fallback if premium account unavailable
+// ✅ Automatic fallback if the priority account is unavailable
 ```
 
 ---
@@ -1444,12 +1445,12 @@ https://yourdomain.com/magic-mail/oauth/yahoo/callback
 Create complex routing rules:
 
 ```javascript
-// Rule 1: VIP customers via premium account
+// Rule 1: VIP customers via a priority account
 {
   name: "VIP Customer Emails",
   matchType: "recipient",
   matchValue: "@vip-customers.com",
-  accountName: "Premium SMTP",
+  accountName: "Priority SMTP",
   fallbackAccountName: "Gmail OAuth",
   priority: 10,
   isActive: true
