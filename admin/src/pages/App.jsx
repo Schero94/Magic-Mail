@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, Tabs, Flex } from '@strapi/design-system';
 import { Page } from '@strapi/strapi/admin';
@@ -29,10 +28,7 @@ const App = () => {
     return 'accounts';
   };
   
-  const [activeTab, setActiveTab] = useState(getActiveTab());
-  
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
     if (tab === 'accounts') navigate('/plugins/magic-mail');
     if (tab === 'routing') navigate('/plugins/magic-mail/routing');
     if (tab === 'templates') navigate('/plugins/magic-mail/designer');
@@ -51,7 +47,7 @@ const App = () => {
   return (
     <Page.Protect permissions={pluginPermissions.access}>
       <Box>
-        <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
+        <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
           <Tabs.List>
             <Tabs.Trigger value="accounts">
               <Flex gap={2} alignItems="center">
