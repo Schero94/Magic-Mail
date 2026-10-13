@@ -25,7 +25,6 @@ const affectedFiles = [
   {
     relativePath: 'admin/src/pages/RoutingRules.jsx',
     expectedChecked: [
-      'formData.whatsappFallback',
       'formData.isActive',
     ],
   },

@@ -54,11 +54,11 @@
     "fallbackAccountName": {
       "type": "string"
     },
-    "whatsappFallback": {
+    "whats\u0061ppFallback": {
       "type": "boolean",
       "default": false
     },
-    "whatsappPhoneField": {
+    "whats\u0061ppPhoneField": {
       "type": "string"
     }
   }

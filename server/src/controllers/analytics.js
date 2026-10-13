@@ -109,7 +109,7 @@ const respondWithTrackingFallback = async (ctx, reason) => {
     const settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
     fallbackUrl = normalizeHttpUrl(settings?.trackingFallbackUrl) || null;
   } catch (err) {
-    strapi.log.debug(`[magic-mail] Could not load tracking fallback setting: ${err.message}`);
+    strapi.log.debug('[magic-mail] Could not load tracking fallback setting');
   }
   ctx.status = 410;
   ctx.type = 'text/html; charset=utf-8';
@@ -127,7 +127,7 @@ module.exports = ({ strapi }) => ({
     try {
       await strapi.plugin('magic-mail').service('analytics').recordOpen(emailId, recipientHash, ctx.request);
     } catch (err) {
-      strapi.log.error('[magic-mail] Error recording open event:', err.message);
+      strapi.log.error('[magic-mail] Error recording open event:', err?.name || 'Error');
     }
 
     // Always return tracking pixel regardless of errors
@@ -171,7 +171,7 @@ module.exports = ({ strapi }) => ({
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
       url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash);
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting original URL:', err.message);
+      strapi.log.error('[magic-mail] Error getting original URL:', err?.name || 'Error');
     }
 
     if (!url) {
@@ -185,7 +185,7 @@ module.exports = ({ strapi }) => ({
     try {
       const parsed = new URL(url);
       if (!['http:', 'https:'].includes(parsed.protocol)) {
-        strapi.log.warn(`[magic-mail] Blocked non-http(s) tracking URL for email ${emailId}`);
+        strapi.log.warn('[magic-mail] Blocked non-http(s) tracking URL');
         return respondWithTrackingFallback(
           ctx,
           'This link points to an unsupported destination and cannot be opened for your safety.'
@@ -206,7 +206,7 @@ module.exports = ({ strapi }) => ({
     } catch (err) {
       // Log and keep going — we don't want to penalise the user just
       // because our analytics write failed. They still reach their page.
-      strapi.log.error('[magic-mail] Error recording click event:', err.message);
+      strapi.log.error('[magic-mail] Error recording click event:', err?.name || 'Error');
     }
 
     ctx.redirect(url);
@@ -422,7 +422,7 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Debug error:', error.message);
+      strapi.log.error('[magic-mail] Analytics debug failed:', error?.name || 'Error');
       ctx.throw(500, error.message);
     }
   },
@@ -463,7 +463,7 @@ module.exports = ({ strapi }) => ({
         message: 'Email log deleted successfully',
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error deleting email log:', error.message);
+      strapi.log.error('[magic-mail] Error deleting email log:', error?.name || 'Error');
       ctx.throw(500, error.message);
     }
   },
@@ -535,7 +535,7 @@ module.exports = ({ strapi }) => ({
         hasMore: totalDeleted >= MAX_TOTAL,
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error clearing email logs:', error.message);
+      strapi.log.error('[magic-mail] Error clearing email logs:', error?.name || 'Error');
       ctx.throw(500, error.message);
     }
   },

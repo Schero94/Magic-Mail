@@ -85,7 +85,7 @@ const SectionIcon = styled(Box)`
   align-items: center;
   justify-content: center;
   margin-right: 16px;
-  background: ${props => props.bgColor || 'rgba(14, 165, 233, 0.12)'};
+  background: ${props => props.$bgColor || 'rgba(14, 165, 233, 0.12)'};
   flex-shrink: 0;
 `;
 
@@ -286,7 +286,7 @@ const PluginSettingsPage = () => {
       {/* Link Tracking Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="rgba(37, 99, 235, 0.15)">
+          <SectionIcon $bgColor="rgba(37, 99, 235, 0.15)">
             <LinkIcon style={{ width: 22, height: 22, color: 'var(--colors-primary600, #2563EB)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
@@ -352,7 +352,7 @@ const PluginSettingsPage = () => {
       {/* Open Tracking Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="rgba(34, 197, 94, 0.15)">
+          <SectionIcon $bgColor="rgba(34, 197, 94, 0.15)">
             <EyeIcon style={{ width: 22, height: 22, color: 'var(--colors-success600, #16A34A)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
@@ -388,7 +388,7 @@ const PluginSettingsPage = () => {
       {/* Unsubscribe Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="rgba(245, 158, 11, 0.15)">
+          <SectionIcon $bgColor="rgba(245, 158, 11, 0.15)">
             <EnvelopeIcon style={{ width: 22, height: 22, color: 'var(--colors-warning600, #D97706)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
@@ -442,7 +442,7 @@ const PluginSettingsPage = () => {
       {/* Default Sender Section */}
       <SettingsSection>
         <SectionHeader alignItems="center">
-          <SectionIcon bgColor="rgba(147, 51, 234, 0.12)">
+          <SectionIcon $bgColor="rgba(147, 51, 234, 0.12)">
             <UserIcon style={{ width: 22, height: 22, color: 'var(--colors-secondary600, #9333EA)' }} />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>

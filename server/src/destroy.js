@@ -45,15 +45,5 @@ module.exports = async ({ strapi }) => {
     log.info('[magic-mail] Restored native email service');
   }
 
-  // 3. Shut down the WhatsApp socket + reconnect timers (keep credentials).
-  try {
-    const whatsapp = strapi.plugin('magic-mail').service('whatsapp');
-    if (whatsapp && typeof whatsapp.shutdown === 'function') {
-      await whatsapp.shutdown({ logout: false });
-    }
-  } catch (err) {
-    log.debug('[magic-mail] WhatsApp shutdown skipped:', err.message);
-  }
-
   log.info('[magic-mail] Plugin destroyed gracefully');
 };

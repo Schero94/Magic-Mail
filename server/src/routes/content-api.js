@@ -11,8 +11,7 @@
  * query, so they are not an open-redirect vector.
  */
 
-// One aggregate sending budget shared across /send, /send-message and
-// /send-whatsapp — a stable bucket id so dynamic path params cannot reset it.
+// One aggregate sending budget shared across the two email send routes.
 const sendRateLimit = [
   { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'send', max: 60, window: 60_000 } },
 ];
@@ -35,44 +34,14 @@ module.exports = {
       },
     },
 
-    // ============= UNIFIED MESSAGE ROUTE =============
+    // ============= EMAIL MESSAGE ROUTE =============
     {
       method: 'POST',
       path: '/send-message',
       handler: 'controller.sendMessage',
       config: {
         middlewares: sendRateLimit,
-        description: 'Send message via Email or WhatsApp (requires API token)',
-      },
-    },
-
-    // ============= WHATSAPP ROUTES =============
-    {
-      method: 'POST',
-      path: '/send-whatsapp',
-      handler: 'controller.sendWhatsApp',
-      config: {
-        middlewares: sendRateLimit,
-        description: 'Send WhatsApp message (requires API token)',
-      },
-    },
-    {
-      method: 'GET',
-      path: '/whatsapp/status',
-      handler: 'controller.getWhatsAppStatus',
-      config: {
-        description: 'Get WhatsApp connection status (requires API token)',
-      },
-    },
-    {
-      method: 'GET',
-      path: '/whatsapp/check/:phoneNumber',
-      handler: 'controller.checkWhatsAppNumber',
-      config: {
-        middlewares: [
-          { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'whatsapp-check', max: 30, window: 60_000 } },
-        ],
-        description: 'Check if phone number is on WhatsApp (requires API token)',
+        description: 'Send email through the MagicMail router (requires API token)',
       },
     },
 

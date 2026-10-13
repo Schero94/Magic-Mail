@@ -282,7 +282,7 @@ module.exports = ({ strapi }) => ({
 
     // Debug log for skipLinkTracking
     if (skipLinkTracking) {
-      strapi.log.info(`[magic-mail] [SKIP-TRACK] skipLinkTracking=true received for email to: ${to}`);
+      strapi.log.info('[magic-mail] [SKIP-TRACK] Link tracking disabled for this email');
     }
 
     // NEW: If templateId/templateReferenceId provided, render template
@@ -353,7 +353,7 @@ module.exports = ({ strapi }) => ({
           emailData.templateName = templateRecord?.name || renderedTemplate.templateName;
         }
       } catch (error) {
-        strapi.log.error(`[magic-mail] [ERROR] Template rendering failed: ${error.message}`);
+        strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
         throw new Error(`Template rendering failed: ${error.message}`);
       }
     }
@@ -446,14 +446,14 @@ module.exports = ({ strapi }) => ({
         
         if (shouldTrackLinks) {
           html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
-          strapi.log.info(`[magic-mail] [STATS] Link tracking enabled for email: ${emailLog.emailId}`);
+          strapi.log.info('[magic-mail] [STATS] Link tracking enabled for email');
         } else if (!globalLinkTrackingEnabled) {
-          strapi.log.info(`[magic-mail] [STATS] Link tracking DISABLED globally for email: ${emailLog.emailId}`);
+          strapi.log.info('[magic-mail] [STATS] Link tracking disabled globally for email');
         } else {
-          strapi.log.info(`[magic-mail] [STATS] Link tracking DISABLED per-email (skipLinkTracking=true) for email: ${emailLog.emailId}`);
+          strapi.log.info('[magic-mail] [STATS] Link tracking disabled for this email');
         }
       } catch (error) {
-        strapi.log.error(`[magic-mail] [WARNING]  Tracking setup failed (continuing without tracking):`, error.message);
+        strapi.log.error('[magic-mail] [WARNING] Tracking setup failed; continuing without tracking');
         // Continue sending email even if tracking fails
       }
     }
@@ -462,36 +462,6 @@ module.exports = ({ strapi }) => ({
     emailData.html = html;
     emailData.text = text;
     emailData.subject = subject;
-
-    // Get the matching routing rule to check for WhatsApp fallback
-    let matchedRule = null;
-    try {
-      const allRules = await strapi.documents('plugin::magic-mail.routing-rule').findMany({
-        filters: { isActive: true },
-        sort: [{ priority: 'desc' }],
-      });
-      
-      for (const rule of allRules) {
-        let matches = false;
-        switch (rule.matchType) {
-          case 'emailType': matches = rule.matchValue === type; break;
-          case 'recipient': matches = to && to.toLowerCase().includes(rule.matchValue.toLowerCase()); break;
-          case 'subject': matches = subject && subject.toLowerCase().includes(rule.matchValue.toLowerCase()); break;
-          case 'template':
-            matches = !!(emailData.templateName && emailData.templateName === rule.matchValue)
-              || !!(emailData.templateReferenceId
-                && String(emailData.templateReferenceId) === String(rule.matchValue));
-            break;
-          case 'custom': matches = emailData.customField && emailData.customField === rule.matchValue; break;
-        }
-        if (matches) {
-          matchedRule = rule;
-          break;
-        }
-      }
-    } catch (ruleError) {
-      strapi.log.warn('[magic-mail] [WARNING] Failed to check routing rules for WhatsApp fallback:', ruleError.message);
-    }
 
     try {
       // Get account to use
@@ -513,7 +483,7 @@ module.exports = ({ strapi }) => ({
         // primary — previously it bypassed both.
         const fallbackAccount = await this.selectAccount(type, priority, [account.documentId], emailData);
         if (fallbackAccount && await this.checkRateLimits(fallbackAccount)) {
-          strapi.log.info(`[magic-mail] Rate limit hit on ${account.name}, using fallback: ${fallbackAccount.name}`);
+          strapi.log.info('[magic-mail] Rate limit reached; using the configured fallback email account');
           this.enforceFromAlignment(fallbackAccount, emailData);
           return await this.dispatchAndRecord(fallbackAccount, emailData, emailLog);
         }
@@ -522,46 +492,7 @@ module.exports = ({ strapi }) => ({
 
       return await this.dispatchAndRecord(account, emailData, emailLog);
     } catch (error) {
-      strapi.log.error('[magic-mail] [ERROR] Email send failed:', error);
-
-      // Check if WhatsApp fallback is enabled for this rule
-      if (matchedRule?.whatsappFallback) {
-        strapi.log.info('[magic-mail] [FALLBACK] Email failed, attempting WhatsApp fallback...');
-        
-        try {
-          const whatsapp = strapi.plugin('magic-mail').service('whatsapp');
-          const whatsappStatus = whatsapp.getStatus();
-          
-          if (whatsappStatus.isConnected) {
-            // Get phone number from email data or rule config
-            const phoneNumber = emailData.phoneNumber || emailData.whatsappPhone;
-            
-            if (phoneNumber) {
-              // Create a text-only message from the email content
-              const whatsappMessage = `*${subject}*\n\n${text || 'Email delivery failed. Please check your email settings.'}`;
-              
-              const waResult = await whatsapp.sendMessage(phoneNumber, whatsappMessage);
-              
-              if (waResult.success) {
-                strapi.log.info(`[magic-mail] [SUCCESS] WhatsApp fallback sent to ${phoneNumber}`);
-                return {
-                  success: true,
-                  fallbackUsed: 'whatsapp',
-                  phoneNumber: phoneNumber,
-                };
-              } else {
-                strapi.log.warn('[magic-mail] [WARNING] WhatsApp fallback failed:', waResult.error);
-              }
-            } else {
-              strapi.log.warn('[magic-mail] [WARNING] WhatsApp fallback enabled but no phone number provided');
-            }
-          } else {
-            strapi.log.warn('[magic-mail] [WARNING] WhatsApp fallback enabled but WhatsApp not connected');
-          }
-        } catch (waError) {
-          strapi.log.error('[magic-mail] [ERROR] WhatsApp fallback error:', waError.message);
-        }
-      }
+      strapi.log.error('[magic-mail] [ERROR] Email send failed:', error?.name || 'Error');
 
       throw error;
     }
@@ -637,7 +568,7 @@ module.exports = ({ strapi }) => ({
       if (matches) {
         const account = accounts.find(a => a.name.toLowerCase() === rule.accountName.toLowerCase());
         if (account) {
-          strapi.log.info(`[magic-mail] [ROUTE] Routing rule matched: ${rule.name} -> ${account.name}`);
+          strapi.log.info('[magic-mail] [ROUTE] Email routing rule matched');
           return account;
         }
         // If primary account not found, try fallback (case-insensitive name).
@@ -646,7 +577,7 @@ module.exports = ({ strapi }) => ({
             (a) => a.name.toLowerCase() === rule.fallbackAccountName.toLowerCase()
           );
           if (fallbackAccount) {
-            strapi.log.info(`[magic-mail] [FALLBACK] Using fallback account: ${fallbackAccount.name}`);
+            strapi.log.info('[magic-mail] [FALLBACK] Using configured fallback email account');
             return fallbackAccount;
           }
         }
@@ -707,17 +638,17 @@ module.exports = ({ strapi }) => ({
           },
         });
       } catch (error) {
-        strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error.message);
+      strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error?.name || 'Error');
       }
     }
 
     try {
       await this.updateAccountStats(account.documentId);
     } catch (error) {
-      strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error.message);
+      strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error?.name || 'Error');
     }
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Email accepted via ${account.name}`);
+    strapi.log.info('[magic-mail] [SUCCESS] Email accepted by the provider');
 
     return {
       success: true,
@@ -890,8 +821,8 @@ module.exports = ({ strapi }) => ({
     const oauth = decryptCredentials(account.oauth);
     const config = decryptCredentials(account.config);
 
-    strapi.log.info(`[magic-mail] Sending via Gmail OAuth for account: ${account.name}`);
-    strapi.log.info(`[magic-mail] Has oauth.email: ${!!oauth.email} (${oauth.email || 'none'})`);
+    strapi.log.info('[magic-mail] Sending via Gmail OAuth');
+    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
     strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
     strapi.log.info(`[magic-mail] Has config.clientId: ${!!config.clientId}`);
 
@@ -940,7 +871,7 @@ module.exports = ({ strapi }) => ({
           data: { oauth: updatedOAuth },
         });
       } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr);
+        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
         throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
       }
     }
@@ -972,9 +903,8 @@ module.exports = ({ strapi }) => ({
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        strapi.log.error('[magic-mail] Gmail API error:', errorData);
-        throw new Error(`Gmail API error: ${errorData.error?.message || response.statusText}`);
+        strapi.log.error('[magic-mail] Gmail API request failed:', response.status);
+        throw new Error(`Gmail API request failed: ${response.status}`);
       }
       
       const result = await response.json();
@@ -985,13 +915,7 @@ module.exports = ({ strapi }) => ({
         response: 'OK',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Gmail API send failed:', err.message || err);
-      strapi.log.error('[magic-mail] Error details:', {
-        name: err.name,
-        code: err.code,
-        cause: err.cause?.message || err.cause,
-        stack: err.stack?.split('\n').slice(0, 3).join('\n'),
-      });
+      strapi.log.error('[magic-mail] Gmail API send failed:', err?.name || 'Error');
       throw err;
     }
   },
@@ -1009,8 +933,8 @@ module.exports = ({ strapi }) => ({
     const oauth = decryptCredentials(account.oauth);
     const config = decryptCredentials(account.config);
 
-    strapi.log.info(`[magic-mail] Sending via Microsoft OAuth for account: ${account.name}`);
-    strapi.log.info(`[magic-mail] Has oauth.email: ${!!oauth.email} (${oauth.email || 'none'})`);
+    strapi.log.info('[magic-mail] Sending via Microsoft OAuth');
+    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
     strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
     strapi.log.info(`[magic-mail] Has config.clientId: ${!!config.clientId}`);
 
@@ -1064,7 +988,7 @@ module.exports = ({ strapi }) => ({
           data: { oauth: updatedOAuth },
         });
       } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr);
+        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
         throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
       }
     }
@@ -1095,15 +1019,8 @@ module.exports = ({ strapi }) => ({
       
       // Microsoft Graph returns 202 Accepted on success
       if (response.status !== 202) {
-        let errorData = 'Unknown error';
-        try {
-          errorData = await response.text();
-        } catch (e) {
-          // Ignore
-        }
-        strapi.log.error('[magic-mail] Microsoft Graph MIME error:', errorData);
         strapi.log.error('[magic-mail] Response status:', response.status);
-        throw new Error(`Microsoft Graph API error: ${response.status} - ${response.statusText}`);
+        throw new Error(`Microsoft Graph API error: ${response.status}`);
       }
       
       strapi.log.info('[magic-mail] [SUCCESS] Email sent via Microsoft Graph API with MIME + custom headers');
@@ -1114,7 +1031,7 @@ module.exports = ({ strapi }) => ({
         response: 'Accepted',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Microsoft Graph API send failed:', err);
+      strapi.log.error('[magic-mail] Microsoft Graph API send failed:', err?.name || 'Error');
       throw err;
     }
   },
@@ -1132,8 +1049,8 @@ module.exports = ({ strapi }) => ({
     const oauth = decryptCredentials(account.oauth);
     const config = decryptCredentials(account.config);
 
-    strapi.log.info(`[magic-mail] Sending via Yahoo OAuth for account: ${account.name}`);
-    strapi.log.info(`[magic-mail] Has oauth.email: ${!!oauth.email} (${oauth.email || 'none'})`);
+    strapi.log.info('[magic-mail] Sending via Yahoo OAuth');
+    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
     strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
 
     if (!oauth.email || !oauth.accessToken) {
@@ -1177,7 +1094,7 @@ module.exports = ({ strapi }) => ({
           data: { oauth: updatedOAuth },
         });
       } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr);
+        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
         throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
       }
     }
@@ -1244,7 +1161,7 @@ module.exports = ({ strapi }) => ({
         response: result.response,
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Yahoo OAuth send failed:', err);
+      strapi.log.error('[magic-mail] Yahoo OAuth send failed:', err?.name || 'Error');
       throw err;
     }
   },
@@ -1263,7 +1180,7 @@ module.exports = ({ strapi }) => ({
     // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    strapi.log.info(`[magic-mail] Sending via SendGrid for account: ${account.name}`);
+    strapi.log.info('[magic-mail] Sending via SendGrid');
 
     try {
       // Parse any recipient shape (single, array, or comma-separated string)
@@ -1381,9 +1298,8 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        strapi.log.error('[magic-mail] SendGrid API error:', errorText);
-        throw new Error(`SendGrid API error: ${response.statusText}`);
+        strapi.log.error('[magic-mail] SendGrid API request failed:', response.status);
+        throw new Error(`SendGrid API request failed: ${response.status}`);
       }
 
       strapi.log.info('[magic-mail] [SUCCESS] Email sent via SendGrid API');
@@ -1394,7 +1310,7 @@ module.exports = ({ strapi }) => ({
         response: 'Accepted',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] SendGrid send failed:', err);
+      strapi.log.error('[magic-mail] SendGrid send failed:', err?.name || 'Error');
       throw err;
     }
   },
@@ -1413,7 +1329,7 @@ module.exports = ({ strapi }) => ({
     // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    strapi.log.info(`[magic-mail] Sending via Mailgun for account: ${account.name}`);
+    strapi.log.info('[magic-mail] Sending via Mailgun');
     strapi.log.info(`[magic-mail] Domain: ${config.domain}`);
 
     try {
@@ -1506,9 +1422,8 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!response.ok) {
-        const errorData = await response.text();
-        strapi.log.error('[magic-mail] Mailgun API error:', errorData);
-        throw new Error(`Mailgun API error: ${response.statusText}`);
+        strapi.log.error('[magic-mail] Mailgun API request failed:', response.status);
+        throw new Error(`Mailgun API request failed: ${response.status}`);
       }
 
       const result = await response.json();
@@ -1519,7 +1434,7 @@ module.exports = ({ strapi }) => ({
         response: result.message || 'Queued',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Mailgun send failed:', err);
+      strapi.log.error('[magic-mail] Mailgun send failed:', err?.name || 'Error');
       throw err;
     }
   },
@@ -1566,7 +1481,7 @@ module.exports = ({ strapi }) => ({
         });
       if (affected > 0) return;
     } catch (err) {
-      strapi.log.debug('[magic-mail] Atomic stats increment unavailable, falling back:', err.message);
+      strapi.log.debug('[magic-mail] Atomic stats increment unavailable, falling back:', err?.name || 'Error');
     }
 
     // Fallback: non-atomic read-modify-write (best effort).
@@ -1693,7 +1608,7 @@ module.exports = ({ strapi }) => ({
     ];
     for (const pattern of spamTriggers) {
       if (pattern.test(subject)) {
-        strapi.log.warn(`[magic-mail] Subject contains potential spam trigger: "${subject}"`);
+        strapi.log.warn('[magic-mail] Subject matched a spam-trigger pattern');
         break;
       }
     }
@@ -1746,102 +1661,16 @@ module.exports = ({ strapi }) => ({
     };
   },
 
-  // ============================================================================
-  // UNIFIED MESSAGE API - Send via Email OR WhatsApp
-  // ============================================================================
-
   /**
-   * Send a message via WhatsApp
-   * Same pattern as send() but for WhatsApp
-   * @param {Object} messageData - { phoneNumber, message, templateId, templateData }
-   * @returns {Promise<Object>} Send result
-   */
-  async sendWhatsApp(messageData) {
-    const {
-      phoneNumber,
-      message,
-      templateId = null,
-      templateData = {},
-    } = messageData;
-
-    // Validate phone number
-    if (!phoneNumber) {
-      throw new Error('Phone number is required for WhatsApp messages');
-    }
-
-    // Clean phone number (remove + and spaces)
-    const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
-    if (cleanPhone.length < 10) {
-      throw new Error('Invalid phone number format. Use format: 491234567890 (country code + number)');
-    }
-
-    // Get WhatsApp service
-    const whatsapp = strapi.plugin('magic-mail').service('whatsapp');
-    const status = whatsapp.getStatus();
-
-    if (!status.isConnected) {
-      throw new Error('WhatsApp is not connected. Please connect WhatsApp first in the admin panel.');
-    }
-
-    // If a template is specified, delegate to the WhatsApp service which owns
-    // template lookup + literal-safe variable substitution. (The previous
-    // `whatsapp.getTemplate()` method never existed, so template sends silently
-    // fell back to an empty/plain message.)
-    if (templateId) {
-      strapi.log.info(`[magic-mail] [WHATSAPP] Sending template "${templateId}" to ${cleanPhone}`);
-      const templateResult = await whatsapp.sendTemplateMessage(cleanPhone, templateId, templateData || {});
-      if (templateResult.success) {
-        return {
-          success: true,
-          channel: 'whatsapp',
-          phoneNumber: cleanPhone,
-          jid: templateResult.jid,
-        };
-      }
-      throw new Error(templateResult.error || 'Failed to send WhatsApp template message');
-    }
-
-    const finalMessage = message;
-    if (!finalMessage) {
-      throw new Error('Message content is required');
-    }
-
-    // Send via WhatsApp
-    strapi.log.info(`[magic-mail] [WHATSAPP] Sending message to ${cleanPhone}`);
-    const result = await whatsapp.sendMessage(cleanPhone, finalMessage);
-
-    if (result.success) {
-      strapi.log.info(`[magic-mail] [SUCCESS] WhatsApp message sent to ${cleanPhone}`);
-      return {
-        success: true,
-        channel: 'whatsapp',
-        phoneNumber: cleanPhone,
-        jid: result.jid,
-      };
-    } else {
-      strapi.log.error(`[magic-mail] [ERROR] WhatsApp send failed: ${result.error}`);
-      throw new Error(result.error || 'Failed to send WhatsApp message');
-    }
-  },
-
-  /**
-   * Unified send method - automatically chooses Email or WhatsApp
-   * @param {Object} messageData - Combined email and WhatsApp data
-   * @param {string} messageData.channel - 'email' | 'whatsapp' | 'auto' (default: 'auto')
-   * @param {string} messageData.to - Email address (for email channel)
-   * @param {string} messageData.phoneNumber - Phone number (for whatsapp channel)
-   * @param {string} messageData.subject - Email subject
-   * @param {string} messageData.message - Plain text message (used for WhatsApp, or as email text)
-   * @param {string} messageData.html - HTML content (email only)
-   * @param {string} messageData.templateId - Template ID (works for both channels)
-   * @param {Object} messageData.templateData - Template variables
+   * Email-only message helper retained for the Content API.
+   * `auto` remains an alias for email selection when a recipient is present.
+   * @param {Object} messageData
    * @returns {Promise<Object>} Send result with channel info
    */
   async sendMessage(messageData) {
     const {
       channel = 'auto',
       to,
-      phoneNumber,
       subject,
       message,
       text,
@@ -1851,90 +1680,28 @@ module.exports = ({ strapi }) => ({
       ...rest
     } = messageData;
 
-    // Determine which channel to use
-    let useChannel = channel;
-    
-    if (channel === 'auto') {
-      // Auto-detect: prefer email if available, fallback to WhatsApp
-      if (to && to.includes('@')) {
-        useChannel = 'email';
-      } else if (phoneNumber) {
-        useChannel = 'whatsapp';
-      } else {
-        throw new Error('Either email (to) or phoneNumber is required');
-      }
+    if (channel !== 'email' && channel !== 'auto') {
+      throw new Error('Magic-Mail supports email delivery only');
     }
 
-    strapi.log.info(`[magic-mail] [SEND] Channel: ${useChannel}, to: ${to || phoneNumber}`);
-
-    if (useChannel === 'whatsapp') {
-      // WhatsApp channel
-      if (!phoneNumber) {
-        throw new Error('Phone number is required for WhatsApp channel');
-      }
-
-      return await this.sendWhatsApp({
-        phoneNumber,
-        message: message || text || subject, // Use message, fallback to text or subject
-        templateId,
-        templateData,
-      });
-    } else {
-      // Email channel (default)
-      if (!to) {
-        throw new Error('Email address (to) is required for email channel');
-      }
-
-      const result = await this.send({
-        to,
-        subject,
-        text: text || message,
-        html,
-        templateId,
-        templateData,
-        phoneNumber, // Pass for WhatsApp fallback
-        ...rest,
-      });
-
-      return {
-        ...result,
-        channel: 'email',
-      };
+    if (typeof to !== 'string' || !to.trim()) {
+      throw new Error('Email address (to) is required for email delivery');
     }
-  },
 
-  /**
-   * Check WhatsApp connection status
-   * @returns {Object} Connection status
-   */
-  getWhatsAppStatus() {
-    try {
-      const whatsapp = strapi.plugin('magic-mail').service('whatsapp');
-      return whatsapp.getStatus();
-    } catch (error) {
-      return {
-        isConnected: false,
-        status: 'unavailable',
-        error: error.message,
-      };
-    }
-  },
+    strapi.log.info('[magic-mail] [SEND] Email message accepted for routing');
+    const result = await this.send({
+      to,
+      subject,
+      text: text || message,
+      html,
+      templateId,
+      templateData,
+      ...rest,
+    });
 
-  /**
-   * Check if a phone number is registered on WhatsApp
-   * @param {string} phoneNumber - Phone number to check
-   * @returns {Promise<Object>} Check result
-   */
-  async checkWhatsAppNumber(phoneNumber) {
-    try {
-      const whatsapp = strapi.plugin('magic-mail').service('whatsapp');
-      return await whatsapp.checkNumber(phoneNumber);
-    } catch (error) {
-      return {
-        success: false,
-        exists: false,
-        error: error.message,
-      };
-    }
+    return {
+      ...result,
+      channel: 'email',
+    };
   },
 });

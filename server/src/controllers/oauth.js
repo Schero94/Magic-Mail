@@ -43,7 +43,7 @@ module.exports = {
         message: 'Redirect user to this URL to authorize',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Gmail OAuth init error:', err);
+      strapi.log.error('[magic-mail] Gmail OAuth init failed:', err?.name || 'Error');
       ctx.throw(500, err.message);
     }
   },
@@ -88,7 +88,7 @@ module.exports = {
         message: 'Redirect user to this URL to authorize',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Microsoft OAuth init error:', err);
+      strapi.log.error('[magic-mail] Microsoft OAuth init failed:', err?.name || 'Error');
       ctx.throw(500, err.message);
     }
   },
@@ -126,7 +126,7 @@ module.exports = {
         message: 'Redirect user to this URL to authorize',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Yahoo OAuth init error:', err);
+      strapi.log.error('[magic-mail] Yahoo OAuth init failed:', err?.name || 'Error');
       ctx.throw(500, err.message);
     }
   },
@@ -168,7 +168,7 @@ module.exports = {
       try {
         stateVerification = await verifyAndConsumeState(strapi, state, accountDetails.config.clientId);
       } catch (stateErr) {
-        strapi.log.warn('[magic-mail] OAuth state verification failed:', stateErr.message);
+        strapi.log.warn('[magic-mail] OAuth state verification failed');
         return ctx.badRequest('Invalid or expired OAuth state. Please restart the authorization flow.');
       }
 
@@ -214,11 +214,7 @@ module.exports = {
         );
       }
       
-      strapi.log.info('[magic-mail] Token data received:', {
-        email: tokenData.email,
-        hasAccessToken: !!tokenData.accessToken,
-        hasRefreshToken: !!tokenData.refreshToken,
-      });
+      strapi.log.info('[magic-mail] OAuth token exchange completed');
 
       if (!tokenData.email) {
         strapi.log.error('[magic-mail] No email in tokenData!');
@@ -242,8 +238,7 @@ module.exports = {
         message: 'OAuth account created successfully',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Create OAuth account error:', err);
-      strapi.log.error('[magic-mail] Error stack:', err.stack);
+      strapi.log.error('[magic-mail] Create OAuth account failed:', err?.name || 'Error');
       ctx.throw(500, err.message);
     }
   },

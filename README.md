@@ -1,12 +1,14 @@
 # 📧 MagicMail - Email Business Suite for Strapi v5
 
-> **Professional-grade multi-account email management with smart routing, OAuth 2.0 support, and complete security compliance — 100% free and open source**
+Project site: https://schero94.github.io/Magic-Mail/
+
+> Manage email accounts, routing rules, OAuth setup, and delivery in Strapi. The plugin is MIT-licensed and open source.
 
 [![NPM Version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Strapi Version](https://img.shields.io/badge/Strapi-v5.30.1-blue.svg)](https://strapi.io)
+[![Strapi Version](https://img.shields.io/badge/Strapi-v5.57.0-blue.svg)](https://strapi.io)
 
-> 💚 **Fully free & open source (MIT).** Every feature is included for everyone — no license key, no activation, no paid tiers, and no usage limits.
+> The plugin does not require a license key or paid plan.
 
 ---
 
@@ -15,11 +17,9 @@
 **Stop fighting with .env files and email configuration!** MagicMail brings professional email management to Strapi v5 with:
 
 - **100% Free & Open Source** - Every feature included, no license key, tiers, or limits (MIT)
-- **6 Email Providers** - Gmail, Microsoft 365, Yahoo, SMTP, SendGrid, Mailgun
-- **WhatsApp Messaging** - Send messages via WhatsApp (FREE!) 
+- **7 Email Providers** - Gmail, Microsoft 365, Yahoo, SMTP, SendGrid, Mailgun, Nodemailer
 - **OAuth 2.0 Authentication** - No passwords needed for Gmail, Microsoft, Yahoo
 - **Smart Routing Rules** - Route emails by type, recipient, subject, or custom conditions
-- **WhatsApp Fallback** - Auto-send via WhatsApp if email fails
 - **Automatic Failover** - Never lose an email when rate limits hit
 - **Beautiful Admin UI** - Manage everything from Strapi Admin Panel
 - **Zero Configuration** - No .env files, everything in the database
@@ -77,165 +77,13 @@
 
 ---
 
-## WhatsApp Messaging (NEW!)
+## Messaging migration
 
-MagicMail now includes **FREE WhatsApp messaging** - send messages directly from your Strapi application!
+Magic-Mail now handles email only. Install and configure the separate Magic-WhatsApp plugin for WhatsApp transport, connection state, templates, and message actions. Magic-Mail does not proxy its old routes to another plugin.
 
-### Why WhatsApp?
+The `/api/magic-mail/send` endpoint is unchanged. `/api/magic-mail/send-message` still sends email and accepts `channel: "email"` or `channel: "auto"` when `to` contains the recipient address. The old `/send-whatsapp` and `/whatsapp/*` routes are removed. The `email-router` service no longer exposes WhatsApp methods, and email routing rules no longer offer WhatsApp fallback.
 
-| Feature | Email | WhatsApp |
-|---------|-------|----------|
-| **Open Rate** | ~20% | ~98% |
-| **Delivery Speed** | Minutes | Instant |
-| **Spam Folder Risk** | High | None |
-| **User Preference** | Declining | Growing |
-| **Cost** | Varies | FREE |
-
-### Quick Setup (4 Steps)
-
-1. **Navigate** to Admin Panel -> MagicMail -> WhatsApp
-2. **Connect** - Scan QR code with WhatsApp mobile app
-3. **Verify** - Check connection status shows "Connected"
-4. **Send** - Start sending messages programmatically!
-
-### Sending WhatsApp Messages
-
-**Method 1: Direct WhatsApp Send**
-
-```javascript
-// Send WhatsApp message directly
-await strapi.plugin('magic-mail').service('whatsapp').sendMessage(
-  '+491234567890',  // Phone number with country code
-  'Hello! This is a test message from MagicMail.'
-);
-```
-
-**Method 2: Unified Messaging API**
-
-```javascript
-// Send via unified API - auto-detects channel
-await strapi.plugin('magic-mail').service('email-router').sendMessage({
-  channel: 'whatsapp',  // or 'email' or 'auto'
-  phoneNumber: '+491234567890',
-  message: 'Your order #12345 has been shipped!'
-});
-
-// Auto-detect: sends WhatsApp if phoneNumber provided, email if to provided
-await strapi.plugin('magic-mail').service('email-router').sendMessage({
-  channel: 'auto',
-  phoneNumber: '+491234567890',  // Has phone -> WhatsApp
-  message: 'Shipping notification'
-});
-
-await strapi.plugin('magic-mail').service('email-router').sendMessage({
-  channel: 'auto',
-  to: 'user@example.com',  // Has email -> Email
-  subject: 'Shipping Notification',
-  message: 'Your order has been shipped!'
-});
-```
-
-**Method 3: REST API**
-
-```javascript
-// POST /api/magic-mail/send-whatsapp
-await fetch('/api/magic-mail/send-whatsapp', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_STRAPI_API_TOKEN'
-  },
-  body: JSON.stringify({
-    phoneNumber: '+491234567890',
-    message: 'Hello from MagicMail!'
-  })
-});
-
-// POST /api/magic-mail/send-message (unified)
-await fetch('/api/magic-mail/send-message', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_STRAPI_API_TOKEN'
-  },
-  body: JSON.stringify({
-    channel: 'whatsapp',
-    phoneNumber: '+491234567890',
-    message: 'Order confirmed!'
-  })
-});
-```
-
-### WhatsApp Use Cases
-
-**1. Email Fallback**
-If email delivery fails, automatically send via WhatsApp:
-
-```javascript
-// In Routing Rules, enable "WhatsApp Fallback"
-// Set "WhatsApp Phone Field" to 'phoneNumber'
-
-await strapi.plugin('magic-mail').service('email-router').send({
-  to: 'user@example.com',
-  phoneNumber: '+491234567890',  // Fallback phone
-  subject: 'Important Update',
-  html: '<h1>Update</h1>',
-  type: 'transactional'
-});
-
-// If email fails -> auto-sends via WhatsApp!
-```
-
-**2. Admin Notifications**
-Get instant WhatsApp alerts for critical events:
-
-```javascript
-// Example: Notify admin when email quota exceeded
-const adminPhone = '+4917612345678';
-
-await strapi.plugin('magic-mail').service('whatsapp').sendMessage(
-  adminPhone,
-  '[ALERT] Email quota exceeded for SendGrid account!'
-);
-```
-
-**3. Urgent Transactional Messages**
-Send time-sensitive messages instantly:
-
-```javascript
-// OTP/Verification codes
-await strapi.plugin('magic-mail').service('whatsapp').sendMessage(
-  userPhone,
-  `Your verification code: 123456\n\nValid for 5 minutes.`
-);
-
-// Order updates
-await strapi.plugin('magic-mail').service('whatsapp').sendMessage(
-  customerPhone,
-  `Order #${orderId} is out for delivery!\nTrack: ${trackingUrl}`
-);
-```
-
-### WhatsApp Status API
-
-```javascript
-// Check connection status
-const status = await strapi.plugin('magic-mail').service('whatsapp').getStatus();
-// { isConnected: true, phoneNumber: '+49...', name: 'Business Account' }
-
-// Check if phone number is on WhatsApp
-const exists = await strapi.plugin('magic-mail').service('whatsapp').checkNumber('+491234567890');
-// { exists: true, jid: '491234567890@s.whatsapp.net' }
-```
-
-### Integration with Magic-Link Plugin
-
-When both **MagicMail** and **Magic-Link** are installed:
-
-- Magic-Link automatically uses MagicMail's WhatsApp service
-- Only ONE WhatsApp connection needed (managed here in MagicMail)
-- Send magic links via WhatsApp from Magic-Link settings
-- Unified WhatsApp management for all plugins
+Magic-Mail does not delete or import old local session files, stored templates, or settings. The two legacy routing-rule columns remain in Strapi's schema so schema synchronization does not drop their saved values. The plugin no longer reads or updates those fields. Back up existing session data securely and migrate it only by following the separate Magic-WhatsApp plugin's instructions.
 
 ---
 
@@ -243,7 +91,7 @@ When both **MagicMail** and **Magic-Link** are installed:
 
 ### Installation
 
-Requires Node.js 20.19 or newer and Strapi 5.50 or newer.
+Requires Node.js `>=20.19.0 <=26.x.x` and Strapi `^5.57.0`.
 
 ```bash
 npm install strapi-plugin-magic-mail
@@ -1595,44 +1443,9 @@ If MagicMail helps your project, please:
 
 ---
 
-## 🔒 Security Advisories & Dependency Overrides
+## Dependency audits
 
-MagicMail's direct dependencies are audited on every release, but two
-transitive paths are governed by upstream packages we do not control.
-If your own `npm audit` flags either of them, add the matching entry
-to your **Strapi project's** `package.json` (not this plugin's — npm
-`overrides` only take effect on the root project):
-
-```jsonc
-{
-  "overrides": {
-    // GHSA-xq3m-2v4x-88gg — protobufjs <7.5.5 arbitrary code execution.
-    // Reaches us via baileys → libsignal → protobufjs. We already ship
-    // this override for local plugin development; apply it in your
-    // Strapi project so the fix propagates to the installed tree.
-    "protobufjs": "^7.5.5"
-  }
-}
-```
-
-After editing `package.json`, run:
-
-```bash
-rm -rf node_modules package-lock.json
-npm install
-npm audit
-```
-
-The critical `protobufjs` advisory disappears once the override is in
-place. Remaining `@strapi/design-system → lodash` advisories are
-Strapi-core issues and will clear up automatically when you upgrade
-`@strapi/strapi` to the latest patch release.
-
-If you don't use the WhatsApp delivery feature at all, you can also
-install without the Baileys optional paths via
-`npm install strapi-plugin-magic-mail --ignore-scripts` — the plugin
-already guards every Baileys import with a try/catch and will log
-"WhatsApp features disabled" rather than crash.
+Run `npm audit` from the Strapi project root to check the complete installed dependency tree. npm applies dependency overrides from the root project manifest, not from this plugin's manifest.
 
 ---
 

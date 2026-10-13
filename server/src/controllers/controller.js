@@ -19,7 +19,7 @@ function stripAttachmentPaths(body) {
 
 /**
  * Main Controller
- * Handles email and WhatsApp sending requests.
+ * Handles email sending requests.
  *
  * Every public endpoint validates its payload with Zod BEFORE any service
  * call. Attachments are bounded both in count (20) and per-entry size
@@ -55,49 +55,4 @@ module.exports = {
     }
   },
 
-  async sendWhatsApp(ctx) {
-    try {
-      const body = validate('content.sendWhatsApp', ctx.request.body);
-
-      const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendWhatsApp(body);
-
-      ctx.body = { success: true, ...result };
-    } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error sending WhatsApp', 'Failed to send WhatsApp message');
-    }
-  },
-
-  async getWhatsAppStatus(ctx) {
-    try {
-      const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const status = emailRouter.getWhatsAppStatus();
-
-      ctx.body = { success: true, data: status };
-    } catch (err) {
-      strapi.log.error('[magic-mail] Error getting WhatsApp status:', err.message);
-      ctx.status = 503;
-      ctx.body = {
-        success: false,
-        data: {
-          isConnected: false,
-          status: 'error',
-          error: err.message,
-        },
-      };
-    }
-  },
-
-  async checkWhatsAppNumber(ctx) {
-    try {
-      const { phoneNumber } = validate('content.phoneParam', ctx.params);
-
-      const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.checkWhatsAppNumber(phoneNumber);
-
-      ctx.body = { success: true, data: result };
-    } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error checking WhatsApp number', 'Failed to check phone number');
-    }
-  },
 };

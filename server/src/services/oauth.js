@@ -63,8 +63,6 @@ module.exports = ({ strapi }) => ({
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/gmail/callback`;
 
     strapi.log.info('[magic-mail] Exchanging OAuth code for tokens...');
-    strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
-    strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
     const bodyParams = {
       code,
@@ -84,8 +82,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      strapi.log.error('[magic-mail] Token exchange failed:', errorData);
+      strapi.log.error('[magic-mail] Google token exchange failed:', response.status);
       throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
@@ -103,16 +100,15 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!userInfoResponse.ok) {
-      const errorData = await userInfoResponse.text();
-      strapi.log.error('[magic-mail] User info fetch failed:', errorData);
+      strapi.log.error('[magic-mail] Google user-info request failed:', userInfoResponse.status);
       throw new Error('Failed to get user email from Google');
     }
 
     const userInfo = await userInfoResponse.json();
-    strapi.log.info(`[magic-mail] [SUCCESS] Got user email from Google: ${userInfo.email}`);
+    strapi.log.info(`[magic-mail] [SUCCESS] Google profile returned an email: ${Boolean(userInfo.email)}`);
 
     if (!userInfo.email) {
-      strapi.log.error('[magic-mail] userInfo:', userInfo);
+      strapi.log.error('[magic-mail] Google profile did not contain an email address');
       throw new Error('Google did not provide email address');
     }
 
@@ -205,7 +201,7 @@ module.exports = ({ strapi }) => ({
       authUrl += `&code_challenge_method=${encodeURIComponent(options.codeChallengeMethod || 'S256')}`;
     }
 
-    strapi.log.info(`[magic-mail] Microsoft OAuth URL: Using tenant ${tenantId}`);
+    strapi.log.info('[magic-mail] Microsoft OAuth URL created');
 
     return authUrl;
   },
@@ -229,12 +225,8 @@ module.exports = ({ strapi }) => ({
     }
 
     strapi.log.info('[magic-mail] Exchanging Microsoft OAuth code for tokens...');
-    strapi.log.info(`[magic-mail] Tenant ID: ${tenantId.substring(0, 20)}...`);
-    strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
-    strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-    strapi.log.info(`[magic-mail] Token endpoint: ${tokenEndpoint}`);
 
     const bodyParams = {
       code,
@@ -255,9 +247,8 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      strapi.log.error('[magic-mail] Microsoft token exchange failed:', errorData);
-      throw new Error(`Failed to exchange code for tokens: ${response.status} - ${errorData}`);
+      strapi.log.error('[magic-mail] Microsoft token exchange failed:', response.status);
+      throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
     const tokens = await response.json();
@@ -278,9 +269,9 @@ module.exports = ({ strapi }) => ({
         const payloadBase64 = tokens.id_token.split('.')[1];
         const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
         email = payload.email || payload.preferred_username || payload.upn;
-        strapi.log.info(`[magic-mail] [SUCCESS] Got email from Microsoft ID token: ${email}`);
+        strapi.log.info(`[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`);
       } catch (jwtErr) {
-        strapi.log.warn('[magic-mail] Could not decode ID token:', jwtErr.message);
+        strapi.log.warn('[magic-mail] Could not decode Microsoft ID token');
       }
     }
 
@@ -295,17 +286,13 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!userInfoResponse.ok) {
-        const errorData = await userInfoResponse.text();
-        strapi.log.error('[magic-mail] User info fetch failed:', errorData);
-        strapi.log.error('[magic-mail] Status:', userInfoResponse.status);
+        strapi.log.error('[magic-mail] Microsoft Graph user-info request failed:', userInfoResponse.status);
         throw new Error(`Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`);
       }
 
       const userInfo = await userInfoResponse.json();
-      strapi.log.info('[magic-mail] User info from Graph:', JSON.stringify(userInfo, null, 2));
-      
       email = userInfo.mail || userInfo.userPrincipalName;
-      strapi.log.info(`[magic-mail] [SUCCESS] Got email from Microsoft Graph: ${email}`);
+      strapi.log.info(`[magic-mail] [SUCCESS] Microsoft Graph profile returned an email: ${Boolean(email)}`);
     }
 
     if (!email) {
@@ -334,7 +321,6 @@ module.exports = ({ strapi }) => ({
     }
 
     strapi.log.info('[magic-mail] Refreshing Microsoft OAuth tokens...');
-    strapi.log.info(`[magic-mail] Tenant ID: ${tenantId.substring(0, 20)}...`);
 
     // Tenant-specific token endpoint
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
@@ -352,8 +338,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      strapi.log.error('[magic-mail] Microsoft token refresh failed:', errorData);
+      strapi.log.error('[magic-mail] Microsoft token refresh failed:', response.status);
       throw new Error(`Failed to refresh Microsoft tokens: ${response.status}`);
     }
 
@@ -422,8 +407,6 @@ module.exports = ({ strapi }) => ({
     const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/yahoo/callback`;
 
     strapi.log.info('[magic-mail] Exchanging Yahoo OAuth code for tokens...');
-    strapi.log.info(`[magic-mail] Client ID: ${clientId.substring(0, 20)}...`);
-    strapi.log.info(`[magic-mail] Redirect URI: ${redirectUri}`);
 
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
@@ -446,8 +429,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      strapi.log.error('[magic-mail] Yahoo token exchange failed:', errorData);
+      strapi.log.error('[magic-mail] Yahoo token exchange failed:', response.status);
       throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
@@ -465,14 +447,13 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!userInfoResponse.ok) {
-      const errorData = await userInfoResponse.text();
-      strapi.log.error('[magic-mail] User info fetch failed:', errorData);
+      strapi.log.error('[magic-mail] Yahoo user-info request failed:', userInfoResponse.status);
       throw new Error('Failed to get user email from Yahoo');
     }
 
     const userInfo = await userInfoResponse.json();
     const email = userInfo.email;
-    strapi.log.info(`[magic-mail] [SUCCESS] Got email from Yahoo: ${email}`);
+    strapi.log.info(`[magic-mail] [SUCCESS] Yahoo profile returned an email: ${Boolean(email)}`);
 
     if (!email) {
       throw new Error('Yahoo did not provide email address');
@@ -533,7 +514,6 @@ module.exports = ({ strapi }) => ({
     // Add tenantId for Microsoft OAuth
     if (oauthCredentials.tenantId) {
       configToStore.tenantId = oauthCredentials.tenantId;
-      strapi.log.info(`[magic-mail] Storing tenantId: ${oauthCredentials.tenantId.substring(0, 20)}...`);
     }
     
     // Add domain for Mailgun
@@ -579,7 +559,7 @@ module.exports = ({ strapi }) => ({
       },
     });
 
-    strapi.log.info(`[magic-mail] [SUCCESS] OAuth account created: ${accountDetails.name} (${tokenData.email})`);
+    strapi.log.info('[magic-mail] [SUCCESS] OAuth email account created');
 
     return account;
   },

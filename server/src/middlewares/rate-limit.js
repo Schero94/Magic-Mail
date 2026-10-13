@@ -6,7 +6,7 @@ const crypto = require('crypto');
  * In-memory per-caller rate limiter for magic-mail Content-API endpoints.
  *
  * The primary purpose is to contain damage from a leaked or compromised
- * API token used to hit /send, /send-message, /send-whatsapp. It is NOT a
+ * API token used to hit /send and /send-message. It is NOT a
  * distributed limiter — if you run multiple Strapi instances behind a
  * load balancer, the quota is per-instance. Replace with a Redis-backed
  * implementation if that is a concern.

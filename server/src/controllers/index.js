@@ -6,7 +6,6 @@ const oauth = require('./oauth');
 const routingRules = require('./routing-rules');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
-const whatsapp = require('./whatsapp');
 const pluginSettings = require('./plugin-settings');
 
 module.exports = {
@@ -16,6 +15,5 @@ module.exports = {
   routingRules,
   emailDesigner,
   analytics,
-  whatsapp,
   pluginSettings,
 };

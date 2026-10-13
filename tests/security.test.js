@@ -53,10 +53,6 @@ test('Zod 4 records work and security-sensitive URLs reject active schemes', () 
     to: 'user@example.com',
     from: 'sender@example.com\r\nBcc: victim@example.com',
   }));
-  assert.throws(() => validate('whatsapp.saveTemplate', {
-    templateName: '__proto__',
-    templateContent: 'unsafe',
-  }));
 });
 
 test('credential encryption round-trips and rejects weak or malformed input', () => {
@@ -182,24 +178,6 @@ test('tracking pixel bypasses JSON serialization and writes raw GIF bytes', asyn
   assert.equal(ctx.respond, false);
   assert.equal(Buffer.isBuffer(responseBody), true);
   assert.equal(responseBody.subarray(0, 6).toString('ascii'), 'GIF89a');
-});
-
-test('WhatsApp template replacement treats variable names literally', async () => {
-  const strapi = {
-    log: quietLog,
-    store: () => ({
-      get: async () => ({ welcome: 'Hello {{name}} / {{.*}}' }),
-    }),
-  };
-  const whatsapp = require('../server/src/services/whatsapp')({ strapi });
-  let sent;
-  whatsapp.sendMessage = async (phone, message) => {
-    sent = { phone, message };
-    return { success: true };
-  };
-
-  await whatsapp.sendTemplateMessage('+49123456', 'welcome', { name: 'Ada', '.*': 'literal' });
-  assert.deepEqual(sent, { phone: '+49123456', message: 'Hello Ada / literal' });
 });
 
 test('all declared routes resolve to controller functions and admin routes are protected', () => {

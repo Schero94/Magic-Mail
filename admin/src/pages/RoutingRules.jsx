@@ -807,11 +807,6 @@ const RoutingRulesPage = () => {
                               Fallback: {rule.fallbackAccountName}
                             </Typography>
                           )}
-                          {rule.whatsappFallback && (
-                            <Badge backgroundColor="success100" textColor="success700" size="S">
-                              + WhatsApp
-                            </Badge>
-                          )}
                         </Flex>
                       </Td>
 
@@ -892,7 +887,6 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
     matchValue: rule?.matchValue || '',
     accountName: rule?.accountName || '',
     fallbackAccountName: rule?.fallbackAccountName || '',
-    whatsappFallback: rule?.whatsappFallback || false,
   });
 
   const handleChange = (field, value) => {
@@ -1064,44 +1058,6 @@ const RuleModal = ({ rule, accounts, onClose, onSave }) => {
                   Use this account if the target account is unavailable or rate-limited
                 </Field.Hint>
               </Field.Root>
-
-              {/* WhatsApp Fallback */}
-              <Box 
-                padding={4} 
-                background="neutral100"
-                hasRadius
-                borderColor="neutral200"
-                borderStyle="solid"
-                borderWidth="1px"
-                style={{ 
-                  width: '100%',
-                  borderRadius: theme.borderRadius.md,
-                }}
-              >
-                <Flex gap={3} alignItems="center" justifyContent="space-between">
-                  <Box style={{ flex: 1, minWidth: 0 }}>
-                    <Typography fontWeight="semiBold">
-                      WhatsApp Fallback
-                    </Typography>
-                    <Typography variant="pi" textColor="neutral600" marginTop={1}>
-                      {formData.whatsappFallback 
-                        ? 'If ALL email accounts fail, message will be sent via WhatsApp (requires connected WhatsApp & phone number in email data)'
-                        : 'Enable to use WhatsApp as last-resort fallback when email delivery fails'
-                      }
-                    </Typography>
-                  </Box>
-                  <Box style={{ flexShrink: 0 }}>
-                    <Switch
-                      checked={formData.whatsappFallback}
-                      onCheckedChange={(checked) => handleChange('whatsappFallback', checked)}
-                      aria-label="WhatsApp fallback"
-                      onLabel="Enabled"
-                      offLabel="Disabled"
-                      visibleLabels={false}
-                    />
-                  </Box>
-                </Flex>
-              </Box>
 
               {/* Priority */}
               <Field.Root style={{ width: '100%' }}>

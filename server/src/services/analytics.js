@@ -101,14 +101,14 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!emailLog) {
-        strapi.log.warn(`[magic-mail] Email log not found: ${emailId}`);
+        strapi.log.warn('[magic-mail] Email log not found for open tracking');
         return null;
       }
 
       // Verify recipient hash
       const validHash = this.generateRecipientHash(emailId, emailLog.recipient);
       if (!hashesEqual(recipientHash, validHash)) {
-        strapi.log.warn(`[magic-mail] Invalid recipient hash for: ${emailId}`);
+        strapi.log.warn('[magic-mail] Invalid recipient hash for open tracking');
         return null;
       }
 
@@ -136,10 +136,10 @@ module.exports = ({ strapi }) => ({
         },
       });
 
-      strapi.log.info(`[magic-mail] [EMAIL] Email opened: ${emailId} (count: ${(emailLog.openCount || 0) + 1})`);
+      strapi.log.info(`[magic-mail] [EMAIL] Tracking open recorded (count: ${(emailLog.openCount || 0) + 1})`);
       return event;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error recording open:', error);
+      strapi.log.error('[magic-mail] Error recording open:', error?.name || 'Error');
       return null;
     }
   },
@@ -187,10 +187,10 @@ module.exports = ({ strapi }) => ({
         },
       });
 
-      strapi.log.info(`[magic-mail] [CLICK] Link clicked: ${emailId} -> ${targetUrl}`);
+      strapi.log.info('[magic-mail] [CLICK] Tracked link click recorded');
       return event;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error recording click:', error);
+      strapi.log.error('[magic-mail] Error recording click:', error?.name || 'Error');
       return null;
     }
   },
@@ -390,7 +390,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!emailLog) {
-      strapi.log.error(`[magic-mail] Cannot rewrite links: Email log not found for ${emailId}`);
+      strapi.log.error('[magic-mail] Cannot rewrite links: email log not found');
       return html;
     }
     
@@ -502,7 +502,7 @@ module.exports = ({ strapi }) => ({
       try {
         await this.storeLinkMapping(emailLog.documentId, mapping.linkHash, mapping.originalUrl);
       } catch (err) {
-        strapi.log.error('[magic-mail] Error storing link mapping:', err);
+        strapi.log.error('[magic-mail] Error storing link mapping:', err?.name || 'Error');
       }
     }
     
@@ -529,7 +529,7 @@ module.exports = ({ strapi }) => ({
     } else {
       strapi.log.warn(`[magic-mail] [WARNING] No links found in email HTML for tracking!`);
       // Debug: Show first 500 chars of HTML to help diagnose
-      strapi.log.debug(`[magic-mail] [DEBUG] HTML preview: ${html.substring(0, 500)}...`);
+      strapi.log.debug('[magic-mail] [DEBUG] No eligible links found in email HTML');
     }
     
     return result;
@@ -569,7 +569,7 @@ module.exports = ({ strapi }) => ({
       });
 
       if (existing) {
-        strapi.log.debug(`[magic-mail] Link mapping already exists for ${linkHash}`);
+        strapi.log.debug('[magic-mail] Link mapping already exists');
         return existing;
       }
 
@@ -582,10 +582,10 @@ module.exports = ({ strapi }) => ({
         },
       });
 
-      strapi.log.debug(`[magic-mail] [SAVE] Stored link mapping: ${linkHash} → ${originalUrl}`);
+      strapi.log.debug('[magic-mail] [SAVE] Stored link mapping');
       return linkMapping;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error storing link mapping:', error);
+      strapi.log.error('[magic-mail] Error storing link mapping:', error?.name || 'Error');
       throw error;
     }
   },
@@ -601,13 +601,13 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!emailLog) {
-        strapi.log.warn(`[magic-mail] Email log not found: ${emailId}`);
+        strapi.log.warn('[magic-mail] Email log not found for click tracking');
         return null;
       }
 
       const validHash = this.generateRecipientHash(emailId, emailLog.recipient);
       if (!hashesEqual(recipientHash, validHash)) {
-        strapi.log.warn(`[magic-mail] Invalid recipient hash for click: ${emailId}`);
+        strapi.log.warn('[magic-mail] Invalid recipient hash for click tracking');
         return null;
       }
 
@@ -620,7 +620,7 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!linkMapping) {
-        strapi.log.warn(`[magic-mail] Link mapping not found: ${emailId}/${linkHash}`);
+        strapi.log.warn('[magic-mail] Link mapping not found');
         return null;
       }
 
@@ -637,7 +637,7 @@ module.exports = ({ strapi }) => ({
 
       return linkMapping.originalUrl;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error getting original URL:', error);
+      strapi.log.error('[magic-mail] Error getting original URL:', error?.name || 'Error');
       return null;
     }
   },

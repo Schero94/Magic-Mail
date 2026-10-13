@@ -68,15 +68,6 @@ const unsubscribeUrl = z.string().url().max(2048).refine((value) => {
   }
 }, { message: 'Unsubscribe URL must use http, https, or mailto' });
 
-const whatsappTemplateName = z.string()
-  .min(1)
-  .max(100)
-  .regex(/^[A-Za-z0-9._-]+$/)
-  .refine(
-    (value) => !['__proto__', 'prototype', 'constructor'].includes(value.toLowerCase()),
-    { message: 'Reserved template name' }
-  );
-
 // Provider enum used by both create and update.
 const providerEnum = z.enum([
   'smtp', 'nodemailer', 'gmail-oauth', 'microsoft-oauth', 'yahoo-oauth', 'sendgrid', 'mailgun',
@@ -262,33 +253,6 @@ const schemas = {
     accountName: safeString.optional().nullable(),
   }),
 
-  'whatsapp.sendTest': z.object({
-    phoneNumber: z.string().min(5).max(20).regex(/^[\d+\-() ]+$/),
-    message: safeString.optional(),
-  }),
-
-  'whatsapp.sendTemplateMessage': z.object({
-    phoneNumber: z.string().min(5).max(20).regex(/^[\d+\-() ]+$/),
-    templateName: whatsappTemplateName,
-    variables: z.record(
-      z.string().min(1).max(100).regex(/^[A-Za-z0-9._-]+$/),
-      z.union([z.string().max(10000), z.number(), z.boolean(), z.null()])
-    ).optional(),
-  }),
-
-  'whatsapp.checkNumber': z.object({
-    phoneNumber: z.string().min(5).max(20).regex(/^[\d+\-() ]+$/),
-  }),
-
-  'whatsapp.saveTemplate': z.object({
-    templateName: whatsappTemplateName,
-    templateContent: safeText,
-  }),
-
-  'whatsapp.templateParam': z.object({
-    templateName: whatsappTemplateName,
-  }),
-
   'routingRules.create': z.object({
     name: z.string().min(1).max(255),
     description: safeText.optional().nullable(),
@@ -298,8 +262,6 @@ const schemas = {
     matchValue: z.string().min(1).max(10000),
     accountName: z.string().min(1).max(255),
     fallbackAccountName: z.string().max(255).optional().nullable(),
-    whatsappFallback: z.boolean().optional(),
-    whatsappPhoneField: z.string().max(255).optional().nullable(),
   }).strict(),
 
   'routingRules.update': z.object({
@@ -311,8 +273,6 @@ const schemas = {
     matchValue: z.string().min(1).max(10000).optional(),
     accountName: z.string().min(1).max(255).optional(),
     fallbackAccountName: z.string().max(255).optional().nullable(),
-    whatsappFallback: z.boolean().optional(),
-    whatsappPhoneField: z.string().max(255).optional().nullable(),
   }).strict(),
 
   'analytics.statsQuery': z.object({
@@ -390,15 +350,13 @@ const schemas = {
         .max(20)
         .optional(),
       headers: z.record(z.string(), headerSafe.max(4000)).optional(),
-      phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/).optional(),
     })
     .strict(),
 
   'content.sendMessage': z
     .object({
-      channel: z.enum(['email', 'whatsapp', 'auto']).optional(),
+      channel: z.enum(['email', 'auto']).optional(),
       to: z.string().max(4000).optional(),
-      phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/).optional(),
       subject: headerSafe.optional(),
       message: safeText.optional(),
       text: safeText.optional(),
@@ -407,22 +365,9 @@ const schemas = {
       templateData: z.record(z.string(), z.unknown()).optional(),
     })
     .strict()
-    .refine((d) => !!d.to || !!d.phoneNumber, {
-      message: 'Either "to" or "phoneNumber" is required',
+    .refine((d) => !!d.to, {
+      message: 'Email address "to" is required',
     }),
-
-  'content.sendWhatsApp': z
-    .object({
-      phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/),
-      message: safeText.optional(),
-      templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
-      templateData: z.record(z.string(), z.unknown()).optional(),
-    })
-    .strict(),
-
-  'content.phoneParam': z.object({
-    phoneNumber: z.string().min(5).max(32).regex(/^[\d+\-() ]+$/),
-  }),
 };
 
 /**
@@ -596,16 +541,11 @@ function handleControllerError(ctx, err, logPrefix, fallbackMessage) {
     (err && typeof err.name === 'string' && knownStrapiNames.has(err.name));
 
   if (isStrapiError) {
-    strapi.log.warn(
-      `${logPrefix}: ${err.name} — ${err.message}` +
-      (err.details && Object.keys(err.details).length > 0
-        ? ` | details=${JSON.stringify(err.details)}`
-        : '')
-    );
+    strapi.log.warn(`${logPrefix}: ${err.name}`);
     throw err;
   }
 
-  strapi.log.error(`${logPrefix}:`, err);
+  strapi.log.error(`${logPrefix}: ${err?.name || 'Error'}`);
   ctx.throw(500, fallbackMessage || err.message || 'Internal server error');
 }
 

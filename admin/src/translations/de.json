@@ -43,26 +43,6 @@
   "notifications.ruleDeleted": "Routing-Regel erfolgreich gelöscht",
   "notifications.error": "Ein Fehler ist aufgetreten",
   
-  "errors.noAccounts": "Keine Email-Konten verfügbar",
+  "errors.noAccounts": "Keine Email-Konten verfügbar"
   
-  "whatsapp.title": "WhatsApp Integration",
-  "whatsapp.subtitle": "Nachrichten via WhatsApp senden - komplett kostenlos!",
-  "whatsapp.tab": "WhatsApp",
-  "whatsapp.status.connected": "Verbunden",
-  "whatsapp.status.connecting": "Verbinde...",
-  "whatsapp.status.qr_pending": "Warte auf QR-Scan",
-  "whatsapp.status.disconnected": "Nicht verbunden",
-  "whatsapp.step1.title": "Installation prüfen",
-  "whatsapp.step2.title": "WhatsApp verbinden",
-  "whatsapp.step3.title": "QR-Code scannen",
-  "whatsapp.step4.title": "Bereit zur Nutzung",
-  "whatsapp.connect": "WhatsApp verbinden",
-  "whatsapp.disconnect": "WhatsApp trennen",
-  "whatsapp.sendTest": "Testnachricht senden",
-  "whatsapp.phoneNumber": "Telefonnummer",
-  "whatsapp.phoneHint": "Telefonnummer mit Landesvorwahl eingeben (z.B. 49 für Deutschland)",
-  "whatsapp.message": "Nachricht (optional)",
-  "whatsapp.notInstalled": "Abhängigkeiten nicht installiert",
-  "whatsapp.installCommand": "npm install baileys pino qrcode",
-  "whatsapp.freeLabel": "KOSTENLOS - Keine API-Kosten!"
 }

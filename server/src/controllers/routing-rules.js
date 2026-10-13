@@ -10,9 +10,8 @@ const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
  * Kept strictly in sync with `server/src/content-types/routing-rule/schema.json`
  * — the previous list contained two dead fields (`conditions`, `matchField`)
  * that do not exist in the DB, while silently dropping three legitimate
- * frontend fields (`fallbackAccountName`, `whatsappFallback`,
- * `whatsappPhoneField`). The result: saving a rule ignored the fallback
- * account, the WhatsApp toggle and the phone field without any error.
+ * frontend field (`fallbackAccountName`). The result: saving a rule ignored
+ * the fallback account without any error.
  */
 const ALLOWED_RULE_FIELDS = [
   'name',
@@ -23,8 +22,6 @@ const ALLOWED_RULE_FIELDS = [
   'matchValue',
   'accountName',
   'fallbackAccountName',
-  'whatsappFallback',
-  'whatsappPhoneField',
 ];
 
 /**

@@ -11,18 +11,15 @@ const expected = {
   oauth: 7,
   designer: 18,
   analytics: 7,
-  whatsapp: 11,
   settings: 2,
-  'content-send': 3,
-  'content-whatsapp': 2,
+  'content-send': 2,
   tracking: 2,
 };
 
 const category = (scope, route) => {
   if (scope === 'content-api') {
     if (route.path.startsWith('/track/')) return 'tracking';
-    if (route.path.startsWith('/whatsapp/')) return 'content-whatsapp';
-    if (['/send', '/send-message', '/send-whatsapp'].includes(route.path)) return 'content-send';
+    if (['/send', '/send-message'].includes(route.path)) return 'content-send';
     return 'unaccounted';
   }
   if (route.path === '/test-strapi-service' || route.path.startsWith('/accounts')) return 'accounts';
@@ -30,7 +27,6 @@ const category = (scope, route) => {
   if (route.path.startsWith('/oauth')) return 'oauth';
   if (route.path.startsWith('/designer')) return 'designer';
   if (route.path.startsWith('/analytics')) return 'analytics';
-  if (route.path.startsWith('/whatsapp')) return 'whatsapp';
   if (route.path === '/settings') return 'settings';
   return 'unaccounted';
 };
