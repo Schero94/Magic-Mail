@@ -1,3 +1,17 @@
+# [3.1.0](https://github.com/Schero94/Magic-Mail/compare/v3.0.4...v3.1.0) (2026-10-15)
+
+
+### Bug Fixes
+
+* align CI installs with lockfile settings ([657f8cb](https://github.com/Schero94/Magic-Mail/commit/657f8cb8f6ef9b0e35e6c3d52a987c4186d90984))
+* keep Magic-Mail tabs in sync with URL ([e3522a6](https://github.com/Schero94/Magic-Mail/commit/e3522a64606bca39065260556d03e56449ae8a2f))
+* make release failure notices tolerant of missing labels ([2b2403e](https://github.com/Schero94/Magic-Mail/commit/2b2403e3ad9c30b668b1b6f804373e31af682cee))
+
+
+### Features
+
+* make Magic-Mail email-only and harden delivery ([906c813](https://github.com/Schero94/Magic-Mail/commit/906c8133e18e54608ba2b621daf4040f579aaa2d))
+
 ## [3.0.4](https://github.com/Schero94/Magic-Mail/compare/v3.0.3...v3.0.4) (2026-07-11)
 
 
