@@ -128,6 +128,8 @@ function hasSensitiveParams(params) {
     inspected += 1;
     if (inspected > MAX_INSPECTED_PARAMS) return true;
     if (isSensitiveParamName(name)) return true;
+    // A bare token used as the parameter name (`?<token>` or `#<token>`).
+    if (looksLikeSecretValue(name)) return true;
     if (looksLikeSecretValue(value)) return true;
     if (JWT_LIKE.test(value)) return true;
   }
@@ -166,6 +168,9 @@ function isSensitiveTrackingUrl(rawUrl) {
   } catch {
     // keep the raw path
   }
+  // Percent-encoded keywords (`/reset%2Dpassword`, `/%6Dagic-link`) are not
+  // decoded by the URL parser; check the decoded form too.
+  if (decodedPath !== path && SENSITIVE_PATH_PATTERNS.some((pattern) => pattern.test(decodedPath))) return true;
   if (decodedPath.split('/').some((segment) => looksLikeSecretValue(segment, 32))) return true;
 
   if (hasSensitiveParams(url.searchParams)) return true;

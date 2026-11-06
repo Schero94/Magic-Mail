@@ -22,8 +22,15 @@ const PREFIX = '[magic-mail]';
  */
 function formatArg(arg) {
   if (typeof arg === 'string') return arg;
-  if (arg instanceof Error) {
-    return arg.code ? `${arg.name || 'Error'} (${arg.code})` : (arg.name || 'Error');
+  // Error instances, errors from another realm and error-shaped objects
+  // (`{ message, response, ... }` from HTTP clients) are reduced the same way;
+  // serialising them would put messages and response bodies into the log.
+  const errorLike = arg instanceof Error || (arg && typeof arg === 'object' && !Array.isArray(arg)
+    && (typeof arg.message === 'string' || typeof arg.stack === 'string'));
+  if (errorLike) {
+    const name = typeof arg.name === 'string' && arg.name ? arg.name : 'Error';
+    const code = typeof arg.code === 'string' || typeof arg.code === 'number' ? arg.code : null;
+    return code !== null ? `${name} (${code})` : name;
   }
   try {
     return JSON.stringify(arg);

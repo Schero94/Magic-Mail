@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const net = require('net');
 
 /**
  * In-memory per-caller rate limiter for magic-mail Content-API endpoints.
@@ -32,11 +33,41 @@ const crypto = require('crypto');
 
 const buckets = new Map();
 const MAX_BUCKETS = 50_000;
+/** A full sweep of expired entries runs at most this often (amortised O(1) per request). */
+const PRUNE_INTERVAL_MS = 1_000;
+let lastPruneAt = 0;
 
 const prune = (now) => {
+  lastPruneAt = now;
   for (const [key, entry] of buckets) {
     if (entry.expiresAt <= now) buckets.delete(key);
   }
+};
+
+/**
+ * Reduces an IPv6 address to its /64 network: a single client usually owns a
+ * whole /64, so keying by the full address let one host get a fresh quota
+ * (and a fresh map entry) per address. IPv4 and IPv4-mapped addresses are
+ * kept as-is.
+ *
+ * @param {string} ip
+ * @returns {string}
+ */
+const ipNetworkKey = (ip) => {
+  let value = String(ip || '').trim().split('%')[0];
+  if (value.startsWith('[') && value.endsWith(']')) value = value.slice(1, -1);
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(value);
+  if (mapped) return mapped[1];
+  if (net.isIP(value) !== 6) return value || 'unknown';
+  const lower = value.toLowerCase();
+  const [head, tail = ''] = lower.split('::');
+  const headGroups = head ? head.split(':') : [];
+  const tailGroups = tail ? tail.split(':') : [];
+  const tailCount = tailGroups.reduce((sum, group) => sum + (group.includes('.') ? 2 : 1), 0);
+  const groups = lower.includes('::')
+    ? [...headGroups, ...new Array(Math.max(0, 8 - headGroups.length - tailCount)).fill('0'), ...tailGroups]
+    : headGroups;
+  return `${groups.slice(0, 4).map((group) => (parseInt(group, 16) || 0).toString(16)).join(':')}::/64`;
 };
 
 /**
@@ -55,8 +86,8 @@ const callerKey = (ctx) => {
     const digest = crypto.createHash('sha256').update(String(tokenId)).digest('hex').slice(0, 16);
     return `t:${digest}`;
   }
-  const ip = ctx.request?.ip || ctx.ip || 'unknown';
-  return `ip:${crypto.createHash('sha256').update(String(ip)).digest('hex').slice(0, 16)}`;
+  const ip = ipNetworkKey(ctx.request?.ip || ctx.ip || 'unknown');
+  return `ip:${crypto.createHash('sha256').update(ip).digest('hex').slice(0, 16)}`;
 };
 
 /**
@@ -77,7 +108,9 @@ const rateLimit = (cfg = {}, { strapi }) => {
     const now = Date.now();
 
     // Opportunistically drop expired entries so the map cannot grow unbounded.
-    if (buckets.size > 1000) prune(now);
+    // Throttled: a sweep on every request made each request O(map size), a
+    // CPU amplifier on the public tracking routes.
+    if (buckets.size > 1000 && now - lastPruneAt >= PRUNE_INTERVAL_MS) prune(now);
     // Hard ceiling: if many distinct callers are still live, drop the oldest
     // entries instead of growing without bound.
     if (buckets.size > MAX_BUCKETS) {
@@ -136,5 +169,14 @@ const rateLimit = (cfg = {}, { strapi }) => {
     await next();
   };
 };
+
+rateLimit.ipNetworkKey = ipNetworkKey;
+/** Test hook: clears all buckets. */
+rateLimit.resetForTests = () => {
+  buckets.clear();
+  lastPruneAt = 0;
+};
+/** Test hook: number of live buckets. */
+rateLimit.bucketCount = () => buckets.size;
 
 module.exports = rateLimit;
