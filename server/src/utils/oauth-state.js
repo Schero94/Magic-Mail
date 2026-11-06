@@ -1,145 +1,205 @@
 'use strict';
 
 const crypto = require('crypto');
+const { derivePurposeKey } = require('./encryption');
 
 /**
  * OAuth state & PKCE helper.
  *
- * OAuth state is generated as an HMAC-signed payload (clientId + timestamp +
- * nonce). The callback / token-exchange code verifies the HMAC, checks the
- * timestamp (10 min TTL), and records the nonce as "used" so it cannot be
- * replayed. This closes the classic OAuth CSRF gap described in RFC 6819.
+ * OAuth state is an HMAC-signed payload (clientId, provider, admin user id,
+ * timestamp, nonce). The token exchange verifies the HMAC, the 10 minute
+ * TTL, the client id and the initiating admin, and consumes the nonce so it
+ * can not be replayed (RFC 6819 CSRF protection, RFC 9700 binding).
  *
- * PKCE (RFC 7636) code_verifier is generated at initiation time, hashed with
- * SHA-256 to produce the code_challenge, and stashed under the state nonce so
- * the token exchange can retrieve it.
+ * PKCE (RFC 7636): the code_verifier is generated at initiation time and
+ * kept server-side in ONE plugin-store entry (`oauth:pending`) keyed by
+ * nonce. Every create/consume prunes entries older than the TTL, so
+ * abandoned flows never accumulate rows. All read-modify-write cycles on
+ * that entry run under one in-process lock.
  */
 
 const STATE_TTL_MS = 10 * 60 * 1000;
-const USED_STATE_STORE_KEY = 'oauth:usedStates';
-const PKCE_STORE_KEY_PREFIX = 'oauth:pkce:';
+const PENDING_STORE_KEY = 'oauth:pending';
+const MAX_PENDING_FLOWS = 200;
+/** Pre-4.0 per-flow keys (`oauth:pkce:<nonce>`) and the separate used list. */
+const LEGACY_PKCE_PREFIX = 'oauth:pkce:';
+const LEGACY_USED_STATE_KEY = 'oauth:usedStates';
 
 /**
- * Per-nonce in-process serialization queue.
+ * In-process serialization queue. The plugin store has no compare-and-set,
+ * so the pending map is only read and written inside `runExclusive`.
  *
- * The plugin store exposes no compare-and-set primitive, so a naive
- * get -> check -> set consumption sequence has a TOCTOU race: two concurrent
- * token exchanges with the same freshly minted state could both read the
- * "used" list before either writes it and both succeed. Serializing the
- * critical section per nonce guarantees exactly one winner within a Strapi
- * instance.
- *
- * Note: this is single-instance atomicity. Horizontally scaled deployments
- * should additionally front OAuth with a shared store (Redis GETDEL or a
- * unique DB constraint); the signed + TTL-bounded + single-use design keeps
- * the residual multi-instance window negligible.
+ * Single-instance atomicity: horizontally scaled deployments should run the
+ * OAuth flow against one instance (sticky admin sessions); the signed,
+ * TTL-bounded, user-bound state keeps the residual window small.
  */
-const nonceLocks = new Map();
+const locks = new Map();
 
 /**
- * Runs `task` with exclusive access for `key`, serializing concurrent callers.
+ * Runs `task` with exclusive access for `key`.
  *
+ * @template T
  * @param {string} key
  * @param {() => Promise<T>} task
  * @returns {Promise<T>}
- * @template T
  */
 async function runExclusive(key, task) {
-  const previous = nonceLocks.get(key) || Promise.resolve();
-  let resolveCurrent;
-  const current = new Promise((resolve) => { resolveCurrent = resolve; });
+  const previous = locks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
   const composed = previous.then(() => current);
-  nonceLocks.set(key, composed);
+  locks.set(key, composed);
 
   await previous;
   try {
     return await task();
   } finally {
-    resolveCurrent();
-    if (nonceLocks.get(key) === composed) {
-      nonceLocks.delete(key);
-    }
+    release();
+    if (locks.get(key) === composed) locks.delete(key);
   }
 }
 
 /**
- * Returns the signing secret for state HMACs.
- * Derived from APP_KEYS / JWT_SECRET / API_TOKEN_SALT — any one is sufficient.
+ * Returns the HMAC key for state signatures: an HKDF subkey (purpose
+ * `oauth-state`) of MAGIC_MAIL_OAUTH_STATE_SECRET, else
+ * MAGIC_MAIL_ENCRYPTION_KEY, else the first Strapi app key.
  *
  * @param {object} strapi
  * @returns {Buffer}
  */
-function getSigningSecret(strapi) {
-  const candidates = [
-    process.env.MAGIC_MAIL_OAUTH_STATE_SECRET,
-    process.env.APP_KEYS,
-    strapi?.config?.get?.('server.app.keys')?.[0],
-    process.env.API_TOKEN_SALT,
-    process.env.JWT_SECRET,
-  ].filter(Boolean);
+function getSigningKey(strapi) {
+  const configKeys = strapi?.config?.get?.('server.app.keys');
+  const appKey = (Array.isArray(configKeys) ? configKeys[0] : null)
+    || String(process.env.APP_KEYS || '').split(',').map((key) => key.trim()).find(Boolean);
+  const material = process.env.MAGIC_MAIL_OAUTH_STATE_SECRET
+    || process.env.MAGIC_MAIL_ENCRYPTION_KEY
+    || appKey;
 
-  if (candidates.length === 0) {
+  if (!material) {
     throw new Error('[magic-mail] No signing secret available for OAuth state. Set MAGIC_MAIL_OAUTH_STATE_SECRET or APP_KEYS.');
   }
-  return crypto.createHash('sha256').update(String(candidates[0])).digest();
+  return derivePurposeKey(material, 'oauth-state');
+}
+
+/** @returns {object} plugin store */
+const pluginStore = (strapi) => strapi.store({ type: 'plugin', name: 'magic-mail' });
+
+/**
+ * Removes expired entries and caps the map size (oldest first).
+ *
+ * @param {Record<string, {createdAt: number}>} pending
+ * @param {number} now
+ * @returns {Record<string, object>}
+ */
+function prunePending(pending, now) {
+  const fresh = Object.entries(pending && typeof pending === 'object' && !Array.isArray(pending) ? pending : {})
+    .filter(([, entry]) => entry && Number.isFinite(entry.createdAt) && now - entry.createdAt <= STATE_TTL_MS)
+    .sort(([, a], [, b]) => a.createdAt - b.createdAt)
+    .slice(-MAX_PENDING_FLOWS);
+  return Object.fromEntries(fresh);
+}
+
+let legacyCleanupDone = false;
+
+/**
+ * One-time removal of pre-4.0 per-flow PKCE rows and the used-state list.
+ * Best effort: failures are ignored (rows are harmless, just clutter).
+ *
+ * @param {object} strapi
+ * @returns {Promise<void>}
+ */
+async function cleanupLegacyRows(strapi) {
+  if (legacyCleanupDone) return;
+  legacyCleanupDone = true;
+  try {
+    const query = strapi?.db?.query?.('strapi::core-store');
+    if (query?.deleteMany) {
+      await query.deleteMany({ where: { key: { $startsWith: `plugin_magic-mail_${LEGACY_PKCE_PREFIX}` } } });
+    }
+    await pluginStore(strapi).delete({ key: LEGACY_USED_STATE_KEY });
+  } catch {
+    // ignore
+  }
 }
 
 /**
- * Creates a signed, one-time-use OAuth state with optional PKCE.
+ * Normalises an admin user id for comparison.
+ *
+ * @param {unknown} userId
+ * @returns {string|null}
+ */
+const normalizeUserId = (userId) => (userId === undefined || userId === null || userId === '' ? null : String(userId));
+
+/**
+ * Creates a signed, one-time-use OAuth state with PKCE.
  *
  * @param {object} strapi
  * @param {object} params
  * @param {string} params.clientId - OAuth client ID we are authenticating against
  * @param {string} [params.provider] - 'gmail' | 'microsoft' | 'yahoo'
+ * @param {string|number} [params.userId] - Initiating admin user id (bound into the state)
+ * @param {string} [params.accountId] - documentId of the account being reconnected
  * @param {boolean} [params.usePKCE=true]
  * @returns {Promise<{state: string, codeChallenge: string|null, codeChallengeMethod: string|null}>}
  */
-async function createState(strapi, { clientId, provider, usePKCE = true }) {
+async function createState(strapi, { clientId, provider, userId, accountId, usePKCE = true }) {
   if (!clientId) throw new Error('clientId is required');
 
   const nonce = crypto.randomBytes(16).toString('hex');
   const timestamp = Date.now();
 
-  const payload = { clientId, provider, timestamp, nonce, pkce: usePKCE };
-  const payloadJson = JSON.stringify(payload);
-  const payloadB64 = Buffer.from(payloadJson).toString('base64url');
-
-  const sig = crypto
-    .createHmac('sha256', getSigningSecret(strapi))
-    .update(payloadB64)
-    .digest('base64url');
-
+  const payload = {
+    clientId,
+    provider,
+    uid: normalizeUserId(userId),
+    acc: accountId || null,
+    timestamp,
+    nonce,
+    pkce: usePKCE,
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', getSigningKey(strapi)).update(payloadB64).digest('base64url');
   const state = `${payloadB64}.${sig}`;
 
+  let codeVerifier = null;
   let codeChallenge = null;
   let codeChallengeMethod = null;
   if (usePKCE) {
-    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    codeVerifier = crypto.randomBytes(32).toString('base64url');
     codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
     codeChallengeMethod = 'S256';
-
-    try {
-      const store = strapi.store({ type: 'plugin', name: 'magic-mail' });
-      const key = `${PKCE_STORE_KEY_PREFIX}${nonce}`;
-      await store.set({ key, value: { codeVerifier, createdAt: timestamp } });
-    } catch (err) {
-      throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`);
-    }
   }
+
+  try {
+    await runExclusive(PENDING_STORE_KEY, async () => {
+      const store = pluginStore(strapi);
+      const pending = prunePending(await store.get({ key: PENDING_STORE_KEY }), timestamp);
+      pending[nonce] = { codeVerifier, createdAt: timestamp };
+      await store.set({ key: PENDING_STORE_KEY, value: prunePending(pending, timestamp) });
+    });
+  } catch (err) {
+    throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`);
+  }
+
+  await cleanupLegacyRows(strapi);
 
   return { state, codeChallenge, codeChallengeMethod };
 }
 
 /**
- * Verifies a state string: signature, TTL, and one-time-use guarantee.
+ * Verifies a state string: signature, TTL, client id, initiating admin and
+ * one-time use. Consumes the pending flow.
  *
  * @param {object} strapi
  * @param {string} stateString
- * @param {string} [expectedClientId] - Optional clientId to cross-check
- * @returns {Promise<{payload: object, codeVerifier: string|null}>} Verified payload + PKCE verifier (if present)
+ * @param {string|{clientId?: string, userId?: string|number, accountId?: string}} [expected]
+ *   Expected client id (string, legacy signature) or an object of expectations
+ * @returns {Promise<{payload: object, codeVerifier: string|null}>}
  * @throws {Error} When verification fails
  */
-async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
+async function verifyAndConsumeState(strapi, stateString, expected = {}) {
+  const expectations = typeof expected === 'string' ? { clientId: expected } : (expected || {});
+
   if (!stateString || typeof stateString !== 'string') {
     throw new Error('Missing state');
   }
@@ -148,16 +208,11 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
   if (parts.length !== 2) {
     throw new Error('Malformed state');
   }
-
   const [payloadB64, sig] = parts;
 
-  const expectedSig = crypto
-    .createHmac('sha256', getSigningSecret(strapi))
-    .update(payloadB64)
-    .digest('base64url');
-
-  const sigOk = sig.length === expectedSig.length &&
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
+  const expectedSig = crypto.createHmac('sha256', getSigningKey(strapi)).update(payloadB64).digest('base64url');
+  const sigOk = sig.length === expectedSig.length
+    && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
   if (!sigOk) {
     throw new Error('Invalid state signature');
   }
@@ -169,7 +224,7 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
     throw new Error('Malformed state payload');
   }
 
-  if (!Number.isFinite(payload.timestamp) || typeof payload.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(payload.nonce)) {
+  if (!payload || !Number.isFinite(payload.timestamp) || typeof payload.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(payload.nonce)) {
     throw new Error('Incomplete state payload');
   }
 
@@ -178,52 +233,46 @@ async function verifyAndConsumeState(strapi, stateString, expectedClientId) {
     throw new Error('State expired');
   }
 
-  if (expectedClientId && payload.clientId !== expectedClientId) {
+  if (expectations.clientId !== undefined && payload.clientId !== expectations.clientId) {
     throw new Error('State clientId mismatch');
   }
+  if ('userId' in expectations && normalizeUserId(payload.uid) !== normalizeUserId(expectations.userId)) {
+    throw new Error('State was issued to another admin user');
+  }
+  if ('accountId' in expectations && (payload.acc || null) !== (expectations.accountId || null)) {
+    throw new Error('State was issued for another account');
+  }
 
-  const store = strapi.store({ type: 'plugin', name: 'magic-mail' });
-
-  // Serialize the check-then-consume window per nonce so exactly one concurrent
-  // caller can claim a given state.
-  return runExclusive(payload.nonce, async () => {
-    const usedRaw = await store.get({ key: USED_STATE_STORE_KEY });
-    const used = Array.isArray(usedRaw) ? usedRaw : [];
-
-    if (used.some((entry) => entry.nonce === payload.nonce)) {
-      throw new Error('State already used (replay protection)');
-    }
-
+  return runExclusive(PENDING_STORE_KEY, async () => {
+    const store = pluginStore(strapi);
     const now = Date.now();
-    const pruned = used.filter((entry) => now - entry.ts < STATE_TTL_MS);
-    pruned.push({ nonce: payload.nonce, ts: now });
-    const capped = pruned.slice(-500);
-    await store.set({ key: USED_STATE_STORE_KEY, value: capped });
+    const pending = prunePending(await store.get({ key: PENDING_STORE_KEY }), now);
+    const entry = pending[payload.nonce];
 
-    let codeVerifier = null;
-    try {
-      const pkceKey = `${PKCE_STORE_KEY_PREFIX}${payload.nonce}`;
-      const record = await store.get({ key: pkceKey });
-      if (record && record.codeVerifier) {
-        codeVerifier = record.codeVerifier;
-        await store.delete({ key: pkceKey });
-      }
-    } catch (err) {
-      if (payload.pkce) {
-        throw new Error(`PKCE verifier could not be consumed: ${err.message}`);
-      }
+    if (!entry) {
+      throw new Error('State already used or expired (replay protection)');
     }
 
-    if (payload.pkce && !codeVerifier) {
-      throw new Error('PKCE verifier is missing or already consumed');
+    delete pending[payload.nonce];
+    await store.set({ key: PENDING_STORE_KEY, value: pending });
+
+    if (payload.pkce && !entry.codeVerifier) {
+      throw new Error('PKCE verifier is missing');
     }
 
-    return { payload, codeVerifier };
+    return { payload, codeVerifier: entry.codeVerifier || null };
   });
+}
+
+/** Test hook: resets the one-time legacy cleanup flag. */
+function resetLegacyCleanupForTests() {
+  legacyCleanupDone = false;
 }
 
 module.exports = {
   createState,
   verifyAndConsumeState,
   STATE_TTL_MS,
+  PENDING_STORE_KEY,
+  resetLegacyCleanupForTests,
 };

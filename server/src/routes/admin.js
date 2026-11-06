@@ -34,13 +34,32 @@ const PLUGIN_ID = 'magic-mail';
  * @param {'read'|'manage'|'test-send'} capability
  * @returns {Array<string|object>}
  */
-const adminPolicy = (capability) => [
+const adminPolicy = (capability, extraActions = []) => [
   'admin::isAuthenticatedAdmin',
   {
     name: 'admin::hasPermissions',
-    config: { actions: [`plugin::${PLUGIN_ID}.${capability}`] },
+    config: { actions: [`plugin::${PLUGIN_ID}.${capability}`, ...extraActions] },
   },
 ];
+
+/**
+ * Test sends reach arbitrary external addresses through company accounts.
+ * One budget per admin user across all test-send routes (SEC-15).
+ *
+ * @returns {Array<object>}
+ */
+const testSendRateLimit = () => [
+  { name: `plugin::${PLUGIN_ID}.rate-limit`, config: { bucket: 'admin-test-send', max: 10, window: 60_000 } },
+];
+
+/**
+ * The users-permissions email templates (password reset, confirmation) are
+ * Strapi data guarded by their own permissions. Editing them through Magic
+ * Mail additionally requires those permissions (SEC-M01): `admin::hasPermissions`
+ * requires every listed action.
+ */
+const USERS_PERMISSIONS_TEMPLATE_READ = 'plugin::users-permissions.email-templates.read';
+const USERS_PERMISSIONS_TEMPLATE_UPDATE = 'plugin::users-permissions.email-templates.update';
 
 module.exports = {
   type: 'admin',
@@ -61,7 +80,7 @@ module.exports = {
       handler: 'accounts.getOne',
       config: {
         policies: adminPolicy('read'),
-        description: 'Get single email account with decrypted config',
+        description: 'Get single email account (secrets replaced by a placeholder)',
       },
     },
     {
@@ -88,6 +107,7 @@ module.exports = {
       handler: 'accounts.test',
       config: {
         policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Test email account',
       },
     },
@@ -97,6 +117,7 @@ module.exports = {
       handler: 'accounts.testStrapiService',
       config: {
         policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Test Strapi Email Service integration (MagicMail intercept)',
       },
     },
@@ -231,6 +252,15 @@ module.exports = {
         description: 'Create account from OAuth',
       },
     },
+    {
+      method: 'POST',
+      path: '/oauth/reconnect/:accountId',
+      handler: 'oauth.reconnectOAuthAccount',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Re-authorize an existing OAuth account',
+      },
+    },
 
     // ─────────────────────── Email Designer ───────────────────────
     {
@@ -355,7 +385,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.getCoreTemplate',
       config: {
-        policies: adminPolicy('read'),
+        policies: adminPolicy('read', [USERS_PERMISSIONS_TEMPLATE_READ]),
         description: 'Get core email template',
       },
     },
@@ -364,7 +394,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.updateCoreTemplate',
       config: {
-        policies: adminPolicy('manage'),
+        policies: adminPolicy('manage', [USERS_PERMISSIONS_TEMPLATE_UPDATE]),
         description: 'Update core email template',
       },
     },
@@ -392,6 +422,7 @@ module.exports = {
       handler: 'emailDesigner.testSend',
       config: {
         policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Send test email for template',
       },
     },

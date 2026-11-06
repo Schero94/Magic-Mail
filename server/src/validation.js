@@ -111,6 +111,25 @@ const unsubscribeUrl = z.string().url().max(2048).refine((value) => {
   }
 }, { message: 'Unsubscribe URL must use http, https, or mailto' });
 
+/**
+ * Optional email that may be cleared: '' (what the admin form sends for an
+ * emptied field) and null mean "remove the stored value".
+ */
+const clearableEmailString = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  emailString.nullable().optional()
+);
+
+/**
+ * Microsoft tenant: GUID, verified domain, or common/organizations/consumers.
+ * Host-label characters only, so it can not alter the login URL path.
+ */
+const tenantId = z.string().max(253).regex(/^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/, {
+  message: 'Invalid tenant ID',
+});
+
+const oauthProviderEnum = z.enum(['gmail', 'microsoft', 'yahoo']);
+
 // Provider enum used by both create and update.
 const providerEnum = z.enum([
   'smtp', 'nodemailer', 'gmail-oauth', 'microsoft-oauth', 'yahoo-oauth', 'sendgrid', 'mailgun',
@@ -159,13 +178,14 @@ const schemas = {
 
   'accounts.update': z
     .object({
-      name: safeString.optional(),
-      description: safeString.optional(),
+      name: safeString.min(1).optional(),
+      // '' / null clear the stored value.
+      description: safeString.nullable().optional(),
       provider: providerEnum.optional(),
       config: configRecord.optional(),
       fromEmail: emailString.optional(),
-      fromName: headerSafe.optional(),
-      replyTo: optionalEmailString,
+      fromName: headerSafe.nullable().optional(),
+      replyTo: clearableEmailString,
       isActive: z.boolean().optional(),
       isPrimary: z.boolean().optional(),
       priority: z.number().int().min(1).max(10).optional(),
@@ -191,9 +211,25 @@ const schemas = {
     cc: recipientListInput(50, { allowEmptyString: true }).optional(),
   }),
 
+  // Query of GET /oauth/:provider/auth. `accountId` starts a reconnect of an
+  // existing account with its stored app credentials.
+  'oauth.auth': z.object({
+    clientId: z.string().min(1).max(512).optional(),
+    tenantId: tenantId.optional(),
+    accountId: z.string().regex(/^[A-Za-z0-9]{1,64}$/).optional(),
+  }),
+
+  'oauth.reconnect': z
+    .object({
+      provider: oauthProviderEnum,
+      code: z.string().min(1).max(4096),
+      state: z.string().min(1).max(4096),
+    })
+    .strict(),
+
   'oauth.createOAuthAccount': z
     .object({
-      provider: z.enum(['gmail', 'microsoft', 'yahoo']),
+      provider: oauthProviderEnum,
       code: z.string().min(1).max(4096),
       state: z.string().min(1).max(4096),
       accountDetails: z
@@ -215,8 +251,7 @@ const schemas = {
             .object({
               clientId: z.string().min(1).max(512),
               clientSecret: z.string().min(1).max(512),
-              tenantId: z.string().max(512).optional(),
-              domain: z.string().max(253).optional(),
+              tenantId: tenantId.optional(),
             })
             .strict(),
         })

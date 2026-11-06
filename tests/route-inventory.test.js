@@ -10,7 +10,7 @@ const content = require('../server/src/routes/content-api').routes;
 const expected = {
   accounts: 7,
   'routing-rules': 5,
-  oauth: 7,
+  oauth: 8,
   designer: 18,
   analytics: 7,
   settings: 2,
@@ -82,7 +82,8 @@ test('admin routes require the matching least-privilege capability', () => {
     if (route.path === '/oauth/gmail/auth'
       || route.path === '/oauth/microsoft/auth'
       || route.path === '/oauth/yahoo/auth'
-      || route.path === '/oauth/create-account') return 'manage';
+      || route.path === '/oauth/create-account'
+      || route.path === '/oauth/reconnect/:accountId') return 'manage';
 
     // Rendering/exporting a template reads plugin data but does not mutate it.
     if (route.path === '/designer/render/:templateReferenceId'
@@ -99,9 +100,13 @@ test('admin routes require the matching least-privilege capability', () => {
       (policy) => typeof policy === 'object' && policy.name === 'admin::hasPermissions'
     );
     assert.equal(permissionPolicies.length, 1, `${route.method} ${route.path} must have one permission policy`);
+    // users-permissions email templates also need the users-permissions grant.
+    const extra = route.path === '/designer/core/:coreEmailType'
+      ? [`plugin::users-permissions.email-templates.${route.method === 'GET' ? 'read' : 'update'}`]
+      : [];
     assert.deepEqual(
       permissionPolicies[0].config.actions,
-      [`plugin::magic-mail.${expectedCapability}`],
+      [`plugin::magic-mail.${expectedCapability}`, ...extra],
       `${route.method} ${route.path} must require ${expectedCapability}`
     );
   }

@@ -46,7 +46,8 @@ test('optional account reply-to accepts the blank value sent by the admin form',
   };
 
   assert.equal(validate('accounts.create', account).replyTo, undefined);
-  assert.equal(validate('accounts.update', { replyTo: '' }).replyTo, undefined);
+  // On update '' means "clear the stored Reply-To" (FUN-16).
+  assert.equal(validate('accounts.update', { replyTo: '' }).replyTo, null);
 });
 
 test('Zod 4 records work and security-sensitive URLs reject active schemes', () => {

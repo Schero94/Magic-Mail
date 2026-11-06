@@ -2,6 +2,7 @@
 
 const { validate, handleControllerError } = require('../validation');
 const { toAccountListDTO } = require('../utils/account-dto');
+const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
 
 /**
  * Accounts Controller
@@ -22,8 +23,7 @@ module.exports = {
         meta: { count: accounts.length },
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting accounts:', err);
-      ctx.throw(500, 'Error fetching email accounts');
+      handleControllerError(ctx, err, '[magic-mail] Error getting accounts', 'Error fetching email accounts');
     }
   },
 
@@ -47,7 +47,9 @@ module.exports = {
   },
 
   /**
-   * Get single account with decrypted config (for editing)
+   * Get single account for the edit form. Secrets are replaced with a
+   * constant placeholder; the response never contains a secret or a part
+   * of one.
    */
   async getOne(ctx) {
     try {
@@ -193,7 +195,6 @@ module.exports = {
       ctx.body = {
         success: true,
         message: 'Email sent via Strapi Email Service (intercepted by MagicMail)',
-        result,
         info: {
           method: 'strapi.plugin("email").service("email").send()',
           intercepted: true,
@@ -201,13 +202,19 @@ module.exports = {
         },
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] [ERROR] Strapi Email Service test failed:', err);
+      if (err?.name === 'ValidationError' && err?.code !== 'MAGIC_MAIL_VALIDATION') {
+        // Request validation (validate()) - let Strapi render the 400.
+        handleControllerError(ctx, err, '[magic-mail] Strapi Email Service test rejected', 'Failed to send test email');
+        return;
+      }
+      // Never return the raw transport error (internal hosts, SMTP replies).
+      strapi.log.error(`[magic-mail] [ERROR] Strapi Email Service test failed: ${describeErrorForLog(err)}`);
+      ctx.status = 502;
       ctx.body = {
         success: false,
         message: 'Failed to send test email',
-        error: err.message,
+        error: toClientSendMessage(err),
       };
-      ctx.status = 500;
     }
   },
 
@@ -218,14 +225,16 @@ module.exports = {
     try {
       const { accountId } = ctx.params;
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
-      await accountManager.deleteAccount(accountId);
+      const result = await accountManager.deleteAccount(accountId);
 
       ctx.body = {
         message: 'Email account deleted successfully',
+        // Routing rules that targeted the account were deactivated and
+        // fallback references cleared; the UI can report the counts.
+        data: result || { deactivatedRules: 0, clearedFallbacks: 0 },
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Error deleting account:', err);
-      ctx.throw(500, 'Error deleting email account');
+      handleControllerError(ctx, err, '[magic-mail] Error deleting account', 'Error deleting email account');
     }
   },
 };

@@ -16,6 +16,10 @@
  * many recipients behind one IP). Only abusive rates (10x) get a 429.
  */
 
+// Only API tokens may send unless `contentApi.allowUserRoles` is true
+// (checked again in the controller, which also attributes the email log).
+const sendPolicies = () => ['plugin::magic-mail.api-token-only'];
+
 // One aggregate sending budget shared across the two email send routes.
 const sendRateLimit = [
   { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'send', max: 60, window: 60_000 } },
@@ -37,6 +41,7 @@ module.exports = {
       path: '/send',
       handler: 'controller.send',
       config: {
+        policies: sendPolicies(),
         middlewares: sendRateLimit,
         description: 'Send email via MagicMail router (requires API token)',
       },
@@ -48,6 +53,7 @@ module.exports = {
       path: '/send-message',
       handler: 'controller.sendMessage',
       config: {
+        policies: sendPolicies(),
         middlewares: sendRateLimit,
         description: 'Send email through the MagicMail router (requires API token)',
       },
