@@ -34,16 +34,12 @@ module.exports = async ({ strapi }) => {
     global.magicMailIntervals = undefined;
   }
 
-  // 2. Restore the native email service if we replaced it, so a re-bootstrap
-  //    does not wrap our own wrapper.
-  const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
-  if (registry.emailService && registry.originalEmailSend
-      && registry.emailService.send && registry.emailService.send[WRAPPED]) {
-    registry.emailService.send = registry.originalEmailSend;
-    registry.emailService = null;
-    registry.originalEmailSend = null;
-    log.info('[magic-mail] Restored native email service');
-  }
+  // 2. Restore the native email provider/service functions we replaced, so a
+  //    re-bootstrap does not wrap our own wrapper.
+  // eslint-disable-next-line global-require
+  const { uninstallEmailInterception } = require('./bootstrap');
+  uninstallEmailInterception(strapi);
+  log.info('[magic-mail] Restored native email service');
 
   log.info('[magic-mail] Plugin destroyed gracefully');
 };

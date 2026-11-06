@@ -63,7 +63,7 @@ test('existing routing metadata columns remain in the Strapi schema but are not 
   assert.throws(() => validate('routingRules.update', { whatsappPhoneField: 'phone' }));
 });
 
-test('email send-message keeps its email path and rejects transport selection', async () => {
+test('email send-message keeps its email path and has no channel parameter', async () => {
   const emailRouter = require('../server/src/services/email-router')({
     strapi: { log: { debug() {}, info() {}, warn() {}, error() {} } },
   });
@@ -74,7 +74,6 @@ test('email send-message keeps its email path and rejects transport selection', 
   };
 
   const result = await emailRouter.sendMessage({
-    channel: 'email',
     to: 'recipient@example.test',
     cc: ['copy-one@example.test', 'copy-two@example.test'],
     bcc: 'hidden@example.test',
@@ -92,23 +91,18 @@ test('email send-message keeps its email path and rejects transport selection', 
     templateId: undefined,
     templateData: undefined,
   });
-  assert.deepEqual(result, { success: true, emailId: 'fake-email-1', channel: 'email' });
+  assert.deepEqual(result, { success: true, emailId: 'fake-email-1' }, 'the response carries no channel field');
   await assert.rejects(
-    emailRouter.sendMessage({ channel: 'whatsapp', phoneNumber: '+491234567890', message: 'fake' }),
-    /email delivery only/i
-  );
-  await assert.rejects(
-    emailRouter.sendMessage({ channel: 'auto', phoneNumber: '+491234567890', message: 'fake' }),
+    emailRouter.sendMessage({ phoneNumber: '+491234567890', message: 'fake' }),
     /email address/i
   );
 });
 
-test('send-message validation accepts email and rejects removed transport fields', () => {
+test('send-message validation accepts email and rejects channel and removed transport fields', () => {
   const { validate } = require('../server/src/validation');
 
   assert.deepEqual(
     validate('content.sendMessage', {
-      channel: 'email',
       to: 'recipient@example.test',
       cc: 'copy@example.test,second-copy@example.test',
       bcc: 'hidden@example.test',
@@ -116,7 +110,6 @@ test('send-message validation accepts email and rejects removed transport fields
       message: 'Hello',
     }),
     {
-      channel: 'email',
       to: 'recipient@example.test',
       cc: 'copy@example.test,second-copy@example.test',
       bcc: 'hidden@example.test',
@@ -125,12 +118,15 @@ test('send-message validation accepts email and rejects removed transport fields
     }
   );
   assert.throws(() => validate('content.sendMessage', {
-    channel: 'email', to: 'recipient@example.test', cc: 'copy@example.test,invalid',
+    to: 'recipient@example.test', cc: 'copy@example.test,invalid',
   }), (error) => error.name === 'ValidationError' && Boolean(error.details?.cc));
   assert.throws(() => validate('content.sendMessage', {
-    channel: 'whatsapp', phoneNumber: '+491234567890', message: 'fake',
+    channel: 'email', to: 'recipient@example.test', message: 'channel was removed in 4.0',
   }));
+  assert.throws(() => validate('content.sendMessage', { to: 'not-an-email', message: 'fake' }),
+    (error) => error.name === 'ValidationError' && Boolean(error.details?.to));
+  assert.throws(() => validate('content.sendMessage', { message: 'missing recipient' }));
   assert.throws(() => validate('content.sendMessage', {
-    channel: 'email', to: 'recipient@example.test', phoneNumber: '+491234567890',
+    to: 'recipient@example.test', phoneNumber: '+491234567890',
   }));
 });

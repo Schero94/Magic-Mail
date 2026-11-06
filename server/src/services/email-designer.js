@@ -10,7 +10,6 @@
 
 const Mustache = require('mustache');
 const htmlToTextLib = require('html-to-text');
-const decode = require('decode-html');
 
 // Content Type UIDs
 const EMAIL_TEMPLATE_UID = 'plugin::magic-mail.email-template';
@@ -19,6 +18,37 @@ const EMAIL_TEMPLATE_VERSION_UID = 'plugin::magic-mail.email-template-version';
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
+
+const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+
+/**
+ * Decodes the basic named and numeric HTML entities.
+ * @param {string} value
+ * @returns {string}
+ */
+const decodeHtmlEntities = (value) => {
+  if (typeof value !== 'string' || !value.includes('&')) return value || '';
+  return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
+    if (entity[0] === '#') {
+      const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    const named = NAMED_ENTITIES[entity.toLowerCase()];
+    return named === undefined ? match : named;
+  });
+};
+
+/**
+ * Decodes entities only inside Mustache tags (`{{ ... }}`), which rich-text
+ * editors entity-encode. Literal escaped text elsewhere in the HTML stays
+ * escaped.
+ * @param {string} html
+ * @returns {string}
+ */
+const decodeMustacheTags = (html) => {
+  if (typeof html !== 'string') return '';
+  return html.replace(/\{\{\{?[\s\S]*?\}?\}\}/g, (tag) => decodeHtmlEntities(tag));
+};
 
 /**
  * Safely convert HTML to plain text
@@ -663,9 +693,13 @@ module.exports = ({ strapi }) => ({
       bodyText = convertHtmlToText(bodyHtml, { wordwrap: 130 });
     }
 
-    const decodedHtml = decode(bodyHtml);
-    const decodedText = decode(bodyText);
-    const decodedSubject = decode(subject);
+    // Only Mustache tags are entity-decoded (editors store `{{ a &amp;&amp; b }}`
+    // or `{{ x.&quot;y&quot; }}`). Decoding the whole body turned literal
+    // escaped text such as `&lt;b&gt;` into real markup.
+    const decodedHtml = decodeMustacheTags(bodyHtml);
+    // Text body and subject are not HTML, so stored entities are decoded.
+    const decodedText = decodeHtmlEntities(bodyText);
+    const decodedSubject = decodeHtmlEntities(subject);
 
     // HTML body keeps Mustache's default HTML escaping. Plain text and the
     // subject line are NOT HTML, so escaping there corrupts values (e.g.

@@ -89,6 +89,14 @@
     },
     "lastUsed": {
       "type": "datetime"
+    },
+    "quotaHourKey": {
+      "type": "string",
+      "private": true
+    },
+    "quotaDayKey": {
+      "type": "string",
+      "private": true
     }
   }
 }

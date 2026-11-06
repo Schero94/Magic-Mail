@@ -53,6 +53,7 @@ function createSendHarness() {
 function createContext(body) {
   return {
     request: { body },
+    state: { auth: { strategy: { name: 'api-token' } } },
     badRequest(message) {
       this.status = 400;
       this.body = { error: message };
@@ -136,7 +137,6 @@ test('Content API send-message preserves To, CC, and BCC through a fake provider
   try {
     const { validate } = require('../server/src/validation');
     const validated = validate('content.sendMessage', {
-      channel: 'email',
       to: 'primary@example.com',
       cc: 'CC-One@example.com, cc-two@example.com',
       bcc: 'hidden@example.com',
@@ -149,7 +149,6 @@ test('Content API send-message preserves To, CC, and BCC through a fake provider
     global.strapi = strapi;
     const controller = require('../server/src/controllers/controller');
     const ctx = createContext({
-      channel: 'email',
       to: 'primary@example.com',
       cc: 'CC-One@example.com, cc-two@example.com',
       bcc: 'hidden@example.com',
@@ -189,7 +188,6 @@ test('Content API send-message rejects malformed CC before contacting a provider
     global.strapi = strapi;
     const controller = require('../server/src/controllers/controller');
     const ctx = createContext({
-      channel: 'email',
       to: 'primary@example.com',
       cc: 'valid@example.com,not-an-address',
       subject: 'Invalid CC in send-message',

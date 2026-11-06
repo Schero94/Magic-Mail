@@ -4,39 +4,121 @@ const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
 
+const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
+const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
+const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
+
+const EMAIL_TYPES = ['transactional', 'marketing', 'notification'];
+const PRIORITIES = ['high', 'normal', 'low'];
+
+const MAX_TO_RECIPIENTS = 100;
+const MAX_COPY_RECIPIENTS = 50;
+const MAX_REPLY_TO = 10;
+const MAX_RECIPIENT_ADDRESS_LENGTH = 320;
+const MAX_RECIPIENT_LIST_LENGTH = 4000;
+const MAX_ATTACHMENTS = 20;
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const MAX_CUSTOM_HEADERS = 20;
+const MAX_ROUTING_CANDIDATES = 25;
+
+/** Error codes that mark a failure as happening before the provider accepted anything. */
+const RETRYABLE_ERROR_CODES = new Set([
+  'ECONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH',
+  'ENETUNREACH', 'EDNS', 'ETLS', 'EAUTH', 'ENOAUTH', 'EOAUTH2', 'EENVELOPE',
+  'MAGIC_MAIL_ACCOUNT_CONFIG',
+]);
+/** HTTP status codes from API providers that guarantee the message was not accepted. */
+const RETRYABLE_HTTP_STATUS = new Set([401, 403, 429, 500, 502, 503]);
+
+const EMAIL_PATTERN = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:\\[\]]+$/;
+
+/**
+ * CSS that can execute script in legacy clients or pull remote resources
+ * outside the message. A `<style>` block or `style` attribute containing any
+ * of these is dropped entirely.
+ */
+const UNSAFE_CSS = /expression\s*\(|javascript\s*:|vbscript\s*:|@import|behavior\s*:|-moz-binding|<\s*\/?\s*(?:script|style)/i;
+const SAFE_DATA_IMAGE = /^data:image\/(?:png|jpe?g|gif|webp);base64,/i;
+
 /**
  * Allowlist-based HTML sanitizer configuration for outbound email bodies.
+ *
+ * The allowlist covers the markup that email designers (Unlayer and
+ * hand-written templates) rely on: `<style>` blocks for responsive layout,
+ * table layout attributes (bgcolor, align, valign, role, background,
+ * cellpadding, ...) and legacy presentational tags such as `<center>` and
+ * `<font>`. Scripts, frames, forms, event handlers and `javascript:` URLs
+ * stay blocked, and CSS is filtered for script-capable constructs.
+ *
  * `sanitize-html` is a hard runtime dependency: there is deliberately no
- * regex fallback, because a partial regex sweep is not a sanitizer and would
- * give a false sense of safety. If the dependency is missing the module fails
- * to load, which fails closed.
+ * regex fallback. If the dependency is missing the module fails to load,
+ * which fails closed.
  */
 const HTML_SANITIZE_OPTIONS = {
   allowedTags: [
-    'html', 'body', 'head', 'title', 'meta',
+    'html', 'body', 'head', 'title', 'meta', 'style',
     'div', 'span', 'p', 'br', 'hr', 'a', 'img',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'strong', 'em', 'b', 'i', 'u',
-    'ul', 'ol', 'li',
-    'table', 'thead', 'tbody', 'tr', 'td', 'th',
-    'blockquote', 'code', 'pre',
+    'strong', 'em', 'b', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark',
+    'small', 'sup', 'sub', 'abbr', 'cite', 'q', 'font', 'center',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'table', 'caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
+    'blockquote', 'code', 'pre', 'address', 'figure', 'figcaption',
   ],
+  // `<style>` is allowed on purpose (email layout depends on it). Its
+  // content is filtered by `exclusiveFilter` below.
+  allowVulnerableTags: true,
+  nonTextTags: ['script', 'textarea', 'option', 'noscript'],
   allowedAttributes: {
-    '*': ['style', 'class', 'id'],
-    a: ['href', 'title', 'target', 'rel'],
-    img: ['src', 'alt', 'width', 'height'],
-    table: ['border', 'cellspacing', 'cellpadding', 'width'],
-    td: ['colspan', 'rowspan', 'align', 'valign', 'width'],
-    th: ['colspan', 'rowspan', 'align', 'valign', 'width'],
+    '*': [
+      'style', 'class', 'id', 'align', 'valign', 'bgcolor', 'dir', 'lang', 'role',
+      'title', 'width', 'height', 'aria-*',
+    ],
+    html: ['xmlns', 'xmlns:v', 'xmlns:o'],
+    a: ['href', 'target', 'rel', 'name'],
+    img: ['src', 'alt', 'border'],
+    table: ['border', 'cellspacing', 'cellpadding', 'background', 'summary'],
+    td: ['colspan', 'rowspan', 'background', 'nowrap'],
+    th: ['colspan', 'rowspan', 'background', 'nowrap', 'scope'],
+    col: ['span'],
+    colgroup: ['span'],
+    font: ['color', 'face', 'size'],
+    style: ['type', 'media'],
     // `meta http-equiv=refresh` enables redirect-based attacks, so it is
     // intentionally excluded from the meta allowlist.
     meta: ['name', 'content', 'charset'],
   },
   allowedSchemes: ['http', 'https', 'mailto', 'cid'],
-  allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
+  allowedSchemesByTag: { img: ['http', 'https', 'cid', 'data'] },
+  allowedSchemesAppliedToAttributes: ['href', 'src', 'cite', 'background'],
   allowProtocolRelative: false,
   disallowedTagsMode: 'discard',
+  exclusiveFilter: (frame) => frame.tag === 'style' && UNSAFE_CSS.test(frame.text || ''),
+  transformTags: {
+    '*': (tagName, attribs) => {
+      const next = { ...attribs };
+      if (typeof next.style === 'string' && UNSAFE_CSS.test(next.style)) delete next.style;
+      if (tagName === 'img' && typeof next.src === 'string'
+        && /^\s*data:/i.test(next.src) && !SAFE_DATA_IMAGE.test(next.src.trim())) {
+        delete next.src;
+      }
+      return { tagName, attribs: next };
+    },
+  },
 };
+
+/** Custom header names callers may set besides `X-*` (case-insensitive). */
+const ALLOWED_CUSTOM_HEADERS = new Map([
+  ['list-id', 'List-Id'],
+  ['precedence', 'Precedence'],
+  ['auto-submitted', 'Auto-Submitted'],
+  ['in-reply-to', 'In-Reply-To'],
+  ['references', 'References'],
+]);
+/** `X-*` headers that only MagicMail itself sets. */
+const RESERVED_X_HEADERS = new Set([
+  'x-mailer', 'x-email-type', 'x-priority', 'x-entity-ref-id', 'x-content-type-options',
+]);
 
 /**
  * Strips CR/LF from a string to prevent SMTP header injection.
@@ -49,39 +131,396 @@ function stripHeaderInjection(value) {
   return value.replace(/[\r\n]/g, '').trim();
 }
 
-const PROTECTED_HEADERS = new Set([
-  'from', 'to', 'cc', 'bcc', 'subject', 'reply-to', 'sender',
-  'list-unsubscribe', 'list-unsubscribe-post', 'message-id', 'date',
-  'content-type', 'content-transfer-encoding',
-]);
+/**
+ * Creates an error that marks invalid caller input. Uses Strapi's
+ * ValidationError when available so Content-API callers receive a 400.
+ *
+ * @param {string} message - Client-safe message without personal data
+ * @returns {Error}
+ */
+function validationError(message) {
+  let error;
+  try {
+    // eslint-disable-next-line global-require
+    const { errors } = require('@strapi/utils');
+    error = new errors.ValidationError(message);
+  } catch {
+    error = new Error(message);
+    error.name = 'ValidationError';
+  }
+  error.code = 'MAGIC_MAIL_VALIDATION';
+  return error;
+}
 
-const MAX_TO_RECIPIENTS = 100;
-const MAX_COPY_RECIPIENTS = 50;
-const MAX_RECIPIENT_ADDRESS_LENGTH = 320;
-const MAX_RECIPIENT_LIST_LENGTH = 4000;
+/**
+ * Creates an error for an account that cannot send (missing or unreadable
+ * credentials). Such errors never reach a provider, so failover is safe.
+ *
+ * @param {string} message
+ * @returns {Error}
+ */
+function accountConfigError(message) {
+  const error = new Error(message);
+  error.code = 'MAGIC_MAIL_ACCOUNT_CONFIG';
+  return error;
+}
 
-function mergeSafeHeaders(target, source) {
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+/**
+ * Creates the error for a non-success provider HTTP response. Status codes
+ * that guarantee non-acceptance are marked retryable for failover.
+ *
+ * @param {string} provider
+ * @param {number} status
+ * @returns {Error}
+ */
+function providerHttpError(provider, status) {
+  const error = new Error(`${provider} API request failed: ${status}`);
+  error.status = status;
+  error.magicMailRetryable = RETRYABLE_HTTP_STATUS.has(status);
+  return error;
+}
 
-  for (const [rawName, rawValue] of Object.entries(source)) {
-    const name = stripHeaderInjection(rawName);
-    const value = stripHeaderInjection(rawValue);
-    const lower = name.toLowerCase();
+/**
+ * Returns true when a send error guarantees that no provider accepted the
+ * message, so trying the next account cannot cause duplicate delivery.
+ *
+ * @param {*} error
+ * @returns {boolean}
+ */
+function isSafeToRetry(error) {
+  if (!error || typeof error !== 'object') return false;
+  if (error.code === 'MAGIC_MAIL_VALIDATION') return false;
+  if (error.magicMailRetryable === true) return true;
+  if (RETRYABLE_ERROR_CODES.has(error.code)) return true;
+  return Boolean(error.cause && RETRYABLE_ERROR_CODES.has(error.cause.code));
+}
 
-    if (!name || !value || name.length > 128 || value.length > 4000) continue;
-    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)) continue;
-    if (PROTECTED_HEADERS.has(lower) || ['__proto__', 'prototype', 'constructor'].includes(lower)) continue;
+/** @returns {Function} nodemailer's RFC 5322 address parser */
+function getAddressParser() {
+  // eslint-disable-next-line global-require
+  const parser = require('nodemailer/lib/addressparser');
+  return parser.default || parser;
+}
 
-    target[name] = value;
+/**
+ * Parses an address header value with RFC 5322 rules (the same parser the
+ * transports use), flattening groups.
+ *
+ * @param {*} value - String, array of strings, or `{ name, address }` objects
+ * @returns {{name: string, address: string, group?: boolean}[]}
+ */
+function parseAddressList(value) {
+  if (value === undefined || value === null || value === '') return [];
+  const items = Array.isArray(value) ? value : [value];
+  const out = [];
+  const parse = getAddressParser();
+  for (const item of items) {
+    if (item && typeof item === 'object' && typeof item.address === 'string') {
+      out.push({ name: stripHeaderInjection(item.name || ''), address: item.address.trim() });
+      continue;
+    }
+    if (typeof item !== 'string') {
+      out.push({ name: '', address: '', invalid: true });
+      continue;
+    }
+    for (const entry of parse(stripHeaderInjection(item))) {
+      if (Array.isArray(entry.group)) {
+        out.push({ name: entry.name || '', address: '', group: true });
+        continue;
+      }
+      out.push({ name: entry.name || '', address: (entry.address || '').trim() });
+    }
+  }
+  return out;
+}
+
+/**
+ * Returns the bare, lower-cased addresses of a recipient value.
+ * @param {*} value
+ * @returns {string[]}
+ */
+function listAddresses(value) {
+  return parseAddressList(value)
+    .map((entry) => entry.address.toLowerCase())
+    .filter((address) => address.length > 0);
+}
+
+/**
+ * Parses exactly one mailbox. Returns null for groups, lists, or anything the
+ * transport would not interpret as a single valid address.
+ *
+ * @param {*} value
+ * @returns {{name: string, address: string}|null}
+ */
+function parseSingleMailbox(value) {
+  const entries = parseAddressList(value);
+  if (entries.length !== 1) return null;
+  const [entry] = entries;
+  if (entry.group || entry.invalid || !EMAIL_PATTERN.test(entry.address)) return null;
+  return { name: stripHeaderInjection(entry.name), address: entry.address };
+}
+
+/**
+ * Formats a mailbox for APIs that take a single header string (Mailgun).
+ * @param {{name?: string, address: string}} mailbox
+ * @returns {string}
+ */
+function formatAddress(mailbox) {
+  const name = stripHeaderInjection(mailbox.name || '');
+  if (!name) return mailbox.address;
+  return `"${name.replace(/["\\]/g, '\\$&')}" <${mailbox.address}>`;
+}
+
+/**
+ * Compatibility helper: bare address of a single mailbox ('' if invalid).
+ * @param {*} value
+ * @returns {string}
+ */
+function extractEmailAddress(value) {
+  const mailbox = parseSingleMailbox(value);
+  return mailbox ? mailbox.address : '';
+}
+
+/**
+ * Returns true if a candidate sender is exactly one mailbox whose address
+ * equals the account's `fromEmail` (case-insensitive). Parsing uses the same
+ * RFC 5322 parser as the transports, so forms such as
+ * `"<allowed@x>" evil@y` or `evil@y (<allowed@x>)` are rejected.
+ *
+ * @param {*} candidate - Raw `from` value from the caller
+ * @param {string} accountFrom - Account's trusted fromEmail
+ * @returns {boolean}
+ */
+function isFromAllowed(candidate, accountFrom) {
+  if (!candidate) return true;
+  const mailbox = parseSingleMailbox(candidate);
+  const accountAddress = String(accountFrom || '').trim().toLowerCase();
+  return Boolean(mailbox && accountAddress && mailbox.address.toLowerCase() === accountAddress);
+}
+
+/**
+ * Builds the trusted sender mailbox for an account. The address always comes
+ * from the account; a caller display name is kept only when the caller's
+ * address matches the account.
+ *
+ * @param {object} account
+ * @param {*} candidate - Caller `from` value
+ * @param {string} [defaultName] - Plugin-settings display-name fallback
+ * @returns {{sender: {name: string, address: string}, rejected: boolean}}
+ */
+function resolveSender(account, candidate, defaultName) {
+  const address = String(account.fromEmail || '').trim();
+  let name = stripHeaderInjection(account.fromName || '') || stripHeaderInjection(defaultName || '');
+  let rejected = false;
+
+  if (candidate) {
+    const mailbox = parseSingleMailbox(candidate);
+    if (mailbox && mailbox.address.toLowerCase() === address.toLowerCase()) {
+      if (mailbox.name) name = mailbox.name;
+    } else {
+      rejected = true;
+    }
+  }
+
+  return { sender: { name, address }, rejected };
+}
+
+/**
+ * Validates a Reply-To value and returns it as mailbox objects.
+ *
+ * @param {*} value
+ * @returns {{name: string, address: string}[]|undefined}
+ * @throws {Error} ValidationError for an invalid address or too many entries
+ */
+function resolveReplyTo(value) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const entries = parseAddressList(value);
+  if (entries.length === 0 || entries.length > MAX_REPLY_TO) {
+    throw validationError('Invalid replyTo address');
+  }
+  return entries.map((entry) => {
+    if (entry.group || entry.invalid || !EMAIL_PATTERN.test(entry.address)) {
+      throw validationError('Invalid replyTo address');
+    }
+    return { name: stripHeaderInjection(entry.name), address: entry.address };
+  });
+}
+
+/**
+ * Decodes quoted-printable text into bytes.
+ * @param {string} input
+ * @returns {Buffer}
+ */
+function decodeQuotedPrintable(input) {
+  const cleaned = input.replace(/=\r?\n/g, '');
+  const bytes = [];
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const char = cleaned[i];
+    if (char === '=' && /^[0-9A-Fa-f]{2}$/.test(cleaned.slice(i + 1, i + 3))) {
+      bytes.push(parseInt(cleaned.slice(i + 1, i + 3), 16));
+      i += 2;
+    } else {
+      bytes.push(...Buffer.from(char, 'utf-8'));
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+/**
+ * Converts attachment content into bytes, honouring `encoding`.
+ * @param {*} content
+ * @param {string} [encoding]
+ * @returns {Buffer}
+ */
+function decodeAttachmentContent(content, encoding) {
+  if (Buffer.isBuffer(content)) return content;
+  if (content instanceof Uint8Array) return Buffer.from(content);
+  if (typeof content !== 'string') {
+    throw validationError('Attachment content must be a string or Buffer');
+  }
+  switch (String(encoding || 'utf-8').toLowerCase()) {
+    case 'base64': return Buffer.from(content.replace(/\s+/g, ''), 'base64');
+    case 'hex': return Buffer.from(content, 'hex');
+    case 'binary':
+    case 'latin1': return Buffer.from(content, 'latin1');
+    case 'ascii': return Buffer.from(content, 'ascii');
+    case 'quoted-printable': return decodeQuotedPrintable(content);
+    case 'utf-8':
+    case 'utf8':
+    case '7bit':
+    case '8bit': return Buffer.from(content, 'utf-8');
+    default: throw validationError('Unsupported attachment encoding');
   }
 }
 
 /**
- * Returns true when the List-Unsubscribe header should be emitted for this
- * email. By RFC 8058 it is always safe to include for marketing mail. When
- * the admin has flipped `enableUnsubscribeHeader` in the plugin settings,
- * we also include it for transactional/notification mail so the end user
- * always has a one-click way to stop receiving messages.
+ * Normalizes attachments once for every provider: content becomes a Buffer,
+ * metadata is validated, and file-path / URL attachments are rejected so no
+ * provider adapter can read local files or fetch remote URLs.
+ *
+ * @param {*} list
+ * @returns {{filename?: string, content: Buffer, contentType: string, cid?: string}[]}
+ * @throws {Error} ValidationError for path/href attachments or invalid entries
+ */
+function normalizeAttachments(list) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw validationError('attachments must be an array');
+  if (list.length > MAX_ATTACHMENTS) throw validationError('Too many attachments');
+
+  return list.map((attachment, index) => {
+    if (!attachment || typeof attachment !== 'object') {
+      throw validationError('Invalid attachment');
+    }
+    if (attachment.path !== undefined || attachment.href !== undefined || attachment.raw !== undefined) {
+      throw validationError('File-path and URL attachments are not supported; pass the file content instead');
+    }
+    if (attachment.content === undefined || attachment.content === null) {
+      throw validationError('Attachment content is required');
+    }
+
+    const content = decodeAttachmentContent(attachment.content, attachment.encoding);
+    if (content.length > MAX_ATTACHMENT_BYTES) throw validationError('Attachment is too large');
+
+    let cid;
+    if (attachment.cid !== undefined && attachment.cid !== null && attachment.cid !== '') {
+      if (typeof attachment.cid !== 'string' || !/^[A-Za-z0-9._%+\-@]{1,128}$/.test(attachment.cid)) {
+        throw validationError('Invalid attachment content id');
+      }
+      cid = attachment.cid;
+    }
+
+    const contentType = typeof attachment.contentType === 'string'
+      && /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(attachment.contentType)
+      ? attachment.contentType
+      : 'application/octet-stream';
+
+    const filename = stripHeaderInjection(attachment.filename || '').slice(0, 255)
+      || (cid ? undefined : `attachment-${index + 1}`);
+
+    return { filename, content, contentType, cid };
+  });
+}
+
+/**
+ * Maps normalized attachments to nodemailer / MailComposer options. File and
+ * URL access stay disabled because only Buffers are passed.
+ *
+ * @param {Array} attachments
+ * @returns {Array}
+ */
+function toNodemailerAttachments(attachments) {
+  return normalizeAttachments(attachments).map((attachment) => ({
+    filename: attachment.filename,
+    content: attachment.content,
+    contentType: attachment.contentType,
+    ...(attachment.cid ? { cid: attachment.cid } : {}),
+    contentDisposition: attachment.cid ? 'inline' : 'attachment',
+  }));
+}
+
+/**
+ * Filters caller headers to the allowlist (`X-*` except plugin-owned ones,
+ * List-Id, Precedence, Auto-Submitted, In-Reply-To, References).
+ *
+ * @param {*} source
+ * @returns {Record<string, string>}
+ */
+function filterCustomHeaders(source) {
+  const out = {};
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return out;
+
+  let count = 0;
+  for (const [rawName, rawValue] of Object.entries(source)) {
+    if (count >= MAX_CUSTOM_HEADERS) break;
+    const name = stripHeaderInjection(rawName);
+    const value = stripHeaderInjection(typeof rawValue === 'string' ? rawValue : '');
+    const lower = name.toLowerCase();
+
+    if (!name || !value || name.length > 128 || value.length > 4000) continue;
+    if (!/^[A-Za-z0-9-]+$/.test(name)) continue;
+
+    let canonical = null;
+    if (ALLOWED_CUSTOM_HEADERS.has(lower)) canonical = ALLOWED_CUSTOM_HEADERS.get(lower);
+    else if (lower.startsWith('x-') && !RESERVED_X_HEADERS.has(lower)) canonical = name;
+    if (!canonical) continue;
+
+    out[canonical] = value;
+    count += 1;
+  }
+  return out;
+}
+
+/**
+ * Merges allowed caller headers with MagicMail's own headers. MagicMail's
+ * headers always win, compared case-insensitively.
+ *
+ * @param {Record<string, string>} pluginHeaders
+ * @param {*} customSource
+ * @returns {Record<string, string>}
+ */
+function mergeHeaders(pluginHeaders, customSource) {
+  const taken = new Set(Object.keys(pluginHeaders).map((key) => key.toLowerCase()));
+  const merged = {};
+  for (const [name, value] of Object.entries(filterCustomHeaders(customSource))) {
+    if (!taken.has(name.toLowerCase())) merged[name] = value;
+  }
+  return { ...merged, ...pluginHeaders };
+}
+
+/**
+ * Backwards-compatible in-place variant of {@link mergeHeaders}.
+ * @param {Record<string, string>} target
+ * @param {*} source
+ */
+function mergeSafeHeaders(target, source) {
+  const merged = mergeHeaders({ ...target }, source);
+  Object.assign(target, merged);
+}
+
+/**
+ * Returns true when the List-Unsubscribe header should be emitted: always for
+ * marketing mail, for other types only when the admin enabled
+ * `enableUnsubscribeHeader`.
  *
  * @param {object} emailData
  * @returns {boolean}
@@ -93,100 +532,181 @@ function shouldEmitUnsubscribe(emailData) {
 }
 
 /**
- * Parses an RFC-5322-style address ("Display Name" <user@domain>) and
- * returns the bare e-mail portion, or the trimmed input if no angle
- * brackets are present. Returns empty string for non-strings.
- * @param {*} value
- * @returns {string}
+ * Resolves the unsubscribe URL for this message. `{{email}}` is replaced with
+ * the URL-encoded recipient when there is exactly one recipient; with several
+ * recipients a per-recipient URL is impossible, so no header is emitted.
+ *
+ * @param {object} emailData
+ * @returns {string|null}
  */
-function extractEmailAddress(value) {
-  if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (trimmed.includes('<')) {
-    const match = trimmed.match(/<([^>]+)>/);
-    return match ? match[1].trim() : trimmed;
+function resolveUnsubscribeUrl(emailData) {
+  const raw = emailData && emailData.unsubscribeUrl;
+  if (!raw || typeof raw !== 'string') return null;
+  let url = raw.trim();
+  if (url.includes('{{email}}')) {
+    const recipients = listAddresses(emailData.to);
+    if (recipients.length !== 1) return null;
+    url = url.split('{{email}}').join(encodeURIComponent(recipients[0]));
   }
-  return trimmed;
+  if (/[\s<>"]/.test(url)) return null;
+  try {
+    const { protocol } = new URL(url);
+    if (!['https:', 'http:', 'mailto:'].includes(protocol)) return null;
+  } catch {
+    return null;
+  }
+  return url;
 }
 
 /**
- * Returns true if a candidate sender matches an account's configured
- * `fromEmail`. The display name may differ, but the bare address must
- * match exactly (case-insensitive). Used to prevent callers of /send
- * from choosing an arbitrary `from` header while still allowing their
- * own formatting like `"Custom Display" <account@domain>`.
+ * List-Unsubscribe headers (RFC 2369 / RFC 8058). One-Click is only
+ * announced for https URLs, as RFC 8058 requires.
  *
- * @param {string} candidate - Raw `from` value from the caller
- * @param {string} accountFrom - Account's trusted fromEmail
+ * @param {object} emailData
+ * @returns {Record<string, string>}
+ */
+function unsubscribeHeaders(emailData) {
+  if (!shouldEmitUnsubscribe(emailData)) return {};
+  const url = resolveUnsubscribeUrl(emailData);
+  if (!url) return {};
+  const headers = { 'List-Unsubscribe': `<${url}>` };
+  if (url.toLowerCase().startsWith('https:')) {
+    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+  return headers;
+}
+
+/**
+ * Builds the complete header set every provider adapter sends: MagicMail's
+ * classification/priority headers, unsubscribe headers, and the allowed
+ * caller headers.
+ *
+ * @param {object} emailData
+ * @returns {Record<string, string>}
+ */
+function buildOutboundHeaders(emailData) {
+  const type = EMAIL_TYPES.includes(emailData.type) ? emailData.type : 'transactional';
+  const headers = {
+    'X-Mailer': 'MagicMail/1.0',
+    'X-Email-Type': type,
+  };
+  if (emailData.priority === 'high') {
+    headers['X-Priority'] = '1 (Highest)';
+    headers.Importance = 'high';
+  } else if (emailData.priority === 'low') {
+    headers['X-Priority'] = '5 (Lowest)';
+    headers.Importance = 'low';
+  }
+  if (type === 'notification') headers['Auto-Submitted'] = 'auto-generated';
+
+  const unsubscribe = unsubscribeHeaders(emailData);
+  Object.assign(headers, unsubscribe);
+  if (type === 'marketing' && unsubscribe['List-Unsubscribe']) headers.Precedence = 'bulk';
+
+  return mergeHeaders(headers, emailData.headers);
+}
+
+/**
+ * Sender mailbox for an adapter. Re-applies alignment so adapters that are
+ * called directly can never send from a foreign address.
+ *
+ * @param {object} account
+ * @param {object} emailData
+ * @returns {{name: string, address: string}}
+ */
+function senderFor(account, emailData) {
+  return resolveSender(account, emailData.from).sender;
+}
+
+/** @returns {string} Message-ID for the account's domain */
+function createMessageId(account) {
+  const domain = String(account.fromEmail || '').split('@')[1] || 'localhost';
+  return `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
+}
+
+/**
+ * Decrypts an account secret, mapping failures to a non-sensitive
+ * account-configuration error (safe to fail over).
+ *
+ * @param {*} value
+ * @returns {object}
+ */
+function readAccountSecret(value) {
+  try {
+    return decryptCredentials(value) || {};
+  } catch {
+    throw accountConfigError('Account credentials could not be read. Please re-enter them.');
+  }
+}
+
+/**
+ * Returns true for loopback SMTP hosts (local mail catchers).
+ * @param {*} host
  * @returns {boolean}
  */
-function isFromAllowed(candidate, accountFrom) {
-  if (!candidate) return true; // caller didn't set from; we fall back to account.fromEmail
-  const c = extractEmailAddress(candidate).toLowerCase();
-  const a = (accountFrom || '').toLowerCase().trim();
-  return c.length > 0 && a.length > 0 && c === a;
+function isLoopbackHost(host) {
+  const value = String(host || '').trim().toLowerCase();
+  return value === 'localhost' || value === '::1' || value === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(value);
+}
+
+/**
+ * Current quota window keys. Windows are aligned to the clock hour and the
+ * calendar day in the configured time zone (default UTC), so restarts never
+ * shift or skip a reset.
+ *
+ * @param {Date} [date]
+ * @param {string} [timeZone]
+ * @returns {{day: string, hour: string}}
+ */
+function quotaWindowKeys(date = new Date(), timeZone = 'UTC') {
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timeZone || 'UTC',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+    }).formatToParts(date);
+  } catch {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+    }).formatToParts(date);
+  }
+  const get = (type) => (parts.find((part) => part.type === type) || {}).value;
+  const day = `${get('year')}-${get('month')}-${get('day')}`;
+  return { day, hour: `${day}T${get('hour')}` };
 }
 
 /**
  * Builds a complete RFC 822 MIME message for the API providers (Gmail and
- * Microsoft Graph) using nodemailer's MailComposer.
- *
- * This replaces hand-built MIME that dropped `Reply-To`, always labelled the
- * body as `text/html` (so text-only mail rendered as HTML), and re-encoded
- * base64 attachments as UTF-8. MailComposer emits a correct
- * multipart/alternative + multipart/mixed structure, honours attachment
- * encoding and inline CIDs, and folds headers per RFC.
+ * Microsoft Graph) using nodemailer's MailComposer. File and URL access are
+ * disabled; attachments are always in-memory Buffers.
  *
  * @param {object} account - Sending account (fromEmail/fromName/replyTo)
  * @param {object} emailData - Normalized, already-sanitized email payload
  * @returns {Promise<Buffer>} Raw MIME message
  */
 function buildRawMimeMessage(account, emailData) {
-  const MailComposer = require('nodemailer/lib/mail-composer');
-  const safeFromName = stripHeaderInjection(account.fromName || '');
-  const fromHeader = safeFromName
-    ? `"${safeFromName}" <${account.fromEmail}>`
-    : account.fromEmail;
+  // eslint-disable-next-line global-require
+  const MailComposerModule = require('nodemailer/lib/mail-composer');
+  const MailComposer = MailComposerModule.default || MailComposerModule;
 
-  const headers = {
-    'X-Mailer': 'MagicMail/1.0',
-    'X-Email-Type': emailData.type || 'transactional',
-  };
-  if (emailData.priority === 'high') {
-    headers['X-Priority'] = '1 (Highest)';
-    headers.Importance = 'high';
-  }
-  if (shouldEmitUnsubscribe(emailData)) {
-    headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-  }
-  mergeSafeHeaders(headers, emailData.headers);
-
-  const attachments = (emailData.attachments || [])
-    .filter((a) => a && (a.content !== undefined || a.path))
-    .map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      path: a.path,
-      contentType: a.contentType,
-      encoding: a.encoding,
-      cid: a.cid || undefined,
-      contentDisposition: a.cid ? 'inline' : 'attachment',
-    }));
+  const attachments = toNodemailerAttachments(emailData.attachments);
+  const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
 
   const mailOptions = {
-    from: emailData.from || fromHeader,
+    from: senderFor(account, emailData),
     to: emailData.to,
     cc: emailData.cc || undefined,
     bcc: emailData.bcc || undefined,
-    replyTo: emailData.replyTo || account.replyTo || undefined,
+    replyTo: replyTo || undefined,
     subject: stripHeaderInjection(emailData.subject),
     text: emailData.text || undefined,
     html: emailData.html || undefined,
-    headers,
+    headers: buildOutboundHeaders(emailData),
     attachments: attachments.length ? attachments : undefined,
-    messageId: `<${Date.now()}.${Math.random().toString(36).substring(2)}@${(account.fromEmail || '').split('@')[1] || 'localhost'}>`,
+    messageId: createMessageId(account),
     date: new Date(),
+    disableFileAccess: true,
+    disableUrlAccess: true,
   };
 
   return new Promise((resolve, reject) => {
@@ -207,1110 +727,837 @@ function buildRawMimeMessage(account, emailData) {
 }
 
 /**
- * Email Router Service
- * Smart routing of emails to appropriate accounts
- * Handles failover, rate limiting, and load balancing
+ * Shallow-copies the caller payload so `send()` never mutates the caller's
+ * object (reusing one object for several recipients must not leak the first
+ * recipient's tracking data into later mails).
+ *
+ * @param {object} input
+ * @returns {object}
  */
+function cloneEmailData(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw validationError('Email data must be an object');
+  }
+  const copy = { ...input };
+  for (const key of ['to', 'cc', 'bcc', 'attachments']) {
+    if (Array.isArray(copy[key])) copy[key] = [...copy[key]];
+  }
+  if (copy.headers && typeof copy.headers === 'object') copy.headers = { ...copy.headers };
+  return copy;
+}
 
+/**
+ * Email Router Service
+ * Routes each email to an account (routing rules, primary, priority order),
+ * enforces quotas atomically, fails over on errors that guarantee
+ * non-delivery, and records one delivery log per attempt.
+ */
 module.exports = ({ strapi }) => ({
   /**
-   * Send email with smart routing
-   * @param {Object} emailData - { to, from, cc, bcc, subject, text, html, replyTo, attachments, type, priority, templateId, templateData OR data }
+   * Send email with smart routing.
+   *
+   * @param {Object} input - { to, from, cc, bcc, subject, text, html, replyTo, attachments, type, priority, accountName, templateId, templateReferenceId, templateData | data, headers, unsubscribeUrl, enableTracking, skipLinkTracking, userId, recipientName }
+   * @param {Object} [options]
+   * @param {string} [options.accountDocumentId] - Send through exactly this account (no failover)
+   * @param {boolean} [options.allowInactive] - With accountDocumentId: allow an inactive account (account test)
+   * @param {Function} [options.fallbackSend] - Called when no MagicMail account can take the message (native interception)
+   * @param {string} [options.source] - Caller identifier ('strapi-email', 'content-api', ...)
    * @returns {Promise<Object>} Send result
    */
-  async send(emailData) {
-    let {
-      to,
-      from,
-      cc,
-      bcc,
-      subject,
-      text,
-      html,
-      replyTo,
-      attachments = [],       // Array of attachment objects
-      type = 'transactional', // transactional, marketing, notification
-      priority = 'normal',    // high, normal, low
-      accountName = null,     // Force specific account
-      templateId = null,      // Template Reference ID
-      templateData,           // Data for template rendering
-      data,                   // Alias for templateData (for native Strapi compatibility)
-      skipLinkTracking = false, // Skip link rewriting for sensitive URLs (e.g., Magic Links)
-    } = emailData;
+  async send(input, options = {}) {
+    const data = cloneEmailData(input);
+    const source = options.source || 'service';
 
-    // Support both 'data' and 'templateData' for backward compatibility
-    if (!templateData && data) {
-      templateData = data;
+    if (!data.templateData && data.data) data.templateData = data.data;
+
+    if (!data.to || (typeof data.to === 'string' && data.to.trim().length === 0)) {
+      throw validationError('Recipient email address (to) is required');
     }
 
-    // Validate required fields
-    if (!to || (typeof to === 'string' && to.trim().length === 0)) {
-      throw new Error('Recipient email address (to) is required');
-    }
-
-    // Normalize email addresses (RFC 5321: domain part is case-insensitive)
+    // Normalize addresses (RFC 5321: the domain part is case-insensitive).
     const normalizeAddr = (addr) => {
-      if (!addr) return addr;
-      if (typeof addr === 'string') {
-        // Handle display name format: "John <john@example.com>"
-        if (addr.includes('<') && addr.includes('>')) {
-          return addr.replace(/<([^>]+)>/, (_, email) => `<${email.trim().toLowerCase()}>`);
-        }
-        return addr.trim().toLowerCase();
+      if (typeof addr !== 'string') return addr;
+      if (addr.includes('<') && addr.includes('>')) {
+        return addr.replace(/<([^>]+)>/, (_, email) => `<${email.trim().toLowerCase()}>`);
       }
-      return addr;
+      return addr.trim().toLowerCase();
     };
-
-    const normalizeAddrs = (val) => {
-      if (!val) return val;
-      if (Array.isArray(val)) {
-        return val.map(a => normalizeAddr(a));
+    const normalizeAddrs = (value) => {
+      if (!value) return value;
+      if (Array.isArray(value)) return value.map(normalizeAddr);
+      if (typeof value === 'string' && value.includes(',')) {
+        return value.split(',').map(normalizeAddr).join(', ');
       }
-      if (typeof val === 'string' && val.includes(',')) {
-        return val.split(',').map(a => normalizeAddr(a)).join(', ');
-      }
-      return normalizeAddr(val);
+      return normalizeAddr(value);
     };
+    data.to = normalizeAddrs(data.to);
+    if (data.cc) data.cc = normalizeAddrs(data.cc);
+    if (data.bcc) data.bcc = normalizeAddrs(data.bcc);
 
-    to = normalizeAddrs(to);
-    from = normalizeAddr(from);
-    replyTo = normalizeAddr(replyTo);
-    if (cc) cc = normalizeAddrs(cc);
-    if (bcc) bcc = normalizeAddrs(bcc);
-
-    // Sync back to emailData so all downstream methods get normalized values
-    emailData.to = to;
-    emailData.from = from;
-    emailData.replyTo = replyTo;
-    emailData.cc = cc;
-    emailData.bcc = bcc;
-
-    // Debug log for skipLinkTracking
-    if (skipLinkTracking) {
-      strapi.log.info('[magic-mail] [SKIP-TRACK] Link tracking disabled for this email');
+    if (data.skipLinkTracking) {
+      strapi.log.debug('[magic-mail] [SKIP-TRACK] Link tracking disabled for this email');
     }
 
-    // NEW: If templateId/templateReferenceId provided, render template
+    // Template rendering (templateId or templateReferenceId).
     let renderedTemplate = null;
-    if (templateId || emailData.templateReferenceId) {
-      try {
-        let resolvedTemplateReferenceId = null;
-        let templateRecord = null;
-
-        if (emailData.templateReferenceId) {
-          resolvedTemplateReferenceId = String(emailData.templateReferenceId).trim();
-          strapi.log.info(`[magic-mail] [TEMPLATE] Using provided templateReferenceId="${resolvedTemplateReferenceId}"`);
-        }
-
-        if (!resolvedTemplateReferenceId && templateId) {
-          const numericTemplateId = Number(templateId);
-
-          if (!Number.isNaN(numericTemplateId) && Number.isInteger(numericTemplateId)) {
-            strapi.log.info(`[magic-mail] [CHECK] Looking up template by ID: ${numericTemplateId}`);
-            templateRecord = await strapi
-              .plugin('magic-mail')
-              .service('email-designer')
-              .findOne(numericTemplateId);
-
-            if (!templateRecord) {
-              strapi.log.error(`[magic-mail] [ERROR] Template with ID ${numericTemplateId} not found in database`);
-              throw new Error(`Template with ID ${numericTemplateId} not found`);
-            }
-
-            if (!templateRecord.templateReferenceId) {
-              throw new Error(`Template ${numericTemplateId} has no reference ID set`);
-            }
-
-            resolvedTemplateReferenceId = String(templateRecord.templateReferenceId).trim();
-            strapi.log.info(
-              `[magic-mail] [SUCCESS] Found template: ID=${templateRecord.id}, referenceId="${resolvedTemplateReferenceId}", name="${templateRecord.name}"`
-            );
-          } else {
-            // templateId was provided but not numeric; treat it directly as reference ID
-            resolvedTemplateReferenceId = String(templateId).trim();
-            strapi.log.info(`[magic-mail] [TEMPLATE] Treating templateId value as referenceId="${resolvedTemplateReferenceId}"`);
-          }
-        }
-
-        if (!resolvedTemplateReferenceId) {
-          throw new Error('No template reference ID could be resolved');
-        }
-
-        // Now render using the templateReferenceId
-        renderedTemplate = await strapi
-          .plugin('magic-mail')
-          .service('email-designer')
-          .renderTemplate(resolvedTemplateReferenceId, templateData || {});
-
-        // Override with rendered content
-        html = renderedTemplate.html;
-        text = renderedTemplate.text;
-        subject = subject || renderedTemplate.subject; // Use provided subject or template subject
-        type = type || renderedTemplate.category; // Use template category if not specified
-
-        strapi.log.info(
-          `[magic-mail] [EMAIL] Rendered template reference "${resolvedTemplateReferenceId}" (requested ID: ${templateId ?? 'n/a'}): ${renderedTemplate.templateName}`
-        );
-
-        // Ensure templateId/templateName are populated for logging/analytics
-        emailData.templateReferenceId = resolvedTemplateReferenceId;
-        if (!emailData.templateName) {
-          emailData.templateName = templateRecord?.name || renderedTemplate.templateName;
-        }
-      } catch (error) {
-        strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
-        throw new Error(`Template rendering failed: ${error.message}`);
-      }
+    if (data.templateId || data.templateReferenceId) {
+      renderedTemplate = await this.renderTemplateFor(data);
+      data.html = renderedTemplate.html;
+      data.text = renderedTemplate.text;
+      data.subject = data.subject || renderedTemplate.subject;
     }
 
-    // Load global plugin settings once and apply three classes of defaults:
-    //  1. Sender identity — `defaultFromName` / `defaultFromEmail` fill gaps
-    //     when the caller or account don't supply them.
-    //  2. Unsubscribe handling — `unsubscribeUrl` + `enableUnsubscribeHeader`
-    //     control whether List-Unsubscribe is emitted for ALL emails (opt-in)
-    //     or only for `type: marketing` (default off).
-    //  3. Tracking — link/open tracking toggles (already implemented).
-    const settingsService = strapi.plugin('magic-mail').service('plugin-settings');
-    const pluginSettings = (await settingsService.getSettings()) || {};
+    // Email type: explicit caller type, else the template category, else
+    // transactional. (A destructuring default used to hide the category.)
+    if (!EMAIL_TYPES.includes(data.type)) {
+      data.type = renderedTemplate && EMAIL_TYPES.includes(renderedTemplate.category)
+        ? renderedTemplate.category
+        : 'transactional';
+    }
+    if (!PRIORITIES.includes(data.priority)) data.priority = 'normal';
 
-    // Sender-identity fallback chain:
-    //   emailData.from > account.fromName/fromEmail > pluginSettings defaults
-    if (!emailData.from) {
-      const nameCandidate = pluginSettings.defaultFromName || null;
-      const emailCandidate = pluginSettings.defaultFromEmail || null;
-      if (emailCandidate) {
-        emailData.from = nameCandidate
-          ? `${stripHeaderInjection(nameCandidate)} <${emailCandidate}>`
-          : emailCandidate;
-      }
+    let pluginSettings = {};
+    try {
+      pluginSettings = (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
+    } catch (error) {
+      strapi.log.warn('[magic-mail] Plugin settings unavailable; using defaults:', error?.name || 'Error');
     }
 
-    // Recipient name falls back to the sender's name so templates can use
-    // `{{recipient}}` variables where explicit recipientName was not given.
-    if (!emailData.fromName && pluginSettings.defaultFromName) {
-      emailData.fromName = pluginSettings.defaultFromName;
+    // Unsubscribe: per-email URL wins. The global URL and the "emit for every
+    // email type" behaviour both depend on `enableUnsubscribeHeader`.
+    const unsubscribeEnabled = pluginSettings.enableUnsubscribeHeader === true;
+    if (!data.unsubscribeUrl && unsubscribeEnabled && pluginSettings.unsubscribeUrl) {
+      data.unsubscribeUrl = pluginSettings.unsubscribeUrl;
+    }
+    data.__forceUnsubscribe = unsubscribeEnabled;
+    if (data.type === 'marketing' && !resolveUnsubscribeUrl(data)) {
+      strapi.log.warn('[magic-mail] Marketing email without a usable unsubscribe URL; List-Unsubscribe is not sent');
     }
 
-    // Unsubscribe URL fallback: per-email wins, then plugin global.
-    if (!emailData.unsubscribeUrl && pluginSettings.unsubscribeUrl) {
-      emailData.unsubscribeUrl = pluginSettings.unsubscribeUrl;
+    // Reject invalid input before anything is logged or dispatched.
+    data.replyTo = resolveReplyTo(data.replyTo);
+    data.attachments = normalizeAttachments(data.attachments);
+    this.validateEmailSecurity(data);
+
+    // One delivery log per attempt, whether or not tracking is enabled.
+    const emailLog = await this.createDeliveryLog(data, renderedTemplate, source);
+    const trackingEnabled = data.enableTracking !== false;
+    if (emailLog && trackingEnabled && data.html) {
+      data.html = await this.applyTracking(data, emailLog, pluginSettings);
     }
 
-    // If the admin opted in to always-emit List-Unsubscribe, tag the email
-    // so the per-provider renderers include the header even for non-marketing
-    // types. Default behavior (only marketing) stays unchanged.
-    const alwaysEmitUnsubscribe = pluginSettings.enableUnsubscribeHeader === true;
-    if (alwaysEmitUnsubscribe) {
-      emailData.__forceUnsubscribe = true;
-    }
-
-    // NEW: Email Tracking - Create log & inject tracking
-    let emailLog = null;
-    let recipientHash = null;
-    const enableTracking = emailData.enableTracking !== false; // Enabled by default
-
-    if (enableTracking && html) {
-      try {
-        const analyticsService = strapi.plugin('magic-mail').service('analytics');
-
-        const globalLinkTrackingEnabled = pluginSettings.enableLinkTracking !== false;
-        const globalOpenTrackingEnabled = pluginSettings.enableOpenTracking !== false;
-        
-        // Create email log entry
-        emailLog = await analyticsService.createEmailLog({
-          to,
-          userId: emailData.userId || null,
-          recipientName: emailData.recipientName || null,
-          subject,
-          // Use provided templateId/Name OR from renderedTemplate (if template was rendered here)
-          templateId: emailData.templateId || renderedTemplate?.templateReferenceId || null,
-          templateName: emailData.templateName || renderedTemplate?.templateName || null,
-          accountId: null, // Will be set after account selection
-          accountName: null,
-          metadata: {
-            type,
-            priority,
-            hasAttachments: attachments.length > 0,
-          },
-        });
-
-        recipientHash = analyticsService.generateRecipientHash(emailLog.emailId, to);
-
-        // Inject tracking pixel (open tracking) - only if globally enabled
-        if (globalOpenTrackingEnabled) {
-          html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
-        } else {
-          strapi.log.info(`[magic-mail] [STATS] Open tracking DISABLED globally`);
-        }
-
-        // Rewrite links for click tracking (unless explicitly disabled OR globally disabled)
-        // skipLinkTracking is useful for sensitive URLs like Magic Links, password resets, etc.
-        // where the original URL must remain intact for security/UX reasons
-        // Priority: per-email skipLinkTracking > global enableLinkTracking setting
-        const shouldTrackLinks = globalLinkTrackingEnabled && !skipLinkTracking;
-        
-        if (shouldTrackLinks) {
-          html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
-          strapi.log.info('[magic-mail] [STATS] Link tracking enabled for email');
-        } else if (!globalLinkTrackingEnabled) {
-          strapi.log.info('[magic-mail] [STATS] Link tracking disabled globally for email');
-        } else {
-          strapi.log.info('[magic-mail] [STATS] Link tracking disabled for this email');
-        }
-      } catch (error) {
-        strapi.log.error('[magic-mail] [WARNING] Tracking setup failed; continuing without tracking');
-        // Continue sending email even if tracking fails
-      }
-    }
-
-    // Update email data with tracked HTML
-    emailData.html = html;
-    emailData.text = text;
-    emailData.subject = subject;
+    const defaultFromName = pluginSettings.defaultFromName || '';
+    const attempted = [];
+    const skipped = [];
 
     try {
-      // Get account to use
-      const account = accountName
-        ? await this.getAccountByName(accountName)
-        : await this.selectAccount(type, priority, [], emailData);
+      const routing = await this.routeAndDispatch(data, {
+        ...options,
+        defaultFromName,
+        attempted,
+        skipped,
+        source,
+      });
 
-      if (!account) {
-        throw new Error('No email account available');
-      }
+      await this.markLog(emailLog, {
+        accountId: routing.account.documentId,
+        accountName: routing.account.name,
+        deliveredAt: new Date(),
+        deliveryStatus: 'sent',
+      }, { attempted, skipped });
 
-      this.enforceFromAlignment(account, emailData);
-
-      // Check rate limits
-      const canSend = await this.checkRateLimits(account);
-      if (!canSend) {
-        // Fail over to another eligible account. The fallback is quota-checked
-        // and dispatched through the SAME accounting path (stats + log) as the
-        // primary — previously it bypassed both.
-        const fallbackAccount = await this.selectAccount(type, priority, [account.documentId], emailData);
-        if (fallbackAccount && await this.checkRateLimits(fallbackAccount)) {
-          strapi.log.info('[magic-mail] Rate limit reached; using the configured fallback email account');
-          this.enforceFromAlignment(fallbackAccount, emailData);
-          return await this.dispatchAndRecord(fallbackAccount, emailData, emailLog);
-        }
-        throw new Error(`Rate limit exceeded on ${account.name} and no fallback available`);
-      }
-
-      return await this.dispatchAndRecord(account, emailData, emailLog);
+      strapi.log.info('[magic-mail] [SUCCESS] Email accepted by the provider');
+      return {
+        success: true,
+        accountUsed: routing.account.name,
+        messageId: routing.result?.messageId,
+        ...(emailLog?.emailId ? { emailId: emailLog.emailId } : {}),
+      };
     } catch (error) {
-      if (emailLog?.documentId) {
+      const fallbackAllowed = typeof options.fallbackSend === 'function'
+        && ['MAGIC_MAIL_NO_ACCOUNT', 'MAGIC_MAIL_QUOTA_EXHAUSTED'].includes(error?.code);
+
+      if (fallbackAllowed) {
+        strapi.log.warn('[magic-mail] No MagicMail account can send this email; using the Strapi email provider');
         try {
-          // The analytics row is created before dispatch for tracking-link
-          // correlation. Keep it visible, but never report a rejected attempt
-          // as sent.
-          await strapi.documents('plugin::magic-mail.email-log').update({
-            documentId: emailLog.documentId,
-            data: { deliveryStatus: 'failed' },
-          });
-        } catch (statusError) {
-          strapi.log.error('[magic-mail] [RECONCILE] Could not mark failed email attempt:', statusError?.name || 'Error');
+          const result = await options.fallbackSend();
+          await this.markLog(emailLog, {
+            accountName: 'strapi-email-provider',
+            deliveredAt: new Date(),
+            deliveryStatus: 'sent',
+          }, { attempted, skipped, fallback: 'strapi-email-provider' });
+          return {
+            success: true,
+            accountUsed: null,
+            fallback: 'strapi-email-provider',
+            messageId: result?.messageId,
+          };
+        } catch (fallbackError) {
+          await this.markLog(emailLog, { deliveryStatus: 'failed' }, { attempted, skipped, fallback: 'strapi-email-provider' });
+          strapi.log.error('[magic-mail] [ERROR] Strapi email provider fallback failed:', fallbackError?.name || 'Error');
+          throw fallbackError;
         }
       }
-      strapi.log.error('[magic-mail] [ERROR] Email send failed:', error?.name || 'Error');
 
+      await this.markLog(emailLog, { deliveryStatus: 'failed' }, { attempted, skipped });
+      strapi.log.error('[magic-mail] [ERROR] Email send failed:', error?.name || 'Error', error?.code || '');
       throw error;
     }
   },
 
   /**
-   * Select best account based on rules
+   * Renders the requested template and records its identity on `data`.
+   * @param {object} data - Working copy (mutated)
+   * @returns {Promise<object>} Rendered template
+   */
+  async renderTemplateFor(data) {
+    try {
+      let referenceId = data.templateReferenceId ? String(data.templateReferenceId).trim() : null;
+      let templateRecord = null;
+
+      if (!referenceId && data.templateId) {
+        const numericTemplateId = Number(data.templateId);
+        if (Number.isInteger(numericTemplateId)) {
+          templateRecord = await strapi.plugin('magic-mail').service('email-designer').findOne(numericTemplateId);
+          if (!templateRecord) throw new Error(`Template with ID ${numericTemplateId} not found`);
+          if (!templateRecord.templateReferenceId) {
+            throw new Error(`Template ${numericTemplateId} has no reference ID set`);
+          }
+          referenceId = String(templateRecord.templateReferenceId).trim();
+        } else {
+          referenceId = String(data.templateId).trim();
+        }
+      }
+      if (!referenceId) throw new Error('No template reference ID could be resolved');
+
+      const rendered = await strapi
+        .plugin('magic-mail')
+        .service('email-designer')
+        .renderTemplate(referenceId, data.templateData || {});
+
+      data.templateReferenceId = referenceId;
+      if (!data.templateName) data.templateName = templateRecord?.name || rendered.templateName;
+      strapi.log.debug('[magic-mail] [EMAIL] Template rendered');
+      return { ...rendered, templateReferenceId: referenceId };
+    } catch (error) {
+      strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
+      throw new Error(`Template rendering failed: ${error.message}`);
+    }
+  },
+
+  /**
+   * Creates the pending delivery log. A logging failure never blocks sending.
+   * @returns {Promise<object|null>}
+   */
+  async createDeliveryLog(data, renderedTemplate, source) {
+    try {
+      const analyticsService = strapi.plugin('magic-mail').service('analytics');
+      return await analyticsService.createEmailLog({
+        to: data.to,
+        userId: data.userId || null,
+        recipientName: data.recipientName || null,
+        subject: data.subject,
+        templateId: data.templateId || renderedTemplate?.templateReferenceId || null,
+        templateName: data.templateName || renderedTemplate?.templateName || null,
+        accountId: null,
+        accountName: null,
+        metadata: {
+          type: data.type,
+          priority: data.priority,
+          hasAttachments: data.attachments.length > 0,
+          tracking: data.enableTracking !== false && Boolean(data.html),
+          source,
+        },
+      });
+    } catch (error) {
+      strapi.log.warn('[magic-mail] Delivery log could not be created; sending without it:', error?.name || 'Error');
+      return null;
+    }
+  },
+
+  /**
+   * Injects the open pixel and rewrites links (subject to global settings).
+   * @returns {Promise<string>} Tracked HTML (original HTML on failure)
+   */
+  async applyTracking(data, emailLog, pluginSettings) {
+    let html = data.html;
+    try {
+      const analyticsService = strapi.plugin('magic-mail').service('analytics');
+      const recipientHash = analyticsService.generateRecipientHash(emailLog.emailId, data.to);
+
+      if (pluginSettings.enableOpenTracking !== false) {
+        html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
+      }
+      if (pluginSettings.enableLinkTracking !== false && !data.skipLinkTracking) {
+        html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
+      }
+      return html;
+    } catch (error) {
+      strapi.log.error('[magic-mail] [WARNING] Tracking setup failed; continuing without tracking:', error?.name || 'Error');
+      return data.html;
+    }
+  },
+
+  /**
+   * Updates the delivery log (best effort, never throws).
+   */
+  async markLog(emailLog, fields, routingInfo = {}) {
+    if (!emailLog?.documentId) return;
+    try {
+      const metadata = emailLog.metadata && typeof emailLog.metadata === 'object' ? emailLog.metadata : {};
+      const extra = {};
+      if (routingInfo.attempted?.length) extra.attemptedAccounts = [...routingInfo.attempted];
+      if (routingInfo.skipped?.length) extra.skippedAccounts = [...routingInfo.skipped];
+      if (routingInfo.fallback) extra.fallback = routingInfo.fallback;
+      await strapi.documents(EMAIL_LOG_UID).update({
+        documentId: emailLog.documentId,
+        data: Object.keys(extra).length ? { ...fields, metadata: { ...metadata, ...extra } } : fields,
+      });
+    } catch (error) {
+      strapi.log.error('[magic-mail] [RECONCILE] Email log update failed:', error?.name || 'Error');
+    }
+  },
+
+  /**
+   * Picks accounts in routing order and dispatches. Quota is reserved
+   * atomically per candidate; errors that guarantee non-acceptance move on to
+   * the next candidate. An explicitly requested account is never replaced.
+   *
+   * @param {object} data - Validated working copy
+   * @param {object} ctx - Options plus `attempted`/`skipped` collectors
+   * @returns {Promise<{account: object, result: object}>}
+   */
+  async routeAndDispatch(data, ctx) {
+    const explicitAccount = await this.resolveExplicitAccount(data, ctx);
+    const explicit = explicitAccount !== undefined;
+    const excluded = [];
+    let lastError = null;
+
+    for (let index = 0; index < MAX_ROUTING_CANDIDATES; index += 1) {
+      let account;
+      if (explicit) {
+        account = index === 0 ? explicitAccount : null;
+      } else {
+        // eslint-disable-next-line no-await-in-loop
+        account = await this.selectAccount(data.type, data.priority, [...excluded], data);
+      }
+      if (!account || (account.documentId && excluded.includes(account.documentId))) break;
+      excluded.push(account.documentId);
+
+      // eslint-disable-next-line no-await-in-loop
+      const reservation = await this.reserveQuota(account);
+      if (!reservation) {
+        ctx.skipped.push(account.name);
+        continue;
+      }
+
+      const { sender, rejected } = resolveSender(account, data.from, ctx.defaultFromName);
+      if (rejected) {
+        const message = '[magic-mail] Rejected from-override that does not match the sending account; using the account address';
+        if (ctx.source === 'strapi-email') strapi.log.debug(message);
+        else strapi.log.warn(message);
+      }
+      const attempt = { ...data, from: sender };
+
+      ctx.attempted.push(account.name);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const result = await this.sendViaAccount(account, attempt);
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await this.updateAccountStats(account.documentId, { countersReserved: reservation === 'reserved' });
+        } catch (error) {
+          strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error?.name || 'Error');
+        }
+        return { account, result };
+      } catch (error) {
+        // eslint-disable-next-line no-await-in-loop
+        if (reservation === 'reserved') await this.releaseQuota(account);
+        lastError = error;
+        if (!explicit && isSafeToRetry(error)) {
+          strapi.log.warn('[magic-mail] [FAILOVER] Account could not send; trying the next account:', error?.name || 'Error', error?.code || error?.status || '');
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (lastError) throw lastError;
+
+    if (ctx.skipped.length > 0) {
+      const error = new Error(explicit
+        ? 'The requested email account is over its sending quota'
+        : 'All eligible email accounts are over their sending quota');
+      error.code = 'MAGIC_MAIL_QUOTA_EXHAUSTED';
+      if (explicit) error.code = 'MAGIC_MAIL_ACCOUNT_QUOTA';
+      throw error;
+    }
+
+    const error = new Error('No email account available');
+    error.code = 'MAGIC_MAIL_NO_ACCOUNT';
+    throw error;
+  },
+
+  /**
+   * Resolves an explicitly requested account (accountDocumentId option or
+   * accountName). Returns undefined when routing should choose.
+   *
+   * @returns {Promise<object|undefined>}
+   * @throws {Error} When the requested account does not exist or is inactive
+   */
+  async resolveExplicitAccount(data, ctx) {
+    if (ctx.accountDocumentId) {
+      const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId: ctx.accountDocumentId });
+      if (!account || (!account.isActive && ctx.allowInactive !== true)) {
+        const error = new Error('The requested email account is not available');
+        error.code = 'MAGIC_MAIL_ACCOUNT_UNAVAILABLE';
+        throw error;
+      }
+      return account;
+    }
+    if (data.accountName) {
+      const account = await this.getAccountByName(data.accountName);
+      if (!account) {
+        const error = new Error('The requested email account is not available');
+        error.code = 'MAGIC_MAIL_ACCOUNT_UNAVAILABLE';
+        throw error;
+      }
+      return account;
+    }
+    return undefined;
+  },
+
+  /**
+   * Select the best account based on routing rules.
    * @param {string} type - Email type (transactional, marketing, notification)
    * @param {string} priority - Priority level (high, normal, low)
-   * @param {Array<string>} excludeDocumentIds - Array of documentIds to exclude from selection
+   * @param {Array<string>} excludeDocumentIds - Accounts to skip
    * @param {Object} emailData - Email data for routing rule matching
    * @returns {Promise<Object|null>} Selected account or null
    */
   async selectAccount(type, priority, excludeDocumentIds = [], emailData = {}) {
-    // Build filters - only add documentId exclusion if array has entries
     const filters = { isActive: true };
     if (excludeDocumentIds.length > 0) {
       filters.documentId = { $notIn: excludeDocumentIds };
     }
 
-    // Get all active accounts using Document Service
-    const accounts = await strapi.documents('plugin::magic-mail.email-account').findMany({
+    const accounts = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
       filters,
       sort: [{ priority: 'desc' }],
     });
+    if (!accounts || accounts.length === 0) return null;
 
-    if (!accounts || accounts.length === 0) {
-      return null;
-    }
-
-    // Get all active routing rules using Document Service
-    const allRules = await strapi.documents('plugin::magic-mail.routing-rule').findMany({
-      filters: {
-        isActive: true,
-      },
+    const allRules = await strapi.documents(ROUTING_RULE_UID).findMany({
+      filters: { isActive: true },
       sort: [{ priority: 'desc' }],
     });
 
-    // Check routing rules with different match types
-    for (const rule of allRules) {
-      let matches = false;
+    const byName = (name) => {
+      const wanted = String(name || '').toLowerCase();
+      return wanted ? accounts.find((a) => String(a.name || '').toLowerCase() === wanted) : undefined;
+    };
 
-      switch (rule.matchType) {
-        case 'emailType':
-          matches = rule.matchValue === type;
-          break;
-        
-        case 'recipient':
-          // Match if recipient email contains the match value
-          matches = emailData.to && emailData.to.toLowerCase().includes(rule.matchValue.toLowerCase());
-          break;
-        
-        case 'subject':
-          // Match if subject contains the match value
-          matches = emailData.subject && emailData.subject.toLowerCase().includes(rule.matchValue.toLowerCase());
-          break;
-        
-        case 'template':
-          // Match by resolved template name or reference id (the emailData
-          // carries `templateName`/`templateReferenceId`, never `template`).
-          matches = !!(emailData.templateName && emailData.templateName === rule.matchValue)
-            || !!(emailData.templateReferenceId
-              && String(emailData.templateReferenceId) === String(rule.matchValue));
-          break;
-        
-        case 'custom':
-          // Custom matching - evaluate matchValue as a condition
-          // For now, just exact match on a custom field
-          matches = emailData.customField && emailData.customField === rule.matchValue;
-          break;
+    for (const rule of allRules || []) {
+      if (!this.ruleMatches(rule, type, emailData)) continue;
+
+      const account = byName(rule.accountName);
+      if (account) {
+        strapi.log.debug('[magic-mail] [ROUTE] Email routing rule matched');
+        return account;
       }
-
-      if (matches) {
-        const account = accounts.find(a => a.name.toLowerCase() === rule.accountName.toLowerCase());
-        if (account) {
-          strapi.log.info('[magic-mail] [ROUTE] Email routing rule matched');
-          return account;
-        }
-        // If primary account not found, try fallback (case-insensitive name).
-        if (rule.fallbackAccountName) {
-          const fallbackAccount = accounts.find(
-            (a) => a.name.toLowerCase() === rule.fallbackAccountName.toLowerCase()
-          );
-          if (fallbackAccount) {
-            strapi.log.info('[magic-mail] [FALLBACK] Using configured fallback email account');
-            return fallbackAccount;
-          }
-        }
+      const fallbackAccount = byName(rule.fallbackAccountName);
+      if (fallbackAccount) {
+        strapi.log.debug('[magic-mail] [FALLBACK] Using the rule fallback account');
+        return fallbackAccount;
       }
     }
 
-    // Fallback: Use primary or first active account
-    const primaryAccount = accounts.find(a => a.isPrimary);
-    return primaryAccount || accounts[0];
+    return accounts.find((a) => a.isPrimary) || accounts[0];
   },
 
   /**
-   * Send email via specific account
+   * Evaluates one routing rule against the email.
+   *
+   * Recipient rules: a value starting with `@` matches any recipient whose
+   * address ends with it, a value containing `@` matches an exact address,
+   * any other value matches recipients whose address contains it.
+   *
+   * @param {object} rule
+   * @param {string} type
+   * @param {object} emailData
+   * @returns {boolean}
    */
+  ruleMatches(rule, type, emailData = {}) {
+    const value = String(rule.matchValue ?? '').trim();
+    if (!value) return false;
+    const lowerValue = value.toLowerCase();
+
+    switch (rule.matchType) {
+      case 'emailType':
+        return value === type;
+      case 'recipient': {
+        const recipients = listAddresses(emailData.to);
+        if (lowerValue.startsWith('@')) return recipients.some((r) => r.endsWith(lowerValue));
+        if (lowerValue.includes('@')) return recipients.some((r) => r === lowerValue);
+        return recipients.some((r) => r.includes(lowerValue));
+      }
+      case 'subject':
+        return typeof emailData.subject === 'string' && emailData.subject.toLowerCase().includes(lowerValue);
+      case 'template':
+        return Boolean(emailData.templateName && emailData.templateName === value)
+          || Boolean(emailData.templateReferenceId && String(emailData.templateReferenceId) === value);
+      case 'custom':
+        return emailData.customField !== undefined && emailData.customField !== null
+          && String(emailData.customField) === value;
+      default:
+        return false;
+    }
+  },
+
   /**
-   * Pins the outgoing `from` to the account's configured address to prevent
-   * sender spoofing and keep DMARC alignment. A custom display name is allowed
-   * only when the bare address still matches the account.
+   * Pins `from` to the account address (compatibility helper). Prefer the
+   * routing pipeline, which applies the same rule per attempt.
    *
    * @param {object} account
    * @param {object} emailData - mutated in place
    */
   enforceFromAlignment(account, emailData) {
-    if (!isFromAllowed(emailData.from, account.fromEmail)) {
-      if (emailData.from) {
-        strapi.log.warn(
-          `[magic-mail] Rejected from-override for account "${account.name}" — using account address`
-        );
-      }
-      emailData.from = account.fromName
-        ? `${stripHeaderInjection(account.fromName)} <${account.fromEmail}>`
-        : account.fromEmail;
+    const { sender, rejected } = resolveSender(account, emailData.from);
+    if (rejected) {
+      strapi.log.warn('[magic-mail] Rejected from-override that does not match the sending account; using the account address');
     }
+    emailData.from = sender;
   },
 
   /**
-   * Dispatches an email through an account and runs post-acceptance
-   * bookkeeping. Once `sendViaAccount` resolves the provider has accepted the
-   * message, so log/stats failures are reconciliation-only and never surface
-   * as a send failure (which historically caused duplicate delivery).
-   *
-   * @param {object} account
-   * @param {object} emailData
-   * @param {object|null} emailLog
-   * @returns {Promise<{success: boolean, accountUsed: string, messageId: string}>}
+   * Dispatches through one account and records the result (compatibility
+   * helper for callers that already picked an account).
    */
   async dispatchAndRecord(account, emailData, emailLog) {
     const result = await this.sendViaAccount(account, emailData);
-
-    if (emailLog) {
-      try {
-        await strapi.documents('plugin::magic-mail.email-log').update({
-          documentId: emailLog.documentId,
-          data: {
-            accountId: account.documentId,
-            accountName: account.name,
-            deliveredAt: new Date(),
-            deliveryStatus: 'sent',
-          },
-        });
-      } catch (error) {
-      strapi.log.error('[magic-mail] [RECONCILE] Post-send email log update failed (message already accepted):', error?.name || 'Error');
-      }
-    }
-
+    await this.markLog(emailLog, {
+      accountId: account.documentId,
+      accountName: account.name,
+      deliveredAt: new Date(),
+      deliveryStatus: 'sent',
+    });
     try {
       await this.updateAccountStats(account.documentId);
     } catch (error) {
       strapi.log.error('[magic-mail] [RECONCILE] Account stats update failed (message already accepted):', error?.name || 'Error');
     }
-
-    strapi.log.info('[magic-mail] [SUCCESS] Email accepted by the provider');
-
-    return {
-      success: true,
-      accountUsed: account.name,
-      messageId: result.messageId,
-    };
+    return { success: true, accountUsed: account.name, messageId: result.messageId };
   },
 
   async sendViaAccount(account, emailData) {
-    const { to, subject, text, html, replyTo, attachments } = emailData;
-
-    if (account.provider === 'gmail-oauth') {
-      return await this.sendViaGmailOAuth(account, emailData);
-    } else if (account.provider === 'microsoft-oauth') {
-      return await this.sendViaMicrosoftOAuth(account, emailData);
-    } else if (account.provider === 'yahoo-oauth') {
-      return await this.sendViaYahooOAuth(account, emailData);
-    } else if (account.provider === 'nodemailer' || account.provider === 'smtp') {
-      return await this.sendViaSMTP(account, emailData);
-    } else if (account.provider === 'sendgrid') {
-      return await this.sendViaSendGrid(account, emailData);
-    } else if (account.provider === 'mailgun') {
-      return await this.sendViaMailgun(account, emailData);
-    }
-
-    throw new Error(`Unsupported provider: ${account.provider}`);
+    if (account.provider === 'gmail-oauth') return this.sendViaGmailOAuth(account, emailData);
+    if (account.provider === 'microsoft-oauth') return this.sendViaMicrosoftOAuth(account, emailData);
+    if (account.provider === 'yahoo-oauth') return this.sendViaYahooOAuth(account, emailData);
+    if (account.provider === 'nodemailer' || account.provider === 'smtp') return this.sendViaSMTP(account, emailData);
+    if (account.provider === 'sendgrid') return this.sendViaSendGrid(account, emailData);
+    if (account.provider === 'mailgun') return this.sendViaMailgun(account, emailData);
+    throw accountConfigError(`Unsupported provider: ${account.provider}`);
   },
 
   /**
-   * Send via SMTP (Nodemailer)
-   * With enhanced security: DKIM, proper headers, TLS enforcement.
-   *
-   * Runs the same validateEmailSecurity() pass as every other provider so
-   * HTML sanitization, header-injection guards, and recipient-format checks
-   * apply uniformly to SMTP too.
+   * Send via SMTP (Nodemailer). TLS is required and certificates are
+   * verified. A per-account `allowInsecure: true` config flag disables both
+   * for local mail catchers; it is honoured only outside production or for
+   * loopback hosts.
    */
   async sendViaSMTP(account, emailData) {
-    // Apply the same content validation as the OAuth/API providers.
-    // Previously this step was only run in those paths, leaving SMTP open
-    // to <script>/<iframe> injection and invalid recipient formats.
     this.validateEmailSecurity(emailData);
 
-    const config = decryptCredentials(account.config);
+    const config = readAccountSecret(account.config);
+    const allowInsecure = config.allowInsecure === true
+      && (process.env.NODE_ENV !== 'production' || isLoopbackHost(config.host));
+    if (allowInsecure) {
+      strapi.log.warn('[magic-mail] SMTP account uses an insecure (non-TLS) connection; use only for local testing');
+    }
 
-    // Enhanced SMTP configuration with security features
     const transportConfig = {
       host: config.host,
       port: config.port || 587,
       secure: config.secure || false,
-      auth: {
-        user: config.user,
-        pass: config.pass,
-      },
-      // Security enhancements
-      requireTLS: true, // Enforce TLS encryption
+      ...(config.user || config.pass ? { auth: { user: config.user, pass: config.pass } } : {}),
+      requireTLS: !allowInsecure,
       tls: {
-        rejectUnauthorized: true, // Verify server certificates
-        minVersion: 'TLSv1.2', // Minimum TLS 1.2
+        rejectUnauthorized: !allowInsecure,
+        minVersion: 'TLSv1.2',
       },
       disableFileAccess: true,
       disableUrlAccess: true,
     };
 
-    // Add DKIM signing if configured
     if (config.dkim) {
       transportConfig.dkim = {
         domainName: config.dkim.domainName,
         keySelector: config.dkim.keySelector,
         privateKey: config.dkim.privateKey,
       };
-      strapi.log.info('[magic-mail] DKIM signing enabled');
     }
 
     const transporter = nodemailer.createTransport(transportConfig);
-
-    const safeSubject = stripHeaderInjection(emailData.subject);
-    const safeFromName = stripHeaderInjection(account.fromName || 'MagicMail');
-    const safeReplyTo = stripHeaderInjection(emailData.replyTo || account.replyTo || '');
+    const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
+    const headers = {
+      ...buildOutboundHeaders(emailData),
+      'X-Content-Type-Options': 'nosniff',
+      'X-Entity-Ref-ID': `magicmail-${Date.now()}`,
+    };
+    const attachments = toNodemailerAttachments(emailData.attachments);
 
     const mailOptions = {
-      from: emailData.from || `${safeFromName} <${account.fromEmail}>`,
+      from: senderFor(account, emailData),
       to: emailData.to,
       ...(emailData.cc && { cc: emailData.cc }),
       ...(emailData.bcc && { bcc: emailData.bcc }),
-      ...(safeReplyTo && { replyTo: safeReplyTo }),
-      subject: safeSubject,
+      ...(replyTo && { replyTo }),
+      subject: stripHeaderInjection(emailData.subject),
       text: emailData.text,
       html: emailData.html,
-      attachments: emailData.attachments || [],
+      attachments,
       disableFileAccess: true,
       disableUrlAccess: true,
-      
-      // RFC 5322 required headers
       date: new Date(),
-      messageId: `<${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
-      
-      // Security and deliverability headers (2025 standards)
-      headers: {
-        // Client identification (RFC 5321)
-        'X-Mailer': 'MagicMail/1.0',
-        
-        // Priority headers (RFC 2156)
-        'X-Priority': emailData.priority === 'high' ? '1 (Highest)' : '3 (Normal)',
-        'Importance': emailData.priority === 'high' ? 'high' : 'normal',
-        
-        // Email type classification
-        'X-Email-Type': emailData.type || 'transactional',
-        
-        // Auto-submitted header (RFC 3834) - prevents auto-responders from replying
-        'Auto-Submitted': emailData.type === 'notification' ? 'auto-generated' : 'no',
-        
-        // Content security (prevents MIME sniffing attacks)
-        'X-Content-Type-Options': 'nosniff',
-        
-        // Tracking and reference
-        'X-Entity-Ref-ID': `magicmail-${Date.now()}`,
-        
-        // Sender policy (helps with SPF validation)
-        'Sender': account.fromEmail,
-        
-        // Content transfer encoding recommendation
-        'Content-Transfer-Encoding': '8bit',
-      },
-      
-      // Encoding (UTF-8 for international characters)
+      messageId: createMessageId(account),
+      headers,
       encoding: 'utf-8',
-      
-      // Text encoding for proper character handling
       textEncoding: 'base64',
     };
 
-    // Add List-Unsubscribe header when appropriate (RFC 8058 - GDPR/CAN-SPAM).
-    // Marketing mail always gets it (+ Precedence: bulk). Transactional mail
-    // only gets it when the admin enabled `enableUnsubscribeHeader` globally.
-    if (shouldEmitUnsubscribe(emailData)) {
-      mailOptions.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-      mailOptions.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-      if (emailData.type === 'marketing') {
-        mailOptions.headers['Precedence'] = 'bulk';
-      }
-    } else if (emailData.type === 'marketing') {
-      strapi.log.warn(
-        '[magic-mail] Marketing email without unsubscribe URL — may violate GDPR/CAN-SPAM. ' +
-        'Set emailData.unsubscribeUrl or configure pluginSettings.unsubscribeUrl.'
-      );
-    }
-
-    // Add custom headers if provided
-    if (emailData.headers && typeof emailData.headers === 'object') {
-      mergeSafeHeaders(mailOptions.headers, emailData.headers);
-    }
-
-    if (mailOptions.attachments.length > 0) {
-      strapi.log.info(`[magic-mail] Sending email with ${mailOptions.attachments.length} attachment(s)`);
-    }
-
-    return await transporter.sendMail(mailOptions);
+    return transporter.sendMail(mailOptions);
   },
 
   /**
-   * Send via Gmail OAuth
-   * With enhanced security headers and proper formatting
+   * Refreshes an expired OAuth access token and stores it.
+   * @returns {Promise<string>} Current access token
    */
+  async currentOAuthToken(account, oauth, refresh) {
+    if (!oauth.expiresAt || new Date(oauth.expiresAt) >= new Date()) return oauth.accessToken;
+    if (!oauth.refreshToken) {
+      throw accountConfigError('Access token expired and no refresh token available. Please re-authenticate.');
+    }
+    try {
+      const newTokens = await refresh();
+      // eslint-disable-next-line global-require
+      const { encryptCredentials } = require('../utils/encryption');
+      await strapi.documents(EMAIL_ACCOUNT_UID).update({
+        documentId: account.documentId,
+        data: {
+          oauth: encryptCredentials({ ...oauth, accessToken: newTokens.accessToken, expiresAt: newTokens.expiresAt }),
+        },
+      });
+      return newTokens.accessToken;
+    } catch (refreshErr) {
+      strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
+      throw accountConfigError('Access token expired and refresh failed. Please re-authenticate this account.');
+    }
+  },
+
+  /** Send via the Gmail API (raw MIME). */
   async sendViaGmailOAuth(account, emailData) {
-    // Check if OAuth tokens are available
     if (!account.oauth) {
-      throw new Error('Gmail OAuth account not fully configured. Please complete the OAuth flow first.');
+      throw accountConfigError('Gmail OAuth account not fully configured. Please complete the OAuth flow first.');
     }
-
-    const oauth = decryptCredentials(account.oauth);
-    const config = decryptCredentials(account.config);
-
-    strapi.log.info('[magic-mail] Sending via Gmail OAuth');
-    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
-    strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
-    strapi.log.info(`[magic-mail] Has config.clientId: ${!!config.clientId}`);
-
+    const oauth = readAccountSecret(account.oauth);
+    const config = readAccountSecret(account.config);
     if (!oauth.email || !oauth.accessToken) {
-      throw new Error('Missing OAuth credentials. Please re-authenticate this account.');
+      throw accountConfigError('Missing OAuth credentials. Please re-authenticate this account.');
     }
-
     if (!config.clientId || !config.clientSecret) {
-      throw new Error('Missing OAuth client credentials.');
+      throw accountConfigError('Missing OAuth client credentials.');
     }
 
-    // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    // Check if token is expired and refresh if needed
-    let currentAccessToken = oauth.accessToken;
-    
-    if (oauth.expiresAt && new Date(oauth.expiresAt) < new Date()) {
-      strapi.log.info('[magic-mail] Access token expired, refreshing...');
-      
-      if (!oauth.refreshToken) {
-        throw new Error('Access token expired and no refresh token available. Please re-authenticate.');
-      }
-
-      try {
-        const oauthService = strapi.plugin('magic-mail').service('oauth');
-        const newTokens = await oauthService.refreshGmailTokens(
-          oauth.refreshToken,
-          config.clientId,
-          config.clientSecret
-        );
-        
-        currentAccessToken = newTokens.accessToken;
-        strapi.log.info('[magic-mail] [SUCCESS] Token refreshed successfully');
-        
-        // Update stored tokens
-        const { encryptCredentials } = require('../utils/encryption');
-        const updatedOAuth = encryptCredentials({
-          ...oauth,
-          accessToken: newTokens.accessToken,
-          expiresAt: newTokens.expiresAt,
-        });
-        
-        await strapi.documents('plugin::magic-mail.email-account').update({
-          documentId: account.documentId,
-          data: { oauth: updatedOAuth },
-        });
-      } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
-        throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
-      }
-    }
-
-    // Use Gmail API directly instead of SMTP with OAuth
-    strapi.log.info('[magic-mail] Using Gmail API to send email...');
+    const accessToken = await this.currentOAuthToken(account, oauth, () => strapi
+      .plugin('magic-mail').service('oauth')
+      .refreshGmailTokens(oauth.refreshToken, config.clientId, config.clientSecret));
 
     try {
-      // Build a correct RFC 822 message (Reply-To, multipart/alternative for
-      // text+html, honoured attachment encoding/CID) and base64url-encode it
-      // for the Gmail send endpoint.
       const rawMessage = await buildRawMimeMessage(account, emailData);
-      const encodedEmail = rawMessage.toString('base64url');
-
-      if ((emailData.attachments || []).length > 0) {
-        strapi.log.info(`[magic-mail] Email with ${emailData.attachments.length} attachment(s) prepared`);
-      }
-
-      // Send via Gmail API
       const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${currentAccessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          raw: encodedEmail,
-        }),
+        body: JSON.stringify({ raw: rawMessage.toString('base64url') }),
       });
-      
+
       if (!response.ok) {
         strapi.log.error('[magic-mail] Gmail API request failed:', response.status);
-        throw new Error(`Gmail API request failed: ${response.status}`);
+        throw providerHttpError('Gmail', response.status);
       }
-      
+
       const result = await response.json();
-      strapi.log.info('[magic-mail] [SUCCESS] Email sent via Gmail API');
-      
-      return {
-        messageId: result.id,
-        response: 'OK',
-      };
+      return { messageId: result.id, response: 'OK' };
     } catch (err) {
       strapi.log.error('[magic-mail] Gmail API send failed:', err?.name || 'Error');
       throw err;
     }
   },
 
-  /**
-   * Send via Microsoft OAuth (Outlook/Exchange Online)
-   * With enhanced security and Graph API best practices
-   */
+  /** Send via Microsoft Graph (MIME). */
   async sendViaMicrosoftOAuth(account, emailData) {
-    // Check if OAuth tokens are available
     if (!account.oauth) {
-      throw new Error('Microsoft OAuth account not fully configured. Please complete the OAuth flow first.');
+      throw accountConfigError('Microsoft OAuth account not fully configured. Please complete the OAuth flow first.');
     }
-
-    const oauth = decryptCredentials(account.oauth);
-    const config = decryptCredentials(account.config);
-
-    strapi.log.info('[magic-mail] Sending via Microsoft OAuth');
-    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
-    strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
-    strapi.log.info(`[magic-mail] Has config.clientId: ${!!config.clientId}`);
-
+    const oauth = readAccountSecret(account.oauth);
+    const config = readAccountSecret(account.config);
     if (!oauth.email || !oauth.accessToken) {
-      throw new Error('Missing OAuth credentials. Please re-authenticate this account.');
+      throw accountConfigError('Missing OAuth credentials. Please re-authenticate this account.');
     }
-
     if (!config.clientId || !config.clientSecret) {
-      throw new Error('Missing OAuth client credentials.');
+      throw accountConfigError('Missing OAuth client credentials.');
     }
 
-    // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    // Check if token is expired and refresh if needed
-    let currentAccessToken = oauth.accessToken;
-    
-    if (oauth.expiresAt && new Date(oauth.expiresAt) < new Date()) {
-      strapi.log.info('[magic-mail] Access token expired, refreshing...');
-      
-      if (!oauth.refreshToken) {
-        throw new Error('Access token expired and no refresh token available. Please re-authenticate.');
+    const accessToken = await this.currentOAuthToken(account, oauth, () => {
+      if (!config.tenantId) {
+        throw new Error('Tenant ID not found in config. Please re-configure this account.');
       }
-
-      try {
-        if (!config.tenantId) {
-          throw new Error('Tenant ID not found in config. Please re-configure this account.');
-        }
-
-        const oauthService = strapi.plugin('magic-mail').service('oauth');
-        const newTokens = await oauthService.refreshMicrosoftTokens(
-          oauth.refreshToken,
-          config.clientId,
-          config.clientSecret,
-          config.tenantId
-        );
-        
-        currentAccessToken = newTokens.accessToken;
-        strapi.log.info('[magic-mail] [SUCCESS] Microsoft token refreshed successfully');
-        
-        // Update stored tokens
-        const { encryptCredentials } = require('../utils/encryption');
-        const updatedOAuth = encryptCredentials({
-          ...oauth,
-          accessToken: newTokens.accessToken,
-          expiresAt: newTokens.expiresAt,
-        });
-        
-        await strapi.documents('plugin::magic-mail.email-account').update({
-          documentId: account.documentId,
-          data: { oauth: updatedOAuth },
-        });
-      } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
-        throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
-      }
-    }
-
-    // Use Microsoft Graph API with MIME format.
-    strapi.log.info('[magic-mail] Using Microsoft Graph API with MIME format (DMARC-safe)...');
+      return strapi.plugin('magic-mail').service('oauth')
+        .refreshMicrosoftTokens(oauth.refreshToken, config.clientId, config.clientSecret, config.tenantId);
+    });
 
     try {
-      // Build a correct RFC 822 message (Reply-To, multipart/alternative for
-      // text+html, honoured attachment encoding/CID) and base64-encode it for
-      // the Graph sendMail MIME endpoint.
       const rawMessage = await buildRawMimeMessage(account, emailData);
-      const base64Mime = rawMessage.toString('base64');
-
-      if ((emailData.attachments || []).length > 0) {
-        strapi.log.info(`[magic-mail] Email with ${emailData.attachments.length} attachment(s) prepared`);
-      }
-
-      // Send via Microsoft Graph using MIME format
       const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${currentAccessToken}`,
-          'Content-Type': 'text/plain', // MIME format!
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'text/plain',
         },
-        body: base64Mime,
+        body: rawMessage.toString('base64'),
       });
-      
-      // Microsoft Graph returns 202 Accepted on success
+
+      // Microsoft Graph returns 202 Accepted on success.
       if (response.status !== 202) {
-        strapi.log.error('[magic-mail] Response status:', response.status);
-        throw new Error(`Microsoft Graph API error: ${response.status}`);
+        strapi.log.error('[magic-mail] Microsoft Graph response status:', response.status);
+        throw providerHttpError('Microsoft Graph', response.status);
       }
-      
-      strapi.log.info('[magic-mail] [SUCCESS] Email sent via Microsoft Graph API with MIME + custom headers');
-      strapi.log.info('[magic-mail] Microsoft adds From/DKIM automatically for DMARC compliance');
-      
-      return {
-        messageId: `microsoft-${Date.now()}`,
-        response: 'Accepted',
-      };
+
+      return { messageId: `microsoft-${Date.now()}`, response: 'Accepted' };
     } catch (err) {
       strapi.log.error('[magic-mail] Microsoft Graph API send failed:', err?.name || 'Error');
       throw err;
     }
   },
 
-  /**
-   * Send via Yahoo OAuth
-   * With enhanced security and SMTP OAuth2 best practices
-   */
+  /** Send via Yahoo SMTP with XOAUTH2. */
   async sendViaYahooOAuth(account, emailData) {
-    // Check if OAuth tokens are available
     if (!account.oauth) {
-      throw new Error('Yahoo OAuth account not fully configured. Please complete the OAuth flow first.');
+      throw accountConfigError('Yahoo OAuth account not fully configured. Please complete the OAuth flow first.');
     }
-
-    const oauth = decryptCredentials(account.oauth);
-    const config = decryptCredentials(account.config);
-
-    strapi.log.info('[magic-mail] Sending via Yahoo OAuth');
-    strapi.log.info(`[magic-mail] OAuth email identity available: ${!!oauth.email}`);
-    strapi.log.info(`[magic-mail] Has oauth.accessToken: ${!!oauth.accessToken}`);
-
+    const oauth = readAccountSecret(account.oauth);
+    const config = readAccountSecret(account.config);
     if (!oauth.email || !oauth.accessToken) {
-      throw new Error('Missing OAuth credentials. Please re-authenticate this account.');
+      throw accountConfigError('Missing OAuth credentials. Please re-authenticate this account.');
     }
 
-    // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    // Check if token is expired and refresh if needed
-    let currentAccessToken = oauth.accessToken;
-    
-    if (oauth.expiresAt && new Date(oauth.expiresAt) < new Date()) {
-      strapi.log.info('[magic-mail] Access token expired, refreshing...');
-      
-      if (!oauth.refreshToken) {
-        throw new Error('Access token expired and no refresh token available. Please re-authenticate.');
-      }
+    const accessToken = await this.currentOAuthToken(account, oauth, () => strapi
+      .plugin('magic-mail').service('oauth')
+      .refreshYahooTokens(oauth.refreshToken, config.clientId, config.clientSecret));
 
-      try {
-        const oauthService = strapi.plugin('magic-mail').service('oauth');
-        const newTokens = await oauthService.refreshYahooTokens(
-          oauth.refreshToken,
-          config.clientId,
-          config.clientSecret
-        );
-        
-        currentAccessToken = newTokens.accessToken;
-        strapi.log.info('[magic-mail] [SUCCESS] Token refreshed successfully');
-        
-        // Update stored tokens
-        const { encryptCredentials } = require('../utils/encryption');
-        const updatedOAuth = encryptCredentials({
-          ...oauth,
-          accessToken: newTokens.accessToken,
-          expiresAt: newTokens.expiresAt,
-        });
-        
-        await strapi.documents('plugin::magic-mail.email-account').update({
-          documentId: account.documentId,
-          data: { oauth: updatedOAuth },
-        });
-      } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
-        throw new Error('Access token expired and refresh failed. Please re-authenticate this account.');
-      }
-    }
-
-    // Yahoo Mail API uses SMTP with OAuth token as password
-    // We use nodemailer with XOAUTH2
-    const nodemailer = require('nodemailer');
-    
-    strapi.log.info('[magic-mail] Using Yahoo SMTP with OAuth...');
-    
     try {
       const transporter = nodemailer.createTransport({
         host: 'smtp.mail.yahoo.com',
         port: 465,
         secure: true,
-        auth: {
-          type: 'OAuth2',
-          user: oauth.email,
-          accessToken: currentAccessToken,
-        },
+        auth: { type: 'OAuth2', user: oauth.email, accessToken },
         disableFileAccess: true,
         disableUrlAccess: true,
       });
 
+      const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
       const mailOptions = {
-        from: `${account.fromName || 'Yahoo Mail'} <${account.fromEmail}>`,
+        from: senderFor(account, emailData),
         to: emailData.to,
         ...(emailData.cc && { cc: emailData.cc }),
         ...(emailData.bcc && { bcc: emailData.bcc }),
-        replyTo: emailData.replyTo || account.replyTo,
-        subject: emailData.subject,
+        ...(replyTo && { replyTo }),
+        subject: stripHeaderInjection(emailData.subject),
         text: emailData.text,
         html: emailData.html,
-        attachments: emailData.attachments || [],
+        attachments: toNodemailerAttachments(emailData.attachments),
         disableFileAccess: true,
         disableUrlAccess: true,
-        
-        // Security and deliverability headers
-        headers: {
-          'X-Mailer': 'MagicMail/1.0',
-          'X-Priority': emailData.priority === 'high' ? '1' : '3',
-        },
-        
-        // Generate proper Message-ID
-        messageId: `<${Date.now()}.${Math.random().toString(36).substring(7)}@${account.fromEmail.split('@')[1]}>`,
+        headers: buildOutboundHeaders(emailData),
+        messageId: createMessageId(account),
         date: new Date(),
       };
 
-      // Add List-Unsubscribe for marketing emails
-      if (shouldEmitUnsubscribe(emailData)) {
-        mailOptions.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-        mailOptions.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-      }
-
-      if (mailOptions.attachments.length > 0) {
-        strapi.log.info(`[magic-mail] Sending email with ${mailOptions.attachments.length} attachment(s)`);
-      }
-
       const result = await transporter.sendMail(mailOptions);
-      strapi.log.info('[magic-mail] [SUCCESS] Email sent via Yahoo OAuth');
-      
-      return {
-        messageId: result.messageId,
-        response: result.response,
-      };
+      return { messageId: result.messageId, response: result.response };
     } catch (err) {
       strapi.log.error('[magic-mail] Yahoo OAuth send failed:', err?.name || 'Error');
       throw err;
     }
   },
 
-  /**
-   * Send via SendGrid API
-   * With enhanced security and proper headers
-   */
+  /** Send via the SendGrid v3 API. */
   async sendViaSendGrid(account, emailData) {
-    const config = decryptCredentials(account.config);
-    
-    if (!config.apiKey) {
-      throw new Error('SendGrid API key not configured');
-    }
+    const config = readAccountSecret(account.config);
+    if (!config.apiKey) throw accountConfigError('SendGrid API key not configured');
 
-    // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    strapi.log.info('[magic-mail] Sending via SendGrid');
-
     try {
-      // Parse any recipient shape (single, array, or comma-separated string)
-      // into SendGrid's required array-of-objects form. Previously a `to`
-      // array/CSV was collapsed into a single `{ email: [...] }`, which
-      // SendGrid rejects.
-      const toRecipientList = (value) => {
-        if (!value) return [];
-        const list = Array.isArray(value) ? value : String(value).split(',');
-        return list
-          .map((entry) => extractEmailAddress(String(entry).trim()))
-          .filter((email) => email.length > 0)
-          .map((email) => ({ email }));
-      };
+      const toRecipientList = (value) => listAddresses(value).map((email) => ({ email }));
 
       const personalization = { to: toRecipientList(emailData.to) };
       if (personalization.to.length === 0) {
-        throw new Error('SendGrid send requires at least one valid recipient');
+        throw validationError('SendGrid send requires at least one valid recipient');
       }
       const ccRecipients = toRecipientList(emailData.cc);
       if (ccRecipients.length > 0) personalization.cc = ccRecipients;
       const bccRecipients = toRecipientList(emailData.bcc);
       if (bccRecipients.length > 0) personalization.bcc = bccRecipients;
 
+      const sender = senderFor(account, emailData);
       const msg = {
         personalizations: [personalization],
-        from: {
-          email: account.fromEmail,
-          name: account.fromName || account.fromEmail,
-        },
-        subject: emailData.subject,
+        from: { email: sender.address, ...(sender.name ? { name: sender.name } : {}) },
+        subject: stripHeaderInjection(emailData.subject),
         content: [
           ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
           ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
         ],
-
-        // SendGrid v3 uses snake_case `custom_args` (camelCase was ignored).
+        // SendGrid v3 uses snake_case `custom_args`.
         custom_args: {
-          'magicmail_version': '1.0',
-          'email_type': emailData.type || 'transactional',
-          'priority': emailData.priority || 'normal',
+          magicmail_version: '1.0',
+          email_type: emailData.type || 'transactional',
+          priority: emailData.priority || 'normal',
         },
-
-        // Headers object for custom headers
-        headers: {
-          'X-Mailer': 'MagicMail/1.0',
-        },
+        headers: buildOutboundHeaders(emailData),
       };
 
-      // Add priority headers if high priority
-      if (emailData.priority === 'high') {
-        msg.headers['X-Priority'] = '1 (Highest)';
-        msg.headers['Importance'] = 'high';
+      const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
+      if (replyTo && replyTo.length === 1) {
+        msg.reply_to = { email: replyTo[0].address, ...(replyTo[0].name ? { name: replyTo[0].name } : {}) };
+      } else if (replyTo) {
+        msg.reply_to_list = replyTo.map((entry) => ({ email: entry.address, ...(entry.name ? { name: entry.name } : {}) }));
       }
 
-      // Add ReplyTo if provided. SendGrid v3 REST expects snake_case `reply_to`.
-      if (emailData.replyTo || account.replyTo) {
-        msg.reply_to = {
-          email: extractEmailAddress(emailData.replyTo || account.replyTo),
-        };
-      }
-
-      // Add List-Unsubscribe for marketing emails (GDPR/CAN-SPAM compliance)
-      if (shouldEmitUnsubscribe(emailData)) {
-        msg.headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-        msg.headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-      }
-
-      // Add attachments if provided
-      const attachments = emailData.attachments || [];
+      const attachments = normalizeAttachments(emailData.attachments);
       if (attachments.length > 0) {
-        const fs = require('fs');
-        const path = require('path');
-        
-        msg.attachments = [];
-        
-        for (const attachment of attachments) {
-          let fileContent;
-          let filename;
-          let contentType = attachment.contentType || 'application/octet-stream';
-          
-          if (attachment.content) {
-            // Content provided as buffer or string
-            fileContent = Buffer.isBuffer(attachment.content) 
-              ? attachment.content 
-              : Buffer.from(attachment.content);
-            filename = attachment.filename || 'attachment';
-          } else if (attachment.path) {
-            // Read from file path
-            fileContent = fs.readFileSync(attachment.path);
-            filename = attachment.filename || path.basename(attachment.path);
-          } else {
-            continue;
-          }
-          
-          msg.attachments.push({
-            content: fileContent.toString('base64'),
-            filename: filename,
-            type: contentType,
-            disposition: 'attachment',
-          });
-        }
-        
-        strapi.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
+        msg.attachments = attachments.map((attachment) => ({
+          content: attachment.content.toString('base64'),
+          filename: attachment.filename || attachment.cid,
+          type: attachment.contentType,
+          disposition: attachment.cid ? 'inline' : 'attachment',
+          ...(attachment.cid ? { content_id: attachment.cid } : {}),
+        }));
       }
 
-      // Send via SendGrid API
       const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(msg),
@@ -1318,14 +1565,11 @@ module.exports = ({ strapi }) => ({
 
       if (!response.ok) {
         strapi.log.error('[magic-mail] SendGrid API request failed:', response.status);
-        throw new Error(`SendGrid API request failed: ${response.status}`);
+        throw providerHttpError('SendGrid', response.status);
       }
 
-      strapi.log.info('[magic-mail] [SUCCESS] Email sent via SendGrid API');
-
-      // SendGrid returns 202 Accepted with no body on success
       return {
-        messageId: response.headers.get('x-message-id') || `sendgrid-${Date.now()}`,
+        messageId: response.headers?.get?.('x-message-id') || `sendgrid-${Date.now()}`,
         response: 'Accepted',
       };
     } catch (err) {
@@ -1334,120 +1578,61 @@ module.exports = ({ strapi }) => ({
     }
   },
 
-  /**
-   * Send via Mailgun API
-   * With enhanced security and compliance headers
-   */
+  /** Send via the Mailgun API. */
   async sendViaMailgun(account, emailData) {
-    const config = decryptCredentials(account.config);
-    
+    const config = readAccountSecret(account.config);
     if (!config.apiKey || !config.domain) {
-      throw new Error('Mailgun API key and domain not configured');
+      throw accountConfigError('Mailgun API key and domain not configured');
+    }
+    const domain = String(config.domain).trim().toLowerCase();
+    if (!/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain)) {
+      throw accountConfigError('Mailgun domain is not a valid host name');
     }
 
-    // Validate email content for security
     this.validateEmailSecurity(emailData);
 
-    strapi.log.info('[magic-mail] Sending via Mailgun');
-    strapi.log.info(`[magic-mail] Domain: ${config.domain}`);
-
     try {
-      // Build a WHATWG FormData for the global fetch. The legacy `form-data`
-      // package is NOT a valid `fetch` body — native fetch serialized it as
-      // "[object FormData]", so Mailgun rejected every message. Native FormData
-      // lets fetch set the correct multipart boundary automatically.
       const form = new FormData();
-
       const joinAddrs = (value) => (Array.isArray(value) ? value.join(', ') : value);
 
-      // Required fields
-      form.append('from', account.fromName
-        ? `${account.fromName} <${account.fromEmail}>`
-        : account.fromEmail
-      );
+      form.append('from', formatAddress(senderFor(account, emailData)));
       form.append('to', joinAddrs(emailData.to));
       if (emailData.cc) form.append('cc', joinAddrs(emailData.cc));
       if (emailData.bcc) form.append('bcc', joinAddrs(emailData.bcc));
-      form.append('subject', emailData.subject);
+      form.append('subject', stripHeaderInjection(emailData.subject));
+      if (emailData.html) form.append('html', emailData.html);
+      if (emailData.text) form.append('text', emailData.text);
 
-      // Add text or html content
-      if (emailData.html) {
-        form.append('html', emailData.html);
-      }
-      if (emailData.text) {
-        form.append('text', emailData.text);
-      }
+      const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
+      if (replyTo) form.append('h:Reply-To', replyTo.map(formatAddress).join(', '));
 
-      // Add ReplyTo if provided
-      if (emailData.replyTo || account.replyTo) {
-        form.append('h:Reply-To', emailData.replyTo || account.replyTo);
+      for (const [name, value] of Object.entries(buildOutboundHeaders(emailData))) {
+        form.append(`h:${name}`, value);
       }
 
-      // Add custom headers for tracking and security
-      form.append('h:X-Mailer', 'MagicMail/1.0');
-      form.append('h:X-Email-Type', emailData.type || 'transactional');
-
-      // Add List-Unsubscribe for marketing emails (GDPR/CAN-SPAM compliance)
-      if (shouldEmitUnsubscribe(emailData)) {
-        form.append('h:List-Unsubscribe', `<${emailData.unsubscribeUrl}>`);
-        form.append('h:List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+      for (const attachment of normalizeAttachments(emailData.attachments)) {
+        form.append(
+          attachment.cid ? 'inline' : 'attachment',
+          new Blob([attachment.content], { type: attachment.contentType }),
+          attachment.cid || attachment.filename
+        );
       }
 
-      // Add attachments if provided
-      const attachments = emailData.attachments || [];
-      if (attachments.length > 0) {
-        const fs = require('fs');
-        const path = require('path');
-
-        for (const attachment of attachments) {
-          let fileContent;
-          let filename;
-
-          if (attachment.content) {
-            // Content provided as buffer or string. Respect base64 encoding so
-            // binary attachments are not corrupted by a UTF-8 round-trip.
-            fileContent = Buffer.isBuffer(attachment.content)
-              ? attachment.content
-              : Buffer.from(attachment.content, attachment.encoding === 'base64' ? 'base64' : 'utf-8');
-            filename = attachment.filename || 'attachment';
-          } else if (attachment.path) {
-            // Read from file path
-            fileContent = fs.readFileSync(attachment.path);
-            filename = attachment.filename || path.basename(attachment.path);
-          } else {
-            continue;
-          }
-
-          const contentType = attachment.contentType || 'application/octet-stream';
-          const field = attachment.cid ? 'inline' : 'attachment';
-          form.append(
-            field,
-            new Blob([fileContent], { type: contentType }),
-            attachment.cid || filename
-          );
-        }
-
-        strapi.log.info(`[magic-mail] Email with ${attachments.length} attachment(s) prepared`);
-      }
-
-      // Send via Mailgun API. Do NOT set Content-Type manually — fetch derives
-      // the multipart boundary from the FormData body.
-      const response = await fetch(`https://api.mailgun.net/v3/${config.domain}/messages`, {
+      // fetch derives the multipart boundary from the FormData body.
+      const response = await fetch(`https://api.mailgun.net/v3/${encodeURIComponent(domain)}/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${Buffer.from(`api:${config.apiKey}`).toString('base64')}`,
+          Authorization: `Basic ${Buffer.from(`api:${config.apiKey}`).toString('base64')}`,
         },
         body: form,
       });
 
       if (!response.ok) {
         strapi.log.error('[magic-mail] Mailgun API request failed:', response.status);
-        throw new Error(`Mailgun API request failed: ${response.status}`);
+        throw providerHttpError('Mailgun', response.status);
       }
 
       const result = await response.json();
-      strapi.log.info('[magic-mail] [SUCCESS] Email sent via Mailgun API');
-
       return {
         messageId: result.id || `mailgun-${Date.now()}`,
         response: result.message || 'Queued',
@@ -1458,59 +1643,155 @@ module.exports = ({ strapi }) => ({
     }
   },
 
-  /**
-   * Check if account is within rate limits
-   */
-  async checkRateLimits(account) {
-    if (account.dailyLimit > 0 && account.emailsSentToday >= account.dailyLimit) {
-      return false;
+  /** @returns {string} Configured quota time zone (default UTC) */
+  getQuotaTimeZone() {
+    try {
+      return strapi.config?.get?.('plugin::magic-mail.quotaTimezone', 'UTC') || 'UTC';
+    } catch {
+      return 'UTC';
     }
-    if (account.hourlyLimit > 0 && account.emailsSentThisHour >= account.hourlyLimit) {
-      return false;
-    }
-    return true;
   },
 
   /**
-   * Atomically increments an account's usage counters.
+   * Returns true if the account is within its quotas for the current
+   * windows (read-only check, used when no database connection exists).
+   */
+  async checkRateLimits(account) {
+    const keys = quotaWindowKeys(new Date(), this.getQuotaTimeZone());
+    const sentToday = account.quotaDayKey === keys.day ? account.emailsSentToday || 0 : 0;
+    const sentThisHour = account.quotaHourKey === keys.hour ? account.emailsSentThisHour || 0 : 0;
+    if (account.dailyLimit > 0 && sentToday >= account.dailyLimit) return false;
+    if (account.hourlyLimit > 0 && sentThisHour >= account.hourlyLimit) return false;
+    return true;
+  },
+
+  /** @returns {{knex: Function, table: string}|null} */
+  quotaTable() {
+    try {
+      const knex = strapi.db?.connection;
+      const table = strapi.db?.metadata?.get(EMAIL_ACCOUNT_UID)?.tableName;
+      return knex && table ? { knex, table } : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Reserves one send from the account's hourly and daily quota with a single
+   * conditional UPDATE, so concurrent sends cannot exceed a limit. Counters
+   * of an expired window restart at 1.
    *
-   * Uses a single SQL UPDATE with in-database arithmetic so concurrent sends
-   * cannot lose counter updates (the previous read-modify-write via the
-   * Document Service dropped increments under load, understating usage and
-   * defeating quotas). Falls back to the Document Service if the raw update is
-   * unavailable for the active connection.
+   * @param {object} account
+   * @returns {Promise<'reserved'|'unchecked'|false>} false when over quota
+   */
+  async reserveQuota(account) {
+    const db = this.quotaTable();
+    if (!db) return (await this.checkRateLimits(account)) ? 'unchecked' : false;
+
+    const { knex, table } = db;
+    const keys = quotaWindowKeys(new Date(), this.getQuotaTimeZone());
+    const affected = await knex(table)
+      .where({ document_id: account.documentId })
+      .andWhere((qb) => qb
+        .whereNull('daily_limit')
+        .orWhere('daily_limit', '<=', 0)
+        .orWhereNull('quota_day_key')
+        .orWhereNot('quota_day_key', keys.day)
+        .orWhereRaw('COALESCE(emails_sent_today, 0) < daily_limit'))
+      .andWhere((qb) => qb
+        .whereNull('hourly_limit')
+        .orWhere('hourly_limit', '<=', 0)
+        .orWhereNull('quota_hour_key')
+        .orWhereNot('quota_hour_key', keys.hour)
+        .orWhereRaw('COALESCE(emails_sent_this_hour, 0) < hourly_limit'))
+      // Counter assignments come before the key assignments: MySQL evaluates
+      // SET left to right with already-updated values.
+      .update({
+        emails_sent_today: knex.raw('CASE WHEN quota_day_key = ? THEN COALESCE(emails_sent_today, 0) + 1 ELSE 1 END', [keys.day]),
+        emails_sent_this_hour: knex.raw('CASE WHEN quota_hour_key = ? THEN COALESCE(emails_sent_this_hour, 0) + 1 ELSE 1 END', [keys.hour]),
+        quota_day_key: keys.day,
+        quota_hour_key: keys.hour,
+      });
+    return affected > 0 ? 'reserved' : false;
+  },
+
+  /**
+   * Returns a reservation after a failed dispatch.
+   * @param {object} account
+   */
+  async releaseQuota(account) {
+    const db = this.quotaTable();
+    if (!db) return;
+    try {
+      const { knex, table } = db;
+      const keys = quotaWindowKeys(new Date(), this.getQuotaTimeZone());
+      await knex(table)
+        .where({ document_id: account.documentId })
+        .update({
+          emails_sent_today: knex.raw('CASE WHEN quota_day_key = ? AND emails_sent_today > 0 THEN emails_sent_today - 1 ELSE emails_sent_today END', [keys.day]),
+          emails_sent_this_hour: knex.raw('CASE WHEN quota_hour_key = ? AND emails_sent_this_hour > 0 THEN emails_sent_this_hour - 1 ELSE emails_sent_this_hour END', [keys.hour]),
+        });
+    } catch (error) {
+      strapi.log.error('[magic-mail] [RECONCILE] Quota release failed:', error?.name || 'Error');
+    }
+  },
+
+  /**
+   * Zeroes counters whose window has ended so the admin UI shows current
+   * usage. Sending never depends on this (windows are evaluated lazily).
+   */
+  async refreshQuotaWindows() {
+    const db = this.quotaTable();
+    if (!db) return;
+    const { knex, table } = db;
+    const keys = quotaWindowKeys(new Date(), this.getQuotaTimeZone());
+    await knex(table)
+      .where((qb) => qb.whereNull('quota_hour_key').orWhereNot('quota_hour_key', keys.hour))
+      .update({ emails_sent_this_hour: 0, quota_hour_key: keys.hour });
+    await knex(table)
+      .where((qb) => qb.whereNull('quota_day_key').orWhereNot('quota_day_key', keys.day))
+      .update({ emails_sent_today: 0, quota_day_key: keys.day });
+  },
+
+  /**
+   * Records an accepted send. When the quota was reserved atomically only the
+   * lifetime total and lastUsed change; otherwise all counters are updated.
    *
    * @param {string} documentId
-   * @returns {Promise<void>}
-   * @sideeffect Increments emailsSentToday/ThisHour/totalEmailsSent, sets lastUsed
+   * @param {{countersReserved?: boolean}} [options]
    */
-  async updateAccountStats(documentId) {
+  async updateAccountStats(documentId, { countersReserved = false } = {}) {
     const now = new Date();
-    try {
-      const knex = strapi.db.connection;
-      const tableName = strapi.db.metadata.get('plugin::magic-mail.email-account').tableName;
-      const affected = await knex(tableName)
-        .where({ document_id: documentId })
-        .update({
-          emails_sent_today: knex.raw('COALESCE(emails_sent_today, 0) + 1'),
-          emails_sent_this_hour: knex.raw('COALESCE(emails_sent_this_hour, 0) + 1'),
-          total_emails_sent: knex.raw('COALESCE(total_emails_sent, 0) + 1'),
-          last_used: now,
-          updated_at: now,
-        });
+    const db = this.quotaTable();
+    if (db) {
+      const { knex, table } = db;
+      const keys = quotaWindowKeys(now, this.getQuotaTimeZone());
+      const update = {
+        total_emails_sent: knex.raw('COALESCE(total_emails_sent, 0) + 1'),
+        last_used: now,
+        updated_at: now,
+      };
+      if (!countersReserved) {
+        update.emails_sent_today = knex.raw('CASE WHEN quota_day_key = ? THEN COALESCE(emails_sent_today, 0) + 1 ELSE 1 END', [keys.day]);
+        update.emails_sent_this_hour = knex.raw('CASE WHEN quota_hour_key = ? THEN COALESCE(emails_sent_this_hour, 0) + 1 ELSE 1 END', [keys.hour]);
+        update.quota_day_key = keys.day;
+        update.quota_hour_key = keys.hour;
+      }
+      const affected = await knex(table).where({ document_id: documentId }).update(update);
       if (affected > 0) return;
-    } catch (err) {
-      strapi.log.debug('[magic-mail] Atomic stats increment unavailable, falling back:', err?.name || 'Error');
     }
 
-    // Fallback: non-atomic read-modify-write (best effort).
-    const account = await strapi.documents('plugin::magic-mail.email-account').findOne({ documentId });
+    // Fallback: non-atomic read-modify-write (no database connection).
+    const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId });
     if (!account) return;
-    await strapi.documents('plugin::magic-mail.email-account').update({
+    const keys = quotaWindowKeys(now, this.getQuotaTimeZone());
+    await strapi.documents(EMAIL_ACCOUNT_UID).update({
       documentId,
       data: {
-        emailsSentToday: (account.emailsSentToday || 0) + 1,
-        emailsSentThisHour: (account.emailsSentThisHour || 0) + 1,
+        emailsSentToday: (account.quotaDayKey === keys.day ? account.emailsSentToday || 0 : 0) + 1,
+        emailsSentThisHour: (account.quotaHourKey === keys.hour ? account.emailsSentThisHour || 0 : 0) + 1,
+        quotaDayKey: keys.day,
+        quotaHourKey: keys.hour,
         totalEmailsSent: (account.totalEmailsSent || 0) + 1,
         lastUsed: now,
       },
@@ -1518,112 +1799,82 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Log email to database (DEPRECATED - now handled by Analytics)
-   * This function previously created duplicate logs
-   * Now it's a no-op since email-log creation is handled in the analytics service
-   */
-  async logEmail(logData) {
-    // Email logging is now handled by the Analytics service (createEmailLog)
-    // This function is kept for backward compatibility but does nothing
-    // The analytics log is created earlier in the send() flow with proper tracking data
-    strapi.log.debug('[magic-mail] Email already logged via Analytics service');
-  },
-
-  /**
-   * Get account by name
+   * Get an active account by name (case-insensitive, like routing rules).
    */
   async getAccountByName(name) {
-    const accounts = await strapi.documents('plugin::magic-mail.email-account').findMany({
-      filters: { name, isActive: true },
+    const accounts = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
+      filters: { name: { $eqi: String(name) }, isActive: true },
       limit: 1,
     });
-
     return accounts && accounts.length > 0 ? accounts[0] : null;
   },
 
   /**
-   * Validates and sanitizes email content against common attack classes:
-   * - Header injection (CR/LF in subject, recipients, replyTo, from)
-   * - Dangerous HTML (`<script>`, `<iframe>`, `javascript:`, inline event handlers)
+   * Validates and sanitizes email content:
+   * - Header injection (CR/LF in subject and header fields)
+   * - Recipient format (RFC 5322 parsing, same parser as the transports)
+   * - Dangerous HTML (allowlist sanitizer)
    * - Missing subject / missing content
    *
-   * Mutates `emailData` in place by stripping CR/LF from string header fields.
-   * Uses `sanitize-html` when available for deep HTML cleaning; otherwise
-   * falls back to conservative regex-based checks that BLOCK unsafe content.
+   * Mutates `emailData` in place.
    *
    * @param {object} emailData - Email data to validate (mutated)
-   * @throws {Error} When validation fails
+   * @throws {Error} ValidationError when validation fails
    */
   validateEmailSecurity(emailData) {
     if (!emailData || typeof emailData !== 'object' || Array.isArray(emailData)) {
-      throw new Error('Email data must be an object');
+      throw validationError('Email data must be an object');
     }
 
-    const headerFields = ['subject', 'from', 'replyTo'];
-    for (const field of headerFields) {
+    for (const field of ['subject', 'from']) {
       if (typeof emailData[field] === 'string') {
         emailData[field] = stripHeaderInjection(emailData[field]);
       }
     }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const extractEmail = (addr) => {
-      if (!addr || typeof addr !== 'string') return '';
-      if (addr.includes('<')) {
-        const match = addr.match(/<([^>]+)>/);
-        return match ? match[1].trim() : addr.trim();
-      }
-      return addr.trim();
-    };
+    if (typeof emailData.replyTo === 'string' || Array.isArray(emailData.replyTo)) {
+      emailData.replyTo = resolveReplyTo(emailData.replyTo);
+    }
 
     /**
-     * Sanitizes and validates one recipient field while retaining its input
-     * shape for the provider adapters. Every recipient class uses the same
-     * parser so malformed CC/BCC values cannot bypass checks that apply to To.
-     *
-     * @param {string|string[]|undefined|null} value - Address or comma-separated list
-     * @param {'to'|'cc'|'bcc'} field - Recipient header being validated
-     * @param {number} maximum - Maximum number of addresses allowed
-     * @returns {string|string[]|undefined} Safe recipients in the original shape
-     * @throws {Error} When the field has an invalid type, empty member or address
+     * Validates one recipient field while retaining its input shape.
+     * @returns {string|string[]|undefined}
      */
     const validateRecipients = (value, field, maximum) => {
-      const required = field === 'to';
       if (value === undefined || value === null || value === '') {
-        if (required) throw new Error('Recipient email address (to) is required');
+        if (field === 'to') throw validationError('Recipient email address (to) is required');
         return undefined;
       }
-
       if (typeof value !== 'string' && !Array.isArray(value)) {
-        throw new Error(`Invalid ${field} recipient list`);
+        throw validationError(`Invalid ${field} recipient list`);
       }
       if (typeof value === 'string' && value.length > MAX_RECIPIENT_LIST_LENGTH) {
-        throw new Error(`Too many characters in ${field} recipient list`);
+        throw validationError(`Too many characters in ${field} recipient list`);
       }
 
-      const inputWasArray = Array.isArray(value);
-      const addresses = inputWasArray ? value : value.split(',');
-      if (addresses.length === 0 || addresses.length > maximum) {
-        throw new Error(`Too many ${field} recipients`);
-      }
-
-      const safeAddresses = addresses.map((address) => {
-        if (typeof address !== 'string') {
-          throw new Error(`Invalid ${field} recipient list`);
+      const items = Array.isArray(value) ? value : [value];
+      const safeItems = items.map((item) => {
+        if (typeof item !== 'string') throw validationError(`Invalid ${field} recipient list`);
+        const safe = stripHeaderInjection(item);
+        if (!safe || safe.length > (Array.isArray(value) ? MAX_RECIPIENT_ADDRESS_LENGTH : MAX_RECIPIENT_LIST_LENGTH)) {
+          throw validationError(`Invalid ${field} recipient format`);
         }
-
-        const safeAddress = stripHeaderInjection(address);
-        if (!safeAddress || safeAddress.length > MAX_RECIPIENT_ADDRESS_LENGTH) {
-          throw new Error(`Invalid ${field} recipient format`);
-        }
-
-        if (!emailRegex.test(extractEmail(safeAddress))) {
-          throw new Error(`Invalid ${field} recipient format`);
-        }
-        return safeAddress;
+        return safe;
       });
 
-      return inputWasArray ? safeAddresses : safeAddresses.join(', ');
+      const entries = parseAddressList(safeItems);
+      if (entries.length === 0 || entries.length > maximum) {
+        throw validationError(`Too many ${field} recipients`);
+      }
+      for (const entry of entries) {
+        if (entry.group || entry.invalid || entry.address.length > MAX_RECIPIENT_ADDRESS_LENGTH
+          || !EMAIL_PATTERN.test(entry.address)) {
+          throw validationError(`Invalid ${field} recipient format`);
+        }
+      }
+      if (Array.isArray(value) && entries.length !== safeItems.length) {
+        throw validationError(`Invalid ${field} recipient format`);
+      }
+      return Array.isArray(value) ? safeItems : safeItems[0];
     };
 
     emailData.to = validateRecipients(emailData.to, 'to', MAX_TO_RECIPIENTS);
@@ -1631,111 +1882,39 @@ module.exports = ({ strapi }) => ({
     emailData.bcc = validateRecipients(emailData.bcc, 'bcc', MAX_COPY_RECIPIENTS);
 
     const { subject, html, text } = emailData;
-
-    if (!subject || subject.trim().length === 0) {
-      throw new Error('Email subject is required for security and deliverability');
+    if (typeof subject !== 'string' || subject.trim().length === 0) {
+      throw validationError('Email subject is required for security and deliverability');
     }
-
     if (subject.length > 200) {
       strapi.log.warn('[magic-mail] Subject line exceeds 200 characters - may trigger spam filters');
     }
-
     if (!html && !text) {
-      throw new Error('Email must have either text or html content');
-    }
-
-    const spamTriggers = [
-      /\bfree\b.*\bmoney\b/i,
-      /\b100%\s*free\b/i,
-      /\bclaim.*\bprize\b/i,
-      /\bclick\s*here\s*now\b/i,
-      /\bviagra\b/i,
-      /\bcasino\b/i,
-    ];
-    for (const pattern of spamTriggers) {
-      if (pattern.test(subject)) {
-        strapi.log.warn('[magic-mail] Subject matched a spam-trigger pattern');
-        break;
-      }
+      throw validationError('Email must have either text or html content');
     }
 
     if (html) {
-      // Always sanitize with the allowlist. No regex fallback: sanitize-html is
-      // a declared runtime dependency and the module fails to load without it.
       emailData.html = sanitizeHtml(html, HTML_SANITIZE_OPTIONS);
     }
-
-    if (html && !text) {
-      strapi.log.warn('[magic-mail] Email has HTML but no text alternative - may reduce deliverability');
-    }
-
-    strapi.log.info('[magic-mail] [SUCCESS] Email security validation passed');
   },
 
   /**
-   * Add security headers to email data
-   * Returns enhanced email data with security headers
+   * Email message helper for the Content API `/send-message` route.
+   * Plain `message` text becomes the text body.
+   *
+   * @param {{to: string|string[], cc?: string|string[], bcc?: string|string[], subject?: string, message?: string, text?: string, html?: string, templateId?: string|number, templateData?: object}} messageData
+   * @param {object} [options] - Passed through to send()
+   * @returns {Promise<Object>} Send result
    */
-  addSecurityHeaders(emailData, account) {
-    const headers = {
-      'X-Mailer': 'MagicMail/1.0',
-      'X-Entity-Ref-ID': `magicmail-${Date.now()}`,
-    };
+  async sendMessage(messageData, options = {}) {
+    const { to, subject, message, text, html, templateId, templateData, ...rest } = messageData || {};
 
-    // Add priority headers if specified
-    if (emailData.priority === 'high') {
-      headers['X-Priority'] = '1';
-      headers['Importance'] = 'high';
+    const hasRecipient = (typeof to === 'string' && to.trim()) || (Array.isArray(to) && to.length > 0);
+    if (!hasRecipient) {
+      throw validationError('Email address (to) is required');
     }
 
-    // Add List-Unsubscribe when appropriate (RFC 8058). Same rule as in
-    // the actual sendVia* paths: marketing always, transactional only when
-    // the admin opted in via enableUnsubscribeHeader.
-    if (shouldEmitUnsubscribe(emailData)) {
-      headers['List-Unsubscribe'] = `<${emailData.unsubscribeUrl}>`;
-      headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-    } else if (emailData.type === 'marketing') {
-      strapi.log.warn('[magic-mail] Marketing email without unsubscribe URL - may violate regulations');
-    }
-
-    return {
-      ...emailData,
-      headers: {
-        ...emailData.headers,
-        ...headers,
-      },
-    };
-  },
-
-  /**
-   * Email-only message helper retained for the Content API.
-   * `auto` remains an alias for email selection when a recipient is present.
-   * @param {{channel?: 'email'|'auto', to?: string, cc?: string|string[], bcc?: string|string[], subject?: string, message?: string, text?: string, html?: string, templateId?: string|number, templateData?: object}} messageData
-   * @returns {Promise<Object>} Send result with channel info
-   */
-  async sendMessage(messageData) {
-    const {
-      channel = 'auto',
-      to,
-      subject,
-      message,
-      text,
-      html,
-      templateId,
-      templateData,
-      ...rest
-    } = messageData;
-
-    if (channel !== 'email' && channel !== 'auto') {
-      throw new Error('Magic-Mail supports email delivery only');
-    }
-
-    if (typeof to !== 'string' || !to.trim()) {
-      throw new Error('Email address (to) is required for email delivery');
-    }
-
-    strapi.log.info('[magic-mail] [SEND] Email message accepted for routing');
-    const result = await this.send({
+    strapi.log.debug('[magic-mail] [SEND] Email message accepted for routing');
+    return this.send({
       to,
       subject,
       text: text || message,
@@ -1743,11 +1922,21 @@ module.exports = ({ strapi }) => ({
       templateId,
       templateData,
       ...rest,
-    });
-
-    return {
-      ...result,
-      channel: 'email',
-    };
+    }, options);
   },
 });
+
+module.exports.__test__ = {
+  HTML_SANITIZE_OPTIONS,
+  buildOutboundHeaders,
+  filterCustomHeaders,
+  isFromAllowed,
+  isSafeToRetry,
+  mergeSafeHeaders,
+  normalizeAttachments,
+  parseSingleMailbox,
+  quotaWindowKeys,
+  resolveSender,
+  resolveUnsubscribeUrl,
+  extractEmailAddress,
+};

@@ -226,7 +226,6 @@ module.exports = ({ strapi }) => ({
       await emailRouter.send({
         to: recipient,
         cc: cc || undefined,
-        from: account.fromEmail,
         subject: 'MagicMail Test Email',
         text: `This is a test email from MagicMail account: ${account.name}\n\nPriority: ${priority}\nType: ${type}\n\nProvider: ${account.provider}\nFrom: ${account.fromEmail}\n\nIf you receive this, your email account is configured correctly!`,
         html: `
@@ -265,10 +264,15 @@ module.exports = ({ strapi }) => ({
             ${unsubscribeUrl ? `<p style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB;"><a href="${escapeHtml(unsubscribeUrl)}" style="color: #6B7280; font-size: 12px;">Unsubscribe</a></p>` : ''}
           </div>
         `,
-        accountName: account.name,
         priority,
         type,
         unsubscribeUrl,
+      }, {
+        // Test exactly this account (also before activation); never fail
+        // over to another account and report that as a successful test.
+        accountDocumentId: account.documentId,
+        allowInactive: true,
+        source: 'account-test',
       });
 
       return { 

@@ -81,7 +81,7 @@ Project site: https://schero94.github.io/Magic-Mail/
 
 Magic-Mail now handles email only. Install and configure the separate Magic-WhatsApp plugin for WhatsApp transport, connection state, templates, and message actions. Magic-Mail does not proxy its old routes to another plugin.
 
-The `/api/magic-mail/send` endpoint is unchanged. `/api/magic-mail/send-message` still sends email and accepts `channel: "email"` or `channel: "auto"` when `to` contains the recipient address. The old `/send-whatsapp` and `/whatsapp/*` routes are removed. The `email-router` service no longer exposes WhatsApp methods, and email routing rules no longer offer WhatsApp fallback.
+The `/api/magic-mail/send` endpoint is unchanged. `/api/magic-mail/send-message` sends email to `to`; since 4.0 it no longer accepts a `channel` parameter (requests that still send it are rejected with 400) and its response has no `channel` field. The old `/send-whatsapp` and `/whatsapp/*` routes are removed. The `email-router` service no longer exposes WhatsApp methods, and email routing rules no longer offer WhatsApp fallback.
 
 Magic-Mail does not delete or import old local session files, stored templates, or settings. The two legacy routing-rule columns remain in Strapi's schema so schema synchronization does not drop their saved values. The plugin no longer reads or updates those fields. Back up existing session data securely and migrate it only by following the separate Magic-WhatsApp plugin's instructions.
 
@@ -165,10 +165,12 @@ await strapi.plugin('email').service('email').send({
 // - Updates statistics
 ```
 
+MagicMail wraps the email **provider** of `@strapi/email`, so both `send()` and `sendTemplatedEmail()` are routed. That includes Strapi's admin password-reset mail and every users-permissions mail.
+
 **Benefits:**
 - ✅ **Zero code changes** - Existing plugins work automatically
 - ✅ **Email Designer compatible** - Works with strapi-plugin-email-designer-5
-- ✅ **Fallback safe** - Falls back to original email service if MagicMail fails
+- ✅ **Never lost** - When no active MagicMail account exists, or every eligible account is over its quota, the email goes out through the original Strapi email provider (logged as `strapi-email-provider`). Once an account has attempted delivery, errors are returned to the caller and never re-sent through the original provider, so nothing is delivered twice.
 - ✅ **Drop-in replacement** - Just enable and go!
 
 ### Method 2: Direct MagicMail API
@@ -197,16 +199,20 @@ await strapi.plugin('email').service('email').send({
   attachments: [
     {
       filename: 'invoice.pdf',
-      path: './uploads/invoice-12345.pdf',
+      content: await fs.promises.readFile(invoicePath), // read the file yourself
+      contentType: 'application/pdf',
     },
     {
       filename: 'receipt.pdf',
-      content: Buffer.from(pdfData),
+      content: pdfBase64,
+      encoding: 'base64',
       contentType: 'application/pdf',
     },
   ],
 });
 ```
+
+Attachments must carry their `content` (Buffer or string with `encoding`). Since 4.0, `path` and `href` attachments are rejected for every provider, so MagicMail never reads server files or fetches URLs on a caller's behalf. Inline images use `cid` and are sent inline by every provider.
 
 **Supported attachment formats:**
 - ✅ PDF, Word, Excel, PowerPoint
@@ -801,12 +807,38 @@ await strapi.plugin('email').service('email').send({
   attachments: [
     {
       filename: 'document.pdf',
-      path: './path/to/file.pdf',
+      content: pdfBuffer, // Buffer, or a string plus `encoding: 'base64'`
       contentType: 'application/pdf',
     },
   ],
 });
 ```
+
+**Sender and headers:**
+- `from` must be a single address equal to the sending account's address; only its display name is used. Any other value is replaced by the account address. `defaultFromName` in the plugin settings is the display name when neither the account nor the caller sets one.
+- `replyTo` must contain valid addresses.
+- Custom `headers` (max. 20) accept `X-*` names plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To` and `References`. MagicMail's own headers (`X-Mailer`, `X-Email-Type`, `X-Priority`, unsubscribe headers) cannot be overridden.
+- The template category (`transactional`, `marketing`, `notification`) is used as the email type when the caller does not pass `type`.
+
+**Routing and failover:** accounts are tried in this order: the matching rule's account, the rule's fallback account, the primary account, then the others by priority. Accounts over their quota are skipped. Errors that guarantee the provider did not accept the message (connection or authentication failures, missing credentials, HTTP 401/403/429/500/502/503, SMTP envelope rejection) move on to the next account. Ambiguous errors such as timeouts are returned to the caller to avoid duplicate delivery. An explicit `accountName` is never replaced by another account. Recipient rules match any recipient: `@domain.com` matches the domain, `user@domain.com` the exact address.
+
+**Quotas** are reserved atomically before dispatch, so concurrent sends cannot exceed `hourlyLimit`/`dailyLimit`. Windows follow the clock hour and calendar day in UTC; set `quotaTimezone` (IANA name) in the plugin config to change this.
+
+**SMTP TLS:** TLS is required and certificates are verified. For a local mail catcher (Mailpit, MailHog) add `"allowInsecure": true` to the SMTP account config. It is honoured outside `NODE_ENV=production`, or for loopback hosts.
+
+**Content API authentication:** `/api/magic-mail/send` and `/send-message` accept API tokens only. To let users-permissions roles send as well (the pre-4.0 behaviour), enable it in `config/plugins.js`:
+
+```javascript
+module.exports = {
+  'magic-mail': {
+    config: {
+      contentApi: { allowUserRoles: true },
+    },
+  },
+};
+```
+
+With user roles allowed, the email log is always attributed to the authenticated user. With an API token, `userId` must reference an existing users-permissions user.
 
 ### Send Email (Direct MagicMail API)
 

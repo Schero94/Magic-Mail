@@ -354,16 +354,19 @@ const schemas = {
   // ── Content-API send payloads ───────────────────────────────────────────
   // Bounded attachments to prevent OOM from huge base64 payloads.
   // Max ~25 MB per attachment, max 20 per email, hard cap on filenames.
-  // Absolute file paths are deliberately NOT part of this schema — the
-  // Content-API strips them before validation (controller.stripAttachmentPaths).
+  // File paths and URLs are deliberately NOT part of this schema: `.strict()`
+  // rejects `path`/`href` attachments with a 400, and the router rejects them
+  // for every other caller as well.
 
   'content.send': z
     .object({
       to: recipientListInput(100),
       cc: recipientListInput(50, { allowEmptyString: true }).optional(),
       bcc: recipientListInput(50, { allowEmptyString: true }).optional(),
-      from: headerSafe.max(320).optional(),
-      replyTo: headerSafe.max(320).optional(),
+      // A single mailbox. The router additionally pins the address to the
+      // sending account; only the display name of a matching address is kept.
+      from: emailAddress.optional(),
+      replyTo: emailAddress.optional(),
       subject: headerSafe.optional(),
       text: safeText.optional(),
       html: safeText.optional(),
@@ -377,8 +380,16 @@ const schemas = {
       skipLinkTracking: z.boolean().optional(),
       enableTracking: z.boolean().optional(),
       unsubscribeUrl: unsubscribeUrl.optional(),
-      userId: z.union([z.string(), z.number()]).optional(),
+      // users-permissions user id or documentId. The controller verifies
+      // that the user exists (API tokens) or replaces it with the
+      // authenticated user (user roles).
+      userId: z.union([
+        z.number().int().positive(),
+        z.string().regex(/^(?:[1-9]\d{0,15}|[A-Za-z0-9]{1,64})$/),
+      ]).optional(),
       recipientName: safeString.optional(),
+      // Value matched by routing rules of type "custom".
+      customField: safeString.optional(),
       attachments: z
         .array(
           z
@@ -395,14 +406,19 @@ const schemas = {
         )
         .max(20)
         .optional(),
-      headers: z.record(z.string(), headerSafe.max(4000)).optional(),
+      // Allowed names (X-*, List-Id, Precedence, Auto-Submitted,
+      // In-Reply-To, References) are enforced again by the router.
+      headers: z
+        .record(z.string().max(128).regex(/^[A-Za-z0-9-]+$/), headerSafe.max(4000))
+        .refine((value) => Object.keys(value).length <= 20, { message: 'At most 20 custom headers' })
+        .optional(),
     })
     .strict(),
 
+  // `channel` was removed in 4.0 (Magic Mail sends email only).
   'content.sendMessage': z
     .object({
-      channel: z.enum(['email', 'auto']).optional(),
-      to: z.string().max(4000).optional(),
+      to: recipientListInput(100),
       cc: recipientListInput(50, { allowEmptyString: true }).optional(),
       bcc: recipientListInput(50, { allowEmptyString: true }).optional(),
       subject: headerSafe.optional(),
@@ -412,10 +428,7 @@ const schemas = {
       templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
       templateData: z.record(z.string(), z.unknown()).optional(),
     })
-    .strict()
-    .refine((d) => !!d.to, {
-      message: 'Email address "to" is required',
-    }),
+    .strict(),
 };
 
 /**

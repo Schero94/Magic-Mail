@@ -1,3 +1,37 @@
+## [Unreleased]
+
+### ⚠ BREAKING CHANGES (sending path)
+
+* **Content API send routes accept API tokens only.** `/api/magic-mail/send` and `/api/magic-mail/send-message` now reject users-permissions roles with 403. Migration: send with an API token, or restore the old behaviour with `config: { contentApi: { allowUserRoles: true } }` for `magic-mail` in `config/plugins.js`. With user roles allowed, the email log is attributed to the authenticated user and a body `userId` is ignored.
+* **`userId` must reference an existing user.** API-token requests with a `userId` of a non-existent users-permissions user get a 400. Migration: send the numeric id or documentId of an existing user, or omit `userId`.
+* **`channel` removed from `/send-message`.** The parameter is rejected (400) and the response no longer contains `channel`. Migration: drop `channel` from requests and stop reading it from responses.
+* **`/send-message` validates `to` as an address list** (same rules as `/send`). Invalid recipients get a 400 before anything is logged.
+* **File-path and URL attachments are rejected** for every caller and provider (native Strapi email service, `email-router` service and Content API). Previously SendGrid and Mailgun read `attachment.path` from disk while SMTP rejected it. Migration: read the file yourself and pass `content` (Buffer, or a string with `encoding: 'base64'`). Content-API requests with `path` now fail validation instead of having the path silently removed.
+* **`from` and `replyTo` must be valid addresses.** `from` is parsed with RFC 5322 rules and must be one mailbox equal to the sending account's address; only its display name is kept. Content-API requests with any other `from`/`replyTo` format get a 400.
+* **Custom headers use an allowlist** (`X-*` except `X-Mailer`, `X-Email-Type`, `X-Priority`, `X-Entity-Ref-ID`, `X-Content-Type-Options`, plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To`, `References`), at most 20. Other headers (for example `Return-Path`, `Disposition-Notification-To`, `Resent-*`) are dropped. MagicMail's own headers always win. Migration: rename custom headers to `X-*`.
+* **Explicit `accountName` is never replaced.** When the requested account is over quota or fails, the send fails instead of silently using another account. `accountName` lookup is now case-insensitive.
+* **Template category drives the email type.** A template with category `marketing` or `notification` sent without `type` is now routed and labelled with that type (marketing mail gets `List-Unsubscribe`/`Precedence: bulk` when an unsubscribe URL is available). Migration: pass `type: 'transactional'` explicitly to keep the old behaviour.
+* **Global unsubscribe URL requires the "Unsubscribe header" toggle.** The plugin-wide `unsubscribeUrl` is only applied when `enableUnsubscribeHeader` is on. `{{email}}` in the URL is replaced with the recipient (single-recipient mails only), and `List-Unsubscribe-Post: One-Click` is only sent for https URLs.
+* **`plugin-settings.defaultFromEmail` no longer rewrites `from`.** The sender address is always the selected account's address. `defaultFromName` is used as display name when the account has no `fromName` and the caller gave none.
+* **Quota windows are clock-aligned (UTC by default)** and reserved atomically before dispatch; the boot-relative hourly timer and local-midnight daily timer are gone. Two private fields (`quotaHourKey`, `quotaDayKey`) are added to the email-account content type (Strapi adds the columns automatically). Configure the zone with `quotaTimezone`.
+* **Plugin warnings and errors are always logged** (previously hidden unless `debug: true`). Info and debug output still requires `debug: true`.
+
+### Bug Fixes
+
+* **email:** native interception wraps the `@strapi/email` provider, so `sendTemplatedEmail()` (admin password reset) is routed through MagicMail too.
+* **email:** when no active account exists, or every eligible account is over quota, native Strapi emails are sent through the original provider instead of failing. Failures after an account was attempted are returned to the caller and never re-sent.
+* **email:** failover tries every eligible account in order (rule account, rule fallback, primary, others by priority) and continues on errors that guarantee non-delivery; attempted and skipped accounts are stored on the email log.
+* **email:** recipient routing rules work with recipient arrays, CSV strings and display names.
+* **email:** SendGrid no longer double-encodes base64 attachments and sends `cid` attachments inline; SendGrid, Mailgun and Yahoo now apply custom headers and the aligned sender display name.
+* **email:** the outbound HTML sanitizer keeps email layout markup (`<style>` blocks with a CSS filter, `bgcolor`, `align`, `valign`, `role`, `<center>`, `<font>`, `data:image` inline images) while still removing scripts, event handlers and `javascript:` URLs.
+* **email:** template rendering no longer decodes HTML entities across the whole body (`decode-html` removed); only Mustache tags are decoded.
+* **email:** every email is logged, including text-only mails and mails with `enableTracking: false`.
+* **email:** `send()` no longer mutates the caller's object, so reusing it does not leak tracking data between recipients.
+* **email:** the account test sends through exactly the tested account (also before activation).
+* **email:** SMTP accounts can set `allowInsecure: true` for local mail catchers (honoured outside production or for loopback hosts).
+* **email:** Mailgun domains are validated and URL-encoded.
+* **tracking:** the one-time sensitive tracking-link purge pages by id and runs again once (`sensitiveLinkPurgeV2`) to catch rows the earlier version skipped.
+
 ## [3.0.4](https://github.com/Schero94/Magic-Mail/compare/v3.0.3...v3.0.4) (2026-07-11)
 
 

@@ -24,7 +24,6 @@ test('email send helper does not log recipient or message content', async () => 
   router.send = async () => ({ success: true, messageId: 'fake-message-id' });
 
   await router.sendMessage({
-    channel: 'email',
     to: 'person@example.test',
     subject: 'private subject',
     text: 'private message body',
