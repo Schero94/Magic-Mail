@@ -544,7 +544,7 @@
   "settings.errors.invalidProtocol": "This URL type is not allowed here",
   "settings.errors.invalidText": "Use a single line of at most 1000 characters",
   "settings.errors.invalidUrl": "Enter a valid URL, for example https://api.example.com",
-  "settings.fromEmail.hint": "Must be a verified sender address",
+  "settings.fromEmail.hint": "Reference only. Emails are always sent from the selected account's address.",
   "settings.fromEmail.label": "Default From Email",
   "settings.fromName.hint": "The sender name shown in recipients' inboxes",
   "settings.fromName.label": "Default From Name",

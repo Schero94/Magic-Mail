@@ -674,7 +674,7 @@ const PluginSettingsContent = () => {
             <Field.Root
               name="defaultFromEmail"
               error={errorMessage(t, errors.defaultFromEmail)}
-              hint={t('settings.fromEmail.hint', 'Must be a verified sender address')}
+              hint={t('settings.fromEmail.hint', "Reference only. Emails are always sent from the selected account's address.")}
             >
               <Field.Label>{t('settings.fromEmail.label', 'Default From Email')}</Field.Label>
               <TextInput

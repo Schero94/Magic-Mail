@@ -544,7 +544,7 @@
   "settings.errors.invalidProtocol": "Este tipo de URL não é permitido aqui",
   "settings.errors.invalidText": "Use uma única linha com no máximo 1000 caracteres",
   "settings.errors.invalidUrl": "Informe uma URL válida, por exemplo https://api.example.com",
-  "settings.fromEmail.hint": "Deve ser um endereço de remetente verificado",
+  "settings.fromEmail.hint": "Apenas informativo. Os e-mails são sempre enviados a partir do endereço da conta selecionada.",
   "settings.fromEmail.label": "E-mail do remetente padrão",
   "settings.fromName.hint": "O nome do remetente exibido na caixa de entrada dos destinatários",
   "settings.fromName.label": "Nome do remetente padrão",

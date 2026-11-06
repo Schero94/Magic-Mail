@@ -664,6 +664,7 @@ module.exports = {
 | Link tracking / Open tracking | on | Rewrite links / add the open pixel |
 | Tracking base URL | empty | Public base for tracking URLs (else `server.url`) |
 | Default from name | empty | Display name when neither the account nor the caller sets one |
+| Default from email | empty | Reference only; emails are always sent from the selected account's address |
 | Unsubscribe header | on | Send `List-Unsubscribe` for every email type and use the plugin-wide URL |
 | Unsubscribe URL | empty | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient |
 

@@ -544,7 +544,7 @@
   "settings.errors.invalidProtocol": "Ce type d’URL n’est pas autorisé ici",
   "settings.errors.invalidText": "Utilisez une seule ligne de 1000 caractères au maximum",
   "settings.errors.invalidUrl": "Saisissez une URL valide, par exemple https://api.example.com",
-  "settings.fromEmail.hint": "Doit être une adresse d’expéditeur vérifiée",
+  "settings.fromEmail.hint": "À titre indicatif uniquement. Les e-mails sont toujours envoyés depuis l'adresse du compte sélectionné.",
   "settings.fromEmail.label": "E-mail d’expéditeur par défaut",
   "settings.fromName.hint": "Le nom d’expéditeur affiché dans la boîte de réception des destinataires",
   "settings.fromName.label": "Nom d’expéditeur par défaut",
