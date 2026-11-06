@@ -77,13 +77,9 @@ Project site: https://schero94.github.io/Magic-Mail/
 
 ---
 
-## Messaging migration
+## Upgrading to 4.0
 
-Magic-Mail now handles email only. Install and configure the separate Magic-WhatsApp plugin for WhatsApp transport, connection state, templates, and message actions. Magic-Mail does not proxy its old routes to another plugin.
-
-The `/api/magic-mail/send` endpoint is unchanged. `/api/magic-mail/send-message` sends email to `to`; since 4.0 it no longer accepts a `channel` parameter (requests that still send it are rejected with 400) and its response has no `channel` field. The old `/send-whatsapp` and `/whatsapp/*` routes are removed. The `email-router` service no longer exposes WhatsApp methods, and email routing rules no longer offer WhatsApp fallback.
-
-Magic-Mail does not delete or import old local session files, stored templates, or settings. The two legacy routing-rule columns remain in Strapi's schema so schema synchronization does not drop their saved values. The plugin no longer reads or updates those fields. Back up existing session data securely and migrate it only by following the separate Magic-WhatsApp plugin's instructions.
+4.0 is a major release with security fixes that change behaviour (API-token-only Content API, re-entering secrets after endpoint changes, stricter users-permissions template handling, a versioned credential format, removed legacy routing-rule columns). Read the migration steps in [CHANGELOG.md](./CHANGELOG.md) under *Unreleased* before upgrading, and back up the database first.
 
 ---
 
@@ -91,7 +87,7 @@ Magic-Mail does not delete or import old local session files, stored templates, 
 
 ### Installation
 
-Requires Node.js `>=20.19.0 <=26.x.x` and Strapi `^5.57.0`.
+Requires Node.js `>=20.19.0 <=26.x.x`, Strapi `^5.57.0` and the Users & Permissions plugin (`@strapi/plugin-users-permissions`, included in every default Strapi app; the email log links to its users).
 
 ```bash
 npm install strapi-plugin-magic-mail
@@ -354,7 +350,7 @@ await strapi.plugin('magic-mail').service('email-router').send({
 
 ### 🔄 Template Versioning
 
-Every time you save a template, a new version is created automatically:
+Version 1 is the created template; every save that changes the content (name, subject, design, HTML, text or tags) adds one version with the saved content. Saves that only toggle `isActive` or the category add no version. Restoring a version saves its content as a new version.
 
 ```javascript
 // Get all versions
@@ -499,15 +495,21 @@ Priority: 8
 
 ### Routing Priority
 
-Rules are evaluated from **highest to lowest priority** (1-10):
-- Priority 10 = Evaluated first (most specific rules)
-- Priority 1 = Evaluated last (catch-all rules)
+Rules are evaluated from **highest to lowest priority** (1 to 1,000,000; the admin list and `GET /magic-mail/routing-rules` show them in this order):
+- Higher number = evaluated first (most specific rules)
+- Lower number = evaluated later (catch-all rules)
 
 If no rule matches, the **Primary Account** is used.
+
+Rules reference accounts by name. Creating or editing a rule with an unknown account name is rejected. Renaming an account updates the rules that use it; deleting an account deactivates rules that target it and clears it as fallback.
 
 ---
 
 ## 🔐 Provider Setup Guides
+
+**OAuth redirect URI.** Magic Mail builds the redirect URI from the `URL` environment variable if set, otherwise from Strapi's `server.url` (`server.absoluteUrl`): `<public URL>/magic-mail/oauth/<gmail|microsoft|yahoo>/callback`. The account wizard shows the exact value the server uses. In production the URL must be public `https`; there is no `localhost` fallback. The `localhost` URIs below are for local development.
+
+The authorization popup reports back to the admin panel origin (`admin.url`); if the admin is served from its own host, set `admin.url` to that absolute URL. To re-authorize an existing account (revoked consent, expired refresh token), start the flow with `GET /magic-mail/oauth/<provider>/auth?accountId=<documentId>` and finish it with `POST /magic-mail/oauth/reconnect/<documentId>`; the provider must return the account's own mailbox.
 
 ### Gmail OAuth Setup
 
@@ -667,10 +669,12 @@ For custom domains, you can add DKIM:
 ## 🛡️ Security Features
 
 ### Encryption
-- ✅ **AES-256-GCM** encryption for all credentials
+- ✅ **AES-256-GCM** encryption for all credentials, with an HKDF-derived, purpose-bound key (format `v1:`)
 - ✅ **No plain text passwords** in database
 - ✅ **OAuth tokens encrypted** at rest
 - ✅ **Secure token refresh** mechanism
+- ✅ **Secrets never leave the server**: the edit form receives a fixed placeholder (`********`). Changing the provider, host, port, user, OAuth client/tenant, Mailgun domain or `allowInsecure` requires entering the secrets again.
+- ✅ **users-permissions email templates** (reset password, email confirmation) can only be read/edited with the matching *Users & Permissions → Email templates* permissions, and only `{{ URL }}`, `{{ SERVER_URL }}`, `{{ ADMIN_URL }}`, `{{ CODE }}`, `{{ TOKEN }}`, `{{ USER }}`, `{{ USER.email }}`, `{{ USER.username }}` are accepted.
 
 ### Transport Security
 - ✅ **TLS 1.2+ enforced** (SMTP)
@@ -749,12 +753,22 @@ For custom domains, you can add DKIM:
 All configuration is done via the Admin Panel. However, for production deployments, you can set:
 
 ```env
-# Optional - Base URL for OAuth callbacks
-URL=https://yourdomain.com
+# Required outside development/test: credential encryption key (32+ bytes).
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+MAGIC_MAIL_ENCRYPTION_KEY=...
 
-# Optional - Encryption key (auto-generated if not provided)
-ENCRYPTION_KEY=your-32-character-secret-key
+# Optional - previous key during a rotation (decrypt only). Saving an account
+# re-encrypts it with the new key.
+MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS=...
+
+# Optional - OAuth state signing secret (default: derived from the encryption key)
+MAGIC_MAIL_OAUTH_STATE_SECRET=...
+
+# Optional - legacy override of the OAuth callback base URL (default: server.url)
+URL=https://yourdomain.com
 ```
+
+Without `MAGIC_MAIL_ENCRYPTION_KEY`, a development key derived from `ADMIN_JWT_SECRET`/`APP_KEYS` is used only when `NODE_ENV` is unset, `development` or `test`; any other environment (for example `staging`) refuses to start.
 
 ### Account Configuration
 

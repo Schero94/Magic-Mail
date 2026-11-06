@@ -53,14 +53,59 @@ test('admin navigation and email routing UI expose no messaging transport contro
   assert.doesNotMatch(routingRules, /whatsapp/i);
 });
 
-test('existing routing metadata columns remain in the Strapi schema but are not accepted by rule updates', () => {
+test('legacy messaging columns are gone from the routing-rule schema and rejected by rule updates', () => {
   const schema = require('../server/src/content-types/routing-rule/schema.json');
   const { validate } = require('../server/src/validation');
 
-  assert.equal(Object.hasOwn(schema.attributes, 'whatsappFallback'), true);
-  assert.equal(Object.hasOwn(schema.attributes, 'whatsappPhoneField'), true);
+  assert.deepEqual(Object.keys(schema.attributes).filter((key) => /whatsapp|phone/i.test(key)), []);
   assert.throws(() => validate('routingRules.update', { whatsappFallback: true }));
   assert.throws(() => validate('routingRules.update', { whatsappPhoneField: 'phone' }));
+});
+
+/** Recursively lists files below `dir` (relative to the repo root). */
+function listFiles(dir) {
+  const absolute = path.join(root, dir);
+  if (!fs.existsSync(absolute)) return [];
+  return fs.readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
+    const relative = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listFiles(relative);
+    return [relative];
+  });
+}
+
+const FORBIDDEN = /whats\s*app|baileys/i;
+
+test('no messaging-transport residue in decoded schemas, translations, sources, docs or dev tooling', () => {
+  // JSON is checked after parsing, so \uXXXX escapes can not hide a key.
+  const jsonFiles = [
+    ...listFiles('server/src/content-types').filter((file) => file.endsWith('.json')),
+    ...listFiles('admin/src/translations').filter((file) => file.endsWith('.json')),
+  ];
+  assert.ok(jsonFiles.length > 5);
+  for (const file of jsonFiles) {
+    const raw = fs.readFileSync(path.join(root, file), 'utf8');
+    const decoded = JSON.stringify(JSON.parse(raw));
+    assert.doesNotMatch(decoded, FORBIDDEN, file);
+    if (file.startsWith('server/src/content-types')) {
+      assert.doesNotMatch(raw, /\\u00[0-9a-f]{2}/i, `${file} must not use unicode escapes`);
+    }
+  }
+
+  const textFiles = [
+    ...listFiles('server/src'),
+    ...listFiles('admin/src'),
+    ...listFiles('.dev'),
+    ...listFiles('.agents'),
+    ...listFiles('docs/site'),
+    'README.md',
+  ].filter((file) => /\.(js|jsx|mjs|ts|tsx|json|md|html)$/.test(file));
+  for (const file of textFiles) {
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    assert.doesNotMatch(text, FORBIDDEN, file);
+    if (file.startsWith('server/src') || file.startsWith('admin/src')) {
+      assert.doesNotMatch(text, /phone ?number/i, file);
+    }
+  }
 });
 
 test('email send-message keeps its email path and has no channel parameter', async () => {

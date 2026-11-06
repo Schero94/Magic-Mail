@@ -13,7 +13,8 @@
 
 // Try to load .env file if available
 try {
-  require('dotenv').config({ path: '../../../.env' });
+  // Resolved from this file, not from the current working directory.
+  require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 } catch (err) {
   // dotenv not installed or .env not found - that's ok, use ENV vars
 }
@@ -121,7 +122,6 @@ async function testAdminLogin() {
     if (response.ok && data.data?.token) {
       ADMIN_JWT = data.data.token;
       logSuccess(`Admin login successful for ${data.data.user.email}`);
-      logInfo(`Admin JWT: ${ADMIN_JWT.substring(0, 40)}...`);
       return true;
     } else {
       logError(`Admin login failed: ${data.error?.message || 'Unknown error'}`);
@@ -197,7 +197,6 @@ async function testCreateAccount() {
     logInfo(`Creating account: ${accountData.name}`);
     logInfo(`Provider: ${accountData.provider}`);
     logInfo(`Request URL: ${BASE_URL}/magic-mail/accounts`);
-    logInfo(`Authorization: Bearer ${ADMIN_JWT.substring(0, 30)}...`);
     
     const response = await fetch(`${BASE_URL}/magic-mail/accounts`, {
       method: 'POST',
@@ -553,39 +552,6 @@ async function testEmailLogs() {
 }
 
 /**
- * TEST 12: Test License Status
- */
-async function testLicenseStatus() {
-  logSection('TEST 12: License Status');
-  
-  try {
-    const response = await fetch(`${BASE_URL}/magic-mail/license/status`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      logSuccess('License status retrieved');
-      logInfo(`Valid: ${data.isValid ? 'YES' : 'NO'}`);
-      logInfo(`Tier: ${data.tier || 'Unknown'}`);
-      
-      if (data.user) {
-        logInfo(`Licensed to: ${data.user.name || data.user.email}`);
-      }
-      
-      return data.isValid;
-    } else {
-      logError(`Get license status failed: ${response.status}`);
-      return false;
-    }
-  } catch (err) {
-    logError(`Get license status error: ${err.message}`);
-    return false;
-  }
-}
-
-/**
  * TEST 13: Test Tracking Pixel (Public Endpoint)
  */
 async function testTrackingPixel() {
@@ -673,7 +639,6 @@ async function testPerformance() {
     '/magic-mail/accounts',
     '/magic-mail/designer/templates',
     '/magic-mail/analytics/stats',
-    '/magic-mail/license/status',
   ];
   
   try {
@@ -938,90 +903,9 @@ async function testErrorLeakPrevention() {
   }
 }
 
-/**
- * SECURITY TEST 7: License key must be masked in API responses
- */
-async function testLicenseKeyMasked() {
-  logSection('SECURITY 7: License Key Masking');
-
-  try {
-    const response = await fetch(`${BASE_URL}/magic-mail/license/status`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-
-    const data = await response.json();
-    const responseText = JSON.stringify(data);
-
-    // Check if full license key is exposed (keys are typically 20+ chars)
-    const licenseKey = data.data?.licenseKey || data.licenseKey;
-
-    if (licenseKey) {
-      if (licenseKey.includes('...')) {
-        logSuccess(`License key is masked: ${licenseKey}`);
-        return true;
-      } else if (licenseKey.length > 16) {
-        logError(`SECURITY: Full license key exposed in API response (${licenseKey.length} chars)`);
-        return false;
-      } else {
-        logSuccess('License key appears truncated/masked');
-        return true;
-      }
-    } else {
-      logInfo('No license key in response (may not be activated)');
-      return true;
-    }
-  } catch (err) {
-    logError(`License key mask test error: ${err.message}`);
-    return false;
-  }
-}
-
 // ============================================================
 // ENDPOINT COVERAGE TESTS
 // ============================================================
-
-/**
- * TEST: License Limits Endpoint
- */
-async function testLicenseLimits() {
-  logSection('ENDPOINT: License Limits');
-  try {
-    const response = await fetch(`${BASE_URL}/magic-mail/license/limits`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-    if (response.ok) {
-      const data = await response.json();
-      logSuccess(`License limits retrieved (tier: ${data.tier || data.data?.tier || 'unknown'})`);
-      return true;
-    }
-    logError(`License limits failed: ${response.status}`);
-    return false;
-  } catch (err) {
-    logError(`License limits error: ${err.message}`);
-    return false;
-  }
-}
-
-/**
- * TEST: License Debug Endpoint
- */
-async function testLicenseDebug() {
-  logSection('ENDPOINT: License Debug');
-  try {
-    const response = await fetch(`${BASE_URL}/magic-mail/license/debug`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-    if (response.ok) {
-      logSuccess('License debug endpoint accessible');
-      return true;
-    }
-    logError(`License debug failed: ${response.status}`);
-    return false;
-  } catch (err) {
-    logError(`License debug error: ${err.message}`);
-    return false;
-  }
-}
 
 /**
  * TEST: Designer Stats Endpoint
@@ -1092,39 +976,40 @@ async function testAnalyticsDebug() {
 }
 
 /**
- * TEST: WhatsApp Admin Endpoints
+ * REGRESSION: endpoints removed in 4.0 (messaging transport, license) must
+ * not exist any more.
  */
-async function testWhatsAppEndpoints() {
-  logSection('ENDPOINT: WhatsApp Admin Routes');
-  
-  const endpoints = [
-    { path: '/whatsapp/available', name: 'WhatsApp Available' },
-    { path: '/whatsapp/status', name: 'WhatsApp Status' },
-    { path: '/whatsapp/templates', name: 'WhatsApp Templates' },
-    { path: '/whatsapp/session', name: 'WhatsApp Session' },
+async function testRemovedEndpointsGone() {
+  logSection('REGRESSION: Removed endpoints return 404');
+
+  const checks = [
+    { method: 'GET', path: '/magic-mail/license/status', admin: true },
+    { method: 'GET', path: `/magic-mail/${['whats', 'app'].join('')}/status`, admin: true },
+    { method: 'POST', path: `/api/magic-mail/send-${['whats', 'app'].join('')}`, admin: false },
   ];
-  
+
   let allPassed = true;
-  
-  for (const ep of endpoints) {
+  for (const check of checks) {
     try {
-      const response = await fetch(`${BASE_URL}/magic-mail${ep.path}`, {
-        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      const response = await fetch(`${BASE_URL}${check.path}`, {
+        method: check.method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(check.admin ? { Authorization: `Bearer ${ADMIN_JWT}` } : {}),
+        },
+        body: check.method === 'POST' ? '{}' : undefined,
       });
-      if (response.ok || response.status === 404) {
-        logSuccess(`${ep.name}: ${response.status}`);
-      } else if (response.status === 500) {
-        logWarning(`${ep.name}: 500 (WhatsApp may not be configured)`);
+      if (response.status === 404 || response.status === 405) {
+        logSuccess(`${check.method} ${check.path}: ${response.status}`);
       } else {
-        logError(`${ep.name}: ${response.status}`);
+        logError(`${check.method} ${check.path} still answers with ${response.status}`);
         allPassed = false;
       }
     } catch (err) {
-      logError(`${ep.name} error: ${err.message}`);
+      logError(`${check.path} error: ${err.message}`);
       allPassed = false;
     }
   }
-  
   return allPassed;
 }
 
@@ -1158,8 +1043,8 @@ async function testContentApiSendEndpoints() {
   logSection('ENDPOINT: Content-API Send Routes (Auth Check)');
   
   const endpoints = [
+    { path: '/api/magic-mail/send', name: 'Send', body: { to: 'test@example.com', subject: 'test', text: 'test' } },
     { path: '/api/magic-mail/send-message', name: 'Send Message', body: { to: 'test@example.com', message: 'test' } },
-    { path: '/api/magic-mail/send-whatsapp', name: 'Send WhatsApp', body: { phoneNumber: '+49123456789', message: 'test' } },
   ];
   
   let allPassed = true;
@@ -1400,10 +1285,6 @@ async function runAllTests() {
   await testCreateAccount();
   await sleep(500);
   
-  // License & Configuration
-  await testLicenseStatus();
-  await sleep(500);
-  
   // Email Templates
   await testEmailTemplates();
   await sleep(500);
@@ -1460,19 +1341,10 @@ async function runAllTests() {
   await testErrorLeakPrevention();
   await sleep(500);
 
-  await testLicenseKeyMasked();
-  await sleep(500);
-
   // ============================================================
   // ENDPOINT COVERAGE TESTS
   // ============================================================
   logCategory('ENDPOINT COVERAGE TESTS');
-
-  await testLicenseLimits();
-  await sleep(300);
-
-  await testLicenseDebug();
-  await sleep(300);
 
   await testDesignerStats();
   await sleep(300);
@@ -1483,7 +1355,7 @@ async function runAllTests() {
   await testAnalyticsDebug();
   await sleep(300);
 
-  await testWhatsAppEndpoints();
+  await testRemovedEndpointsGone();
   await sleep(300);
 
   await testPluginSettings();
@@ -1543,7 +1415,7 @@ Security Tests (always run):
   - Open redirect blocked
   - XSS prevention in tracking endpoints
   - Error message leak prevention
-  - License key masking
+  - Removed endpoints return 404
 
 Environment Variables:
   ADMIN_EMAIL     Admin email (required)
