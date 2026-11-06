@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   OAUTH_API_PROVIDER,
+  buildOAuthAuthQuery,
   getAllowedMessageOrigins,
   parseOAuthMessage,
 } from './wizardState';
@@ -79,12 +80,14 @@ export const useOAuthPopup = ({ get, onEvent }) => {
 
   /**
    * @param {string} provider - wizard provider value, e.g. 'gmail-oauth'
-   * @param {{clientId: string, tenantId?: string}} params
+   * @param {{clientId?: string, tenantId?: string, accountId?: string}} params -
+   *   `accountId` reconnects an existing account with its stored app credentials.
    */
   const start = useCallback(
-    async (provider, { clientId, tenantId }) => {
+    async (provider, { clientId, tenantId, accountId }) => {
       const apiProvider = OAUTH_API_PROVIDER[provider];
-      if (!apiProvider || !clientId) return;
+      const queryString = buildOAuthAuthQuery(provider, { clientId, tenantId, accountId });
+      if (!apiProvider || !queryString) return;
 
       reset();
       setIsStarting(true);
@@ -106,9 +109,7 @@ export const useOAuthPopup = ({ get, onEvent }) => {
       }
 
       try {
-        const query = new URLSearchParams({ clientId });
-        if (provider === 'microsoft-oauth' && tenantId) query.set('tenantId', tenantId);
-        const { data } = await get(`/magic-mail/oauth/${apiProvider}/auth?${query.toString()}`);
+        const { data } = await get(`/magic-mail/oauth/${apiProvider}/auth?${queryString}`);
 
         if (!data?.authUrl || !/^https:\/\//i.test(data.authUrl)) {
           throw new Error('missing authorize URL');

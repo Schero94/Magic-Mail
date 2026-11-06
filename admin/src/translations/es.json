@@ -85,7 +85,7 @@
   "accountModal.oauth.connect": "Conectar con {provider}",
   "accountModal.oauth.connecting": "Abriendo la ventana de autorización...",
   "accountModal.oauth.connectIntro": "Después de introducir las credenciales anteriores, conecte la cuenta con {provider}:",
-  "accountModal.oauth.editBody": "Al guardar se conserva la autorización existente de {provider}. No se admite volver a conectar una cuenta existente: para autorizar otro buzón u otra aplicación, añada una cuenta nueva y elimine esta.",
+  "accountModal.oauth.editBody": "Al guardar se conserva la autorización existente de {provider}. Si el envío falla porque el acceso se revocó o caducó, vuelva a conectar el mismo buzón. Para usar otro buzón u otra aplicación, añada una cuenta nueva.",
   "accountModal.oauth.editTitle": "La autorización se conserva",
   "accountModal.oauth.failed": "No se pudo iniciar la autorización. Compruebe el ID de cliente y vuelva a intentarlo.",
   "accountModal.oauth.lockedHint": "Vinculado a la autorización existente y no se puede cambiar. Añada una cuenta nueva para usar otra aplicación.",
@@ -700,5 +700,9 @@
   "templates.testSend.success": "Correo de prueba enviado a {email}",
   "templates.testSend.template": "Plantilla",
   "templates.testSend.title": "Enviar correo de prueba",
-  "templates.title": "Plantillas de correo"
+  "templates.title": "Plantillas de correo",
+  "accountModal.oauth.reconnect": "Volver a conectar con {provider}",
+  "accountModal.oauth.reconnectedTitle": "Nueva autorización recibida",
+  "accountModal.oauth.reconnectedBody": "Guarde la cuenta para almacenar la nueva autorización de {provider}.",
+  "accountModal.toast.reconnected": "{name} se ha vuelto a conectar con {provider}."
 }

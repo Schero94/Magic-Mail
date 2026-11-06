@@ -85,7 +85,7 @@
   "accountModal.oauth.connect": "Se connecter avec {provider}",
   "accountModal.oauth.connecting": "Ouverture de la fenêtre d’autorisation...",
   "accountModal.oauth.connectIntro": "Après avoir saisi les identifiants ci-dessus, connectez le compte avec {provider} :",
-  "accountModal.oauth.editBody": "L’enregistrement conserve l’autorisation {provider} existante. La reconnexion d’un compte existant n’est pas prise en charge : pour autoriser une autre boîte mail ou application, ajoutez un nouveau compte et supprimez celui-ci.",
+  "accountModal.oauth.editBody": "L’enregistrement conserve l’autorisation {provider} existante. Si l’envoi échoue parce que l’accès a été révoqué ou a expiré, reconnectez la même boîte mail. Pour utiliser une autre boîte mail ou application, ajoutez un nouveau compte.",
   "accountModal.oauth.editTitle": "L’autorisation est conservée",
   "accountModal.oauth.failed": "L’autorisation n’a pas pu être lancée. Vérifiez l’ID client et réessayez.",
   "accountModal.oauth.lockedHint": "Lié à l’autorisation existante et non modifiable. Ajoutez un nouveau compte pour utiliser une autre application.",
@@ -700,5 +700,9 @@
   "templates.testSend.success": "E-mail de test envoyé à {email}",
   "templates.testSend.template": "Modèle",
   "templates.testSend.title": "Envoyer un e-mail de test",
-  "templates.title": "Modèles d’e-mail"
+  "templates.title": "Modèles d’e-mail",
+  "accountModal.oauth.reconnect": "Reconnecter avec {provider}",
+  "accountModal.oauth.reconnectedTitle": "Nouvelle autorisation reçue",
+  "accountModal.oauth.reconnectedBody": "Enregistrez le compte pour conserver la nouvelle autorisation {provider}.",
+  "accountModal.toast.reconnected": "{name} a été reconnecté avec {provider}."
 }

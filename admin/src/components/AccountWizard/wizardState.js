@@ -262,6 +262,37 @@ export const buildOAuthCreatePayload = (provider, form, code, state) => ({
   accountDetails: { ...sharedDetails(form), config: buildConfig(provider, form) },
 });
 
+/**
+ * Query string for GET /oauth/<provider>/auth. With `accountId` the server
+ * reconnects that account with its stored app credentials, so no client id
+ * or tenant is sent; otherwise the app credentials from the form are used.
+ * @param {string} provider - wizard provider value, e.g. 'gmail-oauth'
+ * @param {{clientId?: string, tenantId?: string, accountId?: string|number|null}} params
+ * @returns {string|null} query string, or null when nothing can be started
+ */
+export const buildOAuthAuthQuery = (provider, { clientId, tenantId, accountId } = {}) => {
+  if (!OAUTH_API_PROVIDER[provider]) return null;
+  if (accountId !== undefined && accountId !== null && String(accountId) !== '') {
+    return new URLSearchParams({ accountId: String(accountId) }).toString();
+  }
+  if (!clientId) return null;
+  const query = new URLSearchParams({ clientId });
+  if (provider === 'microsoft-oauth' && tenantId) query.set('tenantId', tenantId);
+  return query.toString();
+};
+
+/**
+ * Body for POST /oauth/reconnect/:accountId (re-authorizing an existing
+ * account). Returns null without a complete authorization for the provider.
+ * @param {string} provider
+ * @param {{provider?: string, code?: string, state?: string}|null} authorization
+ */
+export const buildOAuthReconnectPayload = (provider, authorization) => {
+  if (!OAUTH_API_PROVIDER[provider] || !authorization?.code || !authorization?.state) return null;
+  if (authorization.provider && authorization.provider !== provider) return null;
+  return { provider: OAUTH_API_PROVIDER[provider], code: authorization.code, state: authorization.state };
+};
+
 /** Serialises everything that the user can change, for dirty checks. */
 export const snapshotWizard = ({ provider, form, oauthCode }) =>
   JSON.stringify({ provider: provider || '', form, oauthCode: oauthCode || null });

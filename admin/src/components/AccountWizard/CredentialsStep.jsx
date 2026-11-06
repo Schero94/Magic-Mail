@@ -127,19 +127,47 @@ const SecurityAlert = ({ title, children }) => {
 };
 
 /** Connect button, authorized state, or the edit-mode notice. */
-const OAuthConnect = ({ provider, form, isEditMode, isAuthorized, isStarting, onConnect }) => {
+const OAuthConnect = ({ provider, form, isEditMode, credentialsUnreadable, isAuthorized, isStarting, onConnect }) => {
   const { t } = useMagicMailIntl();
   const providerName = OAUTH_PROVIDER_NAMES[provider];
 
   if (isEditMode) {
+    if (isAuthorized) {
+      return (
+        <Alert variant="success" closeLabel={t('common.close', 'Close')} title={t('accountModal.oauth.reconnectedTitle', 'New authorization received')}>
+          {t('accountModal.oauth.reconnectedBody', 'Save the account to store the new {provider} authorization.', {
+            provider: providerName,
+          })}
+        </Alert>
+      );
+    }
     return (
-      <Alert variant="default" closeLabel={t('common.close', 'Close')} title={t('accountModal.oauth.editTitle', 'Authorization is kept')}>
-        {t(
-          'accountModal.oauth.editBody',
-          'Saving keeps the existing {provider} authorization. Reconnecting an existing account is not supported: to authorize a different mailbox or app, add a new account and delete this one.',
-          { provider: providerName }
-        )}
-      </Alert>
+      <Box>
+        <Alert
+          variant="default"
+          closeLabel={t('common.close', 'Close')}
+          title={t('accountModal.oauth.editTitle', 'Authorization is kept')}
+          marginBottom={3}
+        >
+          {t(
+            'accountModal.oauth.editBody',
+            'Saving keeps the existing {provider} authorization. If sending fails because access was revoked or expired, reconnect with the same mailbox. To use a different mailbox or app, add a new account.',
+            { provider: providerName }
+          )}
+        </Alert>
+        <ConnectButton
+          type="button"
+          $bg={CONNECT_BUTTON_COLORS[provider]}
+          onClick={onConnect}
+          disabled={isStarting || credentialsUnreadable}
+          aria-busy={isStarting}
+        >
+          <LockClosedIcon aria-hidden="true" />
+          {isStarting
+            ? t('accountModal.oauth.connecting', 'Opening authorization window...')
+            : t('accountModal.oauth.reconnect', 'Reconnect with {provider}', { provider: providerName })}
+        </ConnectButton>
+      </Box>
     );
   }
 
@@ -267,6 +295,7 @@ export const CredentialsStep = ({
           provider={provider}
           form={form}
           isEditMode={isEditMode}
+          credentialsUnreadable={credentialsUnreadable}
           isAuthorized={isAuthorized}
           isStarting={isStarting}
           onConnect={onConnect}

@@ -26,6 +26,7 @@ import {
   accountToForm,
   buildAccountPayload,
   buildOAuthCreatePayload,
+  buildOAuthReconnectPayload,
   canProceedStep,
   createEmptyForm,
   isOAuthProvider,
@@ -166,10 +167,12 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
   });
 
   const startOAuth = () =>
-    oauth.start(provider, {
-      clientId: formData.oauthClientId.trim(),
-      tenantId: formData.microsoftTenantId.trim(),
-    });
+    isEditMode
+      ? oauth.start(provider, { accountId })
+      : oauth.start(provider, {
+          clientId: formData.oauthClientId.trim(),
+          tenantId: formData.microsoftTenantId.trim(),
+        });
 
   const handleSubmit = async () => {
     if (!canProceed || saving) return;
@@ -192,10 +195,24 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
         const payload = buildAccountPayload(provider, formData, { isEditMode, credentialsUnreadable });
         if (isEditMode) {
           await put(`/magic-mail/accounts/${accountId}`, payload);
-          toggleNotification({
-            type: 'success',
-            message: t('accountModal.toast.updated', '{name} was updated.', { name }),
-          });
+          const reconnectPayload = isOAuthProvider(provider) ? buildOAuthReconnectPayload(provider, authorization) : null;
+          if (reconnectPayload) {
+            // Re-authorization of an existing OAuth account (revoked or expired
+            // refresh token). The server checks state, PKCE, account and mailbox.
+            await post(`/magic-mail/oauth/reconnect/${accountId}`, reconnectPayload);
+            toggleNotification({
+              type: 'success',
+              message: t('accountModal.toast.reconnected', '{name} was reconnected with {provider}.', {
+                name,
+                provider: OAUTH_PROVIDER_NAMES[provider],
+              }),
+            });
+          } else {
+            toggleNotification({
+              type: 'success',
+              message: t('accountModal.toast.updated', '{name} was updated.', { name }),
+            });
+          }
         } else {
           await post('/magic-mail/accounts', payload);
           toggleNotification({

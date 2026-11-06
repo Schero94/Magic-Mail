@@ -85,7 +85,7 @@
   "accountModal.oauth.connect": "Connect with {provider}",
   "accountModal.oauth.connecting": "Opening authorization window...",
   "accountModal.oauth.connectIntro": "After entering the credentials above, connect the account with {provider}:",
-  "accountModal.oauth.editBody": "Saving keeps the existing {provider} authorization. Reconnecting an existing account is not supported: to authorize a different mailbox or app, add a new account and delete this one.",
+  "accountModal.oauth.editBody": "Saving keeps the existing {provider} authorization. If sending fails because access was revoked or expired, reconnect with the same mailbox. To use a different mailbox or app, add a new account.",
   "accountModal.oauth.editTitle": "Authorization is kept",
   "accountModal.oauth.failed": "The authorization could not be started. Check the client ID and try again.",
   "accountModal.oauth.lockedHint": "Bound to the existing authorization and cannot be changed. Add a new account to use a different app.",
@@ -700,5 +700,9 @@
   "templates.testSend.success": "Test email sent to {email}",
   "templates.testSend.template": "Template",
   "templates.testSend.title": "Send test email",
-  "templates.title": "Email Templates"
+  "templates.title": "Email Templates",
+  "accountModal.oauth.reconnect": "Reconnect with {provider}",
+  "accountModal.oauth.reconnectedTitle": "New authorization received",
+  "accountModal.oauth.reconnectedBody": "Save the account to store the new {provider} authorization.",
+  "accountModal.toast.reconnected": "{name} was reconnected with {provider}."
 }

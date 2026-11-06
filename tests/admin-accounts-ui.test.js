@@ -322,3 +322,27 @@ test('the add-account and edit-account wizards are not mounted without manage pe
   const home = source('admin/src/pages/HomePage.jsx');
   assert.equal((home.match(/\{canManage && \(\s*<AddAccountModal/g) || []).length, 2);
 });
+
+test('UI-M02/FUN-15: edit mode reconnects through the stored account instead of claiming an unused authorization', () => {
+  assert.equal(
+    wizard.buildOAuthAuthQuery('gmail-oauth', { clientId: 'cid', accountId: 'abc123' }),
+    'accountId=abc123',
+    'a reconnect sends only the account id; the server uses the stored app credentials'
+  );
+  assert.equal(wizard.buildOAuthAuthQuery('microsoft-oauth', { clientId: 'cid', tenantId: 'tid' }), 'clientId=cid&tenantId=tid');
+  assert.equal(wizard.buildOAuthAuthQuery('gmail-oauth', { clientId: 'cid', tenantId: 'tid' }), 'clientId=cid');
+  assert.equal(wizard.buildOAuthAuthQuery('gmail-oauth', {}), null);
+  assert.equal(wizard.buildOAuthAuthQuery('smtp', { clientId: 'cid' }), null);
+
+  assert.deepEqual(
+    wizard.buildOAuthReconnectPayload('yahoo-oauth', { provider: 'yahoo-oauth', code: 'c', state: 's' }),
+    { provider: 'yahoo', code: 'c', state: 's' }
+  );
+  assert.equal(wizard.buildOAuthReconnectPayload('yahoo-oauth', null), null);
+  assert.equal(wizard.buildOAuthReconnectPayload('yahoo-oauth', { provider: 'gmail-oauth', code: 'c', state: 's' }), null);
+  assert.equal(wizard.buildOAuthReconnectPayload('gmail-oauth', { provider: 'gmail-oauth', code: 'c' }), null);
+
+  const modal = readFileSync(path.join(ROOT, 'admin/src/components/AddAccountModal.jsx'), 'utf8');
+  assert.match(modal, /oauth\.start\(provider, \{ accountId \}\)/, 'edit mode starts the flow with the account id');
+  assert.match(modal, /post\(`\/magic-mail\/oauth\/reconnect\/\$\{accountId\}`, reconnectPayload\)/);
+});

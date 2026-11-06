@@ -85,7 +85,7 @@
   "accountModal.oauth.connect": "Mit {provider} verbinden",
   "accountModal.oauth.connecting": "Autorisierungsfenster wird geöffnet...",
   "accountModal.oauth.connectIntro": "Nachdem Sie die Zugangsdaten oben eingegeben haben, verbinden Sie das Konto mit {provider}:",
-  "accountModal.oauth.editBody": "Beim Speichern bleibt die bestehende Autorisierung bei {provider} erhalten. Ein erneutes Verbinden eines bestehenden Kontos wird nicht unterstützt: Um ein anderes Postfach oder eine andere App zu autorisieren, fügen Sie ein neues Konto hinzu und löschen Sie dieses.",
+  "accountModal.oauth.editBody": "Beim Speichern bleibt die bestehende Autorisierung bei {provider} erhalten. Wenn das Senden fehlschlägt, weil der Zugriff widerrufen wurde oder abgelaufen ist, verbinden Sie dasselbe Postfach erneut. Für ein anderes Postfach oder eine andere App fügen Sie ein neues Konto hinzu.",
   "accountModal.oauth.editTitle": "Autorisierung bleibt erhalten",
   "accountModal.oauth.failed": "Die Autorisierung konnte nicht gestartet werden. Prüfen Sie die Client-ID und versuchen Sie es erneut.",
   "accountModal.oauth.lockedHint": "An die bestehende Autorisierung gebunden und nicht änderbar. Fügen Sie ein neues Konto hinzu, um eine andere App zu verwenden.",
@@ -700,5 +700,9 @@
   "templates.testSend.success": "Test-E-Mail an {email} gesendet",
   "templates.testSend.template": "Vorlage",
   "templates.testSend.title": "Test-E-Mail senden",
-  "templates.title": "E-Mail-Vorlagen"
+  "templates.title": "E-Mail-Vorlagen",
+  "accountModal.oauth.reconnect": "Erneut mit {provider} verbinden",
+  "accountModal.oauth.reconnectedTitle": "Neue Autorisierung erhalten",
+  "accountModal.oauth.reconnectedBody": "Speichern Sie das Konto, um die neue Autorisierung bei {provider} zu übernehmen.",
+  "accountModal.toast.reconnected": "{name} wurde erneut mit {provider} verbunden."
 }

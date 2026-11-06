@@ -85,7 +85,7 @@
   "accountModal.oauth.connect": "Conectar com {provider}",
   "accountModal.oauth.connecting": "Abrindo a janela de autorização...",
   "accountModal.oauth.connectIntro": "Depois de informar as credenciais acima, conecte a conta com {provider}:",
-  "accountModal.oauth.editBody": "Salvar mantém a autorização existente do {provider}. Reconectar uma conta existente não é suportado: para autorizar outra caixa de correio ou aplicativo, adicione uma nova conta e exclua esta.",
+  "accountModal.oauth.editBody": "Salvar mantém a autorização existente do {provider}. Se o envio falhar porque o acesso foi revogado ou expirou, reconecte a mesma caixa de correio. Para usar outra caixa de correio ou aplicativo, adicione uma nova conta.",
   "accountModal.oauth.editTitle": "A autorização é mantida",
   "accountModal.oauth.failed": "Não foi possível iniciar a autorização. Verifique o ID do cliente e tente novamente.",
   "accountModal.oauth.lockedHint": "Vinculado à autorização existente e não pode ser alterado. Adicione uma nova conta para usar outro aplicativo.",
@@ -700,5 +700,9 @@
   "templates.testSend.success": "E-mail de teste enviado para {email}",
   "templates.testSend.template": "Modelo",
   "templates.testSend.title": "Enviar e-mail de teste",
-  "templates.title": "Modelos de e-mail"
+  "templates.title": "Modelos de e-mail",
+  "accountModal.oauth.reconnect": "Reconectar com {provider}",
+  "accountModal.oauth.reconnectedTitle": "Nova autorização recebida",
+  "accountModal.oauth.reconnectedBody": "Salve a conta para armazenar a nova autorização do {provider}.",
+  "accountModal.toast.reconnected": "{name} foi reconectada com {provider}."
 }
