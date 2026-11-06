@@ -18,6 +18,8 @@ import { GradientButton, TertiaryButton } from '../../components/StyledButtons';
 import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDialog';
 import { useDiscardGuard } from '../../hooks/useUnsavedChangesGuard';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useFormatters } from '../../hooks/useFormatters';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { ActiveSwitchBox, RuleModalHeading } from './styles';
 import {
   MATCH_TYPES,
@@ -51,14 +53,28 @@ const MATCH_VALUE_PLACEHOLDERS = {
  * @param {() => void} props.onClose
  * @param {() => void} props.onSave - refetch after a successful save
  * @param {boolean} props.canManage
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target on
+ *   close when the button that opened the dialog is gone
  */
-export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
+export const RuleModal = ({
+  rule,
+  accounts,
+  onClose,
+  onSave,
+  canManage,
+  getReturnFocusFallback,
+}) => {
   const { post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   const { t } = useMagicMailIntl();
+  const { formatNumber } = useFormatters();
+  // Range bounds in the admin locale ("1,000,000" / "1.000.000").
+  const priorityRange = { min: formatNumber(PRIORITY_MIN), max: formatNumber(PRIORITY_MAX) };
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState({});
   const isEditMode = Boolean(rule);
+  // Radix only restores focus to a Dialog.Trigger; this dialog opens from state.
+  const returnFocus = useReturnFocus(true, getReturnFocusFallback);
 
   const initialData = useMemo(() => getInitialFormData(rule), [rule]);
   const [formData, setFormData] = useState(initialData);
@@ -172,10 +188,11 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
           'The fallback account must differ from the target account.'
         );
       case 'range':
-        return t('routing.form.error.priorityRange', 'Enter a whole number from {min} to {max}.', {
-          min: PRIORITY_MIN,
-          max: PRIORITY_MAX,
-        });
+        return t(
+          'routing.form.error.priorityRange',
+          'Enter a whole number from {min} to {max}.',
+          priorityRange
+        );
       default:
         return undefined;
     }
@@ -209,7 +226,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
           if (!open) requestClose();
         }}
       >
-        <Modal.Content size="L">
+        <Modal.Content size="L" onCloseAutoFocus={returnFocus}>
           <Modal.Header>
             <Modal.Title>
               <RuleModalHeading tag="span" alignItems="center" gap={2}>
@@ -223,7 +240,13 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
             <Box width="100%">
               <Flex direction="column" alignItems="stretch" gap={6} width="100%">
                 {/* Rule Name */}
-                <Field.Root name="name" required error={fieldError('name')} width="100%">
+                <Field.Root
+                  name="name"
+                  required
+                  error={fieldError('name')}
+                  width="100%"
+                  hint={t('routing.form.name.hint', 'A descriptive name for this routing rule')}
+                >
                   <Field.Label>{t('routing.form.name.label', 'Rule Name')}</Field.Label>
                   <TextInput
                     placeholder={t(
@@ -235,9 +258,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     maxLength={255}
                   />
                   <Field.Error />
-                  <Field.Hint>
-                    {t('routing.form.name.hint', 'A descriptive name for this routing rule')}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Description */}
@@ -257,7 +278,13 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                 </Field.Root>
 
                 {/* Match Type */}
-                <Field.Root name="matchType" required error={fieldError('matchType')} width="100%">
+                <Field.Root
+                  name="matchType"
+                  required
+                  error={fieldError('matchType')}
+                  width="100%"
+                  hint={getMatchTypeHelp()}
+                >
                   <Field.Label>{t('routing.form.matchType.label', 'Match Type')}</Field.Label>
                   <SingleSelect
                     value={formData.matchType}
@@ -270,7 +297,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     ))}
                   </SingleSelect>
                   <Field.Error />
-                  <Field.Hint>{getMatchTypeHelp()}</Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Match Value */}
@@ -279,6 +306,10 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                   required
                   error={fieldError('matchValue')}
                   width="100%"
+                  hint={t(
+                    'routing.form.matchValue.hint',
+                    'The value to match against. Case-insensitive for recipient and subject.'
+                  )}
                 >
                   <Field.Label>{t('routing.form.matchValue.label', 'Match Value')}</Field.Label>
                   <TextInput
@@ -290,12 +321,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     onChange={(e) => handleChange('matchValue', e.target.value)}
                   />
                   <Field.Error />
-                  <Field.Hint>
-                    {t(
-                      'routing.form.matchValue.hint',
-                      'The value to match against. Case-insensitive for recipient and subject.'
-                    )}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Target Account */}
@@ -304,6 +330,17 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                   required
                   error={fieldError('accountName')}
                   width="100%"
+                  hint={
+                    targetOptions.length === 0
+                      ? t(
+                          'routing.form.account.noneActive',
+                          'There is no active email account. Add or activate an account first.'
+                        )
+                      : t(
+                          'routing.form.account.hint',
+                          'The email account to use when this rule matches'
+                        )
+                  }
                 >
                   <Field.Label>{t('routing.form.account.label', 'Target Account')}</Field.Label>
                   <SingleSelect
@@ -318,17 +355,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     ))}
                   </SingleSelect>
                   <Field.Error />
-                  <Field.Hint>
-                    {targetOptions.length === 0
-                      ? t(
-                          'routing.form.account.noneActive',
-                          'There is no active email account. Add or activate an account first.'
-                        )
-                      : t(
-                          'routing.form.account.hint',
-                          'The email account to use when this rule matches'
-                        )}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Fallback Account */}
@@ -336,6 +363,10 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                   name="fallbackAccountName"
                   error={fieldError('fallbackAccountName')}
                   width="100%"
+                  hint={t(
+                    'routing.form.fallback.hint',
+                    'Use this account if the target account is unavailable or rate-limited'
+                  )}
                 >
                   <Field.Label>
                     {t('routing.form.fallback.label', 'Fallback Account (optional)')}
@@ -359,16 +390,21 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     ))}
                   </SingleSelect>
                   <Field.Error />
-                  <Field.Hint>
-                    {t(
-                      'routing.form.fallback.hint',
-                      'Use this account if the target account is unavailable or rate-limited'
-                    )}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Priority */}
-                <Field.Root name="priority" required error={fieldError('priority')} width="100%">
+                <Field.Root
+                  name="priority"
+                  required
+                  error={fieldError('priority')}
+                  width="100%"
+                  hint={t(
+                    'routing.form.priority.hint',
+                    'Rules are evaluated from the highest to the lowest priority ({min}-{max}); the first matching rule wins. Give more specific rules a higher priority.',
+                    priorityRange
+                  )}
+                >
                   <Field.Label>{t('routing.form.priority.label', 'Rule Priority')}</Field.Label>
                   <NumberInput
                     value={formData.priority ?? undefined}
@@ -378,13 +414,7 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                     step={1}
                   />
                   <Field.Error />
-                  <Field.Hint>
-                    {t(
-                      'routing.form.priority.hint',
-                      'Rules are evaluated from the highest to the lowest priority ({min}-{max}); the first matching rule wins. Give more specific rules a higher priority.',
-                      { min: PRIORITY_MIN, max: PRIORITY_MAX }
-                    )}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
 
                 {/* Active Switch */}

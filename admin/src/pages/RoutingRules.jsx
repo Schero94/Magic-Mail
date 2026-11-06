@@ -47,6 +47,9 @@ import {
   HeaderContent,
   MatchValue,
   OnlineBadge,
+  RuleCard,
+  RuleCardDetails,
+  RuleCardList,
   RulesContainer,
   SearchSlot,
   SectionBar,
@@ -70,6 +73,24 @@ import {
   hasBrokenAccountReference,
   sortRulesByEvaluationOrder,
 } from './Routing/ruleUtils';
+
+/**
+ * The DS table cell prevents the default of every key when it holds several
+ * buttons (its grid navigation), which blocks native Enter/Space activation
+ * and Tab. Those keys stay with the buttons; arrow keys still move the grid.
+ */
+const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
+const keepNativeButtonKeys = (event) => {
+  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
+};
+
+/** Focus target after a dialog closes whose opener is gone (deleted row). */
+const getFocusFallback = () =>
+  [...document.querySelectorAll('[data-mm-focus-fallback]')].find(
+    (element) => element.getClientRects().length > 0
+  );
+
+const getRuleKey = (rule) => rule.documentId || rule.id;
 
 const RoutingRulesPage = () => {
   const { canManage, isLoading: permissionsLoading, error: permissionsError } = useMagicMailRBAC();
@@ -176,10 +197,13 @@ const RoutingRulesPage = () => {
   );
 
   if (permissionsLoading || (loading && rules.length === 0 && !loadError)) {
+    // Inside Container so the panel keeps its full height and background.
     return (
-      <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
-        <Loader>{t('routing.loading', 'Loading routing rules...')}</Loader>
-      </Flex>
+      <Container>
+        <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
+          <Loader>{t('routing.loading', 'Loading routing rules...')}</Loader>
+        </Flex>
+      </Container>
     );
   }
 
@@ -220,6 +244,89 @@ const RoutingRulesPage = () => {
       </WarningText>
     );
   };
+
+  const renderStatus = (rule) => (
+    <Flex alignItems="center" gap={2} shrink={0}>
+      <OnlineBadge $active={rule.isActive} aria-hidden="true" />
+      <Badge variant={rule.isActive ? 'success' : 'neutral'} size="S">
+        {rule.isActive
+          ? t('routing.status.active', 'Active')
+          : t('routing.status.inactive', 'Inactive')}
+      </Badge>
+    </Flex>
+  );
+
+  const renderName = (rule, headingTag) => (
+    <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
+      <Typography fontWeight="semiBold" tag={headingTag}>
+        {rule.name}
+      </Typography>
+      {rule.description && (
+        <Typography variant="pi" textColor="neutral600">
+          {rule.description}
+        </Typography>
+      )}
+    </Flex>
+  );
+
+  const renderMatchType = (rule) => (
+    <Badge size="S" variant="secondary">
+      {getMatchTypeLabel(rule.matchType, t)}
+    </Badge>
+  );
+
+  const renderAccount = (rule) => (
+    <Flex direction="column" alignItems="flex-start" gap={1}>
+      <Typography fontWeight="semiBold">{rule.accountName}</Typography>
+      {renderAccountWarning(rule.accountName)}
+      {rule.fallbackAccountName && (
+        <Typography variant="pi" textColor="neutral600">
+          {t('routing.table.fallback', 'Fallback: {account}', {
+            account: rule.fallbackAccountName,
+          })}
+        </Typography>
+      )}
+      {rule.fallbackAccountName &&
+        renderAccountWarning(rule.fallbackAccountName, { fallback: true })}
+    </Flex>
+  );
+
+  const renderPriority = (rule) => {
+    const isHigh = Number(rule.priority) >= HIGH_PRIORITY_THRESHOLD;
+    return (
+      <Badge size="S" variant={isHigh ? 'warning' : 'neutral'}>
+        <Flex tag="span" alignItems="center" gap={1}>
+          {isHigh && <SparklesIcon aria-hidden="true" style={{ width: 12, height: 12 }} />}
+          {formatNumber(rule.priority)}
+          {isHigh && (
+            <VisuallyHidden>{t('routing.table.highPriority', 'High priority')}</VisuallyHidden>
+          )}
+        </Flex>
+      </Badge>
+    );
+  };
+
+  const renderActions = (rule) => (
+    <>
+      <IconButton
+        onClick={() => setEditingRule(rule)}
+        disabled={!canEditRules}
+        aria-label={t('routing.actions.edit', 'Edit rule "{name}"', {
+          name: rule.name,
+        })}
+      >
+        <PencilIcon aria-hidden="true" />
+      </IconButton>
+      <IconButtonDanger
+        onClick={() => setPendingDelete(rule)}
+        aria-label={t('routing.actions.delete', 'Delete rule "{name}"', {
+          name: rule.name,
+        })}
+      >
+        <TrashIcon aria-hidden="true" />
+      </IconButtonDanger>
+    </>
+  );
 
   const renderBody = () => {
     if (permissionsError) {
@@ -312,6 +419,7 @@ const RoutingRulesPage = () => {
               <CTAButton
                 startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
                 onClick={() => setShowModal(true)}
+                data-mm-focus-fallback
                 disabled={!canEditRules}
               >
                 {t('routing.empty.cta', 'Create First Rule')}
@@ -332,6 +440,7 @@ const RoutingRulesPage = () => {
                 startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
                 onClick={() => setShowModal(true)}
                 disabled={!canEditRules}
+                data-mm-focus-fallback
               >
                 {t('routing.actions.create', 'Create Rule')}
               </GradientButton>
@@ -437,128 +546,85 @@ const RoutingRulesPage = () => {
 
         {/* Rules Table */}
         {filteredRules.length > 0 ? (
-          <TableScroll
-            tabIndex={0}
-            role="region"
-            aria-label={t('routing.table.label', 'Routing rules in evaluation order')}
-          >
-            <StyledTable colCount={canManage ? 7 : 6} rowCount={filteredRules.length + 1}>
-              <Thead>
-                <Tr>
-                  <Th>{t('routing.table.status', 'Status')}</Th>
-                  <Th>{t('routing.table.name', 'Rule Name')}</Th>
-                  <Th>{t('routing.table.matchType', 'Match Type')}</Th>
-                  <Th>{t('routing.table.matchValue', 'Match Value')}</Th>
-                  <Th>{t('routing.table.account', 'Target Account')}</Th>
-                  <Th>{t('routing.table.priority', 'Priority')}</Th>
-                  {canManage && <Th>{t('routing.table.actions', 'Actions')}</Th>}
-                </Tr>
-              </Thead>
-              <Tbody>
-                {filteredRules.map((rule) => {
-                  const isHigh = Number(rule.priority) >= HIGH_PRIORITY_THRESHOLD;
-                  return (
-                    <Tr key={rule.documentId || rule.id}>
-                      {/* Status */}
-                      <Td>
-                        <Flex alignItems="center" gap={2}>
-                          <OnlineBadge $active={rule.isActive} aria-hidden="true" />
-                          <Badge variant={rule.isActive ? 'success' : 'neutral'} size="S">
-                            {rule.isActive
-                              ? t('routing.status.active', 'Active')
-                              : t('routing.status.inactive', 'Inactive')}
-                          </Badge>
-                        </Flex>
-                      </Td>
-
-                      {/* Name */}
-                      <Td>
-                        <Flex direction="column" alignItems="flex-start" gap={1}>
-                          <Typography fontWeight="semiBold">{rule.name}</Typography>
-                          {rule.description && (
-                            <Typography variant="pi" textColor="neutral600">
-                              {rule.description}
-                            </Typography>
-                          )}
-                        </Flex>
-                      </Td>
-
-                      {/* Match Type */}
-                      <Td>
-                        <Badge size="S" variant="secondary">
-                          {getMatchTypeLabel(rule.matchType, t)}
-                        </Badge>
-                      </Td>
-
-                      {/* Match Value */}
-                      <Td>
+          <>
+            <TableScroll
+              role="region"
+              aria-label={t('routing.table.label', 'Routing rules in evaluation order')}
+            >
+              <StyledTable colCount={canManage ? 7 : 6} rowCount={filteredRules.length + 1}>
+                <Thead>
+                  <Tr>
+                    <Th>{t('routing.table.status', 'Status')}</Th>
+                    <Th>{t('routing.table.name', 'Rule Name')}</Th>
+                    <Th>{t('routing.table.matchType', 'Match Type')}</Th>
+                    <Th>{t('routing.table.matchValue', 'Match Value')}</Th>
+                    <Th>{t('routing.table.account', 'Target Account')}</Th>
+                    <Th>{t('routing.table.priority', 'Priority')}</Th>
+                    {canManage && (
+                      <Th className="actions-cell">{t('routing.table.actions', 'Actions')}</Th>
+                    )}
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {filteredRules.map((rule) => (
+                    <Tr key={getRuleKey(rule)}>
+                      <Td>{renderStatus(rule)}</Td>
+                      <Td className="wrap-cell name-cell">{renderName(rule)}</Td>
+                      <Td className="type-cell">{renderMatchType(rule)}</Td>
+                      <Td className="wrap-cell">
                         <MatchValue variant="pi">{rule.matchValue}</MatchValue>
                       </Td>
-
-                      {/* Target Account */}
-                      <Td>
-                        <Flex direction="column" alignItems="flex-start" gap={1}>
-                          <Typography fontWeight="semiBold">{rule.accountName}</Typography>
-                          {renderAccountWarning(rule.accountName)}
-                          {rule.fallbackAccountName && (
-                            <Typography variant="pi" textColor="neutral600">
-                              {t('routing.table.fallback', 'Fallback: {account}', {
-                                account: rule.fallbackAccountName,
-                              })}
-                            </Typography>
-                          )}
-                          {rule.fallbackAccountName &&
-                            renderAccountWarning(rule.fallbackAccountName, { fallback: true })}
-                        </Flex>
-                      </Td>
-
-                      {/* Priority */}
-                      <Td>
-                        <Badge size="S" variant={isHigh ? 'warning' : 'neutral'}>
-                          <Flex tag="span" alignItems="center" gap={1}>
-                            {isHigh && (
-                              <SparklesIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
-                            )}
-                            {formatNumber(rule.priority)}
-                            {isHigh && (
-                              <VisuallyHidden>
-                                {t('routing.table.highPriority', 'High priority')}
-                              </VisuallyHidden>
-                            )}
-                          </Flex>
-                        </Badge>
-                      </Td>
-
-                      {/* Actions */}
+                      <Td className="wrap-cell">{renderAccount(rule)}</Td>
+                      <Td>{renderPriority(rule)}</Td>
                       {canManage && (
-                        <Td>
-                          <Flex gap={2}>
-                            <IconButton
-                              onClick={() => setEditingRule(rule)}
-                              disabled={!canEditRules}
-                              aria-label={t('routing.actions.edit', 'Edit rule "{name}"', {
-                                name: rule.name,
-                              })}
-                            >
-                              <PencilIcon aria-hidden="true" />
-                            </IconButton>
-                            <IconButtonDanger
-                              onClick={() => setPendingDelete(rule)}
-                              aria-label={t('routing.actions.delete', 'Delete rule "{name}"', {
-                                name: rule.name,
-                              })}
-                            >
-                              <TrashIcon aria-hidden="true" />
-                            </IconButtonDanger>
+                        <Td className="actions-cell">
+                          <Flex gap={2} onKeyDown={keepNativeButtonKeys}>
+                            {renderActions(rule)}
                           </Flex>
                         </Td>
                       )}
                     </Tr>
-                  );
-                })}
-              </Tbody>
-            </StyledTable>
-          </TableScroll>
+                  ))}
+                </Tbody>
+              </StyledTable>
+            </TableScroll>
+
+            {/* Phones and small tablets: one card per rule, in evaluation order,
+                instead of a seven-column table that scrolls sideways. */}
+            <RuleCardList
+              aria-label={t('routing.table.label', 'Routing rules in evaluation order')}
+            >
+              {filteredRules.map((rule) => (
+                <RuleCard key={getRuleKey(rule)}>
+                  <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
+                    {renderName(rule, 'h3')}
+                    {renderStatus(rule)}
+                  </Flex>
+                  <RuleCardDetails>
+                    <div>
+                      <dt>{t('routing.table.matchType', 'Match Type')}</dt>
+                      <dd>{renderMatchType(rule)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('routing.table.priority', 'Priority')}</dt>
+                      <dd>{renderPriority(rule)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('routing.table.matchValue', 'Match Value')}</dt>
+                      <dd>
+                        <MatchValue variant="pi">{rule.matchValue}</MatchValue>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{t('routing.table.account', 'Target Account')}</dt>
+                      <dd>{renderAccount(rule)}</dd>
+                    </div>
+                  </RuleCardDetails>
+                  {canManage && <Flex gap={2}>{renderActions(rule)}</Flex>}
+                </RuleCard>
+              ))}
+            </RuleCardList>
+          </>
         ) : (
           <Box padding={8} style={{ textAlign: 'center' }}>
             <Flex direction="column" alignItems="center" gap={4}>
@@ -671,6 +737,7 @@ const RoutingRulesPage = () => {
         confirmIcon={<TrashIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
         onConfirm={() => deleteRule(pendingDelete)}
         onClose={() => setPendingDelete(null)}
+        getReturnFocusFallback={getFocusFallback}
       >
         {t(
           'routing.delete.hint',

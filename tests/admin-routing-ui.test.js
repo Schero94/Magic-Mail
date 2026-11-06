@@ -78,7 +78,7 @@ test('routing view: RBAC, delete confirmation, unsaved-changes guard and error h
   assert.match(page, /const deleteRule = async \(rule\) => \{\s*if \(!canManage\) return;/);
   assert.match(
     page,
-    /\{canManage && \(?\s*<Th>/,
+    /\{canManage && \(?\s*<Th\b/,
     'the Actions column is hidden for read-only users'
   );
   assert.match(page, /Promise\.allSettled/, 'a failing accounts request keeps rules visible');
@@ -96,7 +96,14 @@ test('routing view: RBAC, delete confirmation, unsaved-changes guard and error h
 test('routing styles are responsive and reduced-motion aware', () => {
   const styles = sources['admin/src/pages/Routing/styles.js'];
   assert.match(styles, /export const FilterBar[\s\S]*?flex-wrap: wrap;/);
-  assert.match(styles, /overflow-x: auto/);
+  // The DS table scrolls sideways itself; the actions column stays visible and
+  // phones get one card per rule instead of the seven-column table.
+  assert.match(styles, /td\.actions-cell \{\s*position: sticky;/);
+  assert.match(styles, /export const TableScroll[\s\S]*?display: none;/);
+  assert.match(styles, /export const RuleCardList = styled\.ol`[\s\S]*?display: flex;/);
+  assert.match(styles, /td\.wrap-cell \{\s*white-space: normal;/);
+  assert.doesNotMatch(styles, /max-width: 1200px/, 'stat cards align with the page edges');
+  assert.match(styles, /\[role='combobox'\] \{\s*min-height: 42px;/);
   assert.match(styles, /motionSafe\(css`\s*animation: \$\{pulse\}/);
   assert.match(styles, /motionSafe\(css`\s*animation: \$\{shimmer\}/);
 });
@@ -334,4 +341,56 @@ test('new rules default to priority 1 and active', () => {
   assert.equal(form.priority, utils.DEFAULT_PRIORITY);
   assert.equal(form.isActive, true);
   assert.equal(form.matchType, 'emailType');
+});
+
+// ---------------------------------------------------------------- browser acceptance fixes
+
+test('rule form hints are passed to Field.Root (DS 2 Field.Hint ignores children)', () => {
+  assert.doesNotMatch(modal, /<Field\.Hint>/);
+  assert.equal((modal.match(/<Field\.Hint \/>/g) ?? []).length, 6);
+  for (const key of [
+    'routing.form.name.hint',
+    'routing.form.matchValue.hint',
+    'routing.form.account.hint',
+    'routing.form.fallback.hint',
+    'routing.form.priority.hint',
+  ]) {
+    assert.match(
+      modal,
+      new RegExp(`hint=\\{(?:[\\s\\S](?!</Field\\.Root>))*?${key.replace(/\./g, '\\.')}`)
+    );
+  }
+  assert.match(modal, /hint=\{getMatchTypeHelp\(\)\}/);
+});
+
+test('dialogs return focus to their opener and row actions keep native keys', () => {
+  assert.match(modal, /useReturnFocus\(true, getReturnFocusFallback\)/);
+  assert.match(modal, /<Modal\.Content size="L" onCloseAutoFocus=\{returnFocus\}>/);
+  assert.match(page, /getReturnFocusFallback=\{getFocusFallback\}/);
+  assert.match(page, /data-mm-focus-fallback/);
+  assert.match(page, /<Flex gap=\{2\} onKeyDown=\{keepNativeButtonKeys\}>/);
+  assert.match(page, /<RuleCardList\s+aria-label=\{t\(\s*'routing\.table\.label'/);
+});
+
+test('account names match case-insensitively, like the router and the server check', () => {
+  assert.equal(utils.isSameAccountName(' marketing ', 'Marketing'), true);
+  assert.equal(utils.isSameAccountName('Marketing', 'Marketing 2'), false);
+  assert.equal(utils.getAccountStatus('marketing', ACCOUNTS), 'active');
+  assert.equal(utils.getAccountStatus('OLD MAILGUN', ACCOUNTS), 'inactive');
+  assert.deepEqual(
+    utils.buildAccountOptions(ACCOUNTS, '', { exclude: 'primary smtp' }).map((o) => o.value),
+    ['Marketing']
+  );
+  const base = {
+    ...utils.getInitialFormData(null),
+    name: 'VIP',
+    matchValue: '@vip.example',
+    accountName: 'marketing',
+  };
+  assert.deepEqual(utils.validateRuleForm(base, ACCOUNTS), {});
+  assert.equal(
+    utils.validateRuleForm({ ...base, fallbackAccountName: 'Marketing' }, ACCOUNTS)
+      .fallbackAccountName,
+    'sameAsTarget'
+  );
 });

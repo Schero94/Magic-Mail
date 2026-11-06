@@ -6,7 +6,7 @@
  */
 import styled, { css, keyframes } from 'styled-components';
 import { Box, Flex, Table, Typography } from '@strapi/design-system';
-import { accent, brand, color, fontSize, theme } from '../../utils/theme';
+import { accent, brand, byScheme, color, fontSize, theme } from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
 
 // ================ ANIMATIONS ================
@@ -164,22 +164,27 @@ export const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: ${theme.spacing.lg};
-  justify-content: center;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 24px;
+
+    /* Three cards in two columns: the last one spans the row (no empty cell). */
+    & > *:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media screen and (max-width: 360px) {
+    grid-template-columns: minmax(0, 1fr);
   }
 `;
 
 export const StatCard = styled(Box)`
   background: ${color('neutral0')};
   border-radius: ${theme.borderRadius.lg};
-  padding: 28px ${theme.spacing.lg};
+  padding: ${theme.spacing.lg};
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
@@ -189,7 +194,7 @@ export const StatCard = styled(Box)`
   animation-delay: ${(p) => p.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
   border: 1px solid rgba(128, 128, 128, 0.2);
-  min-width: 200px;
+  min-width: 0;
   flex: 1;
   text-align: center;
   display: flex;
@@ -198,7 +203,6 @@ export const StatCard = styled(Box)`
   justify-content: center;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
-    min-width: 0;
     padding: 20px 12px;
 
     &:hover {
@@ -268,13 +272,14 @@ export const StatValue = styled(Typography)`
   font-weight: 700;
   color: ${color('neutral800')};
   line-height: 1;
-  margin-bottom: 10px;
+  margin-bottom: ${theme.spacing.sm};
   transition: all ${theme.transitions.normal};
   text-align: center;
+  overflow-wrap: anywhere;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
     font-size: 2rem;
-    margin-bottom: 6px;
+    margin-bottom: ${theme.spacing.xs};
   }
 
   ${reducedMotion}
@@ -364,7 +369,6 @@ export const OnlineBadge = styled.span`
   background: ${(p) => (p.$active ? accent.success(p) : 'rgba(128, 128, 128, 0.4)')};
   display: inline-block;
   flex-shrink: 0;
-  margin-right: 8px;
   ${(p) =>
     p.$active
       ? motionSafe(css`
@@ -373,19 +377,83 @@ export const OnlineBadge = styled.span`
       : ''}
 `;
 
+/** Wrapper of the rules table; the DS table scrolls sideways inside it when needed. */
 export const TableScroll = styled.div`
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  min-width: 0;
 
-  &:focus-visible {
-    outline: 2px solid ${brand.primary};
-    outline-offset: 2px;
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: none;
+  }
+`;
+
+/** Mobile replacement for the table: one card per rule (hidden on wider screens). */
+export const RuleCardList = styled.ol`
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: flex;
+    flex-direction: column;
+    gap: ${theme.spacing.sm};
+  }
+`;
+
+export const RuleCard = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
+  background: ${color('neutral0')};
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: ${theme.shadows.sm};
+  min-width: 0;
+  overflow-wrap: anywhere;
+`;
+
+export const RuleCardDetails = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: ${theme.spacing.md};
+  margin: 0;
+
+  dt {
+    font-size: ${fontSize(1)};
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: ${color('neutral600')};
+    margin-bottom: ${theme.spacing.xs};
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: ${color('neutral800')};
   }
 `;
 
 export const StyledTable = styled(Table)`
+  /* The row actions stay visible while a narrow table scrolls sideways. */
+  th.actions-cell,
+  td.actions-cell {
+    position: sticky;
+    /* The DS table wrapper has 24px inline padding; stick to its outer edge
+       so scrolled columns do not show through beside the actions. */
+    right: -24px;
+    z-index: 1;
+    background: ${color('neutral0')};
+    box-shadow: -1px 0 0 rgba(128, 128, 128, 0.2);
+  }
+
+  th.actions-cell {
+    background: ${color('neutral100')};
+  }
+
   thead {
     background: ${color('neutral100')};
     border-bottom: 2px solid rgba(128, 128, 128, 0.2);
@@ -396,7 +464,10 @@ export const StyledTable = styled(Table)`
       font-size: ${fontSize(1)};
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
+      /* Long translated headings ("Tipo de correspondência") wrap between
+         words instead of widening the table. */
+      white-space: normal;
     }
   }
 
@@ -412,10 +483,34 @@ export const StyledTable = styled(Table)`
       background: rgba(2, 132, 199, 0.12);
     }
 
+    &:hover td.actions-cell {
+      background: ${byScheme('#E1F0F8', '#1D2D46')};
+    }
+
     td {
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
       color: ${color('neutral800')};
       vertical-align: middle;
+    }
+
+    /* Long names, values and account names wrap instead of widening the table. */
+    /* Minimum widths keep all seven columns inside the 976px content area of
+       a 1024px admin (no sideways scrolling on desktop). */
+    td.wrap-cell {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      min-width: 136px;
+    }
+
+    td.name-cell {
+      min-width: 160px;
+    }
+
+    /* Long translated match types ("Benutzerdefiniertes Feld") wrap inside
+       the badge between words. */
+    td.type-cell {
+      white-space: normal;
+      max-width: 160px;
     }
 
     ${reducedMotion}
@@ -441,9 +536,14 @@ export const FilterBar = styled(Flex)`
   @media screen and (max-width: ${breakpoints.mobile}) {
     padding: 12px;
     gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
 
-    & > * {
-      flex: 1 1 100%;
+    /* Doubled class: wins over the flex-basis of SearchSlot / FilterSlot,
+       which would otherwise become a 260px height in the column layout. */
+    && > * {
+      flex: 0 0 auto;
+      width: 100%;
       min-width: 0;
     }
   }
@@ -458,6 +558,18 @@ export const SearchSlot = styled.div`
 export const FilterSlot = styled.div`
   flex: 0 1 180px;
   min-width: 160px;
+
+  /* Same height as the shared SearchField next to it (10px padding, 20px line,
+     2px border). Below 768px both follow the 48px DS input height. */
+  [role='combobox'] {
+    min-height: 42px;
+  }
+
+  @media (max-width: 767px) {
+    [role='combobox'] {
+      min-height: 48px;
+    }
+  }
 `;
 
 export const SectionBar = styled(Flex)`
@@ -468,13 +580,15 @@ export const SectionBar = styled(Flex)`
 export const WarningText = styled(Typography)`
   color: ${accent.warning};
   display: inline-flex;
-  align-items: center;
+  /* The icon stays beside the first line when the message wraps. */
+  align-items: flex-start;
   gap: 4px;
 
   svg {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
+    margin-top: calc((1.4em - 14px) / 2);
   }
 `;
 
@@ -489,4 +603,19 @@ export const RuleModalHeading = styled(Flex)`
 export const ActiveSwitchBox = styled(Box)`
   width: 100%;
   border-radius: ${theme.borderRadius.md};
+
+  /* Touch screens: the DS switch (40x24) grows to a 48x32 target with the
+     same proportions; the thumb keeps its 4px inset in both states. */
+  @media (max-width: 767px) {
+    button[role='switch'] {
+      width: 48px;
+      height: 32px;
+      border-radius: 16px;
+    }
+
+    button[role='switch'] > span {
+      width: 24px;
+      height: 24px;
+    }
+  }
 `;

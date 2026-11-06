@@ -83,14 +83,32 @@ export const filterRules = (rules, { search = '', status = 'all', matchType = 'a
 };
 
 /**
- * State of an account referenced by name from a rule.
+ * Whether two account names refer to the same account. The router and the
+ * server-side reference check compare names case-insensitively.
+ * @param {unknown} a
+ * @param {unknown} b
+ * @returns {boolean}
+ */
+export const isSameAccountName = (a, b) =>
+  String(a ?? '')
+    .trim()
+    .toLowerCase() ===
+  String(b ?? '')
+    .trim()
+    .toLowerCase();
+
+/**
+ * State of an account referenced by name from a rule (case-insensitive, like
+ * the router).
  * @param {string|null|undefined} name
  * @param {Array<{name: string, isActive?: boolean}>} accounts
  * @returns {'none'|'active'|'inactive'|'missing'}
  */
 export const getAccountStatus = (name, accounts) => {
   if (!name) return 'none';
-  const account = (Array.isArray(accounts) ? accounts : []).find((item) => item?.name === name);
+  const account = (Array.isArray(accounts) ? accounts : []).find((item) =>
+    isSameAccountName(item?.name, name)
+  );
   if (!account) return 'missing';
   return account.isActive ? 'active' : 'inactive';
 };
@@ -126,7 +144,9 @@ export const hasBrokenAccountReference = (rule, accounts) => {
 export const buildAccountOptions = (accounts, currentValue, { exclude } = {}) => {
   const list = Array.isArray(accounts) ? accounts : [];
   const options = list
-    .filter((account) => account?.isActive && account.name !== exclude)
+    .filter(
+      (account) => account?.isActive && !(exclude && isSameAccountName(account.name, exclude))
+    )
     .map((account) => ({
       value: account.name,
       name: account.name,
@@ -135,7 +155,7 @@ export const buildAccountOptions = (accounts, currentValue, { exclude } = {}) =>
     }));
 
   if (currentValue && !options.some((option) => option.value === currentValue)) {
-    const stored = list.find((account) => account?.name === currentValue);
+    const stored = list.find((account) => isSameAccountName(account?.name, currentValue));
     options.unshift({
       value: currentValue,
       name: currentValue,
@@ -192,7 +212,10 @@ export const validateRuleForm = (formData, accounts) => {
 
   const fallback = getAccountStatus(formData?.fallbackAccountName, accounts);
   if (fallback === 'inactive' || fallback === 'missing') errors.fallbackAccountName = fallback;
-  else if (fallback === 'active' && formData.fallbackAccountName === formData.accountName) {
+  else if (
+    fallback === 'active' &&
+    isSameAccountName(formData.fallbackAccountName, formData.accountName)
+  ) {
     errors.fallbackAccountName = 'sameAsTarget';
   }
 
