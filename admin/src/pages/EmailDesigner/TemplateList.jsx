@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Divider, Flex, Loader, Tabs, Typography } from '@strapi/design-system';
@@ -102,7 +102,8 @@ const TemplateList = () => {
 
   const [templates, setTemplates] = useState([]);
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataReloadKey, setDataReloadKey] = useState(0);
   const [loadError, setLoadError] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('customTemplates');
@@ -137,14 +138,23 @@ const TemplateList = () => {
     },
   ];
 
-  /** Loads templates and statistics. A failed template request shows an error state with retry. */
-  const fetchData = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!silent) setLoading(true);
+  // Without read permission nothing is requested, so nothing is loading.
+  const loading = canRead && dataLoading;
+
+  /**
+   * Loads templates and statistics; `dataReloadKey` reloads them after a change
+   * or "Try again". A failed template request shows an error state with retry.
+   * State is only set once the requests settled; `ignore` drops stale answers.
+   */
+  useEffect(() => {
+    if (!canRead) return undefined;
+    let ignore = false;
+    const load = async () => {
       const [templatesResult, statsResult] = await Promise.allSettled([
         get('/magic-mail/designer/templates'),
         get('/magic-mail/designer/stats'),
       ]);
+      if (ignore) return;
 
       if (templatesResult.status === 'fulfilled') {
         const list = templatesResult.value?.data?.data;
@@ -155,18 +165,15 @@ const TemplateList = () => {
         setLoadError(true);
       }
       setStats(statsResult.status === 'fulfilled' ? (statsResult.value?.data?.data ?? null) : null);
-      setLoading(false);
-    },
-    [get]
-  );
+      setDataLoading(false);
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [canRead, get, dataReloadKey]);
 
-  useEffect(() => {
-    if (canRead) {
-      fetchData();
-    } else if (!permissionsLoading) {
-      setLoading(false);
-    }
-  }, [canRead, permissionsLoading, fetchData]);
+  const reloadData = () => setDataReloadKey((key) => key + 1);
 
   const filteredTemplates = useMemo(
     () => filterTemplates(templates, searchTerm),
@@ -177,14 +184,14 @@ const TemplateList = () => {
   const startIndex = (page - 1) * itemsPerPage;
   const paginatedTemplates = filteredTemplates.slice(startIndex, startIndex + itemsPerPage);
 
-  // Reset to page 1 when the search changes; keep the page in range after deletes (UI-22).
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  // Keep the stored page in range after deletes (UI-22); adjusted while rendering.
+  if (currentPage !== page) setCurrentPage(page);
 
-  useEffect(() => {
-    setCurrentPage((current) => clampPage(current, totalPages));
-  }, [totalPages]);
+  /** A new search always starts at page 1. */
+  const changeSearch = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
   const openTestSend = (template) => {
     setTestTemplate(template);
@@ -205,8 +212,8 @@ const TemplateList = () => {
         }),
       });
       setPendingDelete(null);
-      await fetchData({ silent: true });
-    } catch (error) {
+      reloadData();
+    } catch {
       toggleNotification({
         type: 'danger',
         message: t('templates.delete.failure', 'The template could not be deleted.'),
@@ -231,7 +238,7 @@ const TemplateList = () => {
           format: type.toUpperCase(),
         }),
       });
-    } catch (error) {
+    } catch {
       toggleNotification({
         type: 'danger',
         message: t('templates.download.failure', 'The template could not be downloaded.'),
@@ -255,9 +262,9 @@ const TemplateList = () => {
       if (duplicated?.templateReferenceId) {
         navigate(`/plugins/magic-mail/designer/${duplicated.templateReferenceId}`);
       } else {
-        fetchData({ silent: true });
+        reloadData();
       }
-    } catch (error) {
+    } catch {
       toggleNotification({
         type: 'danger',
         message: t('templates.duplicate.failure', 'The template could not be duplicated.'),
@@ -329,7 +336,7 @@ const TemplateList = () => {
                 { successful }
               ),
       });
-      await fetchData({ silent: true });
+      reloadData();
     } catch (error) {
       toggleNotification({
         type: 'danger',
@@ -498,7 +505,10 @@ const TemplateList = () => {
         <EmptyButtonGroup>
           <GradientButton
             startIcon={<ArrowPathIcon style={iconSize} aria-hidden="true" />}
-            onClick={() => fetchData()}
+            onClick={() => {
+              setDataLoading(true);
+              reloadData();
+            }}
             loading={loading}
           >
             {t('templates.retry', 'Try again')}
@@ -670,7 +680,7 @@ const TemplateList = () => {
             label={t('templates.search.label', 'Search templates')}
             placeholder={t('templates.search.placeholder', 'Search by name, subject, or ID...')}
             value={searchTerm}
-            onChange={setSearchTerm}
+            onChange={changeSearch}
           />
           {canImport && (
             <SecondaryButton
@@ -762,7 +772,7 @@ const TemplateList = () => {
               {t('templates.noResults.text', 'Try a different search term.')}
             </Typography>
             <Flex justifyContent="center" marginTop={5}>
-              <TertiaryButton onClick={() => setSearchTerm('')}>
+              <TertiaryButton onClick={() => changeSearch('')}>
                 {t('templates.noResults.clear', 'Clear search')}
               </TertiaryButton>
             </Flex>

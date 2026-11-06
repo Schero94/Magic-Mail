@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import {
   Box,
@@ -89,54 +89,56 @@ const RoutingRulesPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterMatchType, setFilterMatchType] = useState('all');
-  const mounted = useRef(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
+  // Loads the rules and accounts on mount and after every reloadData(); state
+  // is only set once both requests settled, and `ignore` drops the answer after
+  // unmount or a newer reload.
   useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
+    let ignore = false;
+    const load = async () => {
+      // allSettled: a failing accounts call must not hide existing rules.
+      const [rulesResult, accountsResult] = await Promise.allSettled([
+        get('/magic-mail/routing-rules'),
+        get('/magic-mail/accounts'),
+      ]);
+      if (ignore) return;
+
+      if (rulesResult.status === 'fulfilled') {
+        setRules(Array.isArray(rulesResult.value?.data?.data) ? rulesResult.value.data.data : []);
+        setLoadError(false);
+      } else {
+        console.error('[magic-mail] Failed to load routing rules');
+        setLoadError(true);
+        toggleNotification({
+          type: 'danger',
+          message: t('routing.notify.loadFailed', 'Routing rules could not be loaded.'),
+        });
+      }
+
+      if (accountsResult.status === 'fulfilled') {
+        setAccounts(
+          Array.isArray(accountsResult.value?.data?.data) ? accountsResult.value.data.data : []
+        );
+        setAccountsError(false);
+      } else {
+        console.error('[magic-mail] Failed to load email accounts for routing');
+        setAccounts([]);
+        setAccountsError(true);
+      }
+      setLoading(false);
     };
-  }, []);
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [get, toggleNotification, t, reloadKey]);
 
-  const fetchData = useCallback(async () => {
+  /** Reloads rules and accounts (Retry, after a save or a delete). */
+  const reloadData = () => {
     setLoading(true);
-    // allSettled: a failing accounts call must not hide existing rules.
-    const [rulesResult, accountsResult] = await Promise.allSettled([
-      get('/magic-mail/routing-rules'),
-      get('/magic-mail/accounts'),
-    ]);
-    if (!mounted.current) return;
-
-    if (rulesResult.status === 'fulfilled') {
-      setRules(Array.isArray(rulesResult.value?.data?.data) ? rulesResult.value.data.data : []);
-      setLoadError(false);
-    } else {
-      console.error('[magic-mail] Failed to load routing rules');
-      setLoadError(true);
-      toggleNotification({
-        type: 'danger',
-        message: t('routing.notify.loadFailed', 'Routing rules could not be loaded.'),
-      });
-    }
-
-    if (accountsResult.status === 'fulfilled') {
-      setAccounts(
-        Array.isArray(accountsResult.value?.data?.data) ? accountsResult.value.data.data : []
-      );
-      setAccountsError(false);
-    } else {
-      console.error('[magic-mail] Failed to load email accounts for routing');
-      setAccounts([]);
-      setAccountsError(true);
-    }
-    setLoading(false);
-  }, [get, toggleNotification, t]);
-
-  useEffect(() => {
-    fetchData();
-    // Load once on mount; fetchData is re-run explicitly after changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setReloadKey((key) => key + 1);
+  };
 
   const deleteRule = async (rule) => {
     if (!canManage) return;
@@ -147,8 +149,8 @@ const RoutingRulesPage = () => {
         message: t('routing.notify.deleted', 'Routing rule "{name}" deleted', { name: rule.name }),
       });
       setPendingDelete(null);
-      fetchData();
-    } catch (err) {
+      reloadData();
+    } catch {
       toggleNotification({
         type: 'danger',
         message: t('routing.notify.deleteFailed', 'The routing rule could not be deleted.'),
@@ -265,7 +267,7 @@ const RoutingRulesPage = () => {
               )}
             </EmptyText>
             <GradientButton
-              onClick={fetchData}
+              onClick={reloadData}
               loading={loading}
               startIcon={<ArrowPathIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
             >
@@ -370,7 +372,7 @@ const RoutingRulesPage = () => {
               </WarningText>
               {accountsError && (
                 <TertiaryButton
-                  onClick={fetchData}
+                  onClick={reloadData}
                   loading={loading}
                   startIcon={<ArrowPathIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
                 >
@@ -655,7 +657,7 @@ const RoutingRulesPage = () => {
             setShowModal(false);
             setEditingRule(null);
           }}
-          onSave={fetchData}
+          onSave={reloadData}
         />
       )}
 

@@ -22,7 +22,6 @@ module.exports = async ({ strapi }) => {
   // Fail fast on missing production secrets. getEncryptionKey() throws when
   // NODE_ENV=production and MAGIC_MAIL_ENCRYPTION_KEY is missing.
   try {
-    // eslint-disable-next-line global-require
     const { encryptCredentials } = require('./utils/encryption');
     encryptCredentials({ __self_test: true });
   } catch (e) {
@@ -216,7 +215,6 @@ async function purgeSensitiveLinkMappings(strapi, log) {
   const done = await store.get({ key: 'sensitiveLinkPurgeV2' });
   if (done) return;
 
-  // eslint-disable-next-line global-require
   const { isSensitiveTrackingUrl } = require('./utils/tracking-url-policy');
   const query = strapi.db.query('plugin::magic-mail.email-link');
   const pageSize = 200;
@@ -224,7 +222,6 @@ async function purgeSensitiveLinkMappings(strapi, log) {
   let removed = 0;
 
   for (let guard = 0; guard < 100000; guard += 1) {
-    // eslint-disable-next-line no-await-in-loop
     const rows = await query.findMany({
       select: ['id', 'originalUrl'],
       where: { id: { $gt: lastId } },
@@ -238,7 +235,6 @@ async function purgeSensitiveLinkMappings(strapi, log) {
       .filter((row) => isSensitiveTrackingUrl(row.originalUrl))
       .map((row) => row.id);
     if (sensitiveIds.length > 0) {
-      // eslint-disable-next-line no-await-in-loop
       await query.deleteMany({ where: { id: { $in: sensitiveIds } } });
       removed += sensitiveIds.length;
     }

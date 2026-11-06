@@ -636,7 +636,6 @@ function validate(schemaName, body) {
   if (!result.success) {
     const strapiErrors = require('@strapi/utils').errors;
     const flattened = result.error.flatten();
-    // eslint-disable-next-line global-require
     const strapiLog = typeof strapi !== 'undefined' && strapi && strapi.log ? strapi.log : null;
 
     // Merge Zod's formErrors (e.g. ".strict() unrecognized keys") into the
@@ -703,7 +702,6 @@ function handleControllerError(ctx, err, logPrefix, fallbackMessage) {
   // when bundlers dedupe differently). Anything matching gets re-thrown
   // unchanged so Strapi's middleware emits the standard
   // `{ data: null, error: { status, name, message, details } }` envelope.
-  // eslint-disable-next-line global-require
   const strapiErrors = require('@strapi/utils').errors;
 
   const knownStrapiNames = new Set([

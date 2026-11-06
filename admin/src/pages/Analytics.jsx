@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -519,8 +519,6 @@ const Analytics = () => {
   const { get, del } = useFetchClient();
   const { toggleNotification } = useNotification();
 
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [logsLoading, setLogsLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(false);
   const [emailLogs, setEmailLogs] = useState([]);
@@ -531,13 +529,20 @@ const Analytics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
+  const [statsReloadKey, setStatsReloadKey] = useState(0);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const requestId = useRef(0);
 
-  useEffect(() => {
-    if (!canManage) setShowClearDialog(false);
-  }, [canManage]);
+  // A lost manage permission closes the purge dialog for good (adjusted while
+  // rendering, not in an effect).
+  if (!canManage && showClearDialog) setShowClearDialog(false);
+
+  // The logs are loading until the request for the current page, search term
+  // and reload counter has settled; the first settle ends the initial loader.
+  const logsQueryKey = JSON.stringify([page, searchTerm, reloadKey]);
+  const [settledLogsKey, setSettledLogsKey] = useState(null);
+  const logsLoading = settledLogsKey !== logsQueryKey;
+  const initialLoading = settledLogsKey === null;
 
   // Debounced server-side search; a new term always starts at page 1.
   useEffect(() => {
@@ -550,61 +555,66 @@ const Analytics = () => {
     return () => clearTimeout(handle);
   }, [searchInput, searchTerm]);
 
-  const fetchAnalytics = useCallback(async () => {
-    try {
-      const response = await get('/magic-mail/analytics/stats');
-      // The API returns { success: true, data: {...} }.
-      setStats(response.data?.data || response.data || {});
-      setStatsError(false);
-    } catch {
-      console.error('[MagicMail] Failed to fetch analytics');
-      setStats(null);
-      setStatsError(true);
-    }
-  }, [get]);
-
-  const fetchEmailLogs = useCallback(async () => {
-    const id = ++requestId.current;
-    setLogsLoading(true);
-    try {
-      const response = await get(
-        buildEmailLogsUrl({ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm })
-      );
-      if (id !== requestId.current) return;
-      const rows = response.data?.data || [];
-      const nextPagination = response.data?.pagination || null;
-      setEmailLogs(rows);
-      setPagination(nextPagination);
-      setLogsError(null);
-      if (!searchTerm) setTotalLogs(nextPagination?.total ?? rows.length);
-      const clamped = clampPage(page, nextPagination?.pageCount);
-      if (clamped !== page) setPage(clamped);
-    } catch (error) {
-      if (id !== requestId.current) return;
-      console.error('[MagicMail] Failed to fetch email logs');
-      const message =
-        apiErrorMessage(error) || t('analytics.logs.loadError', 'Failed to load email logs');
-      setEmailLogs([]);
-      setPagination(null);
-      setLogsError(message);
-      toggleNotification({ type: 'danger', message });
-    } finally {
-      if (id === requestId.current) {
-        setLogsLoading(false);
-        setInitialLoading(false);
+  useEffect(() => {
+    let ignore = false;
+    const loadStats = async () => {
+      try {
+        const response = await get('/magic-mail/analytics/stats');
+        if (ignore) return;
+        // The API returns { success: true, data: {...} }.
+        setStats(response.data?.data || response.data || {});
+        setStatsError(false);
+      } catch {
+        if (ignore) return;
+        console.error('[MagicMail] Failed to fetch analytics');
+        setStats(null);
+        setStatsError(true);
       }
-    }
-  }, [get, page, searchTerm, t, toggleNotification]);
+    };
+    loadStats();
+    return () => {
+      ignore = true;
+    };
+  }, [get, statsReloadKey]);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
+    // `ignore` drops the answer of a request that a newer page, search term or
+    // reload (logsQueryKey) has replaced.
+    let ignore = false;
+    const loadLogs = async () => {
+      try {
+        const response = await get(
+          buildEmailLogsUrl({ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm })
+        );
+        if (ignore) return;
+        const rows = response.data?.data || [];
+        const nextPagination = response.data?.pagination || null;
+        setEmailLogs(rows);
+        setPagination(nextPagination);
+        setLogsError(null);
+        if (!searchTerm) setTotalLogs(nextPagination?.total ?? rows.length);
+        const clamped = clampPage(page, nextPagination?.pageCount);
+        if (clamped !== page) setPage(clamped);
+      } catch (error) {
+        if (ignore) return;
+        console.error('[MagicMail] Failed to fetch email logs');
+        const message =
+          apiErrorMessage(error) || t('analytics.logs.loadError', 'Failed to load email logs');
+        setEmailLogs([]);
+        setPagination(null);
+        setLogsError(message);
+        toggleNotification({ type: 'danger', message });
+      } finally {
+        if (!ignore) setSettledLogsKey(logsQueryKey);
+      }
+    };
+    loadLogs();
+    return () => {
+      ignore = true;
+    };
+  }, [get, page, searchTerm, logsQueryKey, t, toggleNotification]);
 
-  useEffect(() => {
-    fetchEmailLogs();
-    // reloadKey forces a refetch after a purge or a retry.
-  }, [fetchEmailLogs, reloadKey]);
-
+  const reloadStats = () => setStatsReloadKey((key) => key + 1);
   const reloadLogs = () => setReloadKey((key) => key + 1);
 
   const handleClearAll = async () => {
@@ -639,7 +649,7 @@ const Analytics = () => {
     } finally {
       setIsDeleting(false);
       setPage(1);
-      fetchAnalytics();
+      reloadStats();
       reloadLogs();
     }
   };
@@ -755,7 +765,7 @@ const Analytics = () => {
           </Flex>
           <TertiaryButton
             startIcon={<ArrowPathIcon style={ICON_16} aria-hidden="true" />}
-            onClick={fetchAnalytics}
+            onClick={reloadStats}
           >
             {t('analytics.retry', 'Retry')}
           </TertiaryButton>

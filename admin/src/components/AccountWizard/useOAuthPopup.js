@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   OAUTH_API_PROVIDER,
   buildOAuthAuthQuery,
@@ -33,7 +33,11 @@ export const useOAuthPopup = ({ get, onEvent }) => {
   const completedRef = useRef(false);
   const expectedProviderRef = useRef(null);
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  // Keep the latest callback for the message listener and the poll timer;
+  // the ref is written after render, not during it.
+  useLayoutEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) {
@@ -122,7 +126,7 @@ export const useOAuthPopup = ({ get, onEvent }) => {
         onEventRef.current?.({ type: 'started', provider });
 
         intervalRef.current = setInterval(() => {
-          let closed = true;
+          let closed;
           try {
             closed = popup.closed;
           } catch {

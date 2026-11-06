@@ -196,7 +196,9 @@ async function createState(strapi, { clientId, provider, userId, accountId, useP
       await store.set({ key: PENDING_STORE_KEY, value: prunePending(pending, timestamp) });
     });
   } catch (err) {
-    throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`);
+    throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`, {
+      cause: err,
+    });
   }
 
   await cleanupLegacyRows(strapi);

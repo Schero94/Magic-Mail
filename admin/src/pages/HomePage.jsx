@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -140,34 +140,46 @@ const HomePage = () => {
 
   useStripOAuthCallbackParams();
 
-  const fetchAccounts = useCallback(async () => {
+  // Loads accounts and rules on mount and after every fetchAccounts(); state is
+  // only set once both requests settled, and `ignore` drops stale answers.
+  const [accountsReloadKey, setAccountsReloadKey] = useState(0);
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      // Rules are only used for the rename/delete warnings; a failure there
+      // must not hide the accounts.
+      const [accountsResult, rulesResult] = await Promise.allSettled([
+        get('/magic-mail/accounts'),
+        get('/magic-mail/routing-rules'),
+      ]);
+      if (ignore) return;
+
+      if (accountsResult.status === 'fulfilled') {
+        const list = accountsResult.value?.data?.data;
+        setAccounts(Array.isArray(list) ? list : []);
+      } else {
+        console.error('[magic-mail] Failed to fetch email accounts');
+        setLoadError(true);
+      }
+      setRules(
+        rulesResult.status === 'fulfilled' && Array.isArray(rulesResult.value?.data?.data)
+          ? rulesResult.value.data.data
+          : null
+      );
+      setLoading(false);
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [get, accountsReloadKey]);
+
+  /** Reloads accounts and rules (Retry, after add, edit, delete or test). */
+  const fetchAccounts = () => {
     setLoading(true);
     setLoadError(false);
-    // Rules are only used for the rename/delete warnings; a failure there
-    // must not hide the accounts.
-    const [accountsResult, rulesResult] = await Promise.allSettled([
-      get('/magic-mail/accounts'),
-      get('/magic-mail/routing-rules'),
-    ]);
-
-    if (accountsResult.status === 'fulfilled') {
-      const list = accountsResult.value?.data?.data;
-      setAccounts(Array.isArray(list) ? list : []);
-    } else {
-      console.error('[magic-mail] Failed to fetch email accounts');
-      setLoadError(true);
-    }
-    setRules(
-      rulesResult.status === 'fulfilled' && Array.isArray(rulesResult.value?.data?.data)
-        ? rulesResult.value.data.data
-        : null
-    );
-    setLoading(false);
-  }, [get]);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+    setAccountsReloadKey((key) => key + 1);
+  };
 
   /**
    * Sends a test message through exactly this account and forwards optional CC recipients.

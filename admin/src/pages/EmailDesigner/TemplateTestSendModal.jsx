@@ -44,14 +44,22 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
   const [accounts, setAccounts] = useState([]);
   const [accountsError, setAccountsError] = useState(false);
 
+  // Clear the form each time the dialog opens; adjusted while rendering
+  // (react.dev "Adjusting some state when a prop changes"), not in an effect.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setTestEmail('');
+      setTestCc('');
+      setTestAccount(AUTO_ACCOUNT);
+      setErrors({});
+      setAccountsError(false);
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return undefined;
-    setTestEmail('');
-    setTestCc('');
-    setTestAccount(AUTO_ACCOUNT);
-    setErrors({});
-    setAccountsError(false);
-
     let cancelled = false;
     get('/magic-mail/accounts')
       .then((response) => {
@@ -66,8 +74,7 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, get]);
 
   const errorText = {
     to: {

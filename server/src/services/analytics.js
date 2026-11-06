@@ -154,7 +154,6 @@ const normalizeRecipient = (value) => {
   if (typeof first !== 'string') return '';
   if (!/[<,"(]/.test(first)) return first.trim().toLowerCase();
   try {
-    // eslint-disable-next-line global-require
     let parse = require('nodemailer/lib/addressparser');
     parse = parse.default || parse;
     const flat = [];
@@ -360,7 +359,6 @@ const runWithConcurrency = async (items, limit, worker) => {
     while (index < items.length) {
       const item = items[index];
       index += 1;
-      // eslint-disable-next-line no-await-in-loop
       await worker(item);
     }
   });
@@ -940,7 +938,7 @@ module.exports = ({ strapi }) => ({
 
     let { endpoint } = options;
     if (endpoint === undefined) {
-      let settings = {};
+      let settings;
       try {
         settings =
           (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
@@ -1179,14 +1177,12 @@ module.exports = ({ strapi }) => ({
     for (const uid of [EMAIL_EVENT_UID, EMAIL_LINK_UID]) {
       const query = strapi.db.query(uid);
       for (let guard = 0; guard < 100000; guard += 1) {
-        // eslint-disable-next-line no-await-in-loop
         const rows = await query.findMany({
           select: ['id'],
           where: { emailLog: { id: { $in: logIds } } },
           limit: 1000,
         });
         if (!rows || rows.length === 0) break;
-        // eslint-disable-next-line no-await-in-loop
         await query.deleteMany({ where: { id: { $in: rows.map((row) => row.id) } } });
         if (rows.length < 1000) break;
       }
@@ -1209,7 +1205,6 @@ module.exports = ({ strapi }) => ({
     const query = strapi.db.query(EMAIL_LOG_UID);
     let deletedCount = 0;
     while (deletedCount < max) {
-      // eslint-disable-next-line no-await-in-loop
       const rows = await query.findMany({
         select: ['id'],
         where,
@@ -1217,7 +1212,6 @@ module.exports = ({ strapi }) => ({
         limit: Math.min(BATCH_SIZE, max - deletedCount),
       });
       if (!rows || rows.length === 0) break;
-      // eslint-disable-next-line no-await-in-loop
       const deleted = await this.deleteEmailLogsByIds(rows.map((row) => row.id));
       deletedCount += deleted;
       if (deleted === 0) break; // no progress: never loop forever
@@ -1242,7 +1236,6 @@ module.exports = ({ strapi }) => ({
     let lastId = 0;
     let changed = 0;
     for (let guard = 0; guard < 100000; guard += 1) {
-      // eslint-disable-next-line no-await-in-loop
       const rows = await query.findMany({
         select: ['id', 'ipAddress', 'location', 'linkUrl'],
         where: { id: { $gt: lastId } },
@@ -1260,7 +1253,6 @@ module.exports = ({ strapi }) => ({
         if (row.location !== null && row.location !== undefined) data.location = null;
         if (row.linkUrl && isSensitiveTrackingUrl(row.linkUrl)) data.linkUrl = null;
         if (Object.keys(data).length > 0) {
-          // eslint-disable-next-line no-await-in-loop
           await query.update({ where: { id: row.id }, data });
           changed += 1;
         }
@@ -1293,14 +1285,12 @@ module.exports = ({ strapi }) => ({
       const query = strapi.db.query(uid);
       let removed = 0;
       for (let guard = 0; guard < 1000; guard += 1) {
-        // eslint-disable-next-line no-await-in-loop
         const rows = await query.findMany({
           select: ['id'],
           where: { [field]: { $lt: cutoff } },
           limit: 1000,
         });
         if (!rows || rows.length === 0) break;
-        // eslint-disable-next-line no-await-in-loop
         await query.deleteMany({ where: { id: { $in: rows.map((row) => row.id) } } });
         removed += rows.length;
         if (rows.length < 1000) break;

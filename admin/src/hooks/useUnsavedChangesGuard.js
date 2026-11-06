@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 
 /**
@@ -44,7 +44,11 @@ export const attachBeforeUnload = (
  */
 const useDiscardState = (isDirty) => {
   const dirtyRef = useRef(Boolean(isDirty));
-  dirtyRef.current = Boolean(isDirty);
+  // Event handlers and the router blocker read the committed value; refs are
+  // written after render, not during it.
+  useLayoutEffect(() => {
+    dirtyRef.current = Boolean(isDirty);
+  }, [isDirty]);
   const [pendingAction, setPendingAction] = useState(null);
 
   /** Runs `action` now when clean, otherwise after the user confirms. */

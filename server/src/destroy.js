@@ -40,7 +40,6 @@ module.exports = async ({ strapi }) => {
 
   // 2. Restore the native email provider/service functions we replaced, so a
   //    re-bootstrap does not wrap our own wrapper.
-  // eslint-disable-next-line global-require
   const { uninstallEmailInterception } = require('./bootstrap');
   uninstallEmailInterception(strapi);
   log.info('[magic-mail] Restored native email service');

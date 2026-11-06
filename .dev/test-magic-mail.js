@@ -15,7 +15,7 @@
 try {
   // Resolved from this file, not from the current working directory.
   require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-} catch (err) {
+} catch {
   // dotenv not installed or .env not found - that's ok, use ENV vars
 }
 
@@ -298,8 +298,6 @@ async function testDeleteAccount() {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
-
-    const data = await response.json();
 
     if (response.ok) {
       logSuccess(`Account ${TEST_ACCOUNT_ID} deleted successfully`);
@@ -1232,7 +1230,9 @@ async function testTemplateCrudLifecycle() {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${ADMIN_JWT}` },
         });
-      } catch {}
+      } catch {
+        // Cleanup is best effort; the test already failed.
+      }
     }
     return false;
   }

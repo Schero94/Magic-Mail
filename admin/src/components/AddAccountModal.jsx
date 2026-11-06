@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Flex, Loader, Modal } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { ArrowLeft, ArrowRight, Check, Cog, Lock, Mail, Server, Star } from '@strapi/icons';
@@ -68,9 +68,34 @@ const AddAccountModal = ({
   const [formData, setFormData] = useState(createEmptyForm);
   const [credentialsUnreadable, setCredentialsUnreadable] = useState(false);
   const [originalName, setOriginalName] = useState('');
-  const initialSnapshotRef = useRef(
+  // The snapshot decides `isDirty` during render, so it is state, not a ref.
+  const [initialSnapshot, setInitialSnapshot] = useState(() =>
     snapshotWizard({ provider: '', form: createEmptyForm(), oauthCode: null })
   );
+
+  // Reset the wizard whenever the modal opens or a failed load is retried.
+  // State is adjusted while rendering (react.dev "Adjusting some state when a
+  // prop changes") instead of synchronously in an effect.
+  const openKey = isOpen ? `${isEditMode ? accountId : 'new'}:${reloadKey}` : null;
+  const [handledOpenKey, setHandledOpenKey] = useState(null);
+  if (openKey !== handledOpenKey) {
+    setHandledOpenKey(openKey);
+    if (openKey !== null) {
+      setSaving(false);
+      if (isEditMode) {
+        setLoadState('loading');
+      } else {
+        const empty = createEmptyForm();
+        setLoadState('idle');
+        setCurrentStep(1);
+        setProvider('');
+        setFormData(empty);
+        setCredentialsUnreadable(false);
+        setOriginalName('');
+        setInitialSnapshot(snapshotWizard({ provider: '', form: empty, oauthCode: null }));
+      }
+    }
+  }
 
   const handleOAuthEvent = useCallback(
     ({ type, provider: eventProvider }) => {
@@ -120,27 +145,14 @@ const AddAccountModal = ({
   const authorization = oauth.authorization?.provider === provider ? oauth.authorization : null;
   const resetOAuth = oauth.reset;
 
-  // Load the account (edit) or reset the form (add) whenever the modal opens.
+  // Forget any OAuth flow and load the account (edit) whenever the modal opens.
   useEffect(() => {
     if (!isOpen) return undefined;
-    let cancelled = false;
     resetOAuth();
-    setSaving(false);
-
-    if (!isEditMode) {
-      const empty = createEmptyForm();
-      setLoadState('idle');
-      setCurrentStep(1);
-      setProvider('');
-      setFormData(empty);
-      setCredentialsUnreadable(false);
-      setOriginalName('');
-      initialSnapshotRef.current = snapshotWizard({ provider: '', form: empty, oauthCode: null });
-      return undefined;
-    }
+    if (!isEditMode) return undefined;
+    let cancelled = false;
 
     const load = async () => {
-      setLoadState('loading');
       try {
         const { data } = await get(`/magic-mail/accounts/${accountId}`);
         if (cancelled) return;
@@ -151,11 +163,13 @@ const AddAccountModal = ({
         setCredentialsUnreadable(account.credentialsUnreadable === true);
         setOriginalName(form.name);
         setCurrentStep(2); // the provider cannot be changed in edit mode
-        initialSnapshotRef.current = snapshotWizard({
-          provider: account.provider || '',
-          form,
-          oauthCode: null,
-        });
+        setInitialSnapshot(
+          snapshotWizard({
+            provider: account.provider || '',
+            form,
+            oauthCode: null,
+          })
+        );
         setLoadState('idle');
       } catch {
         if (cancelled) return;
@@ -174,7 +188,7 @@ const AddAccountModal = ({
     isOpen &&
     loadState === 'idle' &&
     snapshotWizard({ provider, form: formData, oauthCode: authorization?.code }) !==
-      initialSnapshotRef.current;
+      initialSnapshot;
   const discard = useDiscardGuard(isDirty && !saving);
 
   const handleChange = (field, value) => {

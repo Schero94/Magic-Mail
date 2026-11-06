@@ -358,7 +358,7 @@ module.exports = ({ strapi }) => ({
         strapi.log.info(
           `[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`
         );
-      } catch (jwtErr) {
+      } catch {
         strapi.log.warn('[magic-mail] Could not decode Microsoft ID token');
       }
     }

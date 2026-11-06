@@ -91,7 +91,6 @@ function getKeyMaterial() {
 
   if (!warnedMissingKey) {
     warnedMissingKey = true;
-    // eslint-disable-next-line no-console
     console.warn(
       '[magic-mail] MAGIC_MAIL_ENCRYPTION_KEY not set - using a development key derived from ' +
         'ADMIN_JWT_SECRET/APP_KEYS. Set MAGIC_MAIL_ENCRYPTION_KEY before deploying.'
@@ -156,7 +155,7 @@ function encryptCredentials(data) {
       encrypted: `${VERSION_PREFIX}:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`,
     };
   } catch (err) {
-    throw new Error(`Failed to encrypt credentials: ${err.message}`);
+    throw new Error(`Failed to encrypt credentials: ${err.message}`, { cause: err });
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from 'styled-components';
@@ -205,80 +205,85 @@ const EditorPage = () => {
     setIsDirty(true);
   };
 
-  const fetchCoreTemplate = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!silent) setLoading(true);
-      try {
-        const response = await get(
-          `/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`
-        );
-        const coreTemplate = response.data?.data;
-        const design = coreTemplate?.design || buildCoreDesign(coreTemplate?.message, htmlToText);
-
-        setTemplateData({
-          ...EMPTY_TEMPLATE,
-          category: 'transactional',
-          subject: coreTemplate?.subject || '',
-          design,
-          bodyHtml: coreTemplate?.bodyHtml || coreTemplate?.message || '',
-          bodyText: coreTemplate?.bodyText || '',
-        });
-        setLoadError(false);
-        setIsDirty(false);
-        loadDesignIntoEditor(design);
-      } catch (error) {
-        console.error('[MagicMail] Failed to load core template');
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [coreEmailType, get, loadDesignIntoEditor]
-  );
-
-  const fetchTemplate = useCallback(
-    async ({ silent = false } = {}) => {
-      if (!silent) setLoading(true);
-      try {
-        const response = await get(`/magic-mail/designer/templates/${encodeURIComponent(id)}`);
-        const template = response.data?.data ?? {};
-        setTemplateData({ ...EMPTY_TEMPLATE, ...template });
-        setLoadError(false);
-        setIsDirty(false);
-        loadDesignIntoEditor(template.design);
-      } catch (error) {
-        console.error('[MagicMail] Failed to load template');
-        setLoadError(true);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [get, id, loadDesignIntoEditor]
-  );
-
-  const loadCurrent = useCallback(() => {
-    if (isCoreEmail) return fetchCoreTemplate();
-    if (!isNewTemplate && id) return fetchTemplate();
-    return undefined;
-  }, [fetchCoreTemplate, fetchTemplate, id, isCoreEmail, isNewTemplate]);
-
-  // (Re)load whenever the route changes; the editor remounts per template.
-  useEffect(() => {
-    editorReadyRef.current = false;
-    latestDesignRef.current = null;
+  // Reset the form whenever the route changes; the editor remounts per
+  // template. State is adjusted while rendering (react.dev "Adjusting some
+  // state when a prop changes"), the refs and the request follow in the effect.
+  const routeKey = pathname;
+  const [handledRouteKey, setHandledRouteKey] = useState(routeKey);
+  if (routeKey !== handledRouteKey) {
+    setHandledRouteKey(routeKey);
     setEditorLoaded(false);
     setDesignerLoadError(false);
     setErrors({});
     setIsDirty(false);
+    setLoadError(false);
     if (isNewTemplate) {
       setTemplateData(EMPTY_TEMPLATE);
       setLoading(false);
-      setLoadError(false);
     } else {
-      loadCurrent();
+      setLoading(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, isCoreEmail, coreEmailType]);
+  }
+
+  // The editor of the previous route is gone; forget its readiness and design.
+  useEffect(() => {
+    editorReadyRef.current = false;
+    latestDesignRef.current = null;
+  }, [pathname]);
+
+  // Loads the template (or core email) for the route; `templateReloadKey`
+  // reloads it after "Try again" or a version restore. `loading` is set by the
+  // caller that wants the loader; the request only sets state once it settled,
+  // and `ignore` drops the answer for a route that is no longer shown.
+  const [templateReloadKey, setTemplateReloadKey] = useState(0);
+  useEffect(() => {
+    if (!isCoreEmail && (isNewTemplate || !id)) return undefined;
+    let ignore = false;
+    const load = async () => {
+      try {
+        let next;
+        if (isCoreEmail) {
+          const response = await get(
+            `/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`
+          );
+          const coreTemplate = response.data?.data;
+          const design = coreTemplate?.design || buildCoreDesign(coreTemplate?.message, htmlToText);
+          next = {
+            ...EMPTY_TEMPLATE,
+            category: 'transactional',
+            subject: coreTemplate?.subject || '',
+            design,
+            bodyHtml: coreTemplate?.bodyHtml || coreTemplate?.message || '',
+            bodyText: coreTemplate?.bodyText || '',
+          };
+        } else {
+          const response = await get(`/magic-mail/designer/templates/${encodeURIComponent(id)}`);
+          next = { ...EMPTY_TEMPLATE, ...(response.data?.data ?? {}) };
+        }
+        if (ignore) return;
+        setTemplateData(next);
+        setLoadError(false);
+        setIsDirty(false);
+        loadDesignIntoEditor(next.design);
+      } catch {
+        if (ignore) return;
+        console.error(
+          isCoreEmail
+            ? '[MagicMail] Failed to load core template'
+            : '[MagicMail] Failed to load template'
+        );
+        setLoadError(true);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [coreEmailType, get, id, isCoreEmail, isNewTemplate, loadDesignIntoEditor, templateReloadKey]);
+
+  const reloadTemplate = () => setTemplateReloadKey((key) => key + 1);
 
   // Operator settings for the visual editor (optional projectId, pinned script/version).
   useEffect(() => {
@@ -297,15 +302,22 @@ const EditorPage = () => {
   }, [canManage, editorConfig, get]);
 
   // Options are computed once per configuration: react-email-editor recreates
-  // the editor (and drops unsaved work) whenever its options change.
-  const unlayerOptions = useMemo(
-    () =>
-      editorConfig
-        ? buildUnlayerOptions({ config: editorConfig, isDark: isDarkTheme(activeTheme), locale, t })
-        : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editorConfig]
-  );
+  // the editor (and drops unsaved work) whenever its options change, so a later
+  // theme or locale change must not rebuild them. Kept in state and adjusted
+  // while rendering when the configuration changes.
+  const [frozenOptions, setFrozenOptions] = useState({ config: null, options: null });
+  if (editorConfig && frozenOptions.config !== editorConfig) {
+    setFrozenOptions({
+      config: editorConfig,
+      options: buildUnlayerOptions({
+        config: editorConfig,
+        isDark: isDarkTheme(activeTheme),
+        locale,
+        t,
+      }),
+    });
+  }
+  const unlayerOptions = frozenOptions.config === editorConfig ? frozenOptions.options : null;
 
   // Do not leave the visual editor in an indefinite loading state if its
   // external runtime is blocked or unavailable. The Plain Text tab remains
@@ -383,7 +395,7 @@ const EditorPage = () => {
         `/magic-mail/designer/templates/${encodeURIComponent(id)}/versions`
       );
       setVersions(Array.isArray(response.data?.data) ? response.data.data : []);
-    } catch (error) {
+    } catch {
       console.error('[Version History] Failed to load versions');
       setVersionsError(true);
     } finally {
@@ -418,9 +430,9 @@ const EditorPage = () => {
       });
       setPendingRestore(null);
       setShowVersionHistory(false);
-      await fetchTemplate({ silent: true });
+      reloadTemplate();
       await fetchVersions();
-    } catch (error) {
+    } catch {
       console.error('[Version History] Failed to restore version');
       toggleNotification({
         type: 'danger',
@@ -451,7 +463,7 @@ const EditorPage = () => {
       });
       setPendingVersionDelete(null);
       await fetchVersions();
-    } catch (error) {
+    } catch {
       console.error('[Version History] Failed to delete version');
       toggleNotification({
         type: 'danger',
@@ -481,7 +493,7 @@ const EditorPage = () => {
       });
       setConfirmDeleteAll(false);
       await fetchVersions();
-    } catch (error) {
+    } catch {
       console.error('[Version History] Failed to delete all versions');
       toggleNotification({
         type: 'danger',
@@ -688,7 +700,10 @@ const EditorPage = () => {
             {!permissionsError && (
               <Button
                 startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />}
-                onClick={() => loadCurrent()}
+                onClick={() => {
+                  setLoading(true);
+                  reloadTemplate();
+                }}
               >
                 {t('editor.retry', 'Try again')}
               </Button>

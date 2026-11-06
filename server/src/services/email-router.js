@@ -227,7 +227,6 @@ function stripHeaderInjection(value) {
 function validationError(message) {
   let error;
   try {
-    // eslint-disable-next-line global-require
     const { errors } = require('@strapi/utils');
     error = new errors.ValidationError(message);
   } catch {
@@ -283,7 +282,6 @@ function isSafeToRetry(error) {
 
 /** @returns {Function} nodemailer's RFC 5322 address parser */
 function getAddressParser() {
-  // eslint-disable-next-line global-require
   const parser = require('nodemailer/lib/addressparser');
   return parser.default || parser;
 }
@@ -808,7 +806,6 @@ function quotaWindowKeys(date = new Date(), timeZone = 'UTC') {
  * @returns {Promise<Buffer>} Raw MIME message
  */
 function buildRawMimeMessage(account, emailData) {
-  // eslint-disable-next-line global-require
   const MailComposerModule = require('nodemailer/lib/mail-composer');
   const MailComposer = MailComposerModule.default || MailComposerModule;
 
@@ -1100,7 +1097,7 @@ module.exports = ({ strapi }) => ({
       return { ...rendered, templateReferenceId: referenceId };
     } catch (error) {
       strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
-      throw new Error(`Template rendering failed: ${error.message}`);
+      throw new Error(`Template rendering failed: ${error.message}`, { cause: error });
     }
   },
 
@@ -1114,7 +1111,7 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<{date: string, year: string, unsubscribe: string, webview: string}>}
    */
   async systemMergeTagsFor(data) {
-    let settings = {};
+    let settings;
     try {
       settings = (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
     } catch {
@@ -1255,13 +1252,11 @@ module.exports = ({ strapi }) => ({
       if (explicit) {
         account = index === 0 ? explicitAccount : null;
       } else {
-        // eslint-disable-next-line no-await-in-loop
         account = await this.selectAccount(data.type, data.priority, [...excluded], data);
       }
       if (!account || (account.documentId && excluded.includes(account.documentId))) break;
       excluded.push(account.documentId);
 
-      // eslint-disable-next-line no-await-in-loop
       const reservation = await this.reserveQuota(account);
       if (!reservation) {
         ctx.skipped.push(account.name);
@@ -1279,10 +1274,8 @@ module.exports = ({ strapi }) => ({
 
       ctx.attempted.push(account.name);
       try {
-        // eslint-disable-next-line no-await-in-loop
         const result = await this.sendViaAccount(account, attempt);
         try {
-          // eslint-disable-next-line no-await-in-loop
           await this.updateAccountStats(account.documentId, {
             countersReserved: reservation === 'reserved',
           });
@@ -1294,7 +1287,6 @@ module.exports = ({ strapi }) => ({
         }
         return { account, result };
       } catch (error) {
-        // eslint-disable-next-line no-await-in-loop
         if (reservation === 'reserved') await this.releaseQuota(account);
         lastError = error;
         if (!explicit && isSafeToRetry(error)) {
@@ -1625,7 +1617,6 @@ module.exports = ({ strapi }) => ({
         if (oauthService && typeof oauthService.buildOAuthBlob === 'function') {
           blob = oauthService.buildOAuthBlob(oauth, newTokens);
         } else {
-          // eslint-disable-next-line global-require
           const { encryptCredentials } = require('../utils/encryption');
           blob = encryptCredentials({
             ...oauth,

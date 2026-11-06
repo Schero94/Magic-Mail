@@ -120,7 +120,6 @@ module.exports = {
     }
     if (config?.quotaTimezone !== undefined) {
       try {
-        // eslint-disable-next-line no-new
         new Intl.DateTimeFormat('en-US', { timeZone: config.quotaTimezone });
       } catch {
         throw new Error('[magic-mail] config.quotaTimezone must be a valid IANA time zone');

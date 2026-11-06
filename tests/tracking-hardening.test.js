@@ -87,7 +87,6 @@ test('SEC-01: adversarial 100 KB inputs are rewritten within a strict time budge
   for (const html of inputs) {
     assert.ok(html.length >= 99_000, 'input is about 100 KB');
     const started = process.hrtime.bigint();
-    // eslint-disable-next-line no-await-in-loop
     const result = await analytics.rewriteLinksForTracking(html, EMAIL_ID, 'c'.repeat(32));
     const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
     assert.equal(typeof result, 'string');
@@ -344,7 +343,6 @@ test('SEC-06: over the tracking limit requests continue flagged; only abusive ra
       set() {},
     };
     let passed = false;
-    // eslint-disable-next-line no-await-in-loop
     await mw(ctx, async () => {
       passed = true;
     });

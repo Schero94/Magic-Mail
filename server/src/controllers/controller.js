@@ -12,7 +12,6 @@ const USER_UID = 'plugin::users-permissions.user';
  */
 function strapiError(name, message) {
   try {
-    // eslint-disable-next-line global-require
     const { errors } = require('@strapi/utils');
     return new errors[name](message);
   } catch {
@@ -83,7 +82,7 @@ async function authorizeSender(ctx, body) {
 async function resolveExistingUserId(userId) {
   const raw = String(userId);
   const where = /^\d+$/.test(raw) ? { id: Number(raw) } : { documentId: raw };
-  let user = null;
+  let user;
   try {
     user = await strapi.db.query(USER_UID).findOne({ where, select: ['id'] });
   } catch {

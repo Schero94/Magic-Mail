@@ -130,7 +130,7 @@ const respondWithTrackingFallback = async (ctx, reason) => {
   try {
     const settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
     fallbackUrl = normalizeHttpUrl(settings?.trackingFallbackUrl) || null;
-  } catch (err) {
+  } catch {
     strapi.log.debug('[magic-mail] Could not load tracking fallback setting');
   }
   ctx.status = 410;

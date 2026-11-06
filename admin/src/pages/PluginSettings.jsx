@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Typography, Flex, Loader, Switch, TextInput, Field } from '@strapi/design-system';
 import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
@@ -282,30 +282,45 @@ const PluginSettingsContent = () => {
   const guard = useUnsavedChangesGuard(hasChanges);
 
   /**
-   * Fetch plugin settings from API. The form is only shown after a
+   * Loads plugin settings from the API on mount and after every
+   * fetchSettings() (Retry, Refresh). The form is only shown after a
    * successful load, so stale defaults can never be saved over real values.
+   * State is only set once the request settled; `ignore` drops stale answers.
    */
-  const fetchSettings = useCallback(async () => {
+  const [settingsReloadKey, setSettingsReloadKey] = useState(0);
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      try {
+        const response = await get('/magic-mail/settings');
+        if (ignore) return;
+        const data = response.data?.data;
+        if (!data || typeof data !== 'object') throw new Error('Empty settings response');
+        const loaded = normalizeSettings(data);
+        setInitialSettings(loaded);
+        setSettings(loaded);
+        setLoadError(null);
+      } catch (err) {
+        if (ignore) return;
+        console.error('[MagicMail] Failed to fetch plugin settings');
+        const message = apiErrorMessage(err) || t('settings.loadError', 'Failed to load settings');
+        setLoadError(message);
+        toggleNotification({ type: 'danger', message });
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [get, t, toggleNotification, settingsReloadKey]);
+
+  /** Reloads the settings (Retry, Refresh) and shows the loader meanwhile. */
+  const fetchSettings = () => {
     setLoading(true);
-    try {
-      const response = await get('/magic-mail/settings');
-      if (!mounted.current) return;
-      const data = response.data?.data;
-      if (!data || typeof data !== 'object') throw new Error('Empty settings response');
-      const loaded = normalizeSettings(data);
-      setInitialSettings(loaded);
-      setSettings(loaded);
-      setLoadError(null);
-    } catch (err) {
-      if (!mounted.current) return;
-      console.error('[MagicMail] Failed to fetch plugin settings');
-      const message = apiErrorMessage(err) || t('settings.loadError', 'Failed to load settings');
-      setLoadError(message);
-      toggleNotification({ type: 'danger', message });
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [get, t, toggleNotification]);
+    setSettingsReloadKey((key) => key + 1);
+  };
 
   /**
    * Save the changed settings only.
@@ -343,10 +358,6 @@ const PluginSettingsContent = () => {
     if (!canManage) return;
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
 
   const pageTitle = <PluginPageTitle>{t('settings.pageTitle', 'Plugin Settings')}</PluginPageTitle>;
 

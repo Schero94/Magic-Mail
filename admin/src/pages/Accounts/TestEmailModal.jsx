@@ -146,7 +146,7 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
     if (hasErrors) return;
 
     setSending(true);
-    let succeeded = false;
+    let succeeded;
     try {
       succeeded =
         testMode === 'direct'

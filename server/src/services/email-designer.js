@@ -1053,7 +1053,7 @@ module.exports = ({ strapi }) => ({
     if (typeof tags === 'string') {
       try {
         tags = JSON.parse(tags);
-      } catch (e) {
+      } catch {
         tags = tags
           .split(',')
           .map((t) => t.trim())

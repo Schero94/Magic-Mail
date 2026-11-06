@@ -179,7 +179,7 @@ module.exports = {
       // Do NOT pass a hardcoded `from` — the router picks the account's own
       // fromEmail, and supplying a non-existent sender domain would hurt
       // deliverability / spam reputation.
-      const result = await strapi
+      await strapi
         .plugin('email')
         .service('email')
         .send({
