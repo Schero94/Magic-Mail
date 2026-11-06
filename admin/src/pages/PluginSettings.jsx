@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -10,9 +10,12 @@ import {
 } from '@strapi/design-system';
 import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
+import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
 import pluginPermissions from '../permissions';
-import { 
+import {
   ArrowPathIcon,
+  ExclamationTriangleIcon,
   UserIcon,
   LinkIcon,
   EyeIcon,
@@ -20,6 +23,18 @@ import {
 } from '@heroicons/react/24/outline';
 import styled, { keyframes, css } from 'styled-components';
 import { GradientButton, TertiaryButton } from '../components/StyledButtons';
+import { PluginPageTitle } from '../components/shared/Headings';
+import { UnsavedChangesDialog } from '../components/shared/UnsavedChangesDialog';
+import { motionSafe } from '../components/shared/motion';
+import { accent, color, fontSize } from '../utils/theme';
+import {
+  SETTINGS_DEFAULTS,
+  diffSettings,
+  isInsecureRemoteUrl,
+  normalizeSettings,
+  validateSettings,
+} from '../utils/settingsValidation';
+import { apiErrorMessage } from '../utils/analyticsLogs';
 
 // ================ ANIMATIONS ================
 const fadeIn = keyframes`
@@ -27,12 +42,18 @@ const fadeIn = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
+const mobile = '768px';
+
 // ================ STYLED COMPONENTS ================
 const PageContainer = styled(Box)`
-  ${css`animation: ${fadeIn} 0.4s ease-out;`}
+  ${motionSafe(css`animation: ${fadeIn} 0.4s ease-out;`)}
   max-width: 900px;
   margin: 0 auto;
   padding: 40px 32px;
+
+  @media screen and (max-width: ${mobile}) {
+    padding: 24px 16px;
+  }
 `;
 
 const PageHeader = styled(Flex)`
@@ -45,38 +66,51 @@ const PageHeader = styled(Flex)`
 const PageTitle = styled(Typography)`
   font-size: 28px;
   font-weight: 700;
-  color: var(--colors-neutral800);
+  color: ${color('neutral800')};
   display: block;
+  margin: 0;
 `;
 
 const PageSubtitle = styled(Typography)`
   font-size: 14px;
-  color: var(--colors-neutral600);
+  color: ${color('neutral600')};
   display: block;
+  margin: 0;
 `;
 
 const ActionBar = styled(Flex)`
   margin-bottom: 32px;
   padding: 16px 20px;
-  background: ${(p) => p.theme.colors.neutral0};
+  background: ${color('neutral0')};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  gap: 12px;
+`;
+
+const ActionButtons = styled(Flex)`
+  flex-wrap: wrap;
+  gap: 8px;
 `;
 
 const SettingsSection = styled(Box)`
-  background: ${(p) => p.theme.colors.neutral0};
+  background: ${color('neutral0')};
   border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 `;
 
 const SectionHeader = styled(Flex)`
   padding: 20px 24px;
-  background: var(--colors-neutral100);
+  background: ${color('neutral100')};
   border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+
+  @media screen and (max-width: ${mobile}) {
+    padding: 16px;
+  }
 `;
 
 const SectionIcon = styled(Box)`
@@ -87,23 +121,33 @@ const SectionIcon = styled(Box)`
   align-items: center;
   justify-content: center;
   margin-right: 16px;
-  background: ${props => props.$bgColor || 'rgba(14, 165, 233, 0.12)'};
+  background: ${(props) => props.$bgColor || 'rgba(14, 165, 233, 0.12)'};
   flex-shrink: 0;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    color: ${(p) => (accent[p.$tone] ?? accent.primary)(p)};
+  }
 `;
 
 const SectionContent = styled(Box)`
   padding: 24px;
+
+  @media screen and (max-width: ${mobile}) {
+    padding: 16px;
+  }
 `;
 
 const SettingRow = styled(Flex)`
   padding: 16px 0;
   border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-  
+
   &:last-child {
     border-bottom: none;
     padding-bottom: 0;
   }
-  
+
   &:first-child {
     padding-top: 0;
   }
@@ -111,22 +155,27 @@ const SettingRow = styled(Flex)`
 
 const SettingInfo = styled(Flex)`
   flex: 1;
+  min-width: 0;
   padding-right: 24px;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+
+  @media screen and (max-width: ${mobile}) {
+    padding-right: 12px;
+  }
 `;
 
 const SettingLabel = styled(Typography)`
   font-size: 14px;
   font-weight: 600;
-  color: var(--colors-neutral800);
+  color: ${color('neutral800')};
   display: block;
 `;
 
 const SettingDescription = styled(Typography)`
   font-size: 13px;
-  color: var(--colors-neutral500);
+  color: ${color('neutral600')};
   line-height: 1.5;
   display: block;
 `;
@@ -145,6 +194,25 @@ const LoaderContainer = styled(Flex)`
   gap: 16px;
 `;
 
+const ErrorState = styled(Flex)`
+  min-height: 320px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 32px 16px;
+  background: ${color('neutral0')};
+  border: 2px dashed rgba(128, 128, 128, 0.3);
+  border-radius: 12px;
+
+  svg {
+    width: 40px;
+    height: 40px;
+    color: ${accent.danger};
+  }
+`;
+
 const InfoBox = styled(Box)`
   background: rgba(14, 165, 233, 0.08);
   border: 1px solid rgba(14, 165, 233, 0.3);
@@ -154,83 +222,118 @@ const InfoBox = styled(Box)`
 `;
 
 const CodeSnippet = styled.code`
-  background: #1E293B;
-  color: rgba(128, 128, 128, 0.3);
+  background: #1e293b;
+  color: #e2e8f0;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: ${fontSize(1)};
   font-family: 'Monaco', 'Menlo', monospace;
+  overflow-wrap: anywhere;
 `;
+
+const ICON_18 = { width: 18, height: 18 };
+
+/**
+ * Translated message for a validation code from settingsValidation.js.
+ * @param {Function} t
+ * @param {string|undefined} code
+ * @returns {string|undefined}
+ */
+const errorMessage = (t, code) => {
+  switch (code) {
+    case 'invalidUrl':
+      return t('settings.errors.invalidUrl', 'Enter a valid URL, for example https://api.example.com');
+    case 'invalidProtocol':
+      return t('settings.errors.invalidProtocol', 'This URL type is not allowed here');
+    case 'invalidEmail':
+      return t('settings.errors.invalidEmail', 'Enter a valid email address');
+    case 'invalidText':
+      return t('settings.errors.invalidText', 'Use a single line of at most 1000 characters');
+    default:
+      return undefined;
+  }
+};
 
 // ================ MAIN COMPONENT ================
 const PluginSettingsContent = () => {
-  const { canManage } = useMagicMailRBAC();
+  const { canManage, isLoading: rbacLoading, error: rbacError } = useMagicMailRBAC();
+  const { t } = useMagicMailIntl();
   const { get, put } = useFetchClient();
   const { toggleNotification } = useNotification();
-  
+
   const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState({
-    enableLinkTracking: true,
-    enableOpenTracking: true,
-    trackingBaseUrl: '',
-    defaultFromName: '',
-    defaultFromEmail: '',
-    unsubscribeUrl: '',
-    enableUnsubscribeHeader: true,
-  });
-  const [hasChanges, setHasChanges] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [initialSettings, setInitialSettings] = useState(null);
+  const [settings, setSettings] = useState(SETTINGS_DEFAULTS);
   const [saving, setSaving] = useState(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const changes = useMemo(
+    () => (initialSettings ? diffSettings(initialSettings, settings) : {}),
+    [initialSettings, settings]
+  );
+  const hasChanges = Object.keys(changes).length > 0;
+  const errors = useMemo(() => validateSettings(settings), [settings]);
+  const isValid = Object.keys(errors).length === 0;
+  const guard = useUnsavedChangesGuard(hasChanges);
 
   /**
-   * Fetch plugin settings from API
+   * Fetch plugin settings from API. The form is only shown after a
+   * successful load, so stale defaults can never be saved over real values.
    */
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
       const response = await get('/magic-mail/settings');
-      if (response.data?.data) {
-        setSettings({
-          enableLinkTracking: response.data.data.enableLinkTracking ?? true,
-          enableOpenTracking: response.data.data.enableOpenTracking ?? true,
-          trackingBaseUrl: response.data.data.trackingBaseUrl || '',
-          defaultFromName: response.data.data.defaultFromName || '',
-          defaultFromEmail: response.data.data.defaultFromEmail || '',
-          unsubscribeUrl: response.data.data.unsubscribeUrl || '',
-          enableUnsubscribeHeader: response.data.data.enableUnsubscribeHeader ?? true,
-        });
-        setHasChanges(false);
-      }
+      if (!mounted.current) return;
+      const data = response.data?.data;
+      if (!data || typeof data !== 'object') throw new Error('Empty settings response');
+      const loaded = normalizeSettings(data);
+      setInitialSettings(loaded);
+      setSettings(loaded);
+      setLoadError(null);
     } catch (err) {
+      if (!mounted.current) return;
       console.error('[MagicMail] Failed to fetch plugin settings');
-      toggleNotification({
-        type: 'danger',
-        message: 'Failed to load settings',
-      });
+      const message = apiErrorMessage(err) || t('settings.loadError', 'Failed to load settings');
+      setLoadError(message);
+      toggleNotification({ type: 'danger', message });
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  };
+  }, [get, t, toggleNotification]);
 
   /**
-   * Save plugin settings to API
+   * Save the changed settings only.
    */
   const saveSettings = async () => {
+    if (!canManage || !initialSettings || !hasChanges || !isValid) return;
     setSaving(true);
     try {
-      await put('/magic-mail/settings', settings);
+      const response = await put('/magic-mail/settings', changes);
+      const saved = response?.data?.data ? normalizeSettings(response.data.data) : { ...settings, ...changes };
+      if (!mounted.current) return;
+      setInitialSettings(saved);
+      setSettings(saved);
       toggleNotification({
         type: 'success',
-        message: 'Settings saved successfully!',
+        message: t('settings.saveSuccess', 'Settings saved'),
       });
-      setHasChanges(false);
     } catch (err) {
       console.error('[MagicMail] Failed to save plugin settings');
       toggleNotification({
         type: 'danger',
-        message: 'Failed to save settings',
+        message: apiErrorMessage(err) || t('settings.saveError', 'Failed to save settings'),
       });
     } finally {
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   };
 
@@ -238,76 +341,131 @@ const PluginSettingsContent = () => {
    * Handle setting change
    */
   const handleChange = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
+    if (!canManage) return;
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
-  if (loading) {
+  const pageTitle = <PluginPageTitle>{t('settings.pageTitle', 'Plugin Settings')}</PluginPageTitle>;
+
+  if (loading || rbacLoading) {
     return (
       <PageContainer>
+        {pageTitle}
         <LoaderContainer>
-          <Loader>Loading settings...</Loader>
+          <Loader>{t('settings.loading', 'Loading settings...')}</Loader>
         </LoaderContainer>
       </PageContainer>
     );
   }
 
+  const header = (
+    <PageHeader>
+      <PageTitle tag="h1">{t('settings.title', 'Plugin Settings')}</PageTitle>
+      <PageSubtitle tag="p">
+        {t('settings.subtitle', 'Configure email tracking, analytics, and default sender information')}
+      </PageSubtitle>
+    </PageHeader>
+  );
+
+  if (loadError || !initialSettings) {
+    return (
+      <PageContainer>
+        {pageTitle}
+        {header}
+        <ErrorState role="alert">
+          <ExclamationTriangleIcon aria-hidden="true" />
+          <Typography variant="delta" fontWeight="bold" tag="h2">
+            {t('settings.loadErrorTitle', 'Settings could not be loaded')}
+          </Typography>
+          <Typography variant="omega" textColor="neutral600">
+            {loadError || t('settings.loadError', 'Failed to load settings')}
+          </Typography>
+          <Typography variant="pi" textColor="neutral600">
+            {t('settings.loadErrorHint', 'Saving is disabled until the current settings have been loaded.')}
+          </Typography>
+          <TertiaryButton startIcon={<ArrowPathIcon style={ICON_18} aria-hidden="true" />} onClick={fetchSettings}>
+            {t('settings.retry', 'Retry')}
+          </TertiaryButton>
+        </ErrorState>
+      </PageContainer>
+    );
+  }
+
+  const statusText = rbacError
+    ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+    : !canManage
+      ? t('settings.status.readOnly', 'Read-only access. You need the MagicMail manage permission to change settings.')
+      : !isValid
+        ? t('settings.status.invalid', 'Please correct the highlighted fields')
+        : hasChanges
+          ? t('settings.status.unsaved', 'You have unsaved changes')
+          : t('settings.status.saved', 'All changes saved');
+
+  const showTrackingUrl = settings.enableLinkTracking || Boolean(errors.trackingBaseUrl);
+  const showUnsubscribeUrl = settings.enableUnsubscribeHeader || Boolean(errors.unsubscribeUrl);
+
   return (
     <PageContainer>
-      {/* Header */}
-      <PageHeader>
-        <PageTitle>Plugin Settings</PageTitle>
-        <PageSubtitle>Configure email tracking, analytics, and default sender information</PageSubtitle>
-      </PageHeader>
+      {pageTitle}
+      {header}
 
       {/* Action Bar */}
       <ActionBar justifyContent="space-between" alignItems="center">
-        <Typography variant="omega" textColor="neutral600">
-          {!canManage
-            ? 'Read-only access. You need the MagicMail manage permission to change settings.'
-            : hasChanges ? 'You have unsaved changes' : 'All changes saved'}
+        <Typography
+          variant="omega"
+          textColor={rbacError || (!isValid && canManage) ? 'danger600' : 'neutral600'}
+          aria-live="polite"
+        >
+          {statusText}
         </Typography>
-        <Flex gap={2}>
+        <ActionButtons>
           <TertiaryButton
-            startIcon={<ArrowPathIcon style={{ width: 18, height: 18 }} />}
-            onClick={fetchSettings}
+            startIcon={<ArrowPathIcon style={ICON_18} aria-hidden="true" />}
+            onClick={() => guard.runGuarded(fetchSettings)}
+            disabled={saving}
           >
-            Refresh
+            {t('settings.refresh', 'Refresh')}
           </TertiaryButton>
-          <GradientButton
-            onClick={saveSettings}
-            loading={saving}
-            disabled={!hasChanges || !canManage}
-          >
-            Save Changes
-          </GradientButton>
-        </Flex>
+          {canManage && (
+            <GradientButton
+              onClick={saveSettings}
+              loading={saving}
+              disabled={!hasChanges || !canManage || !isValid}
+            >
+              {t('settings.save', 'Save Changes')}
+            </GradientButton>
+          )}
+        </ActionButtons>
       </ActionBar>
 
       {/* Link Tracking Section */}
-      <SettingsSection>
+      <SettingsSection tag="section" aria-labelledby="mm-settings-link-tracking">
         <SectionHeader alignItems="center">
-          <SectionIcon $bgColor="rgba(37, 99, 235, 0.15)">
-            <LinkIcon style={{ width: 22, height: 22, color: 'var(--colors-primary600, #2563EB)' }} />
+          <SectionIcon $bgColor="rgba(37, 99, 235, 0.15)" $tone="primary">
+            <LinkIcon aria-hidden="true" />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
-            <Typography variant="delta" fontWeight="bold">Link Tracking</Typography>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-link-tracking">
+              {t('settings.linkTracking.title', 'Link Tracking')}
+            </Typography>
             <Typography variant="pi" textColor="neutral600">
-              Track when recipients click links in your emails
+              {t('settings.linkTracking.subtitle', 'Track when recipients click links in your emails')}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>Enable Link Tracking</SettingLabel>
+              <SettingLabel>{t('settings.linkTracking.label', 'Enable Link Tracking')}</SettingLabel>
               <SettingDescription>
-                Rewrite all links in outgoing emails to track click-through rates. 
-                This helps measure email engagement and campaign effectiveness.
+                {t(
+                  'settings.linkTracking.description',
+                  'Rewrite links in outgoing emails to measure click-through rates. Links with sensitive tokens are never rewritten.'
+                )}
               </SettingDescription>
             </SettingInfo>
             <SwitchWrapper>
@@ -315,40 +473,57 @@ const PluginSettingsContent = () => {
                 checked={settings.enableLinkTracking}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableLinkTracking', checked)}
-                aria-label="Enable Link Tracking"
-                onLabel="Enabled"
-                offLabel="Disabled"
+                aria-label={t('settings.linkTracking.label', 'Enable Link Tracking')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
               />
             </SwitchWrapper>
           </SettingRow>
-          
-          {settings.enableLinkTracking && (
+
+          {showTrackingUrl && (
             <>
               <Box style={{ marginTop: '20px' }}>
-                <Field.Root>
-                  <Field.Label>Tracking Base URL</Field.Label>
+                <Field.Root
+                  name="trackingBaseUrl"
+                  error={errorMessage(t, errors.trackingBaseUrl)}
+                  hint={
+                    isInsecureRemoteUrl(settings.trackingBaseUrl)
+                      ? t(
+                          'settings.trackingBaseUrl.httpWarning',
+                          'This URL uses http. Use https in production so tracked links stay secure.'
+                        )
+                      : t(
+                          'settings.trackingBaseUrl.hint',
+                          'Public URL where your Strapi API is reachable. Leave empty to use the server URL.'
+                        )
+                  }
+                >
+                  <Field.Label>{t('settings.trackingBaseUrl.label', 'Tracking Base URL')}</Field.Label>
                   <TextInput
-                    placeholder="https://api.yoursite.com"
+                    type="url"
+                    inputMode="url"
+                    autoComplete="url"
+                    placeholder="https://api.example.com"
                     value={settings.trackingBaseUrl}
                     onChange={(e) => handleChange('trackingBaseUrl', e.target.value)}
                     disabled={!canManage}
-                    style={{ marginTop: '8px' }}
                   />
-                  <Field.Hint style={{ marginTop: '8px' }}>
-                    The base URL for tracking links. Leave empty to use the server URL.
-                    Must be the public URL where your Strapi API is accessible.
-                  </Field.Hint>
+                  <Field.Hint />
+                  <Field.Error />
                 </Field.Root>
               </Box>
-              
+
               <InfoBox>
-                <Typography variant="pi" textColor="primary700" fontWeight="medium">
-                  Per-Email Override
+                <Typography variant="pi" textColor="primary700" fontWeight="medium" style={{ display: 'block' }}>
+                  {t('settings.override.title', 'Per-Email Override')}
                 </Typography>
-                <Typography variant="pi" textColor="primary600" style={{ marginTop: '4px' }}>
-                  Disable tracking for sensitive emails (password resets, magic links) by passing{' '}
-                  <CodeSnippet>skipLinkTracking: true</CodeSnippet> when sending.
+                <Typography variant="pi" textColor="primary600" style={{ marginTop: '4px', display: 'block' }}>
+                  {t(
+                    'settings.override.body',
+                    'Disable tracking for sensitive emails (password resets, magic links) by passing {code} when sending.',
+                    { code: <CodeSnippet key="code">skipLinkTracking: true</CodeSnippet> }
+                  )}
                 </Typography>
               </InfoBox>
             </>
@@ -357,25 +532,29 @@ const PluginSettingsContent = () => {
       </SettingsSection>
 
       {/* Open Tracking Section */}
-      <SettingsSection>
+      <SettingsSection tag="section" aria-labelledby="mm-settings-open-tracking">
         <SectionHeader alignItems="center">
-          <SectionIcon $bgColor="rgba(34, 197, 94, 0.15)">
-            <EyeIcon style={{ width: 22, height: 22, color: 'var(--colors-success600, #16A34A)' }} />
+          <SectionIcon $bgColor="rgba(34, 197, 94, 0.15)" $tone="success">
+            <EyeIcon aria-hidden="true" />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
-            <Typography variant="delta" fontWeight="bold">Open Tracking</Typography>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-open-tracking">
+              {t('settings.openTracking.title', 'Open Tracking')}
+            </Typography>
             <Typography variant="pi" textColor="neutral600">
-              Track when recipients open your emails
+              {t('settings.openTracking.subtitle', 'Track when recipients open your emails')}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>Enable Open Tracking</SettingLabel>
+              <SettingLabel>{t('settings.openTracking.label', 'Enable Open Tracking')}</SettingLabel>
               <SettingDescription>
-                Inject an invisible tracking pixel into emails to detect when they are opened. 
-                Note: Some email clients block tracking pixels.
+                {t(
+                  'settings.openTracking.description',
+                  'Add an invisible tracking pixel to emails to detect when they are opened. Some email clients block tracking pixels.'
+                )}
               </SettingDescription>
             </SettingInfo>
             <SwitchWrapper>
@@ -383,9 +562,9 @@ const PluginSettingsContent = () => {
                 checked={settings.enableOpenTracking}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableOpenTracking', checked)}
-                aria-label="Enable Open Tracking"
-                onLabel="Enabled"
-                offLabel="Disabled"
+                aria-label={t('settings.openTracking.label', 'Enable Open Tracking')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
               />
             </SwitchWrapper>
@@ -394,25 +573,29 @@ const PluginSettingsContent = () => {
       </SettingsSection>
 
       {/* Unsubscribe Section */}
-      <SettingsSection>
+      <SettingsSection tag="section" aria-labelledby="mm-settings-unsubscribe">
         <SectionHeader alignItems="center">
-          <SectionIcon $bgColor="rgba(245, 158, 11, 0.15)">
-            <EnvelopeIcon style={{ width: 22, height: 22, color: 'var(--colors-warning600, #D97706)' }} />
+          <SectionIcon $bgColor="rgba(245, 158, 11, 0.15)" $tone="warning">
+            <EnvelopeIcon aria-hidden="true" />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
-            <Typography variant="delta" fontWeight="bold">Unsubscribe Settings</Typography>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-unsubscribe">
+              {t('settings.unsubscribe.title', 'Unsubscribe Settings')}
+            </Typography>
             <Typography variant="pi" textColor="neutral600">
-              GDPR-compliant List-Unsubscribe headers
+              {t('settings.unsubscribe.subtitle', 'List-Unsubscribe headers for one-click unsubscribe')}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>Enable List-Unsubscribe Header</SettingLabel>
+              <SettingLabel>{t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}</SettingLabel>
               <SettingDescription>
-                Add RFC 8058 compliant unsubscribe headers. This enables the "Unsubscribe" 
-                button in email clients like Gmail and Outlook.
+                {t(
+                  'settings.unsubscribe.description',
+                  'Add RFC 8058 unsubscribe headers to non-marketing emails too. Marketing emails always get them when an unsubscribe URL is known. This enables the Unsubscribe button in clients such as Gmail and Outlook.'
+                )}
               </SettingDescription>
             </SettingInfo>
             <SwitchWrapper>
@@ -420,29 +603,35 @@ const PluginSettingsContent = () => {
                 checked={settings.enableUnsubscribeHeader}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableUnsubscribeHeader', checked)}
-                aria-label="Enable List-Unsubscribe Header"
-                onLabel="Enabled"
-                offLabel="Disabled"
+                aria-label={t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
               />
             </SwitchWrapper>
           </SettingRow>
-          
-          {settings.enableUnsubscribeHeader && (
+
+          {showUnsubscribeUrl && (
             <Box style={{ marginTop: '20px' }}>
-              <Field.Root>
-                <Field.Label>Unsubscribe URL</Field.Label>
+              <Field.Root
+                name="unsubscribeUrl"
+                error={errorMessage(t, errors.unsubscribeUrl)}
+                hint={t(
+                  'settings.unsubscribeUrl.hint',
+                  'Default unsubscribe link (https, http or mailto) used when a send does not pass its own. Without a URL, no List-Unsubscribe header is added.'
+                )}
+              >
+                <Field.Label>{t('settings.unsubscribeUrl.label', 'Unsubscribe URL')}</Field.Label>
                 <TextInput
-                  placeholder="https://yoursite.com/unsubscribe?email={{email}}"
+                  type="text"
+                  inputMode="url"
+                  placeholder="https://example.com/unsubscribe?email={{email}}"
                   value={settings.unsubscribeUrl}
                   onChange={(e) => handleChange('unsubscribeUrl', e.target.value)}
                   disabled={!canManage}
-                  style={{ marginTop: '8px' }}
                 />
-                <Field.Hint style={{ marginTop: '8px' }}>
-                  The URL where users are directed when clicking unsubscribe. 
-                  Leave empty to disable the header.
-                </Field.Hint>
+                <Field.Hint />
+                <Field.Error />
               </Field.Root>
             </Box>
           )}
@@ -450,49 +639,60 @@ const PluginSettingsContent = () => {
       </SettingsSection>
 
       {/* Default Sender Section */}
-      <SettingsSection>
+      <SettingsSection tag="section" aria-labelledby="mm-settings-sender">
         <SectionHeader alignItems="center">
-          <SectionIcon $bgColor="rgba(147, 51, 234, 0.12)">
-            <UserIcon style={{ width: 22, height: 22, color: 'var(--colors-secondary600, #9333EA)' }} />
+          <SectionIcon $bgColor="rgba(147, 51, 234, 0.12)" $tone="secondary">
+            <UserIcon aria-hidden="true" />
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
-            <Typography variant="delta" fontWeight="bold">Default Sender</Typography>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-sender">
+              {t('settings.sender.title', 'Default Sender')}
+            </Typography>
             <Typography variant="pi" textColor="neutral600">
-              Fallback sender information when not specified per email
+              {t('settings.sender.subtitle', 'Fallback sender information when not specified per email')}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
-          <Box>
-            <Field.Root style={{ marginBottom: '20px' }}>
-              <Field.Label>Default From Name</Field.Label>
+          <Flex direction="column" alignItems="stretch" gap={5}>
+            <Field.Root
+              name="defaultFromName"
+              error={errorMessage(t, errors.defaultFromName)}
+              hint={t('settings.fromName.hint', "The sender name shown in recipients' inboxes")}
+            >
+              <Field.Label>{t('settings.fromName.label', 'Default From Name')}</Field.Label>
               <TextInput
-                placeholder="Your Company"
+                autoComplete="organization"
+                placeholder={t('settings.fromName.placeholder', 'Your Company')}
                 value={settings.defaultFromName}
                 onChange={(e) => handleChange('defaultFromName', e.target.value)}
                 disabled={!canManage}
-                style={{ marginTop: '8px' }}
               />
-              <Field.Hint style={{ marginTop: '8px' }}>
-                The sender name shown in recipients' inboxes
-              </Field.Hint>
+              <Field.Hint />
+              <Field.Error />
             </Field.Root>
-            <Field.Root>
-              <Field.Label>Default From Email</Field.Label>
+            <Field.Root
+              name="defaultFromEmail"
+              error={errorMessage(t, errors.defaultFromEmail)}
+              hint={t('settings.fromEmail.hint', 'Must be a verified sender address')}
+            >
+              <Field.Label>{t('settings.fromEmail.label', 'Default From Email')}</Field.Label>
               <TextInput
-                placeholder="noreply@yourcompany.com"
+                type="email"
+                autoComplete="email"
+                placeholder="noreply@example.com"
                 value={settings.defaultFromEmail}
                 onChange={(e) => handleChange('defaultFromEmail', e.target.value)}
                 disabled={!canManage}
-                style={{ marginTop: '8px' }}
               />
-              <Field.Hint style={{ marginTop: '8px' }}>
-                Must be a verified sender address
-              </Field.Hint>
+              <Field.Hint />
+              <Field.Error />
             </Field.Root>
-          </Box>
+          </Flex>
         </SectionContent>
       </SettingsSection>
+
+      <UnsavedChangesDialog guard={guard} />
     </PageContainer>
   );
 };

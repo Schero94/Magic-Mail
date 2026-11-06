@@ -191,8 +191,8 @@ test('read, manage and test-send grants gate the matching visible controls', () 
     'the template test-send dialog closes when its capability is absent'
   );
   assert.ok(
-    /disabled=\{!hasChanges \|\| !canManage\}/.test(settings),
-    'settings save is unavailable without manage permission'
+    /\{canManage && \([\s\S]{0,200}?disabled=\{!hasChanges \|\| !canManage\b/.test(settings),
+    'settings save is hidden and disabled without manage permission'
   );
 });
 
@@ -204,11 +204,15 @@ test('analytics delete confirmation stays gated if manage permission is removed 
     'the destructive handler must re-check manage permission before making a request'
   );
   assert.ok(
-    /<Modal\.Root open=\{canManage && showClearDialog\}/.test(analytics),
+    /<ConfirmDialog\s+isOpen=\{canManage && showClearDialog\}/.test(analytics),
     'an already-open confirmation closes when manage permission is absent'
   );
   assert.ok(
-    /onClick=\{handleClearAll\}[\s\S]{0,160}?disabled=\{isDeleting \|\| !canManage\}/.test(analytics),
-    'the confirmation action is visibly disabled without manage permission'
+    /isOpen=\{canManage && showClearDialog\}[\s\S]{0,160}?onConfirm=\{handleClearAll\}/.test(analytics),
+    'the confirmation action is only reachable through the manage-gated dialog'
+  );
+  assert.ok(
+    /\{canManage && hasAnyLogs && \(\s*<DangerButton/.test(analytics),
+    'the Clear All trigger is hidden without manage permission'
   );
 });
