@@ -22,6 +22,7 @@ a:hover { color: #2d1d89; }
 a:focus-visible, button:focus-visible { outline: 3px solid #16a8b5; outline-offset: 3px; border-radius: 6px; }
 code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 code { font-size: .92em; }
+:not(pre) > code { overflow-wrap: anywhere; }
 
 .skip-link { position: absolute; left: 1rem; top: -5rem; z-index: 10; padding: .65rem 1rem; border-radius: 8px; background: var(--white); color: var(--ink); }
 .skip-link:focus { top: 1rem; }

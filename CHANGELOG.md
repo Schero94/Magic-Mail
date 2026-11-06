@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+### ⚠ BREAKING CHANGES (platform, packaging and API surface)
+
+* **Node.js 22.12 or later is required** (`engines.node` `>=22.12.0 <=26.x.x`, the server bundle targets `node22`). Strapi 5.61 itself requires Node 22, and the HTML sanitizer (`sanitize-html` 2.18) requires 22.12. Migration: upgrade Node before upgrading the plugin.
+* **`@strapi/plugin-users-permissions` `^5.57.0` is a required peer dependency.** The email log has a relation to users-permissions users, which Strapi cannot register without that plugin. Every default Strapi app already includes it. Migration: `npm install @strapi/plugin-users-permissions` if your app removed it.
+* **Peer ranges aligned with the host:** `@strapi/utils` `^5.57.0` (was `^5.0.0`), `react-router-dom` `^6.30.3` (was `^6.30.6`, now the same as Strapi's own peer).
+* **Admin API permissions are capability based.** Every admin route requires `plugin::magic-mail.read`, `.manage` or `.test-send` in addition to an authenticated admin; `plugin::magic-mail.access` only controls the menu entry. Roles that only had `access` can open the plugin but their API requests are denied. Migration: grant the capabilities as described in [docs/permission-migration.md](./docs/permission-migration.md).
+* **MagicMail sends email only.** The non-email messaging transport is removed: the Content API routes `/send-whatsapp`, `/whatsapp/status` and `/whatsapp/check/:phoneNumber`, the matching admin routes and service methods are gone, and `/api/magic-mail/send` no longer accepts `phoneNumber` (strict validation returns 400 for unknown fields). Migration: remove these calls and the `phoneNumber` field.
+* **Unused runtime dependencies removed** (`form-data`, `striptags`, `yup`, `decode-html`). Code that relied on them being installed transitively through this plugin must declare them itself.
+
+### Features
+
+* **designer:** new `designer` plugin config (`projectId`, `scriptUrl`, `version`) served to the editor by `GET /magic-mail/designer/editor-config` (read permission). The visual designer runs with a pinned Unlayer build, no Unlayer project by default, no Unlayer image hosting, stock images, AI or third-party placeholder images, and uploads images to the Strapi Media Library. The README documents the required CSP directives.
+* **admin:** complete translations for English, German (formal), French, Spanish and Portuguese; dark-mode aware colours with WCAG AA contrast, accessible dialogs, labelled controls, unsaved-changes guards, locale-aware dates and numbers, reduced-motion support. The layout and look are unchanged.
+* **admin:** the analytics view pages and searches on the server and clears logs in batches; the routing view shows broken account references; account edit shows how many rules reference an account.
+* **ci:** pull requests run tests, build, export and bundle verification, `npm pack --dry-run` and a production audit on Node 22 and 24.
+
+### Changes
+
+* **admin:** the keep-alive polling (`useAuthRefresh`) is removed. Strapi's admin idle-session lifetime now applies while a MagicMail tab is open.
+* **release:** GitHub actions are pinned by commit SHA; the release workflow verifies in a read-only job and publishes from a separate job with npm provenance; dependencies are installed with `--ignore-scripts` and without `--legacy-peer-deps`.
+* **deps:** `vite` override raised to `^6.4.5`, the global `undici` override replaced by a scoped `^7.30.2` override for `@semantic-release/github`.
+
 ### ⚠ BREAKING CHANGES (sending path)
 
 * **Content API send routes accept API tokens only.** `/api/magic-mail/send` and `/api/magic-mail/send-message` now reject users-permissions roles with 403. Migration: send with an API token, or restore the old behaviour with `config: { contentApi: { allowUserRoles: true } }` for `magic-mail` in `config/plugins.js`. With user roles allowed, the email log is attributed to the authenticated user and a body `userId` is ignored.
@@ -36,7 +58,7 @@
 * **OAuth redirect URI in production.** The redirect URI comes from `URL` (legacy override) or Strapi's `server.url`/`server.absoluteUrl`; in production it must be public `https`, the `http://localhost:1337` fallback is gone and starting a flow fails with a 400 explaining what to set. Migration: set `server.url` (or `URL`) to the public URL and make sure it matches the redirect URI registered with Google/Microsoft/Yahoo. The `/oauth/<provider>/auth` response now includes `redirectUri`. The callback page no longer redirects to `/admin/plugins/magic-mail?oauth_code=...` when the opener tab is gone; restart the flow from the admin page.
 * **Microsoft tenant IDs are validated** (GUID, domain, `common`/`organizations`/`consumers`; letters, digits, `.` and `-` only). `oauth/create-account` no longer accepts `config.domain`.
 * **users-permissions email templates need users-permissions permissions.** `GET`/`PUT /magic-mail/designer/core/:type` additionally require *Users & Permissions → Email templates* read/update. Saving converts `{{ KEY }}` to `<%= KEY %>` and rejects `<% %>` blocks, `${...}` and any placeholder other than `URL`, `SERVER_URL`, `ADMIN_URL`, `CODE`, `TOKEN`, `USER`, `USER.email`, `USER.username` (400). Previously `{{URL}}` was saved as `<%URL%>`, which users-permissions does not fill in. Migration: grant the users-permissions template permissions to roles that edit these templates, and re-save templates that contain unsupported placeholders.
-* **Users & Permissions is a declared (optional) peer dependency.** The email log links to users-permissions users, so the plugin needs `@strapi/plugin-users-permissions` (present in every default Strapi app). Core-template endpoints answer 404 when it is missing.
+* **Users & Permissions is a required peer dependency** (see *platform and packaging* above). Core-template endpoints answer 404 when the plugin is not loaded.
 * **Legacy routing-rule columns removed.** The unused attributes `whatsappFallback` and `whatsappPhoneField` are deleted from the routing-rule content type. Strapi drops the columns `magic_mail_routing_rules.whatsapp_fallback` and `whatsapp_phone_field` on the first start of 4.0. Migration: back up the database first if you need those values; with `database.settings.forceMigration: false` the columns stay and can be dropped manually.
 * **Routing rules reference existing accounts.** Creating or updating a rule with an `accountName`/`fallbackAccountName` that matches no account (case-insensitive) returns 400. Renaming an account updates the rules that use it; deleting an account deactivates rules that target it and clears it as fallback (`DELETE /accounts/:id` returns the counts in `data`). `GET /routing-rules` is sorted by priority descending (evaluation order).
 * **Provider `ses` removed** from the email-account enum (it never had an adapter).
@@ -74,6 +96,9 @@
 * **oauth:** the callback page posts to the admin panel origin (`admin.absoluteUrl`), so split admin/API hosts work.
 * **templates:** saving a users-permissions template no longer crashes when the store entry is empty; numeric template/version lookups use the Query Engine instead of the deprecated `entityService`; concurrent saves get distinct version numbers; downloads use a sanitized file name and a sandbox CSP.
 * **settings:** the settings row is created once even for concurrent first sends, duplicate rows from earlier races are removed, and reads are cached for 10 seconds (cleared on update).
+* **oauth:** expiring access tokens are refreshed 60 seconds early, rotated refresh tokens are stored (previously dropped by the router, so Microsoft/Yahoo accounts eventually lost access), concurrent sends share one refresh, and a send rejected with HTTP 401 / SMTP `EAUTH` is refreshed and retried exactly once.
+* **build:** `npm run watch` and `watch:link` now produce the same esbuild server bundle as `npm run build` (previously the server entry required files that did not exist in `dist`); `verify:runtime` rejects an unbundled server entry.
+* **package:** the root `strapi-admin.js`/`strapi-server.js` shims point at `dist` instead of unpublished sources, and README screenshots (about 7 MB) are no longer shipped in the npm tarball.
 * **cleanup:** removed the unregistered debug controller (`controllers/test.js`), the unused `service.js`, and unused helpers (`getAccountWithDecryptedConfig`, `resetCounters`, `isLinkTrackingEnabled`, `isOpenTrackingEnabled`, `getTrackingBaseUrl`); the dev integration script no longer calls removed endpoints, asserts they return 404 and prints no part of the admin JWT.
 
 ## [3.0.4](https://github.com/Schero94/Magic-Mail/compare/v3.0.3...v3.0.4) (2026-07-11)
