@@ -148,6 +148,12 @@ test('both Admin test-send dialogs expose an accessible CC field and forward its
   assert.match(homePage, /CC recipients/i);
   assert.match(homePage, /cc:\s*testOptions\.cc/i);
   assert.match(homePage, /cc:\s*testCc/i);
-  assert.match(templateList, /CC recipients/i);
-  assert.match(templateList, /cc:\s*testCc/i);
+  const templateTestSend = readFileSync(
+    path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateTestSendModal.jsx'),
+    'utf8'
+  );
+  assert.match(templateList, /<TemplateTestSendModal/);
+  assert.match(templateTestSend, /CC recipients/i);
+  assert.match(templateTestSend, /<Field\.Label>\{t\('templates\.testSend\.cc'/);
+  assert.match(templateTestSend, /cc:\s*result\.cc\.length > 0 \? result\.cc\.join\(', '\) : undefined/);
 });

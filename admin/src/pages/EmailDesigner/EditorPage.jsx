@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuthRefresh } from '../../hooks/useAuthRefresh';
-import { useMagicMailRBAC } from '../../hooks/useMagicMailRBAC';
-import styled from 'styled-components';
+import { useTheme } from 'styled-components';
 import {
   Typography,
   Button,
   Field,
+  Flex,
   Tabs,
   Textarea,
   SingleSelect,
@@ -17,25 +16,74 @@ import {
 } from '@strapi/design-system';
 import {
   ArrowLeftIcon,
+  ArrowPathIcon,
   CheckIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
   ClockIcon,
-  ArrowUturnLeftIcon,
-  XMarkIcon,
+  DocumentTextIcon,
+  ExclamationTriangleIcon,
+  SparklesIcon,
   TrashIcon,
-  CodeBracketIcon,
+  ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
-import * as ReactEmailEditor from 'react-email-editor';
+import { EmailEditor } from 'react-email-editor';
+import { useMagicMailRBAC } from '../../hooks/useMagicMailRBAC';
+import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
+import { UnsavedChangesDialog } from '../../components/shared/UnsavedChangesDialog';
+import { PluginPageTitle } from '../../components/shared/Headings';
+import { TertiaryButton } from '../../components/StyledButtons';
+import { isDarkTheme } from '../../utils/theme';
+import { VersionHistoryDrawer } from './VersionHistoryDrawer';
+import {
+  DEFAULT_EDITOR_CONFIG,
+  UNLAYER_SCRIPT_URL,
+  buildUnlayerOptions,
+  createMediaLibraryUploader,
+  sanitizeEditorConfig,
+} from './unlayerOptions';
+import {
+  buildCoreDesign,
+  buildCorePayload,
+  buildTemplatePayload,
+  downloadBlob,
+  parseDesignFile,
+  toFileName,
+  validateTemplateFields,
+} from './editorUtils';
+import { getBackendBaseUrl } from './templateListUtils';
+import {
+  BackButton,
+  Container,
+  DesignerLoadingContainer,
+  EditorCanvas,
+  FieldWrapper,
+  Header,
+  HeaderLeft,
+  HeaderRight,
+  HeaderRow,
+  HiddenInput,
+  LoadingContainer,
+  OverlayState,
+  ReadOnlyPanel,
+  ReadOnlyPreview,
+  SaveButton,
+  SettingsRow,
+  StyledTabsContent,
+  StyledTabsRoot,
+  SwitchWrapper,
+  TabContentWrapper,
+  TabListWrapper,
+  TabsWrapper,
+  TextTabContent,
+  TitleContainer,
+  ToolbarButton,
+} from './editorStyles';
 
-const EmailEditorComponent =
-  ReactEmailEditor.EmailEditor ||
-  ReactEmailEditor.default ||
-  ReactEmailEditor;
-
-if (!EmailEditorComponent) {
-  console.error('[MagicMail] Failed to resolve EmailEditor component export');
-}
+// Named export of react-email-editor 2.x (SUP-M04: no namespace fallback).
+const EmailEditorComponent = EmailEditor;
 
 /**
  * Keeps exceptions from the remote Unlayer runtime inside the editor panel.
@@ -63,574 +111,199 @@ class VisualEditorErrorBoundary extends React.Component {
   }
 }
 
-// Standard Email Template for Core Emails (when no design exists)
-const STANDARD_EMAIL_TEMPLATE = {
-  counters: { u_row: 2, u_content_text: 1, u_content_image: 1, u_column: 2 },
-  body: {
-    values: {
-      backgroundColor: '#ffffff',
-      linkStyle: {
-        body: true,
-        linkHoverColor: '#0000ee',
-        linkHoverUnderline: true,
-        linkColor: '#0000ee',
-        linkUnderline: true,
-      },
-      contentWidth: '500px',
-      backgroundImage: { repeat: false, center: true, fullWidth: true, url: '', cover: false },
-      contentAlign: 'center',
-      textColor: '#000000',
-      _meta: { htmlID: 'u_body', htmlClassNames: 'u_body' },
-      fontFamily: { label: 'Arial', value: 'arial,helvetica,sans-serif' },
-      preheaderText: '',
-    },
-    rows: [
-      {
-        cells: [1],
-        values: {
-          backgroundImage: { cover: false, url: '', repeat: false, fullWidth: true, center: true },
-          hideDesktop: false,
-          selectable: true,
-          columnsBackgroundColor: '',
-          hideable: true,
-          backgroundColor: '',
-          padding: '0px',
-          columns: false,
-          _meta: { htmlID: 'u_row_2', htmlClassNames: 'u_row' },
-          deletable: true,
-          displayCondition: null,
-          duplicatable: true,
-          draggable: true,
-        },
-        columns: [
-          {
-            contents: [
-              {
-                values: {
-                  hideDesktop: false,
-                  duplicatable: true,
-                  deletable: true,
-                  linkStyle: {
-                    linkHoverUnderline: true,
-                    linkColor: '#0000ee',
-                    inherit: true,
-                    linkUnderline: true,
-                    linkHoverColor: '#0000ee',
-                  },
-                  hideable: true,
-                  lineHeight: '140%',
-                  draggable: true,
-                  containerPadding: '10px',
-                  text: '<p style="font-size: 14px; line-height: 140%; text-align: center;"><span style="font-size: 14px; line-height: 19.6px;">__PLACEHOLDER__</span></p>',
-                  _meta: { htmlID: 'u_content_text_1', htmlClassNames: 'u_content_text' },
-                  textAlign: 'left',
-                  selectable: true,
-                },
-                type: 'text',
-              },
-            ],
-            values: {
-              border: {},
-              _meta: { htmlClassNames: 'u_column', htmlID: 'u_column_2' },
-              backgroundColor: '',
-              padding: '0px',
-            },
-          },
-        ],
-      },
-    ],
-  },
-  schemaVersion: 6,
+const VISUAL_EDITOR_LOAD_TIMEOUT_MS = 15000;
+const EXPORT_TIMEOUT_MS = 10000;
+const TEMPLATE_LIST_PATH = '/plugins/magic-mail/designer';
+
+const EMPTY_TEMPLATE = Object.freeze({
+  templateReferenceId: '',
+  name: '',
+  subject: '',
+  category: 'custom',
+  isActive: true,
+  design: null,
+  bodyHtml: '',
+  bodyText: '',
+  tags: [],
+});
+
+const htmlToText = (html) => {
+  try {
+    return new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+  } catch {
+    return html;
+  }
 };
 
-const VISUAL_EDITOR_LOAD_TIMEOUT_MS = 15000;
-
-// Styled components
-const Container = styled.div`
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--colors-neutral100);
-`;
-
-const Header = styled.div`
-  padding: 24px;
-  background: ${(p) => p.theme.colors.neutral0};
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-`;
-
-const HeaderRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-`;
-
-const HeaderLeft = styled.div`
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-`;
-
-const TitleContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`;
-
-const HeaderRight = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const SettingsRow = styled.div`
-  display: flex;
-  gap: 16px;
-  align-items: flex-end;
-`;
-
-const FieldWrapper = styled.div`
-  flex: ${(props) => props.flex || 'initial'};
-  width: ${(props) => props.width || 'auto'};
-`;
-
-const SwitchWrapper = styled.div`
-  padding-top: 28px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-`;
-
-const TabsWrapper = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const TabListWrapper = styled.div`
-  padding: 0 24px;
-  background: ${(p) => p.theme.colors.neutral0};
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-`;
-
-const StyledTabsRoot = styled(Tabs.Root)`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-`;
-
-const StyledTabsContent = styled(Tabs.Content)`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const TabContentWrapper = styled.div`
-  height: calc(100vh - 240px);
-  background: ${(p) => p.theme.colors.neutral0};
-  position: relative;
-`;
-
-const TextTabContent = styled.div`
-  padding: 20px;
-  height: calc(100vh - 240px);
-  
-  textarea {
-    width: 100%;
-    height: 100%;
-    min-height: 500px;
-    font-family: monospace;
-  }
-`;
-
-const LoadingContainer = styled.div`
-  padding: 80px 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-`;
-
-const EditorCanvas = styled.div`
-  min-height: calc(100vh - 240px);
-`;
-
-const DesignerLoadingContainer = styled(LoadingContainer)`
-  width: 100%;
-  min-height: calc(100vh - 240px);
-  padding: 40px 20px;
-  flex-direction: column;
-  gap: 16px;
-  text-align: center;
-`;
-
-const HiddenInput = styled.input`
-  display: none;
-`;
-
-const SaveButton = styled(Button)`
-  background: linear-gradient(135deg, var(--colors-success600, #22C55E) 0%, var(--colors-success700, #16A34A) 100%);
-  border: none;
-  color: white;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 8px 16px;
-  height: 36px;
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-    background: linear-gradient(135deg, var(--colors-success700, #16A34A) 0%, var(--colors-success800, #15803D) 100%);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    &:hover {
-      transform: none;
-    }
-  }
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const ImportExportButton = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  height: 36px;
-  background: ${(p) => p.theme.colors.neutral0};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: 4px;
-  color: var(--colors-neutral800);
-  font-weight: 500;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 200ms;
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--colors-neutral100);
-    border-color: var(--colors-primary600, #0284C7);
-    color: var(--colors-primary600, #0284C7);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const ImportLabel = styled.label`
-  cursor: pointer;
-  display: inline-block;
-`;
-
-const BackButton = styled.button`
-  background: ${(p) => p.theme.colors.neutral0};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  color: ${(p) => p.theme.colors.neutral800};
-  border-radius: 4px;
-  padding: 8px 10px;
-  height: 36px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 200ms;
-
-  &:hover {
-    background: var(--colors-neutral100);
-    border-color: rgba(128, 128, 128, 0.3);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  svg {
-    width: 16px;
-    height: 16px;
-  }
-`;
-
-const VersionButton = styled.button`
-  background: ${(p) => p.theme.colors.neutral0};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: 4px;
-  padding: 8px 16px;
-  height: 36px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 200ms;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--colors-neutral800);
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--colors-neutral100);
-    border-color: var(--colors-primary600, #0284C7);
-    color: var(--colors-primary600, #0284C7);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-// Version History Modal
-const VersionModal = styled.div`
-  position: fixed;
-  top: 0;
-  right: ${props => props.$isOpen ? '0' : '-450px'};
-  width: 450px;
-  height: 100vh;
-  background: ${(p) => p.theme.colors.neutral0};
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-  z-index: 9999;
-  transition: right 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-`;
-
-const VersionModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 9998;
-  opacity: ${props => props.$isOpen ? '1' : '0'};
-  pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
-  transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
-`;
-
-const VersionModalHeader = styled.div`
-  padding: 24px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-const VersionModalContent = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-`;
-
-const VersionItem = styled.div`
-  padding: 16px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: 8px;
-  margin-bottom: 12px;
-  transition: all 150ms;
-  
-  &:hover {
-    border-color: var(--colors-primary600, #0284C7);
-    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
-  }
-`;
-
-const VersionItemHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-`;
-
-const VersionNumber = styled.div`
-  font-weight: 600;
-  color: var(--colors-neutral800);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const VersionBadge = styled.span`
-  background: linear-gradient(135deg, var(--colors-primary600, #0EA5E9) 0%, var(--colors-primary700, #0284C7) 100%);
-  color: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-`;
-
-const VersionDate = styled.div`
-  font-size: 13px;
-  color: var(--colors-neutral600);
-`;
-
-const VersionMeta = styled.div`
-  font-size: 13px;
-  color: var(--colors-neutral600);
-  margin-bottom: 12px;
-`;
-
-const VersionActions = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const RestoreButton = styled(Button)`
-  background: linear-gradient(135deg, var(--colors-success600, #22C55E) 0%, var(--colors-success700, #16A34A) 100%);
-  border: none;
-  color: white;
-  font-size: 13px;
-  padding: 8px 16px;
-  
-  &:hover {
-    background: linear-gradient(135deg, var(--colors-success400, #4ADE80) 0%, var(--colors-success600, #22C55E) 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-    border-color: transparent;
-  }
-  
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const DeleteButton = styled(Button)`
-  background: linear-gradient(135deg, var(--colors-danger500, #EF4444) 0%, var(--colors-danger600, #DC2626) 100%);
-  border: none;
-  color: white;
-  font-size: 13px;
-  padding: 8px 16px;
-  
-  &:hover {
-    background: linear-gradient(135deg, var(--colors-danger400, #F87171) 0%, var(--colors-danger500, #EF4444) 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-    border-color: transparent;
-  }
-  
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--colors-neutral600);
-  transition: all 150ms;
-  
-  &:hover {
-    color: var(--colors-neutral800);
-    background: var(--colors-neutral100);
-    border-radius: 4px;
-  }
-  
-  svg {
-    width: 20px;
-    height: 20px;
-  }
-`;
-
-const EmptyVersions = styled.div`
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--colors-neutral600);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  
-  svg {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 16px;
-    color: rgba(128, 128, 128, 0.3);
-  }
-`;
-
 const EditorPage = () => {
-  useAuthRefresh(); // Initialize token auto-refresh
-  const { canManage, isLoading: permissionsLoading } = useMagicMailRBAC();
+  const { canManage, isLoading: permissionsLoading, error: permissionsError } = useMagicMailRBAC();
+  const { t, locale } = useMagicMailIntl();
+  const activeTheme = useTheme();
   const location = useLocation();
   const { get, post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   const navigate = useNavigate();
   const emailEditorRef = useRef(null);
+  const editorReadyRef = useRef(false);
+  const latestDesignRef = useRef(null);
+  const suppressDirtyRef = useRef(false);
+  const designInputRef = useRef(null);
 
   // Extract ID from pathname
   const pathname = location.pathname;
-  const coreMatch = pathname.match(/\/designer\/core\/(.+)$/);
-  const templateMatch = pathname.match(/\/designer\/(.+)$/);
-  
+  const coreMatch = pathname.match(/\/designer\/core\/([^/]+)$/);
+  const templateMatch = pathname.match(/\/designer\/([^/]+)$/);
+
   const isCoreEmail = !!coreMatch;
   const coreEmailType = coreMatch ? coreMatch[1] : null;
   const id = !isCoreEmail && templateMatch ? templateMatch[1] : null;
-
   const isNewTemplate = id === 'new';
 
-  const [loading, setLoading] = useState(!isNewTemplate && !isCoreEmail);
+  const [loading, setLoading] = useState(!isNewTemplate);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('html');
   const [editorLoaded, setEditorLoaded] = useState(false);
   const [designerLoadError, setDesignerLoadError] = useState(false);
+  const [editorConfig, setEditorConfig] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [templateData, setTemplateData] = useState(EMPTY_TEMPLATE);
 
-  const [templateData, setTemplateData] = useState({
-    templateReferenceId: '',
-    name: '',
-    subject: '',
-    category: 'custom',
-    isActive: true,
-    design: null,
-    bodyHtml: '',
-    bodyText: '',
-    tags: [],
-  });
-
-  // Version History State
+  // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [versions, setVersions] = useState([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
+  const [versionsError, setVersionsError] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState(null);
+  const [pendingVersionDelete, setPendingVersionDelete] = useState(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
+  const guard = useUnsavedChangesGuard(canManage && isDirty);
+
+  const coreEmailName =
+    coreEmailType === 'reset-password'
+      ? t('editor.core.resetPassword', 'Reset password')
+      : t('editor.core.emailConfirmation', 'Email confirmation');
+
+  /** Loads a design into Unlayer without marking the form dirty. */
+  const loadDesignIntoEditor = useCallback((design) => {
+    latestDesignRef.current = design ?? null;
+    const editor = emailEditorRef.current?.editor;
+    if (!design || !editor || !editorReadyRef.current) return false;
+    suppressDirtyRef.current = true;
+    editor.loadDesign(design);
+    setTimeout(() => {
+      suppressDirtyRef.current = false;
+    }, 500);
+    return true;
+  }, []);
+
+  const updateField = (field, value) => {
+    setTemplateData((current) => ({ ...current, [field]: value }));
+    setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current));
+    setIsDirty(true);
+  };
+
+  const fetchCoreTemplate = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
+      try {
+        const response = await get(`/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`);
+        const coreTemplate = response.data?.data;
+        const design = coreTemplate?.design || buildCoreDesign(coreTemplate?.message, htmlToText);
+
+        setTemplateData({
+          ...EMPTY_TEMPLATE,
+          category: 'transactional',
+          subject: coreTemplate?.subject || '',
+          design,
+          bodyHtml: coreTemplate?.bodyHtml || coreTemplate?.message || '',
+          bodyText: coreTemplate?.bodyText || '',
+        });
+        setLoadError(false);
+        setIsDirty(false);
+        loadDesignIntoEditor(design);
+      } catch (error) {
+        console.error('[MagicMail] Failed to load core template');
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [coreEmailType, get, loadDesignIntoEditor]
+  );
+
+  const fetchTemplate = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
+      try {
+        const response = await get(`/magic-mail/designer/templates/${encodeURIComponent(id)}`);
+        const template = response.data?.data ?? {};
+        setTemplateData({ ...EMPTY_TEMPLATE, ...template });
+        setLoadError(false);
+        setIsDirty(false);
+        loadDesignIntoEditor(template.design);
+      } catch (error) {
+        console.error('[MagicMail] Failed to load template');
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [get, id, loadDesignIntoEditor]
+  );
+
+  const loadCurrent = useCallback(() => {
+    if (isCoreEmail) return fetchCoreTemplate();
+    if (!isNewTemplate && id) return fetchTemplate();
+    return undefined;
+  }, [fetchCoreTemplate, fetchTemplate, id, isCoreEmail, isNewTemplate]);
+
+  // (Re)load whenever the route changes; the editor remounts per template.
   useEffect(() => {
-    if (isCoreEmail) {
-      fetchCoreTemplate();
-    } else if (!isNewTemplate && id) {
-      fetchTemplate();
+    editorReadyRef.current = false;
+    latestDesignRef.current = null;
+    setEditorLoaded(false);
+    setDesignerLoadError(false);
+    setErrors({});
+    setIsDirty(false);
+    if (isNewTemplate) {
+      setTemplateData(EMPTY_TEMPLATE);
+      setLoading(false);
+      setLoadError(false);
+    } else {
+      loadCurrent();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isCoreEmail, coreEmailType]);
+
+  // Operator settings for the visual editor (optional projectId, pinned script/version).
+  useEffect(() => {
+    if (!canManage || editorConfig) return undefined;
+    let cancelled = false;
+    get('/magic-mail/designer/editor-config')
+      .then((response) => {
+        if (!cancelled) setEditorConfig(sanitizeEditorConfig(response?.data?.data));
+      })
+      .catch(() => {
+        if (!cancelled) setEditorConfig(DEFAULT_EDITOR_CONFIG);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage, editorConfig, get]);
+
+  // Options are computed once per configuration: react-email-editor recreates
+  // the editor (and drops unsaved work) whenever its options change.
+  const unlayerOptions = useMemo(
+    () =>
+      editorConfig
+        ? buildUnlayerOptions({ config: editorConfig, isDark: isDarkTheme(activeTheme), locale, t })
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editorConfig]
+  );
 
   // Do not leave the visual editor in an indefinite loading state if its
   // external runtime is blocked or unavailable. The Plain Text tab remains
@@ -645,144 +318,107 @@ const EditorPage = () => {
     return () => window.clearTimeout(loadTimeout);
   }, [activeTab, canManage, designerLoadError, editorLoaded]);
 
-  const fetchCoreTemplate = async () => {
-    setLoading(true);
-    try {
-      const response = await get(`/magic-mail/designer/core/${coreEmailType}`);
-      const coreTemplate = response.data?.data;
-      
-      let design = coreTemplate?.design;
-      
-      // Convert old HTML message to Unlayer design if no design exists
-      if (!design && coreTemplate?.message) {
-        let message = coreTemplate.message;
-        
-        // Check if message contains HTML body tag
-        if (message.match(/<body/)) {
-          const parser = new DOMParser();
-          const parsedDocument = parser.parseFromString(message, 'text/html');
-          message = parsedDocument.body.innerText;
+  /** Exports design and HTML from Unlayer. */
+  const exportEditor = useCallback(
+    () =>
+      new Promise((resolve, reject) => {
+        const editor = emailEditorRef.current?.editor;
+        if (!editor || !editorReadyRef.current) {
+          reject(new Error('editor not ready'));
+          return;
         }
-        
-        // Strip HTML tags except for specific ones
-        message = message
-          .replace(/<(?!\/?(?:a|img|strong|b|i|%|%=)\b)[^>]+>/gi, '')
-          .replace(/"/g, "'")
-          .replace(/\n/g, '<br />');
-        
-        // Create design from template
-        const templateStr = JSON.stringify(STANDARD_EMAIL_TEMPLATE);
-        design = JSON.parse(templateStr.replace('__PLACEHOLDER__', message));
+        const timer = setTimeout(() => reject(new Error('export timeout')), EXPORT_TIMEOUT_MS);
+        editor.exportHtml((data) => {
+          clearTimeout(timer);
+          resolve({ design: data.design, bodyHtml: data.html });
+        });
+      }),
+    []
+  );
+
+  /** Mark the visual editor ready, wire uploads and change tracking, load the saved design. */
+  const onEditorReady = useCallback(
+    (readyEditor) => {
+      const editor = readyEditor ?? emailEditorRef.current?.editor;
+      editorReadyRef.current = true;
+      setDesignerLoadError(false);
+      setEditorLoaded(true);
+      if (!editor) return;
+
+      editor.registerCallback?.(
+        'image',
+        createMediaLibraryUploader({
+          post,
+          baseUrl: getBackendBaseUrl(),
+          failureMessage: t(
+            'editor.upload.failure',
+            'The image could not be uploaded to the Media Library.'
+          ),
+        })
+      );
+      editor.addEventListener?.('design:updated', () => {
+        if (!suppressDirtyRef.current) setIsDirty(true);
+      });
+      editor.addEventListener?.('design:loaded', () => {
+        suppressDirtyRef.current = false;
+      });
+
+      if (latestDesignRef.current) {
+        suppressDirtyRef.current = true;
+        editor.loadDesign(latestDesignRef.current);
       }
-      
-      setTemplateData({
-        templateReferenceId: '',
-        name: coreEmailType === 'reset-password' ? 'Reset Password' : 'Email Confirmation',
-        subject: coreTemplate?.subject || '',
-        category: 'transactional',
-        isActive: true,
-        design: design,
-        bodyHtml: coreTemplate?.bodyHtml || coreTemplate?.message || '',
-        bodyText: coreTemplate?.bodyText || '',
-        tags: [],
-      });
+    },
+    [post, t]
+  );
 
-      // Load design into editor after a short delay
-      setTimeout(() => {
-        if (design && emailEditorRef.current?.editor) {
-          emailEditorRef.current.editor.loadDesign(design);
-        }
-      }, 600);
-    } catch (error) {
-      console.error('[MagicMail] Failed to load core template');
-      toggleNotification({
-        type: 'danger',
-        message: 'Failed to load core template',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTemplate = async () => {
-    setLoading(true);
-    try {
-      const response = await get(`/magic-mail/designer/templates/${id}`);
-      const template = response.data?.data;
-      setTemplateData(template);
-
-      // Load design into editor
-      setTimeout(() => {
-        if (template.design && emailEditorRef.current?.editor) {
-          emailEditorRef.current.editor.loadDesign(template.design);
-        }
-      }, 500);
-    } catch (error) {
-      toggleNotification({ type: 'danger', message: 'Failed to load template' });
-      navigate('/plugins/magic-mail/designer');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load version history
+  // ------------------------------------------------------------ versions
   const fetchVersions = async () => {
     if (!id || isNewTemplate || isCoreEmail) return;
-    
     setLoadingVersions(true);
+    setVersionsError(false);
     try {
-      const response = await get(`/magic-mail/designer/templates/${id}/versions`);
-      if (response.data?.success) {
-        setVersions(response.data.data || []);
-      }
+      const response = await get(`/magic-mail/designer/templates/${encodeURIComponent(id)}/versions`);
+      setVersions(Array.isArray(response.data?.data) ? response.data.data : []);
     } catch (error) {
       console.error('[Version History] Failed to load versions');
-      toggleNotification({
-        type: 'danger',
-        message: 'Failed to load version history',
-      });
+      setVersionsError(true);
     } finally {
       setLoadingVersions(false);
     }
   };
 
+  const handleOpenVersionHistory = () => {
+    setShowVersionHistory(true);
+    fetchVersions();
+  };
+
   /**
-   * Restores a saved revision after confirmation. The server route repeats
-   * the manage-permission check before changing the stored template.
+   * Restores a saved revision after confirmation (ConfirmDialog). The server
+   * route repeats the manage-permission check before changing the template.
    *
-   * @param {string|number} versionId Stored revision identifier.
-   * @param {number|string} versionNumber Human-readable revision number.
+   * @param {object} version Stored revision.
+   * @param {number} versionNumber Human-readable revision number.
    * @returns {Promise<void>}
    */
-  const handleRestoreVersion = async (versionId, versionNumber) => {
+  const handleRestoreVersion = async (version, versionNumber) => {
     if (!canManage) return;
-    if (!window.confirm(`Restore template to Version #${versionNumber}? Current content will be saved as a new version.`)) {
-      return;
-    }
-
     try {
-      const response = await post(`/magic-mail/designer/templates/${id}/versions/${versionId}/restore`);
-      
-      if (response.data?.success) {
-        toggleNotification({
-          type: 'success',
-          message: `Restored to Version #${versionNumber}`,
-        });
-        
-        // Reload template data
-        await fetchTemplate();
-        
-        // Reload versions
-        await fetchVersions();
-        
-        // Close modal
-        setShowVersionHistory(false);
-      }
+      await post(
+        `/magic-mail/designer/templates/${encodeURIComponent(id)}/versions/${encodeURIComponent(version.id)}/restore`
+      );
+      toggleNotification({
+        type: 'success',
+        message: t('editor.versions.restore.success', 'Restored version {number}', { number: versionNumber }),
+      });
+      setPendingRestore(null);
+      setShowVersionHistory(false);
+      await fetchTemplate({ silent: true });
+      await fetchVersions();
     } catch (error) {
       console.error('[Version History] Failed to restore version');
       toggleNotification({
         type: 'danger',
-        message: 'Failed to restore version',
+        message: t('editor.versions.restore.failure', 'The version could not be restored.'),
       });
     }
   };
@@ -791,33 +427,27 @@ const EditorPage = () => {
    * Deletes one saved revision after confirmation. The admin API enforces
    * the same manage capability independently of this UI guard.
    *
-   * @param {string|number} versionId Stored revision identifier.
-   * @param {number|string} versionNumber Human-readable revision number.
+   * @param {object} version Stored revision.
+   * @param {number} versionNumber Human-readable revision number.
    * @returns {Promise<void>}
    */
-  const handleDeleteVersion = async (versionId, versionNumber) => {
+  const handleDeleteVersion = async (version, versionNumber) => {
     if (!canManage) return;
-    if (!window.confirm(`Delete Version #${versionNumber}? This action cannot be undone.`)) {
-      return;
-    }
-
     try {
-      const response = await post(`/magic-mail/designer/templates/${id}/versions/${versionId}/delete`);
-      
-      if (response.data?.success) {
-        toggleNotification({
-          type: 'success',
-          message: `Version #${versionNumber} deleted`,
-        });
-        
-        // Reload versions
-        await fetchVersions();
-      }
+      await post(
+        `/magic-mail/designer/templates/${encodeURIComponent(id)}/versions/${encodeURIComponent(version.id)}/delete`
+      );
+      toggleNotification({
+        type: 'success',
+        message: t('editor.versions.delete.success', 'Version {number} deleted', { number: versionNumber }),
+      });
+      setPendingVersionDelete(null);
+      await fetchVersions();
     } catch (error) {
       console.error('[Version History] Failed to delete version');
       toggleNotification({
         type: 'danger',
-        message: 'Failed to delete version',
+        message: t('editor.versions.delete.failure', 'The version could not be deleted.'),
       });
     }
   };
@@ -830,45 +460,29 @@ const EditorPage = () => {
    */
   const handleDeleteAllVersions = async () => {
     if (!canManage) return;
-    if (versions.length === 0) {
-      toggleNotification({
-        type: 'info',
-        message: 'No versions to delete',
-      });
-      return;
-    }
-
-    if (!window.confirm(`Delete ALL ${versions.length} versions? This action cannot be undone.`)) {
-      return;
-    }
-
+    const count = versions.length;
     try {
-      const response = await post(`/magic-mail/designer/templates/${id}/versions/delete-all`);
-      
-      if (response.data?.success) {
-        toggleNotification({
-          type: 'success',
-          message: `Deleted ${versions.length} versions`,
-        });
-        
-        // Reload versions
-        await fetchVersions();
-      }
+      await post(`/magic-mail/designer/templates/${encodeURIComponent(id)}/versions/delete-all`);
+      toggleNotification({
+        type: 'success',
+        message: t(
+          'editor.versions.deleteAll.success',
+          '{count, plural, one {# version deleted} other {# versions deleted}}',
+          { count }
+        ),
+      });
+      setConfirmDeleteAll(false);
+      await fetchVersions();
     } catch (error) {
       console.error('[Version History] Failed to delete all versions');
       toggleNotification({
         type: 'danger',
-        message: 'Failed to delete all versions',
+        message: t('editor.versions.deleteAll.failure', 'The versions could not be deleted.'),
       });
     }
   };
 
-  // Open version history and load versions
-  const handleOpenVersionHistory = () => {
-    setShowVersionHistory(true);
-    fetchVersions();
-  };
-
+  // ---------------------------------------------------------------- save
   /**
    * Persists the template or core email configuration for an admin with the
    * manage capability. The server independently rejects other roles.
@@ -877,117 +491,73 @@ const EditorPage = () => {
    */
   const handleSave = async () => {
     if (!canManage) return;
-    // Validation (skip for core emails)
-    if (!isCoreEmail) {
-      if (!templateData.templateReferenceId) {
-        toggleNotification({ type: 'warning', message: 'Reference ID is required' });
-        return;
-      }
-      if (!templateData.name) {
-        toggleNotification({ type: 'warning', message: 'Name is required' });
-        return;
-      }
-    }
-    
-    if (!templateData.subject) {
-      toggleNotification({ type: 'warning', message: 'Subject is required' });
+    if (saving) return;
+
+    const fieldErrors = validateTemplateFields(templateData, { isCoreEmail, isNewTemplate });
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) {
+      toggleNotification({
+        type: 'warning',
+        message: t('editor.save.invalid', 'Please complete the highlighted fields.'),
+      });
       return;
     }
 
     setSaving(true);
-
     try {
+      // Export from the visual editor whenever it is loaded, regardless of the
+      // active tab, so visual edits are never lost (FUN-14, UI-M01).
       let design = templateData.design;
       let bodyHtml = templateData.bodyHtml;
-
-      if (activeTab === 'html' && emailEditorRef.current?.editor) {
-        await new Promise((resolve) => {
-          emailEditorRef.current.editor.exportHtml((data) => {
-            design = data.design;
-            bodyHtml = data.html;
-            resolve();
-          });
-        });
+      if (editorReadyRef.current && emailEditorRef.current?.editor) {
+        ({ design, bodyHtml } = await exportEditor());
       }
 
-      // Core emails - save to Strapi config
       if (isCoreEmail) {
-        const corePayload = {
-          subject: templateData.subject,
-          design,
-          message: bodyHtml, // Send as 'message' not 'bodyHtml'
-          bodyText: activeTab === 'text' ? templateData.bodyText : '', // Include text version
-        };
-
-        await put(`/magic-mail/designer/core/${coreEmailType}`, corePayload);
-
+        await put(
+          `/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`,
+          buildCorePayload(templateData, { design, bodyHtml })
+        );
+        setTemplateData((current) => ({ ...current, design, bodyHtml }));
+        latestDesignRef.current = design;
+        setIsDirty(false);
         toggleNotification({
           type: 'success',
-          message: 'Core email template saved!',
+          message: t('editor.save.coreSuccess', 'Core email template saved'),
         });
-        
-        setSaving(false);
         return;
       }
 
-      // Build a whitelist payload. Spreading `templateData` (which is the
-      // full Strapi document incl. `id`, `documentId`, `createdAt`,
-      // `updatedAt`, `publishedAt`, `locale`, populated `versions`, etc.)
-      // into the request body is rejected by the .strict() Zod schema on
-      // the server and surfaces as a bare 500. Sending only the fields the
-      // schema actually accepts keeps the request valid regardless of
-      // what Strapi adds to the read model in the future.
-      const refIdRaw = templateData.templateReferenceId;
-      const refIdParsed = refIdRaw === '' || refIdRaw === null || refIdRaw === undefined
-        ? undefined
-        : Number.parseInt(refIdRaw, 10);
+      const payload = buildTemplatePayload(templateData, { design, bodyHtml, isNewTemplate });
+      const response = isNewTemplate
+        ? await post('/magic-mail/designer/templates', payload)
+        : await put(`/magic-mail/designer/templates/${encodeURIComponent(id)}`, payload);
 
-      const payload = {
-        name: templateData.name,
-        subject: templateData.subject,
-        bodyHtml,
-        bodyText: templateData.bodyText,
-        design,
-        category: templateData.category,
-        isActive: templateData.isActive,
-        tags: templateData.tags,
-      };
-      if (Number.isFinite(refIdParsed)) {
-        payload.templateReferenceId = refIdParsed;
-      }
-
-      // Strip undefined values so the server's .strict() schema does not
-      // see explicit `undefined`s (some serializers drop them, some don't).
-      Object.keys(payload).forEach((k) => {
-        if (payload[k] === undefined) delete payload[k];
-      });
-
-      let response;
-      if (isNewTemplate) {
-        response = await post('/magic-mail/designer/templates', payload);
-      } else {
-        response = await put(`/magic-mail/designer/templates/${id}`, payload);
-      }
-
+      setTemplateData((current) => ({ ...current, design, bodyHtml }));
+      latestDesignRef.current = design;
+      setIsDirty(false);
       toggleNotification({
         type: 'success',
-        message: isNewTemplate ? 'Template created!' : 'Template saved!',
+        message: isNewTemplate
+          ? t('editor.save.created', 'Template created')
+          : t('editor.save.success', 'Template saved'),
       });
 
       if (isNewTemplate) {
-        // The admin UI convention is to address templates by their
-        // user-visible `templateReferenceId`. Fall back to the DB `id`
-        // only if the backend — for whatever reason — did not return one.
+        // Templates are addressed by their user-visible templateReferenceId.
         const created = response.data?.data;
         const navId = created?.templateReferenceId ?? created?.id;
         if (navId !== undefined && navId !== null) {
-          navigate(`/plugins/magic-mail/designer/${navId}`);
+          guard.bypass(() => navigate(`${TEMPLATE_LIST_PATH}/${navId}`, { replace: true }));
         }
       }
     } catch (error) {
       toggleNotification({
         type: 'danger',
-        message: error.response?.data?.error?.message || error.response?.data?.message || 'Failed to save',
+        message:
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          t('editor.save.failure', 'The template could not be saved.'),
       });
     } finally {
       setSaving(false);
@@ -995,19 +565,19 @@ const EditorPage = () => {
   };
 
   const handleExportDesign = async () => {
-    if (!emailEditorRef.current?.editor) return;
-
-    emailEditorRef.current.editor.exportHtml((data) => {
-      const dataStr = JSON.stringify(data.design, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${templateData.name || 'template'}-design.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      toggleNotification({ type: 'success', message: 'Design exported!' });
-    });
+    try {
+      const { design } = await exportEditor();
+      downloadBlob(
+        new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' }),
+        `${toFileName(templateData.name || coreEmailType || 'template')}-design.json`
+      );
+      toggleNotification({ type: 'success', message: t('editor.design.exported', 'Design exported') });
+    } catch {
+      toggleNotification({
+        type: 'warning',
+        message: t('editor.design.exportUnavailable', 'The visual editor is not ready yet. Try again in a moment.'),
+      });
+    }
   };
 
   /**
@@ -1015,79 +585,135 @@ const EditorPage = () => {
    * separately guarded save action and server-side manage permission.
    *
    * @param {React.ChangeEvent<HTMLInputElement>} event File input change.
-   * @returns {void}
+   * @returns {Promise<void>}
    */
-  const handleImportDesign = (event) => {
+  const handleImportDesign = async (event) => {
     if (!canManage) return;
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const design = JSON.parse(e.target.result);
-        if (emailEditorRef.current?.editor) {
-          emailEditorRef.current.editor.loadDesign(design);
-          toggleNotification({ type: 'success', message: 'Design imported!' });
-        }
-      } catch (error) {
-        toggleNotification({ type: 'danger', message: 'Invalid design file' });
+    const input = event.target;
+    const file = input.files?.[0];
+    try {
+      if (!file) return;
+      const design = parseDesignFile(await file.text());
+      if (!design) {
+        toggleNotification({
+          type: 'danger',
+          message: t('editor.design.invalid', 'The file is not a valid design export.'),
+        });
+        return;
       }
-    };
-    reader.readAsText(file);
-  };
-
-  /** Mark the visual editor ready and load any saved design. */
-  const onEditorReady = () => {
-    setDesignerLoadError(false);
-    setEditorLoaded(true);
-    if (templateData.design && emailEditorRef.current?.editor) {
-      setTimeout(() => {
-        emailEditorRef.current.editor.loadDesign(templateData.design);
-      }, 100);
+      setTemplateData((current) => ({ ...current, design }));
+      setIsDirty(true);
+      if (loadDesignIntoEditor(design)) {
+        toggleNotification({ type: 'success', message: t('editor.design.imported', 'Design imported') });
+      } else {
+        toggleNotification({
+          type: 'info',
+          message: t('editor.design.importPending', 'The design will load when the visual editor is ready.'),
+        });
+      }
+    } catch {
+      toggleNotification({
+        type: 'danger',
+        message: t('editor.design.invalid', 'The file is not a valid design export.'),
+      });
+    } finally {
+      // Allow importing the same file again (UI-M06).
+      input.value = '';
     }
   };
 
-  if (loading || permissionsLoading) {
+  // -------------------------------------------------------------- render
+  const pageTitle = isCoreEmail
+    ? coreEmailName
+    : isNewTemplate
+      ? t('editor.newTemplate', 'New template')
+      : templateData.name || t('editor.pageTitle', 'Edit template');
+
+  if (permissionsLoading || loading) {
     return (
       <Container>
+        <PluginPageTitle>{pageTitle}</PluginPageTitle>
         <LoadingContainer>
-          <Loader>{permissionsLoading ? 'Checking permissions...' : 'Loading template...'}</Loader>
+          <Loader>
+            {permissionsLoading
+              ? t('editor.permissions.loading', 'Checking permissions...')
+              : t('editor.loading', 'Loading template...')}
+          </Loader>
         </LoadingContainer>
       </Container>
     );
   }
 
+  if (permissionsError || loadError) {
+    return (
+      <Container>
+        <PluginPageTitle>{pageTitle}</PluginPageTitle>
+        <LoadingContainer role="alert">
+          <ExclamationTriangleIcon width={48} height={48} aria-hidden="true" />
+          <Typography variant="beta" tag="h1">
+            {permissionsError
+              ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+              : t('editor.loadError', 'The template could not be loaded.')}
+          </Typography>
+          <Flex gap={2} wrap="wrap" justifyContent="center">
+            <TertiaryButton
+              startIcon={<ArrowLeftIcon width={16} height={16} aria-hidden="true" />}
+              onClick={() => navigate(TEMPLATE_LIST_PATH)}
+            >
+              {t('editor.backToList', 'Back to templates')}
+            </TertiaryButton>
+            {!permissionsError && (
+              <Button startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />} onClick={() => loadCurrent()}>
+                {t('editor.retry', 'Try again')}
+              </Button>
+            )}
+          </Flex>
+        </LoadingContainer>
+      </Container>
+    );
+  }
+
+  const errorText = {
+    templateReferenceId:
+      errors.templateReferenceId === 'invalid'
+        ? t('editor.fields.referenceId.invalid', 'Use a positive whole number.')
+        : errors.templateReferenceId
+          ? t('editor.fields.required', 'This field is required.')
+          : undefined,
+    name: errors.name ? t('editor.fields.required', 'This field is required.') : undefined,
+    subject: errors.subject ? t('editor.fields.required', 'This field is required.') : undefined,
+  };
+
   return (
     <Container>
-      {/* Header */}
+      <PluginPageTitle>{pageTitle}</PluginPageTitle>
       <Header>
         <HeaderRow>
           <HeaderLeft>
             <BackButton
               type="button"
-              aria-label="Back to email templates"
-              onClick={() => navigate('/plugins/magic-mail/designer')}
+              aria-label={t('editor.back', 'Back to email templates')}
+              onClick={() => navigate(TEMPLATE_LIST_PATH)}
             >
-              <ArrowLeftIcon />
+              <ArrowLeftIcon aria-hidden="true" />
             </BackButton>
             <TitleContainer>
-              <Typography variant="alpha">
-                {isCoreEmail 
-                  ? `${coreEmailType === 'reset-password' ? 'Reset Password' : 'Email Confirmation'}`
-                  : isNewTemplate 
-                  ? 'New Template' 
-                  : `${templateData.name}`
-                }
+              <Typography variant="alpha" tag="h1">
+                {isCoreEmail ? coreEmailName : isNewTemplate ? t('editor.newTemplate', 'New template') : templateData.name}
               </Typography>
               {!isNewTemplate && !isCoreEmail && (
                 <Typography variant="pi" textColor="neutral600">
-                  Versioning enabled
+                  {t('editor.versioningEnabled', 'Versioning enabled')}
                 </Typography>
               )}
               {isCoreEmail && (
                 <Typography variant="pi" textColor="neutral600">
-                  Core Strapi Email Template
+                  {t('editor.coreSubtitle', 'Core Strapi email template')}
+                </Typography>
+              )}
+              {canManage && isDirty && (
+                <Typography variant="pi" textColor="neutral600" aria-live="polite">
+                  {t('editor.unsavedChanges', 'Unsaved changes')}
                 </Typography>
               )}
             </TitleContainer>
@@ -1095,94 +721,119 @@ const EditorPage = () => {
 
           <HeaderRight>
             {canManage && (
-              <ImportLabel>
-                <ImportExportButton>
-                  <ArrowUpTrayIcon />
-                  Import Design
-                </ImportExportButton>
-                <HiddenInput type="file" accept=".json" onChange={handleImportDesign} />
-              </ImportLabel>
+              <>
+                <ToolbarButton type="button" onClick={() => designInputRef.current?.click()}>
+                  <ArrowUpTrayIcon aria-hidden="true" />
+                  {t('editor.design.import', 'Import design')}
+                </ToolbarButton>
+                <HiddenInput
+                  ref={designInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportDesign}
+                  aria-hidden="true"
+                  tabIndex={-1}
+                />
+              </>
             )}
-            <ImportExportButton onClick={handleExportDesign} as="button">
-              <ArrowDownTrayIcon />
-              Export Design
-            </ImportExportButton>
+            {canManage && editorLoaded && (
+              <ToolbarButton type="button" onClick={handleExportDesign}>
+                <ArrowDownTrayIcon aria-hidden="true" />
+                {t('editor.design.export', 'Export design')}
+              </ToolbarButton>
+            )}
             {!isCoreEmail && !isNewTemplate && (
-              <VersionButton onClick={handleOpenVersionHistory}>
-                <ClockIcon />
-                Version History
-              </VersionButton>
+              <ToolbarButton type="button" onClick={handleOpenVersionHistory} aria-haspopup="dialog">
+                <ClockIcon aria-hidden="true" />
+                {t('editor.versions.open', 'Version history')}
+              </ToolbarButton>
             )}
             <SaveButton
-              startIcon={<CheckIcon />}
+              startIcon={<CheckIcon aria-hidden="true" />}
               onClick={handleSave}
               loading={saving}
               disabled={saving || !canManage}
-              title={!canManage ? 'Editing requires the MagicMail manage permission.' : undefined}
+              title={!canManage ? t('editor.save.noPermission', 'Editing requires the MagicMail manage permission.') : undefined}
             >
-              {saving ? 'Saving...' : 'Save Template'}
+              {saving ? t('editor.save.saving', 'Saving...') : t('editor.save.button', 'Save template')}
             </SaveButton>
           </HeaderRight>
         </HeaderRow>
 
-        {/* Settings */}
         <SettingsRow>
           {!isCoreEmail && (
-            <FieldWrapper width="150px">
-              <Field.Root required>
-                <Field.Label>Reference ID</Field.Label>
+            <FieldWrapper $width="150px">
+              <Field.Root
+                name="templateReferenceId"
+                required={isNewTemplate}
+                error={errorText.templateReferenceId}
+                hint={
+                  isNewTemplate
+                    ? undefined
+                    : t('editor.fields.referenceId.locked', 'Cannot be changed after creation.')
+                }
+              >
+                <Field.Label>{t('editor.fields.referenceId', 'Reference ID')}</Field.Label>
                 <Field.Input
                   type="number"
-                  value={templateData.templateReferenceId}
-                  disabled={!canManage}
-                  onChange={(e) =>
-                    setTemplateData({ ...templateData, templateReferenceId: e.target.value })
-                  }
+                  min="1"
+                  step="1"
+                  value={templateData.templateReferenceId ?? ''}
+                  disabled={!canManage || !isNewTemplate}
+                  onChange={(e) => updateField('templateReferenceId', e.target.value)}
                   placeholder="100"
                 />
+                <Field.Hint />
+                <Field.Error />
               </Field.Root>
             </FieldWrapper>
           )}
 
           {!isCoreEmail && (
-            <FieldWrapper flex="1">
-              <Field.Root required>
-                <Field.Label>Name</Field.Label>
+            <FieldWrapper $flex="1">
+              <Field.Root name="name" required error={errorText.name}>
+                <Field.Label>{t('editor.fields.name', 'Name')}</Field.Label>
                 <Field.Input
-                  value={templateData.name}
+                  value={templateData.name ?? ''}
                   disabled={!canManage}
-                  onChange={(e) => setTemplateData({ ...templateData, name: e.target.value })}
-                  placeholder="Welcome Email"
+                  onChange={(e) => updateField('name', e.target.value)}
+                  placeholder={t('editor.fields.name.placeholder', 'Welcome email')}
                 />
+                <Field.Error />
               </Field.Root>
             </FieldWrapper>
           )}
 
-          <FieldWrapper flex="1">
-            <Field.Root required>
-              <Field.Label>Subject</Field.Label>
+          <FieldWrapper $flex="1">
+            <Field.Root name="subject" required error={errorText.subject}>
+              <Field.Label>{t('editor.fields.subject', 'Subject')}</Field.Label>
               <Field.Input
-                value={templateData.subject}
+                value={templateData.subject ?? ''}
                 disabled={!canManage}
-                onChange={(e) => setTemplateData({ ...templateData, subject: e.target.value })}
+                onChange={(e) => updateField('subject', e.target.value)}
                 placeholder="Welcome {{user.firstName}}!"
               />
+              <Field.Error />
             </Field.Root>
           </FieldWrapper>
 
           {!isCoreEmail && (
-            <FieldWrapper width="180px">
-              <Field.Root>
-                <Field.Label>Category</Field.Label>
+            <FieldWrapper $width="180px">
+              <Field.Root name="category">
+                <Field.Label>{t('editor.fields.category', 'Category')}</Field.Label>
                 <SingleSelect
                   value={templateData.category}
                   disabled={!canManage}
-                  onChange={(value) => setTemplateData({ ...templateData, category: value })}
+                  onChange={(value) => updateField('category', value)}
                 >
-                  <SingleSelectOption value="transactional">Transactional</SingleSelectOption>
-                  <SingleSelectOption value="marketing">Marketing</SingleSelectOption>
-                  <SingleSelectOption value="notification">Notification</SingleSelectOption>
-                  <SingleSelectOption value="custom">Custom</SingleSelectOption>
+                  <SingleSelectOption value="transactional">
+                    {t('editor.category.transactional', 'Transactional')}
+                  </SingleSelectOption>
+                  <SingleSelectOption value="marketing">{t('editor.category.marketing', 'Marketing')}</SingleSelectOption>
+                  <SingleSelectOption value="notification">
+                    {t('editor.category.notification', 'Notification')}
+                  </SingleSelectOption>
+                  <SingleSelectOption value="custom">{t('editor.category.custom', 'Custom')}</SingleSelectOption>
                 </SingleSelect>
               </Field.Root>
             </FieldWrapper>
@@ -1190,18 +841,16 @@ const EditorPage = () => {
 
           {!isCoreEmail && (
             <SwitchWrapper>
-              <Typography variant="omega" fontWeight="semiBold">
-                Template active
+              <Typography variant="omega" fontWeight="semiBold" id="magic-mail-template-active-label">
+                {t('editor.fields.active', 'Template active')}
               </Typography>
               <Switch
                 checked={templateData.isActive}
                 disabled={!canManage}
-                onCheckedChange={(checked) =>
-                  setTemplateData({ ...templateData, isActive: checked })
-                }
-                aria-label="Template active"
-                onLabel="Active"
-                offLabel="Inactive"
+                onCheckedChange={(checked) => updateField('isActive', checked)}
+                aria-label={t('editor.fields.active', 'Template active')}
+                onLabel={t('editor.fields.active.on', 'Active')}
+                offLabel={t('editor.fields.active.off', 'Inactive')}
                 visibleLabels={false}
               />
             </SwitchWrapper>
@@ -1209,33 +858,46 @@ const EditorPage = () => {
         </SettingsRow>
       </Header>
 
-      {/* Editor */}
       <TabsWrapper>
         <StyledTabsRoot value={activeTab} onValueChange={setActiveTab}>
           <TabListWrapper>
-            <Tabs.List>
-              <Tabs.Trigger value="html">✨ Visual Designer</Tabs.Trigger>
-              <Tabs.Trigger value="text">📝 Plain Text</Tabs.Trigger>
+            <Tabs.List aria-label={t('editor.tabs.label', 'Editor mode')}>
+              <Tabs.Trigger value="html">
+                <SparklesIcon aria-hidden="true" />
+                {t('editor.tabs.visual', 'Visual Designer')}
+              </Tabs.Trigger>
+              <Tabs.Trigger value="text">
+                <DocumentTextIcon aria-hidden="true" />
+                {t('editor.tabs.text', 'Plain Text')}
+              </Tabs.Trigger>
             </Tabs.List>
           </TabListWrapper>
 
-          <StyledTabsContent value="html">
+          <StyledTabsContent value="html" forceMount>
             <TabContentWrapper>
               {canManage && !editorLoaded && !designerLoadError && (
-                <DesignerLoadingContainer>
-                  <Loader>Loading Email Designer...</Loader>
-                </DesignerLoadingContainer>
+                <OverlayState role="status">
+                  <Loader>{t('editor.designer.loading', 'Loading email designer...')}</Loader>
+                </OverlayState>
               )}
               {canManage && !editorLoaded && designerLoadError && (
-                <DesignerLoadingContainer role="alert" aria-live="assertive">
-                  <Typography variant="beta">Visual Designer could not load</Typography>
+                <OverlayState role="alert" aria-live="assertive">
+                  <Typography variant="beta" tag="h2">
+                    {t('editor.designer.errorTitle', 'Visual Designer could not load')}
+                  </Typography>
                   <Typography variant="omega" textColor="neutral600">
-                    The visual editor is unavailable. You can continue in Plain Text.
+                    {t('editor.designer.errorText', 'The visual editor is unavailable. You can continue in Plain Text.')}
+                  </Typography>
+                  <Typography variant="pi" textColor="neutral600">
+                    {t(
+                      'editor.designer.cspHint',
+                      'If your Content Security Policy blocks editor.unlayer.com, see the "Content Security Policy" section of the MagicMail README.'
+                    )}
                   </Typography>
                   <Button size="S" onClick={() => setActiveTab('text')}>
-                    Switch to Plain Text
+                    {t('editor.designer.switchToText', 'Switch to Plain Text')}
                   </Button>
-                </DesignerLoadingContainer>
+                </OverlayState>
               )}
               {canManage ? (
                 <EditorCanvas
@@ -1244,312 +906,122 @@ const EditorPage = () => {
                     pointerEvents: editorLoaded ? 'auto' : 'none',
                   }}
                 >
-                  <VisualEditorErrorBoundary
-                    key={id || coreEmailType || 'new-template'}
-                    onError={() => setDesignerLoadError(true)}
-                  >
-                    <EmailEditorComponent
-                      ref={emailEditorRef}
-                      onReady={onEditorReady}
-                      minHeight="calc(100vh - 240px)"
-                      options={{
-                    // Display mode
-                    displayMode: 'email',
-                    locale: 'en',
-                    projectId: 1, // Required for some features
-                    
-                    // Merge Tags Config
-                    mergeTagsConfig: {
-                      autocompleteTriggerChar: '@',
-                      sort: false,
-                      delimiter: ['{{', '}}'],
-                    },
-                    
-                    // Appearance
-                    appearance: { 
-                      theme: 'modern_light',
-                      panels: {
-                        tools: { dock: 'left' }
-                      }
-                    },
-                    
-                    // Features - Enable responsive preview
-                    features: {
-                      preview: true,
-                      previewInBrowser: true,
-                      textEditor: {
-                        enabled: true,
-                        spellChecker: true,
-                        tables: true,
-                        cleanPaste: true,
-                      },
-                    },
-                    
-                    // Fonts
-                    fonts: { 
-                      showDefaultFonts: true,
-                      customFonts: [
-                        {
-                          label: 'Inter',
-                          value: "'Inter', sans-serif",
-                          url: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-                        }
-                      ]
-                    },
-                    
-                    // Tools configuration - minimal, let Unlayer show all
-                    tools: {
-                      image: {
-                        properties: {
-                          src: {
-                            value: {
-                              url: 'https://picsum.photos/600/350',
-                            },
-                          },
-                        },
-                      },
-                    },
-                    
-                    // Merge Tags with extended support
-                    mergeTags: {
-                      user: {
-                        name: 'User',
-                        mergeTags: {
-                          firstName: {
-                            name: 'First Name',
-                            value: '{{user.firstName}}',
-                            sample: 'John',
-                          },
-                          lastName: {
-                            name: 'Last Name',
-                            value: '{{user.lastName}}',
-                            sample: 'Doe',
-                          },
-                          email: {
-                            name: 'Email',
-                            value: '{{user.email}}',
-                            sample: 'john@example.com',
-                          },
-                          username: {
-                            name: 'Username',
-                            value: '{{user.username}}',
-                            sample: 'johndoe',
-                          },
-                        },
-                      },
-                      company: {
-                        name: 'Company',
-                        mergeTags: {
-                          name: {
-                            name: 'Name',
-                            value: '{{company.name}}',
-                            sample: 'ACME Corp',
-                          },
-                          url: {
-                            name: 'Website',
-                            value: '{{company.url}}',
-                            sample: 'https://acme.com',
-                          },
-                          address: {
-                            name: 'Address',
-                            value: '{{company.address}}',
-                            sample: '123 Main St, City',
-                          },
-                        },
-                      },
-                      order: {
-                        name: 'Order',
-                        mergeTags: {
-                          number: {
-                            name: 'Number',
-                            value: '{{order.number}}',
-                            sample: '#12345',
-                          },
-                          total: {
-                            name: 'Total',
-                            value: '{{order.total}}',
-                            sample: '$199.99',
-                          },
-                          date: {
-                            name: 'Date',
-                            value: '{{order.date}}',
-                            sample: '2024-01-15',
-                          },
-                          status: {
-                            name: 'Status',
-                            value: '{{order.status}}',
-                            sample: 'Shipped',
-                          },
-                        },
-                      },
-                      system: {
-                        name: 'System',
-                        mergeTags: {
-                          date: {
-                            name: 'Current Date',
-                            value: '{{system.date}}',
-                            sample: new Date().toLocaleDateString(),
-                          },
-                          year: {
-                            name: 'Current Year',
-                            value: '{{system.year}}',
-                            sample: new Date().getFullYear().toString(),
-                          },
-                          unsubscribe: {
-                            name: 'Unsubscribe Link',
-                            value: '{{system.unsubscribe}}',
-                            sample: 'https://example.com/unsubscribe',
-                          },
-                        },
-                      },
-                    },
-                    
-                    // Special links
-                    specialLinks: {
-                      unsubscribe: {
-                        enabled: true,
-                        text: 'Unsubscribe',
-                        href: '{{system.unsubscribe}}'
-                      },
-                      webview: {
-                        enabled: true,
-                        text: 'View in browser',
-                        href: '{{system.webview}}'
-                      }
-                    },
-                    
-                    // Custom CSS
-                    customCSS: [
-                      '.blockbuilder-content-email { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; }'
-                    ],
-                    
-                    // Validation
-                    validator: {
-                      enabled: true,
-                      rules: {
-                        maxImageSize: 1024 * 1024, // 1MB
-                      }
-                    }
-                      }}
-                    />
-                  </VisualEditorErrorBoundary>
+                  {unlayerOptions && (
+                    <VisualEditorErrorBoundary
+                      key={id || coreEmailType || 'new-template'}
+                      onError={() => setDesignerLoadError(true)}
+                    >
+                      <EmailEditorComponent
+                        ref={emailEditorRef}
+                        onReady={onEditorReady}
+                        scriptUrl={editorConfig?.scriptUrl || UNLAYER_SCRIPT_URL}
+                        minHeight="calc(100vh - 240px)"
+                        options={unlayerOptions}
+                      />
+                    </VisualEditorErrorBoundary>
+                  )}
                 </EditorCanvas>
               ) : (
-                <DesignerLoadingContainer role="status">
-                  <Typography variant="beta">Read-only view</Typography>
-                  <Typography variant="omega" textColor="neutral600">
-                    Editing this template requires the MagicMail manage permission.
-                  </Typography>
-                </DesignerLoadingContainer>
+                <ReadOnlyPanel>
+                  <DesignerLoadingContainer role="status" style={{ minHeight: 0, padding: '8px 0' }}>
+                    <Typography variant="beta" tag="h2">
+                      {t('editor.readOnly.title', 'Read-only view')}
+                    </Typography>
+                    <Typography variant="omega" textColor="neutral600">
+                      {t('editor.readOnly.text', 'Editing this template requires the MagicMail manage permission.')}
+                    </Typography>
+                  </DesignerLoadingContainer>
+                  {templateData.bodyHtml ? (
+                    <ReadOnlyPreview
+                      title={t('editor.readOnly.previewTitle', 'Email preview')}
+                      sandbox=""
+                      referrerPolicy="no-referrer"
+                      srcDoc={templateData.bodyHtml}
+                    />
+                  ) : (
+                    <Typography variant="omega" textColor="neutral600" textAlign="center">
+                      {t('editor.readOnly.noHtml', 'This template has no HTML content yet.')}
+                    </Typography>
+                  )}
+                </ReadOnlyPanel>
               )}
             </TabContentWrapper>
           </StyledTabsContent>
 
-          <StyledTabsContent value="text">
+          <StyledTabsContent value="text" forceMount>
             <TextTabContent>
-              <Textarea
-                value={templateData.bodyText}
-                disabled={!canManage}
-                onChange={(e) => setTemplateData({ ...templateData, bodyText: e.target.value })}
-                placeholder="Plain text version of your email...&#10;&#10;Use Mustache variables:&#10;{{user.firstName}}&#10;{{company.name}}&#10;{{order.total}}"
-              />
+              <Field.Root name="bodyText">
+                <Field.Label>{t('editor.text.label', 'Plain text version')}</Field.Label>
+                <Textarea
+                  value={templateData.bodyText ?? ''}
+                  disabled={!canManage}
+                  onChange={(e) => updateField('bodyText', e.target.value)}
+                  placeholder={`${t('editor.text.placeholder', 'Plain text version of your email...')}\n\n${t(
+                    'editor.text.variables',
+                    'Use Mustache variables:'
+                  )}\n{{user.firstName}}\n{{company.name}}\n{{order.total}}`}
+                />
+              </Field.Root>
             </TextTabContent>
           </StyledTabsContent>
         </StyledTabsRoot>
       </TabsWrapper>
 
-      {/* Version History Modal */}
-      <VersionModalOverlay $isOpen={showVersionHistory} onClick={() => setShowVersionHistory(false)} />
-      <VersionModal $isOpen={showVersionHistory}>
-        <VersionModalHeader>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ClockIcon style={{ width: 20, height: 20, color: 'var(--colors-neutral800, #32324d)' }} />
-            <Typography variant="beta" fontWeight="bold">
-              Version History
-            </Typography>
-            {versions.length > 0 && (
-              <span style={{ fontSize: '12px', color: 'var(--colors-neutral600, #666687)', marginLeft: '8px' }}>
-                ({versions.length})
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {canManage && versions.length > 0 && (
-              <DeleteButton
-                size="S"
-                startIcon={<TrashIcon />}
-                onClick={handleDeleteAllVersions}
-              >
-                Delete All
-              </DeleteButton>
-            )}
-            <CloseButton onClick={() => setShowVersionHistory(false)}>
-              <XMarkIcon />
-            </CloseButton>
-          </div>
-        </VersionModalHeader>
+      <VersionHistoryDrawer
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        versions={versions}
+        loading={loadingVersions}
+        loadError={versionsError}
+        onRetry={fetchVersions}
+        canManage={canManage}
+        onRestore={(version, number) => guard.runGuarded(() => setPendingRestore({ version, number }))}
+        onDelete={(version, number) => setPendingVersionDelete({ version, number })}
+        onDeleteAll={() => setConfirmDeleteAll(true)}
+      />
 
-        <VersionModalContent>
-          {loadingVersions ? (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <Loader />
-            </div>
-          ) : versions.length === 0 ? (
-            <EmptyVersions>
-              <ClockIcon />
-              <Typography variant="beta">
-                No Versions Yet
-              </Typography>
-              <Typography variant="omega" textColor="neutral600" style={{ maxWidth: '300px' }}>
-                Versions are created automatically when you save changes
-              </Typography>
-            </EmptyVersions>
-          ) : (
-            versions.map((version, index) => (
-              <VersionItem key={version.id}>
-                <VersionItemHeader>
-                  <VersionNumber>
-                    <VersionBadge>#{version.versionNumber || (versions.length - index)}</VersionBadge>
-                    {version.name}
-                  </VersionNumber>
-                  <VersionDate>
-                    {new Date(version.createdAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </VersionDate>
-                </VersionItemHeader>
+      <ConfirmDialog
+        isOpen={canManage && pendingRestore !== null}
+        variant="default"
+        title={t('editor.versions.restore.title', 'Restore this version?')}
+        description={t(
+          'editor.versions.restore.body',
+          'Restore the template to version {number}? The current content is saved as a new version first.',
+          { number: pendingRestore?.number ?? '' }
+        )}
+        confirmLabel={t('editor.versions.restore', 'Restore')}
+        confirmIcon={<ArrowUturnLeftIcon width={16} height={16} aria-hidden="true" />}
+        onConfirm={() => handleRestoreVersion(pendingRestore.version, pendingRestore.number)}
+        onClose={() => setPendingRestore(null)}
+      />
 
-                <VersionMeta>
-                  <strong>Subject:</strong> {version.subject || 'No subject'}
-                </VersionMeta>
+      <ConfirmDialog
+        isOpen={canManage && pendingVersionDelete !== null}
+        title={t('editor.versions.delete.title', 'Delete this version?')}
+        description={t('editor.versions.delete.body', 'Delete version {number}? This cannot be undone.', {
+          number: pendingVersionDelete?.number ?? '',
+        })}
+        confirmLabel={t('common.delete', 'Delete')}
+        confirmIcon={<TrashIcon width={16} height={16} aria-hidden="true" />}
+        onConfirm={() => handleDeleteVersion(pendingVersionDelete.version, pendingVersionDelete.number)}
+        onClose={() => setPendingVersionDelete(null)}
+      />
 
-                {canManage && (
-                  <VersionActions>
-                    <RestoreButton
-                      size="S"
-                      startIcon={<ArrowUturnLeftIcon />}
-                      onClick={() => handleRestoreVersion(version.id, version.versionNumber || (versions.length - index))}
-                    >
-                      Restore
-                    </RestoreButton>
-                    <DeleteButton
-                      size="S"
-                      startIcon={<TrashIcon />}
-                      onClick={() => handleDeleteVersion(version.id, version.versionNumber || (versions.length - index))}
-                    >
-                      Delete
-                    </DeleteButton>
-                  </VersionActions>
-                )}
-              </VersionItem>
-            ))
-          )}
-        </VersionModalContent>
-      </VersionModal>
+      <ConfirmDialog
+        isOpen={canManage && confirmDeleteAll}
+        title={t('editor.versions.deleteAll.title', 'Delete all versions?')}
+        description={t(
+          'editor.versions.deleteAll.body',
+          'Delete all {count, plural, one {# version} other {# versions}}? This cannot be undone.',
+          { count: versions.length }
+        )}
+        confirmLabel={t('editor.versions.deleteAll', 'Delete all')}
+        confirmIcon={<TrashIcon width={16} height={16} aria-hidden="true" />}
+        onConfirm={handleDeleteAllVersions}
+        onClose={() => setConfirmDeleteAll(false)}
+      />
+
+      <UnsavedChangesDialog guard={guard} />
     </Container>
   );
 };

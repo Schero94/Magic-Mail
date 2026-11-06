@@ -110,7 +110,9 @@ test('template editor guards every server mutation and keeps read-only content n
   assert.match(editor, /<Textarea[\s\S]*?disabled=\{!canManage\}/, 'plain text is read-only without manage permission');
   assert.match(editor, /\{canManage \? \([\s\S]*?<EmailEditorComponent/, 'the visual editor is not mounted for read-only users');
   assert.match(editor, /role="status"[\s\S]*?Editing this template requires/, 'read-only users receive an accessible explanation');
-  assert.match(editor, /\{canManage && versions\.length > 0 && \([\s\S]*?onClick=\{handleDeleteAllVersions\}/, 'bulk version deletion is hidden for read-only users');
+  const drawer = source('admin/src/pages/EmailDesigner/VersionHistoryDrawer.jsx');
+  assert.match(drawer, /\{canManage && versions\.length > 0 && \([\s\S]*?onClick=\{onDeleteAll\}/, 'bulk version deletion is hidden for read-only users');
+  assert.match(editor, /isOpen=\{canManage && confirmDeleteAll\}[\s\S]*?onConfirm=\{handleDeleteAllVersions\}/, 'bulk version deletion is confirmed and stays gated');
 });
 
 test('RBAC hook keeps read, manage and test-send independent across role grants', () => {
@@ -183,11 +185,11 @@ test('read, manage and test-send grants gate the matching visible controls', () 
     'template export requires read while template import requires manage'
   );
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label="Send Test Email"/.test(templates),
+    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('templates\.actions\.testSend', 'Send test email'\)\}/.test(templates),
     'template test-send is shown only with the test-send capability'
   );
   assert.ok(
-    /<Modal\.Root open=\{canTestSend && showTestSendModal\}/.test(templates),
+    /<TemplateTestSendModal[\s\S]{0,120}?isOpen=\{canTestSend && showTestSendModal\}/.test(templates),
     'the template test-send dialog closes when its capability is absent'
   );
   assert.ok(
