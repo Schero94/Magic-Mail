@@ -5,12 +5,14 @@ const { createLogger } = require('./utils/logger');
 /** Marks functions installed by MagicMail so hot reloads never stack wrappers. */
 const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
 const QUOTA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const TRACKING_MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Bootstrap: Initialize MagicMail plugin
  * - routes Strapi's native email (service.send and sendTemplatedEmail) through MagicMail
  * - keeps quota counters of ended windows at zero for the admin UI
  * - runs the one-time sensitive tracking-link purge
+ * - schedules tracking privacy migration and retention
  */
 module.exports = async ({ strapi }) => {
   const log = createLogger(strapi);
@@ -68,6 +70,18 @@ module.exports = async ({ strapi }) => {
       log.warn('[PURGE] Sensitive link purge did not complete; it will run again on next start:', err);
     }
   }, 10 * 1000));
+
+  // Tracking privacy and retention: one-time anonymisation of legacy events,
+  // then periodic deletion of expired events, links and (optionally) logs.
+  const runTrackingMaintenance = async () => {
+    try {
+      await strapi.plugin('magic-mail').service('analytics').runTrackingMaintenance();
+    } catch (err) {
+      log.warn('[RETENTION] Tracking maintenance failed:', err);
+    }
+  };
+  registerTimer(setTimeout(runTrackingMaintenance, 60 * 1000));
+  registerTimer(setInterval(runTrackingMaintenance, TRACKING_MAINTENANCE_INTERVAL_MS));
 
   log.info('[SUCCESS] Bootstrap complete');
 };

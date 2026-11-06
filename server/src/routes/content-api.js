@@ -9,6 +9,11 @@
  * triggered from e-mail clients that cannot carry a bearer token — and
  * the click handler resolves target URLs from the database, not from the
  * query, so they are not an open-redirect vector.
+ *
+ * The tracking limit degrades instead of blocking: over 300 requests per
+ * minute and IP, opens and clicks are no longer recorded, but recipients
+ * still get the pixel and the redirect (mail proxies and corporate NAT put
+ * many recipients behind one IP). Only abusive rates (10x) get a 429.
  */
 
 // One aggregate sending budget shared across the two email send routes.
@@ -17,7 +22,10 @@ const sendRateLimit = [
 ];
 
 const trackRateLimit = [
-  { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'tracking', max: 300, window: 60_000 } },
+  {
+    name: 'plugin::magic-mail.rate-limit',
+    config: { bucket: 'tracking', max: 300, window: 60_000, degrade: true, hardMax: 3_000 },
+  },
 ];
 
 module.exports = {

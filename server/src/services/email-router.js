@@ -933,7 +933,11 @@ module.exports = ({ strapi }) => ({
       const rendered = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .renderTemplate(referenceId, data.templateData || {});
+        .renderTemplate(referenceId, {
+          ...(data.templateData && typeof data.templateData === 'object' ? data.templateData : {}),
+          // Server-owned {{system.*}} merge tags; callers cannot override them.
+          system: await this.systemMergeTagsFor(data),
+        });
 
       data.templateReferenceId = referenceId;
       if (!data.templateName) data.templateName = templateRecord?.name || rendered.templateName;
@@ -943,6 +947,39 @@ module.exports = ({ strapi }) => ({
       strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
       throw new Error(`Template rendering failed: ${error.message}`);
     }
+  },
+
+  /**
+   * Values for the `{{system.*}}` template merge tags (date, year,
+   * unsubscribe, webview). `system.unsubscribe` is the per-email
+   * `unsubscribeUrl` or the plugin-wide unsubscribe URL, with `{{email}}`
+   * replaced for single-recipient mails; empty when none is usable.
+   *
+   * @param {object} data - Working copy of the email
+   * @returns {Promise<{date: string, year: string, unsubscribe: string, webview: string}>}
+   */
+  async systemMergeTagsFor(data) {
+    let settings = {};
+    try {
+      settings = (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
+    } catch {
+      settings = {};
+    }
+    const unsubscribeUrl = resolveUnsubscribeUrl({
+      ...data,
+      unsubscribeUrl: data.unsubscribeUrl || settings.unsubscribeUrl || null,
+    });
+    const analyticsService = strapi.plugin('magic-mail').service('analytics');
+    if (analyticsService && typeof analyticsService.buildSystemMergeTags === 'function') {
+      return analyticsService.buildSystemMergeTags({ unsubscribeUrl });
+    }
+    const now = new Date();
+    return {
+      date: now.toISOString().slice(0, 10),
+      year: String(now.getUTCFullYear()),
+      unsubscribe: unsubscribeUrl || '',
+      webview: '',
+    };
   },
 
   /**
@@ -957,7 +994,8 @@ module.exports = ({ strapi }) => ({
         userId: data.userId || null,
         recipientName: data.recipientName || null,
         subject: data.subject,
-        templateId: data.templateId || renderedTemplate?.templateReferenceId || null,
+        templateId: data.templateId || null,
+        templateReferenceId: data.templateReferenceId || renderedTemplate?.templateReferenceId || null,
         templateName: data.templateName || renderedTemplate?.templateName || null,
         accountId: null,
         accountName: null,
@@ -985,12 +1023,20 @@ module.exports = ({ strapi }) => ({
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
       const recipientHash = analyticsService.generateRecipientHash(emailLog.emailId, data.to);
 
-      if (pluginSettings.enableOpenTracking !== false) {
-        html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
+      const openTracking = pluginSettings.enableOpenTracking !== false;
+      const linkTracking = pluginSettings.enableLinkTracking !== false && !data.skipLinkTracking;
+
+      if (typeof analyticsService.addTracking === 'function') {
+        // One resolved public URL for pixel and links; without a public URL the
+        // mail is sent untracked (never pointing at localhost in production).
+        return await analyticsService.addTracking(html, emailLog.emailId, recipientHash, {
+          openTracking,
+          linkTracking,
+          settings: pluginSettings,
+        });
       }
-      if (pluginSettings.enableLinkTracking !== false && !data.skipLinkTracking) {
-        html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
-      }
+      if (openTracking) html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
+      if (linkTracking) html = await analyticsService.rewriteLinksForTracking(html, emailLog.emailId, recipientHash);
       return html;
     } catch (error) {
       strapi.log.error('[magic-mail] [WARNING] Tracking setup failed; continuing without tracking:', error?.name || 'Error');

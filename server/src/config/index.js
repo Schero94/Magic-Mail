@@ -13,6 +13,27 @@ module.exports = {
     },
     // IANA time zone for hourly/daily account quota windows.
     quotaTimezone: 'UTC',
+    tracking: {
+      // Days raw open/click events (anonymised IP, user agent) are kept.
+      // 0 keeps them forever.
+      eventRetentionDays: 90,
+      // Days a tracked link keeps redirecting. Expired links show the
+      // fallback page and their stored destination is deleted. 0 = forever.
+      linkTtlDays: 180,
+      // Days email log rows are kept (with their events and links).
+      // 0 keeps them forever.
+      logRetentionDays: 0,
+      // Maximum number of distinct links rewritten per email; the rest
+      // stay untracked.
+      maxLinksPerEmail: 100,
+      // Destination hosts (and their subdomains) that may be click-tracked.
+      // Empty: every host for admin/service/native sends, NONE for
+      // Content-API sends (an API token must not mint redirects to
+      // arbitrary sites on your domain).
+      allowedLinkHosts: [],
+      // Store open/click IPs truncated to /24 (IPv4) or /48 (IPv6).
+      anonymizeIp: true,
+    },
   },
   validator(config) {
     if (config?.contentApi !== undefined) {
@@ -21,6 +42,27 @@ module.exports = {
       }
       if (config.contentApi.allowUserRoles !== undefined && typeof config.contentApi.allowUserRoles !== 'boolean') {
         throw new Error('[magic-mail] config.contentApi.allowUserRoles must be a boolean');
+      }
+    }
+    if (config?.tracking !== undefined) {
+      const tracking = config.tracking;
+      if (typeof tracking !== 'object' || tracking === null || Array.isArray(tracking)) {
+        throw new Error('[magic-mail] config.tracking must be an object');
+      }
+      for (const key of ['eventRetentionDays', 'linkTtlDays', 'logRetentionDays', 'maxLinksPerEmail']) {
+        const value = tracking[key];
+        if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
+          throw new Error(`[magic-mail] config.tracking.${key} must be a non-negative integer`);
+        }
+      }
+      if (tracking.allowedLinkHosts !== undefined && (
+        !Array.isArray(tracking.allowedLinkHosts)
+        || tracking.allowedLinkHosts.some((host) => typeof host !== 'string' || !host.trim())
+      )) {
+        throw new Error('[magic-mail] config.tracking.allowedLinkHosts must be an array of host names');
+      }
+      if (tracking.anonymizeIp !== undefined && typeof tracking.anonymizeIp !== 'boolean') {
+        throw new Error('[magic-mail] config.tracking.anonymizeIp must be a boolean');
       }
     }
     if (config?.quotaTimezone !== undefined) {

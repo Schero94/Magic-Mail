@@ -333,6 +333,7 @@ const schemas = {
     userId: z.string().max(255).optional(),
     templateId: z.coerce.number().int().positive().optional(),
     search: z.string().max(500).optional(),
+    deliveryStatus: z.enum(['pending', 'sent', 'failed']).optional(),
     page: z.coerce.number().int().min(1).max(1_000_000).optional(),
     pageSize: z.coerce.number().int().min(1).max(100).optional(),
   }).strict(),

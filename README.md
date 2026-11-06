@@ -980,6 +980,63 @@ await strapi.plugin('magic-mail').service('account-manager').testAccount(
 - Last used timestamp
 - Success/failure rate
 
+### Open & Click Tracking
+
+Open tracking adds a 1x1 pixel, click tracking rewrites `<a href>` links to a
+redirect. Both are on by default (Settings) and can be disabled per email with
+`enableTracking: false` or `skipLinkTracking: true`.
+
+**Public URL.** Tracking URLs are built from the *Tracking base URL* setting,
+then `server.url`, then Strapi's `server.absoluteUrl`, plus your REST prefix
+(`api.rest.prefix`, default `/api`), e.g.
+`https://cms.example.com/api/magic-mail/track/click/...`. In production a
+loopback host (`localhost`, `127.0.0.1`, `0.0.0.0`) is never used: without a
+public URL, emails are sent **untracked** and one warning is logged.
+
+**What is never tracked.** Authentication and one-time-token links (password
+reset, confirmation, magic links, OAuth, any parameter such as `token`,
+`loginToken`, `code`, `key`, `signature`, `session`, and long random values),
+`mailto:`/`tel:` links, and links above `maxLinksPerEmail`. Emails sent through
+the Content API (`/api/magic-mail/send`) get click tracking only for hosts in
+`tracking.allowedLinkHosts`, so an API token cannot mint redirects on your
+domain to arbitrary sites.
+
+**Privacy and retention.** Open/click events store the IP truncated to /24
+(IPv4) or /48 (IPv6) and the user agent (max. 512 characters); no location.
+Only Koa's `request.ip` is used, so behind a reverse proxy enable
+[`server.proxy`](https://docs.strapi.io/cms/configurations/server) or every
+recipient shares the proxy's address. Expired data is deleted every 6 hours.
+Your privacy notice should mention open/click tracking.
+
+**Rate limit.** The tracking routes allow 300 requests per minute and IP.
+Above that, opens and clicks are no longer recorded, but recipients still get
+the pixel and are still redirected; only above 3,000 per minute is a 429
+returned.
+
+**Tracking secret.** Tracking hashes are signed with
+`MAGIC_MAIL_TRACKING_SECRET`, falling back to `MAGIC_MAIL_ENCRYPTION_KEY`.
+Rotating `APP_KEYS` no longer breaks links in sent mails. To rotate the
+tracking secret, put the old value in `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS`
+(comma-separated) until old mails no longer matter.
+
+```javascript
+// config/plugins.js
+module.exports = {
+  'magic-mail': {
+    config: {
+      tracking: {
+        eventRetentionDays: 90,   // raw open/click events; 0 = keep forever
+        linkTtlDays: 180,         // tracked links redirect this long; 0 = forever
+        logRetentionDays: 0,      // email logs (with events/links); 0 = keep forever
+        maxLinksPerEmail: 100,    // further links stay untracked
+        allowedLinkHosts: [],     // e.g. ['example.com'] (subdomains included)
+        anonymizeIp: true,
+      },
+    },
+  },
+};
+```
+
 ### Email Logging
 
 Every email is logged with:
@@ -1283,6 +1340,11 @@ MAGIC_MAIL_ENCRYPTION_KEY=your-generated-secret-with-at-least-32-bytes
 
 # Optional dedicated OAuth-state signing secret. APP_KEYS is used otherwise.
 MAGIC_MAIL_OAUTH_STATE_SECRET=your-generated-secret-with-at-least-32-bytes
+
+# Optional dedicated secret for open/click tracking hashes (falls back to
+# MAGIC_MAIL_ENCRYPTION_KEY). Previous values, comma-separated, stay valid.
+MAGIC_MAIL_TRACKING_SECRET=your-generated-secret-with-at-least-32-bytes
+MAGIC_MAIL_TRACKING_SECRET_PREVIOUS=
 ```
 
 ### OAuth Callback URLs
