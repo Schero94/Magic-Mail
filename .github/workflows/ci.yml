@@ -1,4 +1,5 @@
-# Runs the full verification for every pull request and for manual runs.
+# Runs the full verification (lint, format check, tests, build, package and runtime
+# verification) for every pull request and for manual runs on Node 22 and 24.
 # Read-only token, SHA-pinned actions, no dependency lifecycle scripts.
 name: CI
 
@@ -35,6 +36,12 @@ jobs:
 
       - name: Install dependencies (no lifecycle scripts)
         run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
 
       - name: Tests
         run: npm test
