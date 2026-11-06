@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import styled from 'styled-components';
 import { Box, Tabs, Flex } from '@strapi/design-system';
 import { Page } from '@strapi/strapi/admin';
 import {
@@ -27,6 +28,22 @@ const TAB_PATHS = {
 };
 
 const iconProps = { width: 16, height: 16 };
+
+/**
+ * Below 768px the four tabs do not fit: they scroll sideways on one line
+ * instead of wrapping their labels or being clipped off-screen.
+ */
+const TabsList = styled(Tabs.List)`
+  @media (max-width: 767px) {
+    overflow-x: auto;
+    scrollbar-width: thin;
+
+    [role='tab'] {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+  }
+`;
 
 const App = () => {
   const location = useLocation();
@@ -65,41 +82,46 @@ const App = () => {
   return (
     <Page.Protect permissions={pluginPermissions.access}>
       <Page.Protect permissions={pluginPermissions.read}>
-        {isEditorRoute ? (
-          <EditorPage />
-        ) : (
-          <Box>
-            <PluginPageTitle>{activeLabel}</PluginPageTitle>
-            <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
-              <Tabs.List aria-label={t('app.tabs.label', 'MagicMail sections')}>
-                {tabs.map(({ value, Icon, label }) => (
-                  <Tabs.Trigger key={value} value={value}>
-                    <Flex gap={2} alignItems="center">
-                      <Icon aria-hidden="true" style={iconProps} />
-                      {label}
-                    </Flex>
-                  </Tabs.Trigger>
-                ))}
-              </Tabs.List>
+        {/* Page.Main renders <main id="main-content">, the target of the admin's
+            "Skip to content" link. It is labelled by the view's h1
+            (#main-content-title) or, without one, by the active tab name. */}
+        <Page.Main aria-label={isEditorRoute ? undefined : activeLabel}>
+          {isEditorRoute ? (
+            <EditorPage />
+          ) : (
+            <Box>
+              <PluginPageTitle>{activeLabel}</PluginPageTitle>
+              <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
+                <TabsList aria-label={t('app.tabs.label', 'MagicMail sections')}>
+                  {tabs.map(({ value, Icon, label }) => (
+                    <Tabs.Trigger key={value} value={value}>
+                      <Flex gap={2} alignItems="center">
+                        <Icon aria-hidden="true" style={iconProps} />
+                        {label}
+                      </Flex>
+                    </Tabs.Trigger>
+                  ))}
+                </TabsList>
 
-              <Tabs.Content value="accounts">
-                <HomePage />
-              </Tabs.Content>
+                <Tabs.Content value="accounts">
+                  <HomePage />
+                </Tabs.Content>
 
-              <Tabs.Content value="routing">
-                <RoutingRules />
-              </Tabs.Content>
+                <Tabs.Content value="routing">
+                  <RoutingRules />
+                </Tabs.Content>
 
-              <Tabs.Content value="templates">
-                <TemplateList />
-              </Tabs.Content>
+                <Tabs.Content value="templates">
+                  <TemplateList />
+                </Tabs.Content>
 
-              <Tabs.Content value="analytics">
-                <Analytics />
-              </Tabs.Content>
-            </Tabs.Root>
-          </Box>
-        )}
+                <Tabs.Content value="analytics">
+                  <Analytics />
+                </Tabs.Content>
+              </Tabs.Root>
+            </Box>
+          )}
+        </Page.Main>
       </Page.Protect>
     </Page.Protect>
   );

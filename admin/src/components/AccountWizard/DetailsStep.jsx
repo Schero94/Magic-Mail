@@ -1,7 +1,7 @@
-import { Alert, Field, Flex, TextInput, Textarea, Typography } from '@strapi/design-system';
+import { Field, Flex, TextInput, Textarea, Typography } from '@strapi/design-system';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { isOptionalEmailAddressValid, isValidEmailAddress } from '../../utils/emailValidation.mjs';
-import { FormSection, FullWidthField } from './styles';
+import { FormSection, FullWidthField, StaticAlert } from './styles';
 import { OAUTH_PROVIDER_NAMES, isOAuthProvider } from './wizardState';
 
 /**
@@ -54,7 +54,7 @@ export const DetailsStep = ({
         </FullWidthField>
 
         {nameChanged ? (
-          <Alert
+          <StaticAlert
             variant="warning"
             closeLabel={t('common.close', 'Close')}
             title={t('accountModal.details.renameTitle', 'Renaming affects routing rules')}
@@ -69,11 +69,11 @@ export const DetailsStep = ({
                   'accountModal.details.renameGeneric',
                   'Routing rules refer to accounts by name. Check the routing rules after renaming this account.'
                 )}
-          </Alert>
+          </StaticAlert>
         ) : null}
 
         {oauth ? (
-          <Alert
+          <StaticAlert
             variant="default"
             closeLabel={t('common.close', 'Close')}
             title={t('accountModal.details.oauthEmailTitle', 'Email address')}
@@ -85,7 +85,7 @@ export const DetailsStep = ({
                 { provider: OAUTH_PROVIDER_NAMES[provider] }
               )}
             </Typography>
-          </Alert>
+          </StaticAlert>
         ) : (
           <FullWidthField>
             <Field.Root

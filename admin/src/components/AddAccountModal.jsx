@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Flex, Loader, Modal } from '@strapi/design-system';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Flex, Loader, Modal } from '@strapi/design-system';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { ArrowLeft, ArrowRight, Check, Cog, Lock, Mail, Server, Star } from '@strapi/icons';
 import { GradientButton, TertiaryButton } from './StyledButtons';
 import { UnsavedChangesDialog } from './shared/UnsavedChangesDialog';
 import { useDiscardGuard } from '../hooks/useUnsavedChangesGuard';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
+import { useReturnFocus } from '../hooks/useReturnFocus';
 import { ProviderStep } from './AccountWizard/ProviderStep';
 import { DetailsStep } from './AccountWizard/DetailsStep';
 import { CredentialsStep } from './AccountWizard/CredentialsStep';
@@ -18,6 +19,7 @@ import {
   StepSubtitle,
   StepTitle,
   StepWrapper,
+  StaticAlert,
   StepperList,
 } from './AccountWizard/styles';
 import {
@@ -36,6 +38,14 @@ import {
 const STEPS = [1, 2, 3, 4];
 const STEP_ICONS = { 1: Mail, 2: Server, 3: Lock, 4: Cog };
 const OAUTH_APP_FIELDS = ['oauthClientId', 'oauthClientSecret', 'microsoftTenantId'];
+
+/** Scrolls the nearest scrolled ancestor (the modal body viewport) back to the top. */
+const scrollAncestorsToTop = (element) => {
+  for (let node = element?.parentElement; node; node = node.parentElement) {
+    if (node.scrollTop > 0) node.scrollTop = 0;
+    if (node.getAttribute('role') === 'dialog') break;
+  }
+};
 
 /**
  * Four-step wizard to add or edit an email account.
@@ -58,6 +68,9 @@ const AddAccountModal = ({
   const { toggleNotification } = useNotification();
   const { t } = useMagicMailIntl();
   const isEditMode = Boolean(editAccount);
+  const returnFocus = useReturnFocus(isOpen);
+  const stepTitleRef = useRef(null);
+  const focusStepTitleRef = useRef(false);
   const accountId = editAccount ? (editAccount.documentId ?? editAccount.id) : null;
 
   const [saving, setSaving] = useState(false);
@@ -183,6 +196,22 @@ const AddAccountModal = ({
       cancelled = true;
     };
   }, [isOpen, isEditMode, accountId, reloadKey, get, resetOAuth]);
+
+  // A new step starts at the top of the body, and its heading takes focus so
+  // keyboard and screen-reader users land on the new content.
+  useEffect(() => {
+    if (!focusStepTitleRef.current) return;
+    focusStepTitleRef.current = false;
+    const title = stepTitleRef.current;
+    if (!title) return;
+    scrollAncestorsToTop(title);
+    title.focus({ preventScroll: true });
+  }, [currentStep]);
+
+  const goToStep = (step) => {
+    focusStepTitleRef.current = true;
+    setCurrentStep(step);
+  };
 
   const isDirty =
     isOpen &&
@@ -357,7 +386,7 @@ const AddAccountModal = ({
     }
     if (loadState === 'error') {
       return (
-        <Alert
+        <StaticAlert
           variant="danger"
           closeLabel={t('common.close', 'Close')}
           title={t('accountModal.loadError.title', 'The account could not be loaded')}
@@ -371,14 +400,14 @@ const AddAccountModal = ({
             'accountModal.loadError.body',
             'Check your connection and permissions, then try again.'
           )}
-        </Alert>
+        </StaticAlert>
       );
     }
 
     return (
       <Flex direction="column" gap={0} alignItems="stretch">
         <StepHeader>
-          <StepTitle tag="h3">
+          <StepTitle tag="h3" ref={stepTitleRef} tabIndex={-1}>
             <StepIcon aria-hidden="true" />
             {headings[currentStep][0]}
           </StepTitle>
@@ -411,7 +440,7 @@ const AddAccountModal = ({
                             title: stepTitles[step],
                           })
                     }
-                    onClick={() => reachable && setCurrentStep(step)}
+                    onClick={() => reachable && goToStep(step)}
                   >
                     {completed ? <Check aria-hidden="true" /> : step}
                   </StepDot>
@@ -461,7 +490,7 @@ const AddAccountModal = ({
           if (!open) requestClose();
         }}
       >
-        <Modal.Content size="XL">
+        <Modal.Content size="XL" onCloseAutoFocus={returnFocus}>
           <Modal.Header closeLabel={t('common.close', 'Close')}>
             <Modal.Title variant="beta">
               <Flex tag="span" alignItems="center" gap={2}>
@@ -481,7 +510,7 @@ const AddAccountModal = ({
                 {currentStep > firstStep && loadState === 'idle' && (
                   <TertiaryButton
                     startIcon={<ArrowLeft />}
-                    onClick={() => setCurrentStep(currentStep - 1)}
+                    onClick={() => goToStep(currentStep - 1)}
                     disabled={saving}
                   >
                     {t('accountModal.back', 'Back')}
@@ -495,7 +524,7 @@ const AddAccountModal = ({
                 {currentStep < 4 ? (
                   <GradientButton
                     endIcon={<ArrowRight />}
-                    onClick={() => setCurrentStep(currentStep + 1)}
+                    onClick={() => goToStep(currentStep + 1)}
                     disabled={!canProceed || loadState !== 'idle'}
                   >
                     {t('accountModal.continue', 'Continue')}

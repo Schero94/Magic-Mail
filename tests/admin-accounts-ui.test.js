@@ -467,10 +467,10 @@ test('accounts page: i18n, labelled controls, confirm dialog, error state and RB
   assert.match(home, /common\.permissions\.loadError/);
   assert.match(
     home,
-    /\{hasRowActions && <Th>/,
+    /\{hasRowActions && \(\s*<Th className="actions-cell">/,
     'Actions column is hidden when no action is allowed'
   );
-  assert.match(home, /<Title tag="h1">/);
+  assert.match(home, /<Title tag="h1" id="main-content-title">/, 'h1 labels Page.Main');
   assert.match(home, /useFormatters/);
   for (const match of home.matchAll(/<IconButton\w*\b[\s\S]*?<\/IconButton\w*>/g)) {
     assert.match(match[0], /aria-label=\{t\(/, 'icon buttons have translated labels');
@@ -573,4 +573,63 @@ test('UI-M02/FUN-15: edit mode reconnects through the stored account instead of 
     modal,
     /post\(`\/magic-mail\/oauth\/reconnect\/\$\{accountId\}`, reconnectPayload\)/
   );
+});
+
+test('accounts keyboard and focus: row actions work with Enter/Space, dialogs return focus', () => {
+  const home = source('admin/src/pages/HomePage.jsx');
+  const confirm = source('admin/src/components/shared/ConfirmDialog.jsx');
+  const modal = source('admin/src/pages/Accounts/TestEmailModal.jsx');
+  const wizard = source('admin/src/components/AddAccountModal.jsx');
+  const hook = source('admin/src/hooks/useReturnFocus.js');
+
+  // The DS table cell prevents the default of every key when it holds several buttons.
+  assert.match(home, /NATIVE_BUTTON_KEYS = new Set\(\['Enter', ' ', 'Tab'\]\)/);
+  assert.match(home, /<Flex gap=\{2\} onKeyDown=\{keepNativeButtonKeys\}>/);
+  assert.match(home, /getReturnFocusFallback=\{getFocusFallback\}/, 'focus after a deleted row');
+
+  // The alert dialog focuses Dialog.Cancel on open; without it focus stayed behind the overlay.
+  assert.match(confirm, /<Dialog\.Cancel>/);
+  assert.match(confirm, /<Dialog\.Content onCloseAutoFocus=\{returnFocus\}>/);
+  assert.match(wizard, /onCloseAutoFocus=\{returnFocus\}/);
+  assert.match(modal, /onCloseAutoFocus=\{returnFocus\}/);
+  assert.match(modal, /onOpenAutoFocus=\{focusRecipient\}/);
+  assert.doesNotMatch(
+    modal,
+    /^\s+autoFocus(?:=|$)/m,
+    'autoFocus would hide the opener from useReturnFocus'
+  );
+  // Escape must reach the dialog's document listener.
+  assert.match(modal, /if \(event\.key !== 'Escape'\) event\.stopPropagation\(\);/);
+
+  assert.match(hook, /useLayoutEffect/);
+  assert.match(hook, /event\.preventDefault\(\);\s*target\.focus\(\);/);
+  assert.match(hook, /opener\?\.isConnected/);
+});
+
+test('accounts layout: mobile card list, sticky actions, wizard steps start at the top', () => {
+  const home = source('admin/src/pages/HomePage.jsx');
+  const styles = source('admin/src/pages/Accounts/styles.js');
+  const wizard = source('admin/src/components/AddAccountModal.jsx');
+  const wizardStyles = source('admin/src/components/AccountWizard/styles.js');
+
+  assert.match(home, /<AccountCardList aria-label=\{t\('accounts\.section\.title'/);
+  assert.match(styles, /export const AccountCardList = styled\.ul`/);
+  assert.match(styles, /td\.actions-cell \{\s*position: sticky;/);
+  assert.match(styles, /td\.account-cell \{\s*white-space: normal;/);
+  assert.doesNotMatch(styles, /max-width: 1200px/, 'stat cards align with the page edges');
+
+  assert.match(wizard, /<StepTitle tag="h3" ref=\{stepTitleRef\} tabIndex=\{-1\}>/);
+  assert.match(wizard, /scrollAncestorsToTop\(title\);/);
+  // DS Alert always renders a close button; wizard notices are not dismissible.
+  assert.match(
+    wizardStyles,
+    /export const StaticAlert = styled\(Alert\)`\s*& > button \{\s*display: none;/
+  );
+  for (const file of [
+    'admin/src/components/AddAccountModal.jsx',
+    'admin/src/components/AccountWizard/CredentialsStep.jsx',
+    'admin/src/components/AccountWizard/DetailsStep.jsx',
+  ]) {
+    assert.doesNotMatch(source(file), /<Alert\b/, `${file}: use StaticAlert`);
+  }
 });

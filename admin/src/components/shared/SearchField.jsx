@@ -52,6 +52,12 @@ const Input = styled.input`
     display: none;
   }
 
+  /* Below 768px DS inputs are 48px tall; match them and leave room for the 32px clear button. */
+  @media (max-width: 767px) {
+    padding-block: 13px;
+    padding-right: 44px;
+  }
+
   ${reducedMotion}
 `;
 
@@ -82,6 +88,13 @@ const ClearButton = styled.button`
   svg {
     width: 14px;
     height: 14px;
+  }
+
+  /* Touch target of at least 32px below 768px (fits the 42px input). */
+  @media (max-width: 767px) {
+    right: 4px;
+    width: 32px;
+    height: 32px;
   }
 `;
 

@@ -4,6 +4,7 @@ import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { PlayIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { GradientButton, TertiaryButton } from '../../components/StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import {
   AccentText,
   AccountInfoCard,
@@ -22,8 +23,13 @@ import {
 } from './styles';
 import { MAX_TEST_CC, normaliseCc, validateTestForm } from './accountHelpers';
 
-/** Keeps typing inside the dialog from reaching global admin shortcuts. */
-const stop = (event) => event.stopPropagation();
+/**
+ * Keeps typing inside the dialog from reaching global admin shortcuts.
+ * Escape must still reach the dialog, which listens on the document to close.
+ */
+const stop = (event) => {
+  if (event.key !== 'Escape') event.stopPropagation();
+};
 
 /**
  * Test-send dialog for one account.
@@ -67,6 +73,14 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
   const [sending, setSending] = useState(false);
   const [touched, setTouched] = useState({});
   const optionRefs = { direct: useRef(null), strapi: useRef(null) };
+  const returnFocus = useReturnFocus(true);
+  const toInputRef = useRef(null);
+  // Focus the recipient field on open. Done here instead of autoFocus, which
+  // runs before useReturnFocus can remember the button that opened the dialog.
+  const focusRecipient = (event) => {
+    event.preventDefault();
+    toInputRef.current?.focus();
+  };
 
   const errors = validateTestForm({
     to: testEmail,
@@ -236,7 +250,7 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
         if (!open && !sending) onClose();
       }}
     >
-      <StyledModalContent>
+      <StyledModalContent onOpenAutoFocus={focusRecipient} onCloseAutoFocus={returnFocus}>
         <StyledModalHeader closeLabel={t('common.close', 'Close')}>
           <Modal.Title>{t('accounts.test.title', 'Test email account')}</Modal.Title>
         </StyledModalHeader>
@@ -264,6 +278,7 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
               {t('accounts.test.to', 'Recipient email')} *
             </ModalFieldLabel>
             <StyledModalInput
+              ref={toInputRef}
               id={ids.to}
               placeholder="test@example.com"
               value={testEmail}
@@ -271,7 +286,11 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
                 e.stopPropagation();
                 setTestEmail(e.target.value);
               }}
-              onBlur={() => setTouched((previous) => ({ ...previous, to: true }))}
+              // The field has focus on open: leaving it empty (for example to
+              // pick the test mode) is not an error until a send is attempted.
+              onBlur={() => {
+                if (testEmail.trim()) setTouched((previous) => ({ ...previous, to: true }));
+              }}
               onKeyDown={stop}
               onClick={stop}
               type="email"
@@ -281,7 +300,6 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
               aria-invalid={showError('to')}
               aria-describedby={describedBy(showError('to') && ids.toError)}
               $invalid={showError('to')}
-              autoFocus
             />
             {showError('to') ? (
               <ModalError id={ids.toError}>{errorText.to[errors.to]}</ModalError>

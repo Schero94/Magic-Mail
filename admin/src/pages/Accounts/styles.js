@@ -1,6 +1,6 @@
 import styled, { keyframes, css } from 'styled-components';
 import { Box, Flex, Modal, Table, Typography } from '@strapi/design-system';
-import { accent, brand, color, fontSize, theme } from '../../utils/theme';
+import { accent, brand, byScheme, color, fontSize, theme } from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
 
 // ================ ANIMATIONS ================
@@ -119,15 +119,17 @@ export const Title = styled(Typography)`
     font-weight: 700;
     letter-spacing: -0.025em;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    line-height: 1.25;
     display: flex;
-    align-items: center;
+    /* The icon stays beside the first line when the title wraps. */
+    align-items: flex-start;
     gap: ${theme.spacing.sm};
-    flex-wrap: wrap;
   }
 
   svg {
     width: 28px;
     height: 28px;
+    margin-top: calc((1.25em - 28px) / 2);
     flex-shrink: 0;
     ${motionSafe(css`
       animation: ${float} 3s ease-in-out infinite;
@@ -142,6 +144,7 @@ export const Title = styled(Typography)`
     svg {
       width: 22px;
       height: 22px;
+      margin-top: calc((1.25em - 22px) / 2);
     }
   }
 `;
@@ -161,15 +164,16 @@ export const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: ${theme.spacing.lg};
-  justify-content: center;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 24px;
+
+    /* Three cards in two columns: the last one spans the row (no empty cell). */
+    & > *:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
   }
 
   @media screen and (max-width: 360px) {
@@ -180,7 +184,7 @@ export const StatsGrid = styled.div`
 export const StatCard = styled(Box)`
   background: ${color('neutral0')};
   border-radius: ${theme.borderRadius.lg};
-  padding: 28px ${theme.spacing.lg};
+  padding: ${theme.spacing.lg};
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
@@ -269,7 +273,7 @@ export const StatValue = styled(Typography)`
     font-weight: 700;
     color: ${color('neutral800')};
     line-height: 1;
-    margin-bottom: 10px;
+    margin-bottom: ${theme.spacing.sm};
     transition: all ${theme.transitions.normal};
     text-align: center;
     overflow-wrap: anywhere;
@@ -278,7 +282,7 @@ export const StatValue = styled(Typography)`
   @media screen and (max-width: ${breakpoints.mobile}) {
     && {
       font-size: 2rem;
-      margin-bottom: 6px;
+      margin-bottom: ${theme.spacing.xs};
     }
   }
 
@@ -356,7 +360,6 @@ export const OnlineBadge = styled.span`
   border-radius: 50%;
   background: ${(p) => (p.$active ? brand.success : 'rgba(128, 128, 128, 0.4)')};
   display: inline-block;
-  margin-right: 8px;
   flex-shrink: 0;
   ${(p) =>
     p.$active &&
@@ -369,9 +372,76 @@ export const TableScroller = styled(Box)`
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: none;
+  }
+`;
+
+/** Mobile replacement for the table: one card per account (hidden on wider screens). */
+export const AccountCardList = styled.ul`
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: flex;
+    flex-direction: column;
+    gap: ${theme.spacing.sm};
+  }
+`;
+
+export const AccountCard = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
+  background: ${color('neutral0')};
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: ${theme.shadows.sm};
+  min-width: 0;
+`;
+
+export const AccountCardStats = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: ${theme.spacing.md};
+  margin: 0;
+
+  dt {
+    font-size: ${fontSize(1)};
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: ${color('neutral600')};
+    margin-bottom: ${theme.spacing.xs};
+  }
+
+  dd {
+    margin: 0;
+    color: ${color('neutral800')};
+  }
 `;
 
 export const StyledTable = styled(Table)`
+  /* The row actions stay visible while a narrow table scrolls sideways. */
+  th.actions-cell,
+  td.actions-cell {
+    position: sticky;
+    /* The DS table wrapper has 24px inline padding; stick to its outer edge
+       so scrolled columns do not show through beside the actions. */
+    right: -24px;
+    z-index: 1;
+    background: ${color('neutral0')};
+    box-shadow: -1px 0 0 rgba(128, 128, 128, 0.2);
+  }
+
+  th.actions-cell {
+    background: ${color('neutral100')};
+  }
+
   thead {
     background: ${color('neutral100')};
     border-bottom: 2px solid rgba(128, 128, 128, 0.2);
@@ -382,7 +452,7 @@ export const StyledTable = styled(Table)`
       font-size: ${fontSize(1)};
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
     }
   }
 
@@ -398,10 +468,21 @@ export const StyledTable = styled(Table)`
       background: rgba(2, 132, 199, 0.12);
     }
 
+    &:hover td.actions-cell {
+      background: ${byScheme('#E1F0F8', '#1D2D46')};
+    }
+
     td {
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
       color: ${color('neutral800')};
       vertical-align: middle;
+    }
+
+    /* Long account names and addresses wrap instead of widening the table. */
+    td.account-cell {
+      white-space: normal;
+      min-width: 200px;
+      overflow-wrap: anywhere;
     }
 
     ${reducedMotion}
@@ -448,6 +529,12 @@ export const FilterBar = styled(Flex)`
 
 export const FilterSelectBox = styled(Box)`
   min-width: 160px;
+
+  /* Same height as the shared SearchField next to it (10px padding, 20px line,
+     2px border). Below 768px both follow the 48px DS input height. */
+  [role='combobox'] {
+    min-height: 42px;
+  }
 `;
 
 export const SectionHeaderRow = styled(Flex)`
@@ -468,12 +555,12 @@ export const StyledModalContent = styled(Modal.Content)`
 export const StyledModalHeader = styled(Modal.Header)`
   && {
     background: ${brand.gradient};
-    padding: 24px 28px;
+    padding: ${theme.spacing.md} ${theme.spacing.lg};
     border-bottom: none;
 
     h2 {
       color: #ffffff;
-      font-size: 1.25rem;
+      font-size: ${fontSize(4)};
       font-weight: 700;
     }
 
@@ -502,26 +589,41 @@ export const StyledModalHeader = styled(Modal.Header)`
       }
     }
   }
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    && {
+      padding: ${theme.spacing.md};
+    }
+  }
 `;
 
 export const StyledModalBody = styled(Modal.Body)`
   && {
-    padding: 24px 28px;
+    padding: 0 ${theme.spacing.lg};
     background: ${color('neutral0')};
     width: 100%;
     box-sizing: border-box;
   }
 
+  /* The DS scroll viewport adds 40px block padding; match the 24px inline padding. */
+  && > div {
+    padding-block: ${theme.spacing.lg};
+  }
+
   @media screen and (max-width: ${breakpoints.mobile}) {
     && {
-      padding: 20px 16px;
+      padding: 0 ${theme.spacing.md};
+    }
+
+    && > div {
+      padding-block: ${theme.spacing.md};
     }
   }
 `;
 
 export const StyledModalFooter = styled(Modal.Footer)`
   && {
-    padding: 20px 28px;
+    padding: ${theme.spacing.md} ${theme.spacing.lg};
     border-top: 1px solid rgba(128, 128, 128, 0.2);
     background: ${color('neutral100')};
   }
@@ -575,7 +677,7 @@ export const TestOptionCard = styled.div`
   }
 
   & + & {
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .option-icon {
@@ -611,18 +713,18 @@ export const ModalGroupLabel = styled.span`
 export const ModalHint = styled.p`
   font-size: 12px;
   color: ${color('neutral600')};
-  margin-top: 6px;
+  margin-top: ${theme.spacing.xs};
 `;
 
 export const ModalError = styled.p`
   font-size: 12px;
   color: ${accent.danger};
-  margin-top: 6px;
+  margin-top: ${theme.spacing.xs};
 `;
 
 const fieldStyles = css`
   width: 100%;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border: 1px solid ${(p) => (p.$invalid ? accent.danger(p) : 'rgba(128, 128, 128, 0.2)')};
   border-radius: 8px;
   font-size: 14px;

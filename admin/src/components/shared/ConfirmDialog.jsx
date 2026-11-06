@@ -3,6 +3,7 @@ import { Dialog, Flex, Typography } from '@strapi/design-system';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { DangerButton, GradientButton, TertiaryButton } from '../StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { accent } from '../../utils/theme';
 import styled from 'styled-components';
 
@@ -41,6 +42,8 @@ const WarningIcon = styled(ExclamationTriangleIcon)`
  * @param {'danger'|'default'} [props.variant='danger']
  * @param {boolean} [props.isLoading] - external loading flag (optional)
  * @param {React.ReactNode} [props.confirmIcon]
+ * @param {() => (HTMLElement|null|undefined)} [props.getReturnFocusFallback] - focus target on
+ *   close when the element that opened the dialog is gone (for example a deleted row)
  */
 export const ConfirmDialog = ({
   isOpen,
@@ -54,10 +57,12 @@ export const ConfirmDialog = ({
   variant = 'danger',
   isLoading = false,
   confirmIcon,
+  getReturnFocusFallback,
 }) => {
   const { t } = useMagicMailIntl();
   const [isPending, setIsPending] = useState(false);
   const mounted = useRef(true);
+  const returnFocus = useReturnFocus(Boolean(isOpen), getReturnFocusFallback);
 
   useEffect(() => {
     mounted.current = true;
@@ -91,7 +96,7 @@ export const ConfirmDialog = ({
 
   return (
     <Dialog.Root open={Boolean(isOpen)} onOpenChange={handleOpenChange}>
-      <Dialog.Content>
+      <Dialog.Content onCloseAutoFocus={returnFocus}>
         <Dialog.Header>{title}</Dialog.Header>
         <Dialog.Body icon={<WarningIcon aria-hidden="true" $danger={danger} />}>
           <Flex direction="column" gap={2} width="100%" alignItems="stretch">
@@ -108,9 +113,13 @@ export const ConfirmDialog = ({
           </Flex>
         </Dialog.Body>
         <Dialog.Footer>
-          <TertiaryButton fullWidth onClick={() => onClose?.()} disabled={busy}>
-            {cancelLabel ?? t('common.cancel', 'Cancel')}
-          </TertiaryButton>
+          {/* Dialog.Cancel is the element the alert dialog focuses on open; it
+              closes through onOpenChange, which ignores clicks while busy. */}
+          <Dialog.Cancel>
+            <TertiaryButton fullWidth disabled={busy}>
+              {cancelLabel ?? t('common.cancel', 'Cancel')}
+            </TertiaryButton>
+          </Dialog.Cancel>
           <ConfirmButton
             fullWidth
             onClick={handleConfirm}

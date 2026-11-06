@@ -1,6 +1,7 @@
 import { Box } from '@strapi/design-system';
 import { Check, Cloud, Mail, Server } from '@strapi/icons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { byScheme } from '../../utils/theme';
 import {
   ProviderCard,
   ProviderCategoryHeader,
@@ -35,6 +36,9 @@ const ProviderTile = ({ value, selected, onSelect, icon, name, tagline }) => (
     </ProviderTextBlock>
   </ProviderCard>
 );
+
+// Glyph colours: the darker brand shade in light mode (>= 3:1 on the tinted
+// tile), the lighter one in dark mode.
 
 /**
  * Step 1: provider selection (OAuth providers and custom/transactional APIs).
@@ -72,7 +76,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           <ProviderIcon
             $round
             $bgColor="rgba(66, 133, 244, 0.22)"
-            $color="#4285F4"
+            $color={byScheme('#1A73E8', '#4285F4')}
             $shadowColor="rgba(66, 133, 244, 0.3)"
             aria-hidden="true"
           >
@@ -89,7 +93,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           <ProviderIcon
             $round
             $bgColor="rgba(0, 164, 239, 0.22)"
-            $color="#00A4EF"
+            $color={byScheme('#0067B8', '#00A4EF')}
             $shadowColor="rgba(0, 164, 239, 0.3)"
             aria-hidden="true"
           >
@@ -106,7 +110,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           <ProviderIcon
             $round
             $bgColor="rgba(96, 1, 210, 0.22)"
-            $color="#9C6BF0"
+            $color={byScheme('#6001D2', '#9C6BF0')}
             $shadowColor="rgba(96, 1, 210, 0.3)"
             aria-hidden="true"
           >
@@ -127,7 +131,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           'smtp',
           <ProviderIcon
             $bgColor="rgba(73, 69, 255, 0.22)"
-            $color="#7B78FF"
+            $color={byScheme('#4945FF', '#7B78FF')}
             $shadowColor="rgba(73, 69, 255, 0.3)"
             aria-hidden="true"
           >
@@ -143,7 +147,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           'sendgrid',
           <ProviderIcon
             $bgColor="rgba(30, 144, 255, 0.22)"
-            $color="#4FA8FF"
+            $color={byScheme('#0B6BCB', '#4FA8FF')}
             $shadowColor="rgba(30, 144, 255, 0.3)"
             aria-hidden="true"
           >
@@ -159,7 +163,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
           'mailgun',
           <ProviderIcon
             $bgColor="rgba(255, 107, 107, 0.22)"
-            $color="#FF8A8A"
+            $color={byScheme('#C53030', '#FF8A8A')}
             $shadowColor="rgba(255, 107, 107, 0.3)"
             aria-hidden="true"
           >

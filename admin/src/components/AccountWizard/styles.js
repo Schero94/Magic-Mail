@@ -61,14 +61,24 @@ export const StepTitle = styled(Typography)`
     color: ${wizardColors.text};
     font-size: 24px;
     font-weight: 600;
+    line-height: 1.25;
     margin-bottom: 8px;
     display: flex;
-    align-items: center;
+    /* Icon stays on the first line when a long title wraps (narrow screens). */
+    align-items: flex-start;
     gap: 12px;
   }
 
   svg {
     flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: calc((1.25em - 16px) / 2);
+  }
+
+  /* Focused by script when the step changes (tabIndex -1), not a control. */
+  &:focus {
+    outline: none;
   }
 `;
 
@@ -245,7 +255,7 @@ export const ProviderCategoryLabel = styled(Typography)`
 export const ProviderCategoryHint = styled.span`
   font-size: ${fontSize(1)};
   font-weight: 500;
-  padding: 3px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: ${wizardColors.primaryLight};
   color: ${wizardColors.primary};
@@ -257,7 +267,7 @@ export const ProvidersGrid = styled(Box)`
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin: 0 auto 28px;
+  margin: 0 auto 32px;
   ${motionSafe(css`
     animation: ${slideIn} 0.5s ease;
   `)}
@@ -285,7 +295,7 @@ export const ProviderCard = styled.button`
       : color('neutral100')(p)};
   border: 1.5px solid ${(p) => (p.$selected ? wizardColors.successFill(p) : wizardColors.border)};
   border-radius: 14px;
-  padding: 22px 20px 20px;
+  padding: 20px;
   cursor: pointer;
   transition:
     transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -295,7 +305,7 @@ export const ProviderCard = styled.button`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 14px;
+  gap: 16px;
   position: relative;
   overflow: hidden;
   min-height: 170px;
@@ -370,7 +380,8 @@ export const ProviderIcon = styled.span`
   justify-content: center;
   font-size: 22px;
   font-weight: 700;
-  color: ${(p) => p.$color || wizardColors.primary(p)};
+  /* $color may be a scheme-aware helper such as byScheme(light, dark). */
+  color: ${(p) => (typeof p.$color === 'function' ? p.$color(p) : p.$color) || wizardColors.primary(p)};
   box-shadow: 0 4px 14px ${(p) => p.$shadowColor || 'rgba(73, 69, 255, 0.25)'};
   flex-shrink: 0;
 `;
@@ -394,15 +405,26 @@ export const ProviderName = styled(Typography)`
 
 export const ProviderTagline = styled(Typography)`
   && {
-    font-size: 12.5px;
-    line-height: 1.4;
+    font-size: ${fontSize(1)};
+    line-height: 1.5;
     color: ${wizardColors.textLight};
     margin: 0;
   }
 `;
 
 // ============= FORMS =============
-export const InfoAlert = styled(Alert)`
+/**
+ * DS Alert always renders a close button, but these notices are contextual
+ * and not dismissible (no onClose). Hide the inert button instead of showing
+ * a 16px control that does nothing.
+ */
+export const StaticAlert = styled(Alert)`
+  & > button {
+    display: none;
+  }
+`;
+
+export const InfoAlert = styled(StaticAlert)`
   background: ${wizardColors.primaryLight};
   border: 1px solid rgba(73, 69, 255, 0.2);
   ${motionSafe(css`
@@ -482,8 +504,41 @@ export const BulletList = styled.ul`
 export const RedirectUriRow = styled(Box)`
   display: flex;
   gap: 8px;
-  align-items: center;
+  /* The Copy button takes the height of the URI box next to it. */
+  align-items: stretch;
   flex-wrap: wrap;
+
+  && > button {
+    height: auto;
+  }
+`;
+
+/**
+ * External link with a hit area of at least 24px (32px below 768px).
+ * Inline links get block padding, which does not change the line layout;
+ * standalone links ($standalone, for example in an alert action) get a
+ * minimum height instead.
+ */
+export const ExternalAnchor = styled.a`
+  padding-block: 4px;
+
+  @media (max-width: 767px) {
+    padding-block: 8px;
+  }
+
+  ${(p) =>
+    p.$standalone &&
+    css`
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding-block: 0;
+
+      @media (max-width: 767px) {
+        min-height: 32px;
+        padding-block: 0;
+      }
+    `}
 `;
 
 export const RedirectUriValue = styled.code`

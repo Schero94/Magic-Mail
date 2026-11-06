@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   Divider,
@@ -18,6 +17,7 @@ import {
   BulletList,
   CONNECT_BUTTON_COLORS,
   ConnectButton,
+  ExternalAnchor,
   FormSection,
   FullWidthField,
   GuideBox,
@@ -26,6 +26,7 @@ import {
   RedirectUriRow,
   RedirectUriValue,
   SectionTitle,
+  StaticAlert,
   SwitchCard,
 } from './styles';
 import {
@@ -41,10 +42,10 @@ import {
 const bold = (chunks) => <strong>{chunks}</strong>;
 const code = (chunks) => <code>{chunks}</code>;
 
-const ExternalLink = ({ href, children }) => {
+const ExternalLink = ({ href, children, standalone = false }) => {
   const { t } = useMagicMailIntl();
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
+    <ExternalAnchor href={href} target="_blank" rel="noopener noreferrer" $standalone={standalone}>
       {children}
       <span
         style={{
@@ -57,7 +58,7 @@ const ExternalLink = ({ href, children }) => {
       >
         {` (${t('accountModal.guide.newTab', 'opens in a new tab')})`}
       </span>
-    </a>
+    </ExternalAnchor>
   );
 };
 
@@ -160,7 +161,7 @@ const OAuthConnect = ({
   if (isEditMode) {
     if (isAuthorized) {
       return (
-        <Alert
+        <StaticAlert
           variant="success"
           closeLabel={t('common.close', 'Close')}
           title={t('accountModal.oauth.reconnectedTitle', 'New authorization received')}
@@ -172,12 +173,12 @@ const OAuthConnect = ({
               provider: providerName,
             }
           )}
-        </Alert>
+        </StaticAlert>
       );
     }
     return (
       <Box>
-        <Alert
+        <StaticAlert
           variant="default"
           closeLabel={t('common.close', 'Close')}
           title={t('accountModal.oauth.editTitle', 'Authorization is kept')}
@@ -188,7 +189,7 @@ const OAuthConnect = ({
             'Saving keeps the existing {provider} authorization. If sending fails because access was revoked or expired, reconnect with the same mailbox. To use a different mailbox or app, add a new account.',
             { provider: providerName }
           )}
-        </Alert>
+        </StaticAlert>
         <ConnectButton
           type="button"
           $bg={CONNECT_BUTTON_COLORS[provider]}
@@ -209,7 +210,7 @@ const OAuthConnect = ({
 
   if (isAuthorized) {
     return (
-      <Alert
+      <StaticAlert
         variant="success"
         closeLabel={t('common.close', 'Close')}
         title={t('accountModal.oauth.authorizedTitle', 'Authorized')}
@@ -221,7 +222,7 @@ const OAuthConnect = ({
             provider: providerName,
           }
         )}
-      </Alert>
+      </StaticAlert>
     );
   }
 
@@ -314,7 +315,7 @@ export const CredentialsStep = ({
   const providerKey = OAUTH_API_PROVIDER[provider];
 
   const unreadableAlert = credentialsUnreadable ? (
-    <Alert
+    <StaticAlert
       variant="danger"
       marginBottom={4}
       closeLabel={t('common.close', 'Close')}
@@ -332,7 +333,7 @@ export const CredentialsStep = ({
             'accountModal.credentials.unreadableBody',
             'The encryption key changed since this account was saved. Re-enter all credentials below to restore the account.'
           )}
-    </Alert>
+    </StaticAlert>
   ) : null;
 
   const oauthCommon = (children, guide) => (
@@ -866,7 +867,7 @@ export const CredentialsStep = ({
               isEditMode={isEditMode}
             />
 
-            <Alert
+            <StaticAlert
               variant="default"
               closeLabel={t('common.close', 'Close')}
               title={
@@ -877,6 +878,7 @@ export const CredentialsStep = ({
               action={
                 <Flex gap={3} wrap="wrap">
                   <ExternalLink
+                    standalone
                     href={
                       provider === 'sendgrid'
                         ? 'https://app.sendgrid.com'
@@ -886,6 +888,7 @@ export const CredentialsStep = ({
                     {t('accountModal.guide.dashboard', 'Dashboard')}
                   </ExternalLink>
                   <ExternalLink
+                    standalone
                     href={
                       provider === 'sendgrid'
                         ? 'https://docs.sendgrid.com'
@@ -906,7 +909,7 @@ export const CredentialsStep = ({
                     'accountModal.mailgun.resourcesBody',
                     'API keys: Settings, API Security, Private API key. Domains: Sending, Domains (verify your domain or use the sandbox).'
                   )}
-            </Alert>
+            </StaticAlert>
           </Flex>
         </>
       )}
