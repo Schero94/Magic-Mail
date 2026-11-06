@@ -61,7 +61,11 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Create email log entry
+   * Records a pending attempt before provider dispatch so its tracking links
+   * can be persisted. Provider acceptance or rejection updates this state.
+   *
+   * @param {object} data Validated email metadata and delivery details.
+   * @returns {Promise<object>} The pending email log document.
    */
   async createEmailLog(data) {
     const emailId = this.generateEmailId();
@@ -79,11 +83,12 @@ module.exports = ({ strapi }) => ({
         accountId: data.accountId || null,
         accountName: data.accountName || null,
         sentAt: new Date(),
+        deliveryStatus: 'pending',
         metadata: data.metadata || {},
       },
     });
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Email log created: ${emailId}`);
+    strapi.log.info(`[magic-mail] [INFO] Email delivery attempt recorded: ${emailId}`);
     if (data.templateId) {
       strapi.log.info(`[magic-mail] [INFO] Template tracked: ${data.templateName || 'Unknown'} (ID: ${data.templateId})`);
     }
@@ -196,8 +201,11 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Get analytics statistics
-   * Note: Document Service doesn't have count() - using findMany for counting
+   * Counts provider-accepted deliveries and their engagement events.
+   * Legacy log rows without a delivery status are treated as sent.
+   *
+   * @param {{userId?: string, templateId?: number, accountId?: string, dateFrom?: string, dateTo?: string}} filters
+   * @returns {Promise<{totalSent: number, totalOpened: number, totalClicked: number, totalBounced: number, openRate: number, clickRate: number, bounceRate: number}>}
    */
   async getStats(filters = {}) {
     const baseFilters = {};
@@ -218,6 +226,12 @@ module.exports = ({ strapi }) => ({
     if (filters.dateTo) {
       baseFilters.sentAt = { ...baseFilters.sentAt, $lte: new Date(filters.dateTo) };
     }
+    // New rows count only after provider acceptance. Legacy rows have no
+    // deliveryStatus, so use their post-acceptance deliveredAt timestamp.
+    baseFilters.$or = [
+      { deliveryStatus: 'sent' },
+      { deliveryStatus: { $null: true }, deliveredAt: { $notNull: true } },
+    ];
 
     // Use native count() method for efficient counting with filters
     const [totalSent, totalOpened, totalClicked, totalBounced] = await Promise.all([

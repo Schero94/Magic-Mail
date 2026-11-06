@@ -35,6 +35,20 @@ test('account validation accepts every provider implemented by the router', () =
   }));
 });
 
+test('optional account reply-to accepts the blank value sent by the admin form', () => {
+  const { validate } = require('../server/src/validation');
+  const account = {
+    name: 'Local test account',
+    provider: 'smtp',
+    config: {},
+    fromEmail: 'sender@example.invalid',
+    replyTo: '',
+  };
+
+  assert.equal(validate('accounts.create', account).replyTo, undefined);
+  assert.equal(validate('accounts.update', { replyTo: '' }).replyTo, undefined);
+});
+
 test('Zod 4 records work and security-sensitive URLs reject active schemes', () => {
   const { validate } = require('../server/src/validation');
 

@@ -33,63 +33,60 @@ const App = () => {
     if (tab === 'analytics') navigate('/plugins/magic-mail/analytics');
   };
   
-  if (isEditorRoute) {
-    return (
-      <Page.Protect permissions={pluginPermissions.access}>
-        <EditorPage />
-      </Page.Protect>
-    );
-  }
-
   return (
     <Page.Protect permissions={pluginPermissions.access}>
-      <Box>
-        <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
-          <Tabs.List>
-            <Tabs.Trigger value="accounts">
-              <Flex gap={2} alignItems="center">
-                <EnvelopeIcon style={{ width: 16, height: 16 }} />
-                Email Accounts
-              </Flex>
-            </Tabs.Trigger>
-            <Tabs.Trigger value="routing">
-              <Flex gap={2} alignItems="center">
-                <FunnelIcon style={{ width: 16, height: 16 }} />
-                Routing Rules
-              </Flex>
-            </Tabs.Trigger>
-            <Tabs.Trigger value="templates">
-              <Flex gap={2} alignItems="center">
-                <DocumentTextIcon style={{ width: 16, height: 16 }} />
-                Email Templates
-              </Flex>
-            </Tabs.Trigger>
-            <Tabs.Trigger value="analytics">
-              <Flex gap={2} alignItems="center">
-                <ChartBarIcon style={{ width: 16, height: 16 }} />
-                Analytics
-              </Flex>
-            </Tabs.Trigger>
-          </Tabs.List>
-          
-          <Tabs.Content value="accounts">
-            <HomePage />
-          </Tabs.Content>
-          
-          <Tabs.Content value="routing">
-            <RoutingRules />
-          </Tabs.Content>
-          
-          <Tabs.Content value="templates">
-            <TemplateList />
-          </Tabs.Content>
-          
-          <Tabs.Content value="analytics">
-            <Analytics />
-          </Tabs.Content>
-          
-        </Tabs.Root>
-      </Box>
+      <Page.Protect permissions={pluginPermissions.read}>
+        {isEditorRoute ? (
+          <EditorPage />
+        ) : (
+          <Box>
+            <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
+              <Tabs.List>
+                <Tabs.Trigger value="accounts">
+                  <Flex gap={2} alignItems="center">
+                    <EnvelopeIcon style={{ width: 16, height: 16 }} />
+                    Email Accounts
+                  </Flex>
+                </Tabs.Trigger>
+                <Tabs.Trigger value="routing">
+                  <Flex gap={2} alignItems="center">
+                    <FunnelIcon style={{ width: 16, height: 16 }} />
+                    Routing Rules
+                  </Flex>
+                </Tabs.Trigger>
+                <Tabs.Trigger value="templates">
+                  <Flex gap={2} alignItems="center">
+                    <DocumentTextIcon style={{ width: 16, height: 16 }} />
+                    Email Templates
+                  </Flex>
+                </Tabs.Trigger>
+                <Tabs.Trigger value="analytics">
+                  <Flex gap={2} alignItems="center">
+                    <ChartBarIcon style={{ width: 16, height: 16 }} />
+                    Analytics
+                  </Flex>
+                </Tabs.Trigger>
+              </Tabs.List>
+
+              <Tabs.Content value="accounts">
+                <HomePage />
+              </Tabs.Content>
+
+              <Tabs.Content value="routing">
+                <RoutingRules />
+              </Tabs.Content>
+
+              <Tabs.Content value="templates">
+                <TemplateList />
+              </Tabs.Content>
+
+              <Tabs.Content value="analytics">
+                <Analytics />
+              </Tabs.Content>
+            </Tabs.Root>
+          </Box>
+        )}
+      </Page.Protect>
     </Page.Protect>
   );
 };

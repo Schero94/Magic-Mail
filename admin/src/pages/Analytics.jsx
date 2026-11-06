@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useAuthRefresh } from '../hooks/useAuthRefresh';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
@@ -25,6 +26,20 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { TertiaryButton, DangerButton } from '../components/StyledButtons';
+
+/**
+ * Presents a stored delivery state with a neutral fallback for legacy logs.
+ *
+ * @param {'pending'|'sent'|'failed'|null|undefined} deliveryStatus
+ * @param {string|null|undefined} deliveredAt Provider acceptance time for legacy log rows.
+ * @returns {{label: string, color: string}}
+ */
+const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt) => {
+  if (deliveryStatus === 'failed') return { label: 'Failed', color: 'danger600' };
+  if (deliveryStatus === 'pending') return { label: 'Pending', color: 'warning600' };
+  if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', color: 'neutral600' };
+  return { label: 'Sent', color: 'success600' };
+};
 
 // ================ THEME (kopiert von TemplateList) ================
 const theme = {
@@ -387,6 +402,7 @@ const EmptyIcon = styled.div`
 
 const Analytics = () => {
   useAuthRefresh();
+  const { canManage } = useMagicMailRBAC();
   const { get, del } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -399,6 +415,10 @@ const Analytics = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    if (!canManage) setShowClearDialog(false);
+  }, [canManage]);
+
+  useEffect(() => {
     fetchAnalytics();
     fetchEmailLogs();
   }, []);
@@ -406,17 +426,13 @@ const Analytics = () => {
   const fetchAnalytics = async () => {
     try {
       const response = await get('/magic-mail/analytics/stats');
-      console.log('[DEBUG] Analytics response:', response);
-      console.log('[DEBUG] Stats data:', response.data);
       
       // Handle the response structure - API returns { success: true, data: {...} }
       const statsData = response.data?.data || response.data || {};
-      console.log('[DEBUG] Stats to set:', statsData);
       
       setStats(statsData);
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('Failed to fetch analytics');
     }
   };
 
@@ -428,7 +444,7 @@ const Analytics = () => {
       setPagination(response.data?.pagination || null);
       setLogsError(null);
     } catch (error) {
-      console.error('Failed to fetch email logs:', error);
+      console.error('Failed to fetch email logs');
       const message =
         error.response?.data?.error?.message ||
         error.response?.data?.message ||
@@ -443,6 +459,8 @@ const Analytics = () => {
   };
 
   const handleClearAll = async () => {
+    if (!canManage) return;
+
     setIsDeleting(true);
     try {
       const response = await del('/magic-mail/analytics/emails');
@@ -457,7 +475,7 @@ const Analytics = () => {
       await fetchEmailLogs();
       setShowClearDialog(false);
     } catch (error) {
-      console.error('Failed to clear email logs:', error);
+      console.error('Failed to clear email logs');
       toggleNotification({
         type: 'danger',
         message: 'Failed to clear email logs',
@@ -559,7 +577,7 @@ const Analytics = () => {
               startAction={<MagnifyingGlassIcon style={{ width: 16, height: 16 }} />}
               style={{ maxWidth: '300px' }}
             />
-            {emailLogs.length > 0 && (
+            {canManage && emailLogs.length > 0 && (
               <DangerButton
                 startIcon={<TrashIcon style={{ width: 16, height: 16 }} />}
                 onClick={() => setShowClearDialog(true)}
@@ -606,20 +624,24 @@ const Analytics = () => {
       ) : (
         <TableContainer>
           <Box style={{ overflowX: 'auto' }}>
-            <StyledTable colCount={6} rowCount={filteredLogs.length}>
+            <StyledTable colCount={7} rowCount={filteredLogs.length}>
               <Thead>
                 <Tr>
                   <Th><Typography variant="sigma">Recipient</Typography></Th>
                   <Th><Typography variant="sigma">Subject</Typography></Th>
+                  <Th><Typography variant="sigma">Delivery Status</Typography></Th>
                   <Th><Typography variant="sigma">Template</Typography></Th>
-                  <Th><Typography variant="sigma">Sent At</Typography></Th>
+                  <Th><Typography variant="sigma">Attempted At</Typography></Th>
                   <Th><Typography variant="sigma">Opened</Typography></Th>
                   <Th><Typography variant="sigma">Clicked</Typography></Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredLogs.map((log) => (
-                  <Tr key={log.id}>
+                {filteredLogs.map((log) => {
+                  const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt);
+
+                  return (
+                    <Tr key={log.id}>
                     <Td>
                       <Typography variant="omega" fontWeight="semiBold">
                         {log.recipient}
@@ -632,6 +654,11 @@ const Analytics = () => {
                     </Td>
                     <Td>
                       <Typography variant="omega">{log.subject || '-'}</Typography>
+                    </Td>
+                    <Td>
+                      <Typography variant="pi" fontWeight="semiBold" textColor={delivery.color}>
+                        {delivery.label}
+                      </Typography>
                     </Td>
                     <Td>
                       <Typography variant="omega" textColor="neutral600">
@@ -677,8 +704,9 @@ const Analytics = () => {
                         </Flex>
                       )}
                     </Td>
-                  </Tr>
-                ))}
+                    </Tr>
+                  );
+                })}
               </Tbody>
             </StyledTable>
           </Box>
@@ -686,7 +714,7 @@ const Analytics = () => {
       )}
 
       {/* Clear All Confirmation Dialog */}
-      <Modal.Root open={showClearDialog} onOpenChange={setShowClearDialog}>
+      <Modal.Root open={canManage && showClearDialog} onOpenChange={setShowClearDialog}>
         <Modal.Content>
           <Modal.Header>
             <Typography variant="beta" fontWeight="bold">
@@ -714,6 +742,7 @@ const Analytics = () => {
               <DangerButton
                 onClick={handleClearAll}
                 loading={isDeleting}
+                disabled={isDeleting || !canManage}
                 startIcon={<TrashIcon style={{ width: 16, height: 16 }} />}
               >
                 Delete All

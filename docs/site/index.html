@@ -133,7 +133,8 @@ npm run build</code></pre>
 
         <section class="section" id="releases" aria-labelledby="releases-title">
           <h2 id="releases-title">Releases and testing</h2>
-          <p class="section-lead">Releases use semantic-release on pushes to <code>main</code>. Conventional Commits determine version changes. The release workflow runs tests, builds the plugin, verifies its exports, then publishes the npm package.</p>
+          <p class="section-lead">Releases use semantic-release on pushes to <code>main</code>. Conventional Commits determine version changes. The workflow runs tests, builds the plugin, and verifies its exports before using GitHub OIDC to publish to npm.</p>
+          <p>Before the first release, configure npm Trusted Publishing for <code>Schero94/Magic-Mail</code> and <code>.github/workflows/release.yml</code>. No long-lived npm write token is used.</p>
           <div class="link-list">
             <a href="https://github.com/Schero94/Magic-Mail/releases">Release history</a>
             <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>

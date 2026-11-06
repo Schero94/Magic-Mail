@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthRefresh } from '../../hooks/useAuthRefresh';
+import { useMagicMailRBAC } from '../../hooks/useMagicMailRBAC';
 import styled from 'styled-components';
 import {
   Typography,
@@ -33,7 +34,33 @@ const EmailEditorComponent =
   ReactEmailEditor;
 
 if (!EmailEditorComponent) {
-  console.error('[MagicMail] Failed to resolve EmailEditor component export', ReactEmailEditor);
+  console.error('[MagicMail] Failed to resolve EmailEditor component export');
+}
+
+/**
+ * Keeps exceptions from the remote Unlayer runtime inside the editor panel.
+ * The parent can then show its accessible Plain Text fallback without taking
+ * down the entire Strapi plugin route.
+ */
+class VisualEditorErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  /** @returns {{hasError: boolean}} */
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  /** Notify the parent so it can switch from loading to its fallback state. */
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.hasError ? null : this.props.children;
+  }
 }
 
 // Standard Email Template for Core Emails (when no design exists)
@@ -115,6 +142,8 @@ const STANDARD_EMAIL_TEMPLATE = {
   },
   schemaVersion: 6,
 };
+
+const VISUAL_EDITOR_LOAD_TIMEOUT_MS = 15000;
 
 // Styled components
 const Container = styled.div`
@@ -229,6 +258,9 @@ const DesignerLoadingContainer = styled(LoadingContainer)`
   width: 100%;
   min-height: calc(100vh - 240px);
   padding: 40px 20px;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
 `;
 
 const HiddenInput = styled.input`
@@ -551,6 +583,7 @@ const EmptyVersions = styled.div`
 
 const EditorPage = () => {
   useAuthRefresh(); // Initialize token auto-refresh
+  const { canManage, isLoading: permissionsLoading } = useMagicMailRBAC();
   const location = useLocation();
   const { get, post, put } = useFetchClient();
   const { toggleNotification } = useNotification();
@@ -572,6 +605,7 @@ const EditorPage = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('html');
   const [editorLoaded, setEditorLoaded] = useState(false);
+  const [designerLoadError, setDesignerLoadError] = useState(false);
 
   const [templateData, setTemplateData] = useState({
     templateReferenceId: '',
@@ -597,6 +631,19 @@ const EditorPage = () => {
       fetchTemplate();
     }
   }, [id, isCoreEmail, coreEmailType]);
+
+  // Do not leave the visual editor in an indefinite loading state if its
+  // external runtime is blocked or unavailable. The Plain Text tab remains
+  // usable without that dependency.
+  useEffect(() => {
+    if (!canManage || activeTab !== 'html' || editorLoaded || designerLoadError) return undefined;
+
+    const loadTimeout = window.setTimeout(() => {
+      setDesignerLoadError(true);
+    }, VISUAL_EDITOR_LOAD_TIMEOUT_MS);
+
+    return () => window.clearTimeout(loadTimeout);
+  }, [activeTab, canManage, designerLoadError, editorLoaded]);
 
   const fetchCoreTemplate = async () => {
     setLoading(true);
@@ -647,7 +694,7 @@ const EditorPage = () => {
         }
       }, 600);
     } catch (error) {
-      console.error('[MagicMail] Error loading core template:', error);
+      console.error('[MagicMail] Failed to load core template');
       toggleNotification({
         type: 'danger',
         message: 'Failed to load core template',
@@ -689,7 +736,7 @@ const EditorPage = () => {
         setVersions(response.data.data || []);
       }
     } catch (error) {
-      console.error('[Version History] Error loading versions:', error);
+      console.error('[Version History] Failed to load versions');
       toggleNotification({
         type: 'danger',
         message: 'Failed to load version history',
@@ -699,8 +746,16 @@ const EditorPage = () => {
     }
   };
 
-  // Restore version
+  /**
+   * Restores a saved revision after confirmation. The server route repeats
+   * the manage-permission check before changing the stored template.
+   *
+   * @param {string|number} versionId Stored revision identifier.
+   * @param {number|string} versionNumber Human-readable revision number.
+   * @returns {Promise<void>}
+   */
   const handleRestoreVersion = async (versionId, versionNumber) => {
+    if (!canManage) return;
     if (!window.confirm(`Restore template to Version #${versionNumber}? Current content will be saved as a new version.`)) {
       return;
     }
@@ -724,7 +779,7 @@ const EditorPage = () => {
         setShowVersionHistory(false);
       }
     } catch (error) {
-      console.error('[Version History] Error restoring version:', error);
+      console.error('[Version History] Failed to restore version');
       toggleNotification({
         type: 'danger',
         message: 'Failed to restore version',
@@ -732,8 +787,16 @@ const EditorPage = () => {
     }
   };
 
-  // Delete version
+  /**
+   * Deletes one saved revision after confirmation. The admin API enforces
+   * the same manage capability independently of this UI guard.
+   *
+   * @param {string|number} versionId Stored revision identifier.
+   * @param {number|string} versionNumber Human-readable revision number.
+   * @returns {Promise<void>}
+   */
   const handleDeleteVersion = async (versionId, versionNumber) => {
+    if (!canManage) return;
     if (!window.confirm(`Delete Version #${versionNumber}? This action cannot be undone.`)) {
       return;
     }
@@ -751,7 +814,7 @@ const EditorPage = () => {
         await fetchVersions();
       }
     } catch (error) {
-      console.error('[Version History] Error deleting version:', error);
+      console.error('[Version History] Failed to delete version');
       toggleNotification({
         type: 'danger',
         message: 'Failed to delete version',
@@ -759,8 +822,14 @@ const EditorPage = () => {
     }
   };
 
-  // Delete all versions
+  /**
+   * Deletes all stored revisions after a count-specific confirmation.
+   * The server route remains the authoritative permission boundary.
+   *
+   * @returns {Promise<void>}
+   */
   const handleDeleteAllVersions = async () => {
+    if (!canManage) return;
     if (versions.length === 0) {
       toggleNotification({
         type: 'info',
@@ -786,7 +855,7 @@ const EditorPage = () => {
         await fetchVersions();
       }
     } catch (error) {
-      console.error('[Version History] Error deleting all versions:', error);
+      console.error('[Version History] Failed to delete all versions');
       toggleNotification({
         type: 'danger',
         message: 'Failed to delete all versions',
@@ -800,7 +869,14 @@ const EditorPage = () => {
     fetchVersions();
   };
 
+  /**
+   * Persists the template or core email configuration for an admin with the
+   * manage capability. The server independently rejects other roles.
+   *
+   * @returns {Promise<void>}
+   */
   const handleSave = async () => {
+    if (!canManage) return;
     // Validation (skip for core emails)
     if (!isCoreEmail) {
       if (!templateData.templateReferenceId) {
@@ -934,7 +1010,15 @@ const EditorPage = () => {
     });
   };
 
+  /**
+   * Loads a local design file into the editor. Persistence still requires the
+   * separately guarded save action and server-side manage permission.
+   *
+   * @param {React.ChangeEvent<HTMLInputElement>} event File input change.
+   * @returns {void}
+   */
   const handleImportDesign = (event) => {
+    if (!canManage) return;
     const file = event.target.files[0];
     if (!file) return;
 
@@ -953,7 +1037,9 @@ const EditorPage = () => {
     reader.readAsText(file);
   };
 
+  /** Mark the visual editor ready and load any saved design. */
   const onEditorReady = () => {
+    setDesignerLoadError(false);
     setEditorLoaded(true);
     if (templateData.design && emailEditorRef.current?.editor) {
       setTimeout(() => {
@@ -962,11 +1048,11 @@ const EditorPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return (
       <Container>
         <LoadingContainer>
-          <Loader>Loading template...</Loader>
+          <Loader>{permissionsLoading ? 'Checking permissions...' : 'Loading template...'}</Loader>
         </LoadingContainer>
       </Container>
     );
@@ -1008,13 +1094,15 @@ const EditorPage = () => {
           </HeaderLeft>
 
           <HeaderRight>
-            <ImportLabel>
-              <ImportExportButton>
-                <ArrowUpTrayIcon />
-                Import Design
-              </ImportExportButton>
-              <HiddenInput type="file" accept=".json" onChange={handleImportDesign} />
-            </ImportLabel>
+            {canManage && (
+              <ImportLabel>
+                <ImportExportButton>
+                  <ArrowUpTrayIcon />
+                  Import Design
+                </ImportExportButton>
+                <HiddenInput type="file" accept=".json" onChange={handleImportDesign} />
+              </ImportLabel>
+            )}
             <ImportExportButton onClick={handleExportDesign} as="button">
               <ArrowDownTrayIcon />
               Export Design
@@ -1029,7 +1117,8 @@ const EditorPage = () => {
               startIcon={<CheckIcon />}
               onClick={handleSave}
               loading={saving}
-              disabled={saving}
+              disabled={saving || !canManage}
+              title={!canManage ? 'Editing requires the MagicMail manage permission.' : undefined}
             >
               {saving ? 'Saving...' : 'Save Template'}
             </SaveButton>
@@ -1045,6 +1134,7 @@ const EditorPage = () => {
                 <Field.Input
                   type="number"
                   value={templateData.templateReferenceId}
+                  disabled={!canManage}
                   onChange={(e) =>
                     setTemplateData({ ...templateData, templateReferenceId: e.target.value })
                   }
@@ -1060,6 +1150,7 @@ const EditorPage = () => {
                 <Field.Label>Name</Field.Label>
                 <Field.Input
                   value={templateData.name}
+                  disabled={!canManage}
                   onChange={(e) => setTemplateData({ ...templateData, name: e.target.value })}
                   placeholder="Welcome Email"
                 />
@@ -1072,6 +1163,7 @@ const EditorPage = () => {
               <Field.Label>Subject</Field.Label>
               <Field.Input
                 value={templateData.subject}
+                disabled={!canManage}
                 onChange={(e) => setTemplateData({ ...templateData, subject: e.target.value })}
                 placeholder="Welcome {{user.firstName}}!"
               />
@@ -1084,6 +1176,7 @@ const EditorPage = () => {
                 <Field.Label>Category</Field.Label>
                 <SingleSelect
                   value={templateData.category}
+                  disabled={!canManage}
                   onChange={(value) => setTemplateData({ ...templateData, category: value })}
                 >
                   <SingleSelectOption value="transactional">Transactional</SingleSelectOption>
@@ -1102,6 +1195,7 @@ const EditorPage = () => {
               </Typography>
               <Switch
                 checked={templateData.isActive}
+                disabled={!canManage}
                 onCheckedChange={(checked) =>
                   setTemplateData({ ...templateData, isActive: checked })
                 }
@@ -1127,22 +1221,38 @@ const EditorPage = () => {
 
           <StyledTabsContent value="html">
             <TabContentWrapper>
-              {!editorLoaded && (
+              {canManage && !editorLoaded && !designerLoadError && (
                 <DesignerLoadingContainer>
                   <Loader>Loading Email Designer...</Loader>
                 </DesignerLoadingContainer>
               )}
-              <EditorCanvas
-                style={{
-                  visibility: editorLoaded ? 'visible' : 'hidden',
-                  pointerEvents: editorLoaded ? 'auto' : 'none',
-                }}
-              >
-                <EmailEditorComponent
-                  ref={emailEditorRef}
-                  onReady={onEditorReady}
-                  minHeight="calc(100vh - 240px)"
-                  options={{
+              {canManage && !editorLoaded && designerLoadError && (
+                <DesignerLoadingContainer role="alert" aria-live="assertive">
+                  <Typography variant="beta">Visual Designer could not load</Typography>
+                  <Typography variant="omega" textColor="neutral600">
+                    The visual editor is unavailable. You can continue in Plain Text.
+                  </Typography>
+                  <Button size="S" onClick={() => setActiveTab('text')}>
+                    Switch to Plain Text
+                  </Button>
+                </DesignerLoadingContainer>
+              )}
+              {canManage ? (
+                <EditorCanvas
+                  style={{
+                    visibility: editorLoaded ? 'visible' : 'hidden',
+                    pointerEvents: editorLoaded ? 'auto' : 'none',
+                  }}
+                >
+                  <VisualEditorErrorBoundary
+                    key={id || coreEmailType || 'new-template'}
+                    onError={() => setDesignerLoadError(true)}
+                  >
+                    <EmailEditorComponent
+                      ref={emailEditorRef}
+                      onReady={onEditorReady}
+                      minHeight="calc(100vh - 240px)"
+                      options={{
                     // Display mode
                     displayMode: 'email',
                     locale: 'en',
@@ -1320,9 +1430,18 @@ const EditorPage = () => {
                         maxImageSize: 1024 * 1024, // 1MB
                       }
                     }
-                  }}
-                />
-              </EditorCanvas>
+                      }}
+                    />
+                  </VisualEditorErrorBoundary>
+                </EditorCanvas>
+              ) : (
+                <DesignerLoadingContainer role="status">
+                  <Typography variant="beta">Read-only view</Typography>
+                  <Typography variant="omega" textColor="neutral600">
+                    Editing this template requires the MagicMail manage permission.
+                  </Typography>
+                </DesignerLoadingContainer>
+              )}
             </TabContentWrapper>
           </StyledTabsContent>
 
@@ -1330,6 +1449,7 @@ const EditorPage = () => {
             <TextTabContent>
               <Textarea
                 value={templateData.bodyText}
+                disabled={!canManage}
                 onChange={(e) => setTemplateData({ ...templateData, bodyText: e.target.value })}
                 placeholder="Plain text version of your email...&#10;&#10;Use Mustache variables:&#10;{{user.firstName}}&#10;{{company.name}}&#10;{{order.total}}"
               />
@@ -1354,7 +1474,7 @@ const EditorPage = () => {
             )}
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {versions.length > 0 && (
+            {canManage && versions.length > 0 && (
               <DeleteButton
                 size="S"
                 startIcon={<TrashIcon />}
@@ -1407,22 +1527,24 @@ const EditorPage = () => {
                   <strong>Subject:</strong> {version.subject || 'No subject'}
                 </VersionMeta>
 
-                <VersionActions>
-                  <RestoreButton
-                    size="S"
-                    startIcon={<ArrowUturnLeftIcon />}
-                    onClick={() => handleRestoreVersion(version.id, version.versionNumber || (versions.length - index))}
-                  >
-                    Restore
-                  </RestoreButton>
-                  <DeleteButton
-                    size="S"
-                    startIcon={<TrashIcon />}
-                    onClick={() => handleDeleteVersion(version.id, version.versionNumber || (versions.length - index))}
-                  >
-                    Delete
-                  </DeleteButton>
-                </VersionActions>
+                {canManage && (
+                  <VersionActions>
+                    <RestoreButton
+                      size="S"
+                      startIcon={<ArrowUturnLeftIcon />}
+                      onClick={() => handleRestoreVersion(version.id, version.versionNumber || (versions.length - index))}
+                    >
+                      Restore
+                    </RestoreButton>
+                    <DeleteButton
+                      size="S"
+                      startIcon={<TrashIcon />}
+                      onClick={() => handleDeleteVersion(version.id, version.versionNumber || (versions.length - index))}
+                    >
+                      Delete
+                    </DeleteButton>
+                  </VersionActions>
+                )}
               </VersionItem>
             ))
           )}

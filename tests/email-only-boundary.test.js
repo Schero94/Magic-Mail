@@ -76,12 +76,16 @@ test('email send-message keeps its email path and rejects transport selection', 
   const result = await emailRouter.sendMessage({
     channel: 'email',
     to: 'recipient@example.test',
+    cc: ['copy-one@example.test', 'copy-two@example.test'],
+    bcc: 'hidden@example.test',
     subject: 'Status',
     message: 'Delivered through the email path',
   });
 
   assert.deepEqual(captured, {
     to: 'recipient@example.test',
+    cc: ['copy-one@example.test', 'copy-two@example.test'],
+    bcc: 'hidden@example.test',
     subject: 'Status',
     text: 'Delivered through the email path',
     html: undefined,
@@ -106,16 +110,23 @@ test('send-message validation accepts email and rejects removed transport fields
     validate('content.sendMessage', {
       channel: 'email',
       to: 'recipient@example.test',
+      cc: 'copy@example.test,second-copy@example.test',
+      bcc: 'hidden@example.test',
       subject: 'Status',
       message: 'Hello',
     }),
     {
       channel: 'email',
       to: 'recipient@example.test',
+      cc: 'copy@example.test,second-copy@example.test',
+      bcc: 'hidden@example.test',
       subject: 'Status',
       message: 'Hello',
     }
   );
+  assert.throws(() => validate('content.sendMessage', {
+    channel: 'email', to: 'recipient@example.test', cc: 'copy@example.test,invalid',
+  }), (error) => error.name === 'ValidationError' && Boolean(error.details?.cc));
   assert.throws(() => validate('content.sendMessage', {
     channel: 'whatsapp', phoneNumber: '+491234567890', message: 'fake',
   }));

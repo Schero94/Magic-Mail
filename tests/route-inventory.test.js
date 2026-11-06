@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const admin = require('../server/src/routes/admin').routes;
 const content = require('../server/src/routes/content-api').routes;
 
@@ -65,4 +67,97 @@ test('only signed OAuth callbacks and bounded tracking routes are public', () =>
       assert.ok(route.config?.policies?.some((p) => p.name === 'admin::hasPermissions'), route.path);
     }
   }
+});
+
+test('admin routes require the matching least-privilege capability', () => {
+  const capabilityFor = (route) => {
+    if (route.path === '/oauth/gmail/callback'
+      || route.path === '/oauth/microsoft/callback'
+      || route.path === '/oauth/yahoo/callback') return null;
+
+    if (route.path === '/accounts/:accountId/test'
+      || route.path === '/test-strapi-service'
+      || route.path === '/designer/templates/:id/test-send') return 'test-send';
+
+    if (route.path === '/oauth/gmail/auth'
+      || route.path === '/oauth/microsoft/auth'
+      || route.path === '/oauth/yahoo/auth'
+      || route.path === '/oauth/create-account') return 'manage';
+
+    // Rendering/exporting a template reads plugin data but does not mutate it.
+    if (route.path === '/designer/render/:templateReferenceId'
+      || route.path === '/designer/export') return 'read';
+
+    return route.method === 'GET' ? 'read' : 'manage';
+  };
+
+  for (const route of admin) {
+    const expectedCapability = capabilityFor(route);
+    if (expectedCapability === null) continue;
+
+    const permissionPolicies = (route.config.policies || []).filter(
+      (policy) => typeof policy === 'object' && policy.name === 'admin::hasPermissions'
+    );
+    assert.equal(permissionPolicies.length, 1, `${route.method} ${route.path} must have one permission policy`);
+    assert.deepEqual(
+      permissionPolicies[0].config.actions,
+      [`plugin::magic-mail.${expectedCapability}`],
+      `${route.method} ${route.path} must require ${expectedCapability}`
+    );
+  }
+});
+
+test('server and admin register read, manage and test-send grants separately from overview access', () => {
+  const registered = [];
+  require('../server/src/register')({
+    strapi: {
+      admin: {
+        services: {
+          permission: {
+            actionProvider: {
+              registerMany: (actions) => registered.push(...actions),
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(
+    registered.map(({ uid }) => uid).sort(),
+    ['access', 'manage', 'read', 'test-send']
+  );
+  for (const action of registered) {
+    assert.equal(action.section, 'plugins', `${action.uid} must be a plugin permission`);
+    assert.equal(action.pluginName, 'magic-mail', `${action.uid} must belong to Magic-Mail`);
+    assert.ok(action.subCategory, `${action.uid} must be visible in the Strapi role editor`);
+  }
+
+  const permissionSource = fs.readFileSync(
+    path.join(__dirname, '../admin/src/permissions.js'),
+    'utf8'
+  );
+  for (const [key, action] of [
+    ['access', 'access'],
+    ['read', 'read'],
+    ['manage', 'manage'],
+    ['testSend', 'test-send'],
+  ]) {
+    assert.match(
+      permissionSource,
+      new RegExp(`${key}:\\s*\\[\\{\\s*action:\\s*\\x60plugin::\\$\\{pluginId\\}\\.${action}\\x60`),
+      `admin permissions must expose ${action}`
+    );
+  }
+
+  const adminIndex = fs.readFileSync(path.join(__dirname, '../admin/src/index.js'), 'utf8');
+  assert.match(adminIndex, /import pluginPermissions from '\.\/permissions';/);
+  assert.equal((adminIndex.match(/permissions:\s*pluginPermissions\.access/g) || []).length, 1);
+  assert.equal((adminIndex.match(/permissions:\s*pluginPermissions\.read/g) || []).length, 1);
+
+  // One outer access and read gate covers the editor route and the tabbed
+  // list routes, including direct navigation to either branch.
+  const appPage = fs.readFileSync(path.join(__dirname, '../admin/src/pages/App.jsx'), 'utf8');
+  assert.equal((appPage.match(/permissions=\{pluginPermissions\.access\}/g) || []).length, 1);
+  assert.equal((appPage.match(/permissions=\{pluginPermissions\.read\}/g) || []).length, 1);
 });

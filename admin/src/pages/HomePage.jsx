@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useAuthRefresh } from '../hooks/useAuthRefresh';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import styled, { keyframes, css } from 'styled-components';
 import { theme } from '../utils/theme';
 import {
@@ -30,7 +31,7 @@ import {
 } from '@heroicons/react/24/outline';
 import AddAccountModal from '../components/AddAccountModal';
 import { 
-  GradientButton, 
+  GradientButton,
   SecondaryButton, 
   TertiaryButton,
   IconButton, 
@@ -563,6 +564,7 @@ const StyledModalInput = styled.input`
 
 const HomePage = () => {
   useAuthRefresh(); // Initialize token auto-refresh
+  const { canManage, canTestSend } = useMagicMailRBAC();
   const { get, post, del } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -584,7 +586,7 @@ const HomePage = () => {
       const { data } = await get('/magic-mail/accounts');
       setAccounts(data.data || []);
     } catch (err) {
-      console.error('[magic-mail] Error fetching accounts:', err);
+      console.error('[magic-mail] Failed to fetch email accounts');
       toggleNotification({
         type: 'danger',
         message: 'Failed to load email accounts',
@@ -594,6 +596,7 @@ const HomePage = () => {
     }
   };
 
+  /** Sends a test message through one account and forwards optional CC recipients. */
   const testAccount = async (accountId, accountName, testEmail, testOptions = {}) => {
     toggleNotification({
       type: 'info',
@@ -603,6 +606,7 @@ const HomePage = () => {
     try {
       const { data } = await post(`/magic-mail/accounts/${accountId}/test`, {
         testEmail: testEmail,
+        cc: testOptions.cc || undefined,
         priority: testOptions.priority || 'normal',
         type: testOptions.type || 'transactional',
         unsubscribeUrl: testOptions.unsubscribeUrl || null,
@@ -764,12 +768,14 @@ const HomePage = () => {
               Add your first email account to start sending emails through MagicMail's multi-account routing system
             </Typography>
             
-            <CTAButton 
-              startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
-              onClick={() => setShowAddModal(true)}
-            >
-              Add First Account
-            </CTAButton>
+            {canManage && (
+              <CTAButton
+                startIcon={<PlusIcon style={{ width: 20, height: 20 }} />}
+                onClick={() => setShowAddModal(true)}
+              >
+                Add First Account
+              </CTAButton>
+            )}
           </Flex>
         </EmptyState>
       ) : (
@@ -779,9 +785,11 @@ const HomePage = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 📧 Email Accounts
               </Typography>
-              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowAddModal(true)}>
-                Add Account
-              </GradientButton>
+              {canManage && (
+                <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowAddModal(true)}>
+                  Add Account
+                </GradientButton>
+              )}
             </Flex>
           </Box>
 
@@ -973,33 +981,39 @@ const HomePage = () => {
                         {/* Actions */}
                         <Td>
                           <Flex gap={2}>
-                            <IconButton
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingAccount(account);
-                              }}
-                              aria-label="Edit Account"
-                            >
-                              <PencilIcon />
-                            </IconButton>
-                            <IconButtonPrimary
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTestingAccount(account);
-                              }}
-                              aria-label="Test Account"
-                            >
-                              <PlayIcon />
-                            </IconButtonPrimary>
-                            <IconButtonDanger
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteAccount(account.id, account.name);
-                              }}
-                              aria-label="Delete Account"
-                            >
-                              <TrashIcon />
-                            </IconButtonDanger>
+                            {canManage && (
+                              <IconButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingAccount(account);
+                                }}
+                                aria-label="Edit Account"
+                              >
+                                <PencilIcon />
+                              </IconButton>
+                            )}
+                            {canTestSend && (
+                              <IconButtonPrimary
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTestingAccount(account);
+                                }}
+                                aria-label="Test Account"
+                              >
+                                <PlayIcon />
+                              </IconButtonPrimary>
+                            )}
+                            {canManage && (
+                              <IconButtonDanger
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteAccount(account.id, account.name);
+                                }}
+                                aria-label="Delete Account"
+                              >
+                                <TrashIcon />
+                              </IconButtonDanger>
+                            )}
                           </Flex>
                         </Td>
                       </Tr>
@@ -1019,25 +1033,29 @@ const HomePage = () => {
       )}
 
       {/* Add Account Modal */}
-      <AddAccountModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAccountAdded={fetchAccounts}
-      />
+      {canManage && (
+        <AddAccountModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onAccountAdded={fetchAccounts}
+        />
+      )}
 
       {/* Edit Account Modal */}
-      <AddAccountModal
-        isOpen={!!editingAccount}
-        onClose={() => setEditingAccount(null)}
-        onAccountAdded={() => {
-          fetchAccounts();
-          setEditingAccount(null);
-        }}
-        editAccount={editingAccount}
-      />
+      {canManage && (
+        <AddAccountModal
+          isOpen={!!editingAccount}
+          onClose={() => setEditingAccount(null)}
+          onAccountAdded={() => {
+            fetchAccounts();
+            setEditingAccount(null);
+          }}
+          editAccount={editingAccount}
+        />
+      )}
 
       {/* Test Email Modal */}
-      {testingAccount && (
+      {canTestSend && testingAccount && (
         <TestEmailModal
           account={testingAccount}
           onClose={() => setTestingAccount(null)}
@@ -1056,6 +1074,7 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [testEmail, setTestEmail] = useState('');
+  const [testCc, setTestCc] = useState('');
   const [priority, setPriority] = useState('normal');
   const [emailType, setEmailType] = useState('transactional');
   const [unsubscribeUrl, setUnsubscribeUrl] = useState('');
@@ -1066,6 +1085,7 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
     try {
       const { data } = await post('/magic-mail/test-strapi-service', {
         testEmail,
+        cc: testCc || undefined,
         accountName: account.name, // Force this specific account!
       });
 
@@ -1095,6 +1115,11 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
   const handleInputChange = (e) => {
     e.stopPropagation();
     setTestEmail(e.target.value);
+  };
+
+  const handleCcChange = (e) => {
+    e.stopPropagation();
+    setTestCc(e.target.value);
   };
 
   const handleKeyDown = (e) => {
@@ -1136,6 +1161,20 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
               type="email"
               autoFocus
             />
+          </Box>
+
+          <Box style={{ marginTop: '16px' }}>
+            <ModalFieldLabel>CC recipients (optional)</ModalFieldLabel>
+            <StyledModalInput
+              placeholder="copy@example.com, second-copy@example.com"
+              value={testCc}
+              onChange={handleCcChange}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              type="text"
+              aria-label="CC recipients (optional)"
+            />
+            <ModalHint>Separate multiple addresses with commas.</ModalHint>
           </Box>
 
           {/* Test Mode Selection */}
@@ -1227,7 +1266,7 @@ const TestEmailModal = ({ account, onClose, onTest }) => {
             </TertiaryButton>
             {testMode === 'direct' ? (
               <GradientButton
-                onClick={() => onTest(testEmail, { priority, type: emailType, unsubscribeUrl })}
+                onClick={() => onTest(testEmail, { priority, type: emailType, unsubscribeUrl, cc: testCc })}
                 disabled={!testEmail || !testEmail.includes('@') || (emailType === 'marketing' && !unsubscribeUrl)}
                 startIcon={<PlayIcon style={{ width: 16, height: 16 }} />}
               >

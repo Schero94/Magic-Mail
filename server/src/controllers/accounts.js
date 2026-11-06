@@ -97,18 +97,22 @@ module.exports = {
   },
 
   /**
-   * Test email account with validation
+   * Validates a test-send request and delegates delivery to the selected account.
+   *
+   * @param {import('koa').Context} ctx - Admin request context
+   * @returns {Promise<void>}
    */
   async test(ctx) {
     try {
       const { accountId } = ctx.params;
-      const { testEmail, to, priority, type, unsubscribeUrl } = validate('accounts.test', ctx.request.body);
+      const { testEmail, to, cc, priority, type, unsubscribeUrl } = validate('accounts.test', ctx.request.body);
       const recipientEmail = testEmail || to;
       
       const testOptions = {
         priority: priority || 'normal',
         type: type || 'transactional',
         unsubscribeUrl: unsubscribeUrl || null,
+        cc: cc || undefined,
       };
       
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
@@ -121,12 +125,14 @@ module.exports = {
   },
 
   /**
-   * Test Strapi Email Service Integration
-   * Tests if MagicMail intercepts native Strapi email service
+   * Sends a test through Strapi's native email service to verify Magic-Mail interception.
+   *
+   * @param {import('koa').Context} ctx - Admin request context
+   * @returns {Promise<void>}
    */
   async testStrapiService(ctx) {
     try {
-      const { testEmail, accountName } = validate('accounts.testStrapiService', ctx.request.body);
+      const { testEmail, accountName, cc } = validate('accounts.testStrapiService', ctx.request.body);
 
       strapi.log.info('[magic-mail] [TEST] Testing Strapi Email Service integration...');
       strapi.log.info('[magic-mail] [EMAIL] Calling strapi.plugin("email").service("email").send()');
@@ -140,6 +146,7 @@ module.exports = {
       // deliverability / spam reputation.
       const result = await strapi.plugin('email').service('email').send({
         to: testEmail,
+        cc: cc || undefined,
         subject: 'MagicMail Integration Test',
         text: 'This email was sent using Strapi\'s native email service but routed through MagicMail!',
         html: `

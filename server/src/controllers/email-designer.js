@@ -433,12 +433,15 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Send test email for template
+   * Renders a saved template and sends it through the router to a test recipient.
+   *
+   * @param {import('koa').Context} ctx - Admin request context
+   * @returns {Promise<void>}
    */
   async testSend(ctx) {
     try {
       const { id } = ctx.params;
-      const { to, accountName } = validate('emailDesigner.testSend', ctx.request.body);
+      const { to, accountName, cc } = validate('emailDesigner.testSend', ctx.request.body);
 
       if (!to) {
         return ctx.badRequest('Recipient email (to) is required');
@@ -469,6 +472,7 @@ module.exports = ({ strapi }) => ({
       // for logging/analytics only.
       const sendOptions = {
         to,
+        cc: cc || undefined,
         subject: rendered.subject || template.subject,
         html: rendered.html,
         text: rendered.text,

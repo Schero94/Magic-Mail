@@ -188,7 +188,12 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Test email account
+   * Sends a local account test message through the shared router.
+   *
+   * @param {string|number} idOrDocumentId - Account identifier
+   * @param {string} testEmail - Primary test recipient
+   * @param {{priority?: string, type?: string, unsubscribeUrl?: string|null, cc?: string|string[]}} testOptions - Test headers and delivery options
+   * @returns {Promise<{success: boolean, message: string, testConfig?: object}>}
    */
   async testAccount(idOrDocumentId, testEmail, testOptions = {}) {
     const documentId = await this.resolveDocumentId(idOrDocumentId);
@@ -214,11 +219,13 @@ module.exports = ({ strapi }) => ({
       priority = 'normal',
       type = 'transactional',
       unsubscribeUrl = null,
+      cc,
     } = testOptions;
 
     try {
       await emailRouter.send({
         to: recipient,
+        cc: cc || undefined,
         from: account.fromEmail,
         subject: 'MagicMail Test Email',
         text: `This is a test email from MagicMail account: ${account.name}\n\nPriority: ${priority}\nType: ${type}\n\nProvider: ${account.provider}\nFrom: ${account.fromEmail}\n\nIf you receive this, your email account is configured correctly!`,

@@ -4,12 +4,29 @@ module.exports = ({ strapi }) => {
   strapi.admin.services.permission.actionProvider.registerMany([
     {
       section: 'plugins',
-      displayName: 'Access the MagicMail plugin',
+      displayName: 'Show MagicMail navigation',
       uid: 'access',
-      // Strapi 5's role editor only renders checkboxes for actions that
-      // belong to a subCategory. Without this field the permission
-      // exists but is invisible in Settings → Roles → Plugins →
-      // MagicMail, so admins cannot grant or revoke it.
+      subCategory: 'General',
+      pluginName: 'magic-mail',
+    },
+    {
+      section: 'plugins',
+      displayName: 'Read MagicMail data',
+      uid: 'read',
+      subCategory: 'General',
+      pluginName: 'magic-mail',
+    },
+    {
+      section: 'plugins',
+      displayName: 'Manage MagicMail configuration and content',
+      uid: 'manage',
+      subCategory: 'General',
+      pluginName: 'magic-mail',
+    },
+    {
+      section: 'plugins',
+      displayName: 'Send MagicMail test messages',
+      uid: 'test-send',
       subCategory: 'General',
       pluginName: 'magic-mail',
     },

@@ -18,6 +18,10 @@ import {
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { Mail, Server, Key, ArrowRight, ArrowLeft, Check, Lock, Cloud, Cog, Star } from '@strapi/icons';
 import { GradientButton, SecondaryButton, TertiaryButton } from './StyledButtons';
+import {
+  isOptionalEmailAddressValid,
+  isValidEmailAddress,
+} from '../utils/emailValidation.mjs';
 
 // ============= ANIMATIONS =============
 const fadeIn = keyframes`
@@ -422,6 +426,11 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
     oauthClientSecret: '',
   });
 
+  const fromEmailInvalid = Boolean(formData.fromEmail)
+    && !isValidEmailAddress(formData.fromEmail);
+  const replyToInvalid = Boolean(formData.replyTo)
+    && !isOptionalEmailAddressValid(formData.replyTo);
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -460,7 +469,7 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
             oauthClientSecret: accountData.config?.clientSecret || '', // Now populated from decrypted data
           });
         } catch (err) {
-          console.error('[magic-mail] Error loading account:', err);
+          console.error('[magic-mail] Account details could not be loaded');
           toggleNotification({
             type: 'danger',
             message: 'Failed to load account data',
@@ -752,9 +761,13 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
   const canProceed = () => {
     if (currentStep === 1) return provider !== '';
     if (currentStep === 2) {
+      if (!isOptionalEmailAddressValid(formData.replyTo)) return false;
+
       // For OAuth providers, fromEmail comes from provider, so only name is required
-      if (provider === 'gmail-oauth' || provider === 'microsoft-oauth' || provider === 'yahoo-oauth') return formData.name;
-      return formData.name && formData.fromEmail;
+      if (provider === 'gmail-oauth' || provider === 'microsoft-oauth' || provider === 'yahoo-oauth') {
+        return Boolean(formData.name);
+      }
+      return Boolean(formData.name && isValidEmailAddress(formData.fromEmail));
     }
     if (currentStep === 3) {
       if (provider === 'smtp') {
@@ -1164,9 +1177,13 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                         <TextInput
                           placeholder="noreply@company.com"
                           type="email"
+                          aria-invalid={fromEmailInvalid}
                           value={formData.fromEmail}
                           onChange={(e) => handleChange('fromEmail', e.target.value)}
                         />
+                        {fromEmailInvalid && (
+                          <Alert variant="danger" title="Enter a valid sender email address." />
+                        )}
                         <Field.Hint>The email address that will appear as the sender. Recipients will see this in their inbox</Field.Hint>
                       </Field.Root>
                     </FullWidthField>
@@ -1190,10 +1207,14 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                       <TextInput
                         placeholder="support@company.com"
                         type="email"
+                        aria-invalid={replyToInvalid}
                         value={formData.replyTo}
                         onChange={(e) => handleChange('replyTo', e.target.value)}
                       />
-                      <Field.Hint>When recipients hit 'Reply', their response will go to this address. Leave empty to use the From Email</Field.Hint>
+                        {replyToInvalid && (
+                          <Alert variant="danger" title="Enter a valid Reply-To email address or leave the field blank." />
+                        )}
+                        <Field.Hint>When recipients hit 'Reply', their response will go to this address. Leave empty to use the From Email</Field.Hint>
                     </Field.Root>
                   </FullWidthField>
                   
@@ -1943,10 +1964,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   >
                     <Flex gap={4} alignItems="center" justifyContent="space-between">
                       <Box style={{ flex: 1, minWidth: 0 }}>
-                        <Typography fontWeight="semiBold" marginBottom={1} style={{ fontSize: '15px' }}>
+                        <Typography fontWeight="semiBold" marginBottom={1} style={{ display: 'block', fontSize: '15px' }}>
                           Account Active
                         </Typography>
-                        <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6' }}>
+                        <Typography variant="pi" textColor="neutral600" style={{ display: 'block', lineHeight: '1.6' }}>
                           {formData.isActive 
                             ? 'This account can send emails. Turn it off to pause sending without deleting the account.'
                             : 'This account will not send emails until it is turned on again.'
@@ -1980,10 +2001,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null }
                   >
                     <Flex gap={4} alignItems="center" justifyContent="space-between">
                       <Box style={{ flex: 1, minWidth: 0 }}>
-                        <Typography fontWeight="semiBold" marginBottom={1} style={{ fontSize: '15px' }}>
+                        <Typography fontWeight="semiBold" marginBottom={1} style={{ display: 'block', fontSize: '15px' }}>
                           Set as Primary Account
                         </Typography>
-                        <Typography variant="pi" textColor="neutral600" style={{ lineHeight: '1.6' }}>
+                        <Typography variant="pi" textColor="neutral600" style={{ display: 'block', lineHeight: '1.6' }}>
                           This account will be used by default when sending emails if no specific account is selected. Only one account can be primary at a time.
                         </Typography>
                       </Box>

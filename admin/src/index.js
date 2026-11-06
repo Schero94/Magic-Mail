@@ -2,6 +2,7 @@ import pluginPkg from '../../package.json';
 import pluginId from './pluginId';
 import Initializer from './components/Initializer';
 import PluginIcon from './components/PluginIcon';
+import pluginPermissions from './permissions';
 
 const name = pluginPkg.strapi.name;
 
@@ -16,8 +17,6 @@ const prefixPluginTranslations = (data, pluginId) => {
 
 export default {
   register(app) {
-    const pluginPermissions = [{ action: `plugin::${pluginId}.access`, subject: null }];
-
     app.addMenuLink({
       to: `plugins/${pluginId}`,
       icon: PluginIcon,
@@ -26,7 +25,7 @@ export default {
         defaultMessage: 'MagicMail',
       },
       Component: () => import('./pages/App'),
-      permissions: pluginPermissions,
+      permissions: pluginPermissions.access,
     });
 
     // Settings section - paths should be relative to /settings (no /settings/ prefix)
@@ -45,7 +44,7 @@ export default {
           id: 'plugin-settings',
           to: `${pluginId}/plugin-settings`,
           Component: () => import('./pages/PluginSettings'),
-          permissions: pluginPermissions,
+          permissions: pluginPermissions.read,
         },
       ]
     );

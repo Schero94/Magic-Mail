@@ -10,6 +10,49 @@
 const z = require('zod');
 
 const emailString = z.string().email().max(254);
+/** Maps an omitted optional email form value to undefined before validation. */
+const optionalEmailString = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  emailString.optional()
+);
+const emailAddress = z.string().max(320).refine((value) => {
+  const candidate = value.trim();
+  if (emailString.safeParse(candidate).success) return true;
+
+  const displayNameAddress = candidate.match(/^(?:"[^"\r\n]+"|[^"<>\r\n,]+)\s*<([^<>]+)>$/);
+  return Boolean(displayNameAddress && emailString.safeParse(displayNameAddress[1].trim()).success);
+}, { message: 'Invalid email address' });
+/**
+ * Validates one bounded comma-separated recipient list.
+ *
+ * @param {number} maxRecipients - Maximum address count
+ * @param {{allowEmpty?: boolean}} options - Allow an empty optional CC/BCC value
+ * @returns {import('zod').ZodType<string>}
+ */
+const recipientListString = (maxRecipients, { allowEmpty = false } = {}) => z
+  .string()
+  .max(4000)
+  .refine((value) => {
+    const list = value.trim();
+    if (!list) return allowEmpty;
+
+    const recipients = list.split(',');
+    return recipients.length <= maxRecipients
+      && recipients.every((recipient) => emailAddress.safeParse(recipient.trim()).success);
+  }, { message: 'Invalid recipient email list' });
+
+/**
+ * Builds the bounded recipient input accepted by public and admin send routes.
+ *
+ * @param {number} maxRecipients - Maximum recipients for strings and arrays
+ * @param {{allowEmptyString?: boolean}} options - Whether an empty string is treated as no CC/BCC
+ * @returns {import('zod').ZodType}
+ */
+const recipientListInput = (maxRecipients, { allowEmptyString = false } = {}) => z.union([
+  emailAddress,
+  z.array(emailAddress).min(1).max(maxRecipients),
+  recipientListString(maxRecipients, { allowEmpty: allowEmptyString }),
+]);
 const safeString = z.string().max(1000);
 const safeText = z.string().max(100000);
 
@@ -101,7 +144,7 @@ const schemas = {
       config: configRecord,
       fromEmail: emailString,
       fromName: headerSafe.optional(),
-      replyTo: emailString.optional(),
+      replyTo: optionalEmailString,
       // Was missing here even though the admin-UI wizard and accounts.update
       // both include it — strict() was rejecting every create request with
       // "Unrecognized key: isActive" which surfaced as a bare
@@ -122,7 +165,7 @@ const schemas = {
       config: configRecord.optional(),
       fromEmail: emailString.optional(),
       fromName: headerSafe.optional(),
-      replyTo: emailString.optional(),
+      replyTo: optionalEmailString,
       isActive: z.boolean().optional(),
       isPrimary: z.boolean().optional(),
       priority: z.number().int().min(1).max(10).optional(),
@@ -134,6 +177,7 @@ const schemas = {
   'accounts.test': z.object({
     testEmail: emailString.optional(),
     to: emailString.optional(),
+    cc: recipientListInput(50, { allowEmptyString: true }).optional(),
     priority: z.enum(['normal', 'high', 'low']).optional(),
     // Accept every email type the send pipeline supports, including
     // 'notification' which the admin Direct Test offers.
@@ -144,6 +188,7 @@ const schemas = {
   'accounts.testStrapiService': z.object({
     testEmail: emailString,
     accountName: safeString.optional().nullable(),
+    cc: recipientListInput(50, { allowEmptyString: true }).optional(),
   }),
 
   'oauth.createOAuthAccount': z
@@ -157,7 +202,7 @@ const schemas = {
           description: safeString.optional(),
           fromName: headerSafe.optional(),
           fromEmail: emailString.optional(),
-          replyTo: emailString.optional(),
+          replyTo: optionalEmailString,
           // Kept in sync with `accounts.create` — if the wizard ever
           // starts submitting isActive through the OAuth flow, this
           // schema accepts it without blowing up.
@@ -251,6 +296,7 @@ const schemas = {
   'emailDesigner.testSend': z.object({
     to: emailString,
     accountName: safeString.optional().nullable(),
+    cc: recipientListInput(50, { allowEmptyString: true }).optional(),
   }),
 
   'routingRules.create': z.object({
@@ -313,9 +359,9 @@ const schemas = {
 
   'content.send': z
     .object({
-      to: z.union([emailString, z.array(emailString).max(100), z.string().max(4000)]),
-      cc: z.union([emailString, z.array(emailString).max(50), z.string().max(4000)]).optional(),
-      bcc: z.union([emailString, z.array(emailString).max(50), z.string().max(4000)]).optional(),
+      to: recipientListInput(100),
+      cc: recipientListInput(50, { allowEmptyString: true }).optional(),
+      bcc: recipientListInput(50, { allowEmptyString: true }).optional(),
       from: headerSafe.max(320).optional(),
       replyTo: headerSafe.max(320).optional(),
       subject: headerSafe.optional(),
@@ -357,6 +403,8 @@ const schemas = {
     .object({
       channel: z.enum(['email', 'auto']).optional(),
       to: z.string().max(4000).optional(),
+      cc: recipientListInput(50, { allowEmptyString: true }).optional(),
+      bcc: recipientListInput(50, { allowEmptyString: true }).optional(),
       subject: headerSafe.optional(),
       message: safeText.optional(),
       text: safeText.optional(),

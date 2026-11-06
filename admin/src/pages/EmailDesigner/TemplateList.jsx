@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate } from 'react-router-dom';
 import { useAuthRefresh } from '../../hooks/useAuthRefresh';
+import { useMagicMailRBAC } from '../../hooks/useMagicMailRBAC';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
@@ -37,7 +38,7 @@ import {
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 import { 
-  GradientButton, 
+  GradientButton,
   SecondaryButton, 
   TertiaryButton,
   CTAButton,
@@ -845,6 +846,7 @@ const TemplateList = () => {
   const { toggleNotification } = useNotification();
   const navigate = useNavigate();
   useAuthRefresh(); // Initialize token auto-refresh
+  const { canRead, canManage, canTestSend } = useMagicMailRBAC();
 
   const [templates, setTemplates] = useState([]);
   const [stats, setStats] = useState(null);
@@ -856,15 +858,15 @@ const TemplateList = () => {
   const [copiedCode, setCopiedCode] = useState(null); // Track which code snippet was copied
   const [showTestSendModal, setShowTestSendModal] = useState(false);
   const [testEmail, setTestEmail] = useState('');
+  const [testCc, setTestCc] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [testAccount, setTestAccount] = useState('');
   const [accounts, setAccounts] = useState([]);
   const fileInputRef = useRef(null);
 
-  // Import/Export always available (no license required)
-  const canExport = true;
-  const canImport = true;
+  const canExport = canRead;
+  const canImport = canManage;
 
   // Core email types (Strapi defaults)
   const coreEmailTypes = [
@@ -908,7 +910,7 @@ const TemplateList = () => {
       const response = await get('/magic-mail/accounts');
       setAccounts(response.data?.data || []);
     } catch (error) {
-      console.error('Failed to fetch accounts:', error);
+      console.error('Failed to fetch email accounts');
     }
   };
 
@@ -916,9 +918,11 @@ const TemplateList = () => {
     setSelectedTemplate(template);
     setShowTestSendModal(true);
     setTestEmail('');
+    setTestCc('');
     setTestAccount('');
   };
 
+  /** Sends a rendered template to the selected test recipients through the API. */
   const sendTestEmail = async () => {
     if (!testEmail) {
       toggleNotification({
@@ -938,6 +942,7 @@ const TemplateList = () => {
       const templateIdForLookup = selectedTemplate.templateReferenceId ?? selectedTemplate.id;
       const response = await post(`/magic-mail/designer/templates/${templateIdForLookup}/test-send`, {
         to: testEmail,
+        cc: testCc || undefined,
         accountName: testAccount || null,
       });
 
@@ -948,9 +953,10 @@ const TemplateList = () => {
 
       setShowTestSendModal(false);
       setTestEmail('');
+      setTestCc('');
       setTestAccount('');
     } catch (error) {
-      console.error('Failed to send test email:', error);
+      console.error('Failed to send template test email');
       toggleNotification({
         type: 'danger',
         message: error?.response?.data?.error?.message || 'Failed to send test email',
@@ -963,7 +969,7 @@ const TemplateList = () => {
       const response = await get('/magic-mail/designer/templates');
       setTemplates(response.data?.data || []);
     } catch (error) {
-      console.error('Failed to reload templates:', error);
+      console.error('Failed to reload templates');
     }
   };
 
@@ -972,7 +978,7 @@ const TemplateList = () => {
       const response = await get('/magic-mail/designer/stats');
       setStats(response.data?.data || null);
     } catch (error) {
-      console.error('Failed to reload stats:', error);
+      console.error('Failed to reload template statistics');
     }
   };
 
@@ -1271,12 +1277,14 @@ const TemplateList = () => {
             
             {/* Action Buttons */}
             <EmptyButtonGroup>
-              <CTAButton 
-                startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
-                onClick={handleCreateTemplate}
-              >
-                Create Your First Template
-              </CTAButton>
+              {canManage && (
+                <CTAButton
+                  startIcon={<PlusIcon style={{ width: 20, height: 20 }} />}
+                  onClick={handleCreateTemplate}
+                >
+                  Create Your First Template
+                </CTAButton>
+              )}
               
               {canImport && (
                 <SecondaryButton
@@ -1296,12 +1304,14 @@ const TemplateList = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 Email Templates
               </Typography>
-              <GradientButton 
-                startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
-                onClick={handleCreateTemplate}
-              >
-                Create Template
-              </GradientButton>
+              {canManage && (
+                <GradientButton
+                  startIcon={<PlusIcon style={{ width: 20, height: 20 }} />}
+                  onClick={handleCreateTemplate}
+                >
+                  Create Template
+                </GradientButton>
+              )}
             </Flex>
           </SectionHeader>
 
@@ -1383,15 +1393,17 @@ const TemplateList = () => {
                   </Td>
                   <Td>
                     <Flex gap={2} justifyContent="flex-end">
-                      <IconButtonPrimary
-                        onClick={() =>
-                          navigate(`/plugins/magic-mail/designer/${template.templateReferenceId}`)
-                        }
-                        aria-label="Edit Template"
-                        title="Edit Template"
-                      >
-                        <PencilIcon />
-                      </IconButtonPrimary>
+                      {canManage && (
+                        <IconButtonPrimary
+                          onClick={() =>
+                            navigate(`/plugins/magic-mail/designer/${template.templateReferenceId}`)
+                          }
+                          aria-label="Edit Template"
+                          title="Edit Template"
+                        >
+                          <PencilIcon />
+                        </IconButtonPrimary>
+                      )}
                       <IconButton
                         onClick={() => handleDownload(template.templateReferenceId, 'html')}
                         aria-label="Download HTML"
@@ -1406,13 +1418,15 @@ const TemplateList = () => {
                       >
                         <CodeBracketIcon />
                       </IconButton>
-                      <IconButton
-                        onClick={() => handleDuplicate(template.templateReferenceId, template.name)}
-                        aria-label="Duplicate Template"
-                        title="Duplicate Template"
-                      >
-                        <DocumentDuplicateIcon />
-                      </IconButton>
+                      {canManage && (
+                        <IconButton
+                          onClick={() => handleDuplicate(template.templateReferenceId, template.name)}
+                          aria-label="Duplicate Template"
+                          title="Duplicate Template"
+                        >
+                          <DocumentDuplicateIcon />
+                        </IconButton>
+                      )}
                       <IconButtonPurple
                         onClick={() => {
                           setSelectedTemplate(template);
@@ -1423,20 +1437,24 @@ const TemplateList = () => {
                       >
                         <BoltIcon />
                       </IconButtonPurple>
-                      <IconButtonSuccess
-                        onClick={() => handleTestSend(template)}
-                        aria-label="Send Test Email"
-                        title="Send Test Email"
-                      >
-                        <PaperAirplaneIcon />
-                      </IconButtonSuccess>
-                      <IconButtonDanger
-                        onClick={() => handleDelete(template.templateReferenceId, template.name)}
-                        aria-label="Delete Template"
-                        title="Delete Template"
-                      >
-                        <TrashIcon />
-                      </IconButtonDanger>
+                      {canTestSend && (
+                        <IconButtonSuccess
+                          onClick={() => handleTestSend(template)}
+                          aria-label="Send Test Email"
+                          title="Send Test Email"
+                        >
+                          <PaperAirplaneIcon />
+                        </IconButtonSuccess>
+                      )}
+                      {canManage && (
+                        <IconButtonDanger
+                          onClick={() => handleDelete(template.templateReferenceId, template.name)}
+                          aria-label="Delete Template"
+                          title="Delete Template"
+                        >
+                          <TrashIcon />
+                        </IconButtonDanger>
+                      )}
                     </Flex>
                   </Td>
                 </Tr>
@@ -1813,7 +1831,7 @@ const TemplateList = () => {
       )}
 
       {/* Test Send Modal */}
-      <Modal.Root open={showTestSendModal} onOpenChange={setShowTestSendModal}>
+      <Modal.Root open={canTestSend && showTestSendModal} onOpenChange={setShowTestSendModal}>
         <StyledModalContent>
           <StyledModalHeader>
             <Modal.Title>Send Test Email</Modal.Title>
@@ -1834,6 +1852,18 @@ const TemplateList = () => {
                 onChange={(e) => setTestEmail(e.target.value)}
                 type="email"
               />
+            </ModalField>
+
+            <ModalField>
+              <ModalLabel>CC recipients (optional)</ModalLabel>
+              <TextInput
+                placeholder="copy@example.com, second-copy@example.com"
+                value={testCc}
+                onChange={(e) => setTestCc(e.target.value)}
+                type="text"
+                aria-label="CC recipients (optional)"
+              />
+              <ModalHint>Separate multiple addresses with commas.</ModalHint>
             </ModalField>
 
             <ModalField>
@@ -1858,7 +1888,7 @@ const TemplateList = () => {
             <TertiaryButton onClick={() => setShowTestSendModal(false)}>
               Cancel
             </TertiaryButton>
-            <GradientButton 
+            <GradientButton
               onClick={sendTestEmail}
               startIcon={<PaperAirplaneIcon style={{ width: 16, height: 16 }} />}
             >

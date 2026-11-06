@@ -30,7 +30,7 @@ export const createFetchWithRetry = (fetchClient) => {
         }
         return false;
       } catch (error) {
-        console.error('[Fetch Retry] Token refresh failed:', error);
+        console.error('[Fetch Retry] Token refresh failed');
         // Redirect to login on persistent failure
         window.location.href = '/admin/auth/login';
         return false;

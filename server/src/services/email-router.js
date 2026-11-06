@@ -55,6 +55,11 @@ const PROTECTED_HEADERS = new Set([
   'content-type', 'content-transfer-encoding',
 ]);
 
+const MAX_TO_RECIPIENTS = 100;
+const MAX_COPY_RECIPIENTS = 50;
+const MAX_RECIPIENT_ADDRESS_LENGTH = 320;
+const MAX_RECIPIENT_LIST_LENGTH = 4000;
+
 function mergeSafeHeaders(target, source) {
   if (!source || typeof source !== 'object' || Array.isArray(source)) return;
 
@@ -492,6 +497,19 @@ module.exports = ({ strapi }) => ({
 
       return await this.dispatchAndRecord(account, emailData, emailLog);
     } catch (error) {
+      if (emailLog?.documentId) {
+        try {
+          // The analytics row is created before dispatch for tracking-link
+          // correlation. Keep it visible, but never report a rejected attempt
+          // as sent.
+          await strapi.documents('plugin::magic-mail.email-log').update({
+            documentId: emailLog.documentId,
+            data: { deliveryStatus: 'failed' },
+          });
+        } catch (statusError) {
+          strapi.log.error('[magic-mail] [RECONCILE] Could not mark failed email attempt:', statusError?.name || 'Error');
+        }
+      }
       strapi.log.error('[magic-mail] [ERROR] Email send failed:', error?.name || 'Error');
 
       throw error;
@@ -635,6 +653,7 @@ module.exports = ({ strapi }) => ({
             accountId: account.documentId,
             accountName: account.name,
             deliveredAt: new Date(),
+            deliveryStatus: 'sent',
           },
         });
       } catch (error) {
@@ -1536,29 +1555,16 @@ module.exports = ({ strapi }) => ({
    * @throws {Error} When validation fails
    */
   validateEmailSecurity(emailData) {
+    if (!emailData || typeof emailData !== 'object' || Array.isArray(emailData)) {
+      throw new Error('Email data must be an object');
+    }
+
     const headerFields = ['subject', 'from', 'replyTo'];
     for (const field of headerFields) {
       if (typeof emailData[field] === 'string') {
         emailData[field] = stripHeaderInjection(emailData[field]);
       }
     }
-
-    const sanitizeAddrList = (value) => {
-      if (Array.isArray(value)) {
-        return value
-          .map((v) => (typeof v === 'string' ? stripHeaderInjection(v) : v))
-          .filter((v) => typeof v === 'string' && v.length > 0);
-      }
-      if (typeof value === 'string') {
-        return stripHeaderInjection(value);
-      }
-      return value;
-    };
-    emailData.to = sanitizeAddrList(emailData.to);
-    emailData.cc = sanitizeAddrList(emailData.cc);
-    emailData.bcc = sanitizeAddrList(emailData.bcc);
-
-    const { to, subject, html, text } = emailData;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const extractEmail = (addr) => {
@@ -1569,22 +1575,62 @@ module.exports = ({ strapi }) => ({
       }
       return addr.trim();
     };
-    const validateAddr = (addr) => emailRegex.test(extractEmail(addr));
 
-    if (Array.isArray(to)) {
-      for (const addr of to) {
-        if (!validateAddr(addr)) {
-          throw new Error(`Invalid recipient email format: ${addr}`);
-        }
+    /**
+     * Sanitizes and validates one recipient field while retaining its input
+     * shape for the provider adapters. Every recipient class uses the same
+     * parser so malformed CC/BCC values cannot bypass checks that apply to To.
+     *
+     * @param {string|string[]|undefined|null} value - Address or comma-separated list
+     * @param {'to'|'cc'|'bcc'} field - Recipient header being validated
+     * @param {number} maximum - Maximum number of addresses allowed
+     * @returns {string|string[]|undefined} Safe recipients in the original shape
+     * @throws {Error} When the field has an invalid type, empty member or address
+     */
+    const validateRecipients = (value, field, maximum) => {
+      const required = field === 'to';
+      if (value === undefined || value === null || value === '') {
+        if (required) throw new Error('Recipient email address (to) is required');
+        return undefined;
       }
-    } else if (typeof to === 'string') {
-      const addresses = to.includes(',') ? to.split(',') : [to];
-      for (const addr of addresses) {
-        if (!validateAddr(addr.trim())) {
-          throw new Error(`Invalid recipient email format: ${addr.trim()}`);
-        }
+
+      if (typeof value !== 'string' && !Array.isArray(value)) {
+        throw new Error(`Invalid ${field} recipient list`);
       }
-    }
+      if (typeof value === 'string' && value.length > MAX_RECIPIENT_LIST_LENGTH) {
+        throw new Error(`Too many characters in ${field} recipient list`);
+      }
+
+      const inputWasArray = Array.isArray(value);
+      const addresses = inputWasArray ? value : value.split(',');
+      if (addresses.length === 0 || addresses.length > maximum) {
+        throw new Error(`Too many ${field} recipients`);
+      }
+
+      const safeAddresses = addresses.map((address) => {
+        if (typeof address !== 'string') {
+          throw new Error(`Invalid ${field} recipient list`);
+        }
+
+        const safeAddress = stripHeaderInjection(address);
+        if (!safeAddress || safeAddress.length > MAX_RECIPIENT_ADDRESS_LENGTH) {
+          throw new Error(`Invalid ${field} recipient format`);
+        }
+
+        if (!emailRegex.test(extractEmail(safeAddress))) {
+          throw new Error(`Invalid ${field} recipient format`);
+        }
+        return safeAddress;
+      });
+
+      return inputWasArray ? safeAddresses : safeAddresses.join(', ');
+    };
+
+    emailData.to = validateRecipients(emailData.to, 'to', MAX_TO_RECIPIENTS);
+    emailData.cc = validateRecipients(emailData.cc, 'cc', MAX_COPY_RECIPIENTS);
+    emailData.bcc = validateRecipients(emailData.bcc, 'bcc', MAX_COPY_RECIPIENTS);
+
+    const { subject, html, text } = emailData;
 
     if (!subject || subject.trim().length === 0) {
       throw new Error('Email subject is required for security and deliverability');
@@ -1664,7 +1710,7 @@ module.exports = ({ strapi }) => ({
   /**
    * Email-only message helper retained for the Content API.
    * `auto` remains an alias for email selection when a recipient is present.
-   * @param {Object} messageData
+   * @param {{channel?: 'email'|'auto', to?: string, cc?: string|string[], bcc?: string|string[], subject?: string, message?: string, text?: string, html?: string, templateId?: string|number, templateData?: object}} messageData
    * @returns {Promise<Object>} Send result with channel info
    */
   async sendMessage(messageData) {

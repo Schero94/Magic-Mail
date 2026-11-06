@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useAuthRefresh } from '../hooks/useAuthRefresh';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
@@ -29,7 +30,7 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { 
-  GradientButton, 
+  GradientButton,
   TertiaryButton, 
   CTAButton,
   IconButton,
@@ -484,6 +485,7 @@ const StyledSearchInput = styled.input`
 
 const RoutingRulesPage = () => {
   useAuthRefresh(); // Initialize token auto-refresh
+  const { canManage } = useMagicMailRBAC();
   const { get, post, put, del } = useFetchClient();
   const { toggleNotification } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -509,7 +511,7 @@ const RoutingRulesPage = () => {
       setRules(rulesRes.data.data || []);
       setAccounts(accountsRes.data.data || []);
     } catch (err) {
-      console.error('[magic-mail] Error fetching data:', err);
+      console.error('[magic-mail] Failed to load routing rules');
       toggleNotification({
         type: 'danger',
         message: 'Failed to load routing rules',
@@ -664,12 +666,14 @@ const RoutingRulesPage = () => {
               Create your first routing rule to intelligently route emails based on type, recipient, subject, or custom conditions
             </Typography>
             
-            <CTAButton 
-              startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
-              onClick={() => setShowModal(true)}
-            >
-              Create First Rule
-            </CTAButton>
+            {canManage && (
+              <CTAButton
+                startIcon={<PlusIcon style={{ width: 20, height: 20 }} />}
+                onClick={() => setShowModal(true)}
+              >
+                Create First Rule
+              </CTAButton>
+            )}
           </Flex>
         </EmptyState>
       ) : (
@@ -679,9 +683,11 @@ const RoutingRulesPage = () => {
               <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
                 🎯 Routing Rules
               </Typography>
-              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowModal(true)}>
-                Create Rule
-              </GradientButton>
+              {canManage && (
+                <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowModal(true)}>
+                  Create Rule
+                </GradientButton>
+              )}
             </Flex>
           </Box>
 
@@ -826,18 +832,22 @@ const RoutingRulesPage = () => {
                       {/* Actions */}
                       <Td>
                         <Flex gap={2}>
-                          <IconButton
-                            onClick={() => setEditingRule(rule)}
-                            aria-label="Edit Rule"
-                          >
-                            <PencilIcon />
-                          </IconButton>
-                          <IconButtonDanger
-                            onClick={() => deleteRule(rule.documentId || rule.id, rule.name)}
-                            aria-label="Delete Rule"
-                          >
-                            <TrashIcon />
-                          </IconButtonDanger>
+                          {canManage && (
+                            <IconButton
+                              onClick={() => setEditingRule(rule)}
+                              aria-label="Edit Rule"
+                            >
+                              <PencilIcon />
+                            </IconButton>
+                          )}
+                          {canManage && (
+                            <IconButtonDanger
+                              onClick={() => deleteRule(rule.documentId || rule.id, rule.name)}
+                              aria-label="Delete Rule"
+                            >
+                              <TrashIcon />
+                            </IconButtonDanger>
+                          )}
                         </Flex>
                       </Td>
                     </Tr>
@@ -856,7 +866,7 @@ const RoutingRulesPage = () => {
       )}
 
       {/* Create/Edit Modal */}
-      {(showModal || editingRule) && (
+      {canManage && (showModal || editingRule) && (
         <RuleModal
           rule={editingRule}
           accounts={accounts}

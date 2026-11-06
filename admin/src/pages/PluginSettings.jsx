@@ -8,7 +8,9 @@ import {
   TextInput,
   Field,
 } from '@strapi/design-system';
-import { useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
+import pluginPermissions from '../permissions';
 import { 
   ArrowPathIcon,
   UserIcon,
@@ -161,7 +163,8 @@ const CodeSnippet = styled.code`
 `;
 
 // ================ MAIN COMPONENT ================
-const PluginSettingsPage = () => {
+const PluginSettingsContent = () => {
+  const { canManage } = useMagicMailRBAC();
   const { get, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   
@@ -198,7 +201,7 @@ const PluginSettingsPage = () => {
         setHasChanges(false);
       }
     } catch (err) {
-      console.error('[MagicMail] Error fetching settings:', err);
+      console.error('[MagicMail] Failed to fetch plugin settings');
       toggleNotification({
         type: 'danger',
         message: 'Failed to load settings',
@@ -221,7 +224,7 @@ const PluginSettingsPage = () => {
       });
       setHasChanges(false);
     } catch (err) {
-      console.error('[MagicMail] Error saving settings:', err);
+      console.error('[MagicMail] Failed to save plugin settings');
       toggleNotification({
         type: 'danger',
         message: 'Failed to save settings',
@@ -264,7 +267,9 @@ const PluginSettingsPage = () => {
       {/* Action Bar */}
       <ActionBar justifyContent="space-between" alignItems="center">
         <Typography variant="omega" textColor="neutral600">
-          {hasChanges ? 'You have unsaved changes' : 'All changes saved'}
+          {!canManage
+            ? 'Read-only access. You need the MagicMail manage permission to change settings.'
+            : hasChanges ? 'You have unsaved changes' : 'All changes saved'}
         </Typography>
         <Flex gap={2}>
           <TertiaryButton
@@ -276,7 +281,7 @@ const PluginSettingsPage = () => {
           <GradientButton
             onClick={saveSettings}
             loading={saving}
-            disabled={!hasChanges}
+            disabled={!hasChanges || !canManage}
           >
             Save Changes
           </GradientButton>
@@ -308,6 +313,7 @@ const PluginSettingsPage = () => {
             <SwitchWrapper>
               <Switch
                 checked={settings.enableLinkTracking}
+                disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableLinkTracking', checked)}
                 aria-label="Enable Link Tracking"
                 onLabel="Enabled"
@@ -326,6 +332,7 @@ const PluginSettingsPage = () => {
                     placeholder="https://api.yoursite.com"
                     value={settings.trackingBaseUrl}
                     onChange={(e) => handleChange('trackingBaseUrl', e.target.value)}
+                    disabled={!canManage}
                     style={{ marginTop: '8px' }}
                   />
                   <Field.Hint style={{ marginTop: '8px' }}>
@@ -374,6 +381,7 @@ const PluginSettingsPage = () => {
             <SwitchWrapper>
               <Switch
                 checked={settings.enableOpenTracking}
+                disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableOpenTracking', checked)}
                 aria-label="Enable Open Tracking"
                 onLabel="Enabled"
@@ -410,6 +418,7 @@ const PluginSettingsPage = () => {
             <SwitchWrapper>
               <Switch
                 checked={settings.enableUnsubscribeHeader}
+                disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableUnsubscribeHeader', checked)}
                 aria-label="Enable List-Unsubscribe Header"
                 onLabel="Enabled"
@@ -427,6 +436,7 @@ const PluginSettingsPage = () => {
                   placeholder="https://yoursite.com/unsubscribe?email={{email}}"
                   value={settings.unsubscribeUrl}
                   onChange={(e) => handleChange('unsubscribeUrl', e.target.value)}
+                  disabled={!canManage}
                   style={{ marginTop: '8px' }}
                 />
                 <Field.Hint style={{ marginTop: '8px' }}>
@@ -460,6 +470,7 @@ const PluginSettingsPage = () => {
                 placeholder="Your Company"
                 value={settings.defaultFromName}
                 onChange={(e) => handleChange('defaultFromName', e.target.value)}
+                disabled={!canManage}
                 style={{ marginTop: '8px' }}
               />
               <Field.Hint style={{ marginTop: '8px' }}>
@@ -472,6 +483,7 @@ const PluginSettingsPage = () => {
                 placeholder="noreply@yourcompany.com"
                 value={settings.defaultFromEmail}
                 onChange={(e) => handleChange('defaultFromEmail', e.target.value)}
+                disabled={!canManage}
                 style={{ marginTop: '8px' }}
               />
               <Field.Hint style={{ marginTop: '8px' }}>
@@ -484,5 +496,11 @@ const PluginSettingsPage = () => {
     </PageContainer>
   );
 };
+
+const PluginSettingsPage = () => (
+  <Page.Protect permissions={pluginPermissions.read}>
+    <PluginSettingsContent />
+  </Page.Protect>
+);
 
 export default PluginSettingsPage;
