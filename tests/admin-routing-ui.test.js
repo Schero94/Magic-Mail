@@ -66,7 +66,7 @@ test('routing view: RBAC, delete confirmation, unsaved-changes guard and error h
   assert.match(page, /permissionsError/);
   assert.match(page, /isOpen=\{canManage && pendingDelete !== null\}/);
   assert.match(page, /const deleteRule = async \(rule\) => \{\s*if \(!canManage\) return;/);
-  assert.match(page, /\{canManage && \(\s*<Th>/, 'the Actions column is hidden for read-only users');
+  assert.match(page, /\{canManage && \(?\s*<Th>/, 'the Actions column is hidden for read-only users');
   assert.match(page, /Promise\.allSettled/, 'a failing accounts request keeps rules visible');
   assert.match(page, /setLoadError\(true\)/);
   assert.match(page, /routing\.error\.retry/);
@@ -83,8 +83,8 @@ test('routing styles are responsive and reduced-motion aware', () => {
   const styles = sources['admin/src/pages/Routing/styles.js'];
   assert.match(styles, /export const FilterBar[\s\S]*?flex-wrap: wrap;/);
   assert.match(styles, /overflow-x: auto/);
-  assert.match(styles, /motionSafe\(css`animation: \$\{pulse\}/);
-  assert.match(styles, /motionSafe\(css`animation: \$\{shimmer\}/);
+  assert.match(styles, /motionSafe\(css`\s*animation: \$\{pulse\}/);
+  assert.match(styles, /motionSafe\(css`\s*animation: \$\{shimmer\}/);
 });
 
 // ---------------------------------------------------------------- behaviour: ordering and filters

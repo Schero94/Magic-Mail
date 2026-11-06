@@ -6,6 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { validate } = require('../server/src/validation');
+const { unwrapSource } = require('./helpers/unwrap-source');
 
 const CC = 'copy@example.com, second-copy@example.com';
 
@@ -149,7 +150,10 @@ test('both Admin test-send dialogs expose an accessible CC field and forward its
   assert.match(homePage, /<TestEmailModal/);
   assert.match(homePage, /cc:\s*testOptions\.cc/i);
   assert.match(accountTestSend, /CC recipients/i);
-  assert.match(accountTestSend, /<ModalFieldLabel htmlFor=\{ids\.cc\}>\{t\('accounts\.test\.cc'/);
+  assert.match(
+    unwrapSource(accountTestSend),
+    /<ModalFieldLabel htmlFor=\{ids\.cc\}>\{t\('accounts\.test\.cc'/
+  );
   assert.match(accountTestSend, /cc:\s*normaliseCc\(testCc\)/);
   const templateTestSend = readFileSync(
     path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateTestSendModal.jsx'),

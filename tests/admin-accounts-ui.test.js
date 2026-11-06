@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { loadAdminModule, ROOT } = require('./helpers/load-admin-module');
+const { unwrapSource } = require('./helpers/unwrap-source');
 const { findCssVarTokens, findTinyRemFontSizes, findEmoji } = require('./helpers/admin-style-guards');
 
 const wizard = loadAdminModule('admin/src/components/AccountWizard/wizardState.js');
@@ -283,8 +284,8 @@ test('accounts page: i18n, labelled controls, confirm dialog, error state and RB
 test('test dialog: labelled inputs, radio group for modes, in-flight state, stays open until the result', () => {
   const modal = source('admin/src/pages/Accounts/TestEmailModal.jsx');
   assert.match(modal, /<ModalFieldLabel htmlFor=\{ids\.to\}>/);
-  assert.match(modal, /<StyledModalSelect id=\{ids\.priority\}/);
-  assert.match(modal, /<StyledModalSelect id=\{ids\.type\}/);
+  assert.match(unwrapSource(modal), /<StyledModalSelect id=\{ids\.priority\}/);
+  assert.match(unwrapSource(modal), /<StyledModalSelect id=\{ids\.type\}/);
   assert.match(modal, /role="radiogroup"/);
   assert.match(modal, /role="radio"[\s\S]*?aria-checked=\{selected\}/);
   assert.match(modal, /loading=\{sending\}/);
