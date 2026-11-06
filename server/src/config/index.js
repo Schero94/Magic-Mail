@@ -11,6 +11,17 @@ module.exports = {
       // (pre-4.0 behaviour); their emails are attributed to the sending user.
       allowUserRoles: false,
     },
+    designer: {
+      // Optional Unlayer project id. Unset by default so no third-party
+      // project receives your template edits.
+      projectId: null,
+      // Optional https URL of the Unlayer loader (e.g. a self-hosted, vetted
+      // copy). Unset: the admin uses https://editor.unlayer.com/embed.js?2.
+      scriptUrl: null,
+      // Optional exact Unlayer editor build ("1.524.0"). Unset: the version
+      // pinned in the admin bundle.
+      version: null,
+    },
     // IANA time zone for hourly/daily account quota windows.
     quotaTimezone: 'UTC',
     tracking: {
@@ -63,6 +74,29 @@ module.exports = {
       }
       if (tracking.anonymizeIp !== undefined && typeof tracking.anonymizeIp !== 'boolean') {
         throw new Error('[magic-mail] config.tracking.anonymizeIp must be a boolean');
+      }
+    }
+    if (config?.designer !== undefined) {
+      const designer = config.designer;
+      if (typeof designer !== 'object' || designer === null || Array.isArray(designer)) {
+        throw new Error('[magic-mail] config.designer must be an object');
+      }
+      if (designer.projectId != null && !(Number.isSafeInteger(designer.projectId) && designer.projectId > 0)) {
+        throw new Error('[magic-mail] config.designer.projectId must be a positive integer');
+      }
+      if (designer.scriptUrl != null) {
+        let url;
+        try {
+          url = new URL(designer.scriptUrl);
+        } catch {
+          url = null;
+        }
+        if (!url || url.protocol !== 'https:' || url.username || url.password) {
+          throw new Error('[magic-mail] config.designer.scriptUrl must be an https URL');
+        }
+      }
+      if (designer.version != null && !(typeof designer.version === 'string' && /^\d+\.\d+\.\d+$/.test(designer.version))) {
+        throw new Error('[magic-mail] config.designer.version must be an exact version such as "1.524.0"');
       }
     }
     if (config?.quotaTimezone !== undefined) {

@@ -28,6 +28,10 @@ const RETRYABLE_ERROR_CODES = new Set([
   'MAGIC_MAIL_ACCOUNT_CONFIG',
 ]);
 /** HTTP status codes from API providers that guarantee the message was not accepted. */
+// Refresh OAuth tokens this long before they expire (clock skew, slow sends).
+const OAUTH_EXPIRY_SKEW_MS = 60_000;
+// In-flight token refreshes per account (single-flight, per process).
+const oauthRefreshes = new Map();
 const RETRYABLE_HTTP_STATUS = new Set([401, 403, 429, 500, 502, 503]);
 
 const EMAIL_PATTERN = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:\\[\]]+$/;
@@ -1375,28 +1379,99 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Refreshes an expired OAuth access token and stores it.
+   * Returns a usable OAuth access token for the account (FUN-15).
+   *
+   * - Refreshes when the token expires within OAUTH_EXPIRY_SKEW_MS, or when
+   *   `force` is set (after the provider answered 401).
+   * - Persists the full token set through oauth.buildOAuthBlob, so a rotated
+   *   refresh token (Microsoft, Yahoo) is stored and the old one is kept when
+   *   the provider returns none.
+   * - Concurrent sends of one account share a single refresh request; parallel
+   *   refreshes would race and could invalidate each other's refresh token.
+   *
+   * @param {object} account - Account entity (needs documentId)
+   * @param {object} oauth - Decrypted oauth blob; updated in place on refresh
+   * @param {() => Promise<{accessToken: string, refreshToken?: string, expiresAt: Date|string}>} refresh
+   * @param {{force?: boolean}} [options]
    * @returns {Promise<string>} Current access token
    */
-  async currentOAuthToken(account, oauth, refresh) {
-    if (!oauth.expiresAt || new Date(oauth.expiresAt) >= new Date()) return oauth.accessToken;
+  async currentOAuthToken(account, oauth, refresh, { force = false } = {}) {
+    if (!force) {
+      if (!oauth.expiresAt) return oauth.accessToken;
+      const expiresAt = new Date(oauth.expiresAt).getTime();
+      if (Number.isFinite(expiresAt) && expiresAt - OAUTH_EXPIRY_SKEW_MS > Date.now()) return oauth.accessToken;
+    }
     if (!oauth.refreshToken) {
       throw accountConfigError('Access token expired and no refresh token available. Please re-authenticate.');
     }
+
+    const key = account.documentId || account.id;
+    const pending = oauthRefreshes.get(key);
+    if (pending) {
+      const tokens = await pending;
+      Object.assign(oauth, tokens);
+      return tokens.accessToken;
+    }
+
+    const run = (async () => {
+      try {
+        const newTokens = await refresh();
+        const oauthService = strapi.plugin('magic-mail').service('oauth');
+        let blob;
+        if (oauthService && typeof oauthService.buildOAuthBlob === 'function') {
+          blob = oauthService.buildOAuthBlob(oauth, newTokens);
+        } else {
+          // eslint-disable-next-line global-require
+          const { encryptCredentials } = require('../utils/encryption');
+          blob = encryptCredentials({
+            ...oauth,
+            accessToken: newTokens.accessToken,
+            refreshToken: newTokens.refreshToken || oauth.refreshToken,
+            expiresAt: newTokens.expiresAt,
+          });
+        }
+        await strapi.documents(EMAIL_ACCOUNT_UID).update({ documentId: account.documentId, data: { oauth: blob } });
+        return {
+          accessToken: newTokens.accessToken,
+          refreshToken: newTokens.refreshToken || oauth.refreshToken,
+          expiresAt: newTokens.expiresAt,
+        };
+      } catch (refreshErr) {
+        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
+        throw accountConfigError('Access token expired and refresh failed. Please re-authenticate this account.');
+      }
+    })();
+    oauthRefreshes.set(key, run);
     try {
-      const newTokens = await refresh();
-      // eslint-disable-next-line global-require
-      const { encryptCredentials } = require('../utils/encryption');
-      await strapi.documents(EMAIL_ACCOUNT_UID).update({
-        documentId: account.documentId,
-        data: {
-          oauth: encryptCredentials({ ...oauth, accessToken: newTokens.accessToken, expiresAt: newTokens.expiresAt }),
-        },
-      });
-      return newTokens.accessToken;
-    } catch (refreshErr) {
-      strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
-      throw accountConfigError('Access token expired and refresh failed. Please re-authenticate this account.');
+      const tokens = await run;
+      Object.assign(oauth, tokens);
+      return tokens.accessToken;
+    } finally {
+      oauthRefreshes.delete(key);
+    }
+  },
+
+  /**
+   * Runs an OAuth send and, when the provider rejects the access token
+   * (HTTP 401 or SMTP EAUTH), refreshes it once and retries. A rejected token
+   * guarantees the message was not accepted, so the retry cannot duplicate it.
+   *
+   * @param {object} account
+   * @param {object} oauth
+   * @param {() => Promise<object>} refresh
+   * @param {(accessToken: string) => Promise<object>} send
+   * @returns {Promise<object>}
+   */
+  async withOAuthRetry(account, oauth, refresh, send) {
+    const accessToken = await this.currentOAuthToken(account, oauth, refresh);
+    try {
+      return await send(accessToken);
+    } catch (error) {
+      const rejectedToken = error?.status === 401 || error?.code === 'EAUTH' || error?.responseCode === 535;
+      if (!rejectedToken || !oauth.refreshToken) throw error;
+      strapi.log.warn('[magic-mail] OAuth access token rejected; refreshing once and retrying');
+      const renewed = await this.currentOAuthToken(account, oauth, refresh, { force: true });
+      return send(renewed);
     }
   },
 
@@ -1416,12 +1491,17 @@ module.exports = ({ strapi }) => ({
 
     this.validateEmailSecurity(emailData);
 
-    const accessToken = await this.currentOAuthToken(account, oauth, () => strapi
+    const refresh = () => strapi
       .plugin('magic-mail').service('oauth')
-      .refreshGmailTokens(oauth.refreshToken, config.clientId, config.clientSecret));
+      .refreshGmailTokens(oauth.refreshToken, config.clientId, config.clientSecret);
 
+    const rawMessage = await buildRawMimeMessage(account, emailData);
+    return this.withOAuthRetry(account, oauth, refresh, (accessToken) => this.postGmailMessage(accessToken, rawMessage));
+  },
+
+  /** One Gmail API send request. */
+  async postGmailMessage(accessToken, rawMessage) {
     try {
-      const rawMessage = await buildRawMimeMessage(account, emailData);
       const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
         headers: {
@@ -1460,16 +1540,21 @@ module.exports = ({ strapi }) => ({
 
     this.validateEmailSecurity(emailData);
 
-    const accessToken = await this.currentOAuthToken(account, oauth, () => {
+    const refresh = () => {
       if (!config.tenantId) {
         throw new Error('Tenant ID not found in config. Please re-configure this account.');
       }
       return strapi.plugin('magic-mail').service('oauth')
         .refreshMicrosoftTokens(oauth.refreshToken, config.clientId, config.clientSecret, config.tenantId);
-    });
+    };
 
+    const rawMessage = await buildRawMimeMessage(account, emailData);
+    return this.withOAuthRetry(account, oauth, refresh, (accessToken) => this.postGraphMessage(accessToken, rawMessage));
+  },
+
+  /** One Microsoft Graph sendMail request. */
+  async postGraphMessage(accessToken, rawMessage) {
     try {
-      const rawMessage = await buildRawMimeMessage(account, emailData);
       const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
         method: 'POST',
         headers: {
@@ -1505,10 +1590,15 @@ module.exports = ({ strapi }) => ({
 
     this.validateEmailSecurity(emailData);
 
-    const accessToken = await this.currentOAuthToken(account, oauth, () => strapi
+    const refresh = () => strapi
       .plugin('magic-mail').service('oauth')
-      .refreshYahooTokens(oauth.refreshToken, config.clientId, config.clientSecret));
+      .refreshYahooTokens(oauth.refreshToken, config.clientId, config.clientSecret);
 
+    return this.withOAuthRetry(account, oauth, refresh, (accessToken) => this.sendYahooMessage(account, oauth, emailData, accessToken));
+  },
+
+  /** One Yahoo SMTP XOAUTH2 send. */
+  async sendYahooMessage(account, oauth, emailData, accessToken) {
     try {
       const transporter = nodemailer.createTransport({
         host: 'smtp.mail.yahoo.com',

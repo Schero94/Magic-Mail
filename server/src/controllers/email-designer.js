@@ -19,6 +19,33 @@ function isNotFoundMessage(err) {
   return err && typeof err.message === 'string' && err.message.includes('not found');
 }
 
+const UNLAYER_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+
+/**
+ * Normalises the `designer` plugin config for the admin editor.
+ * `systemMergeTags` is true because the router fills {{system.date}},
+ * {{system.year}} and {{system.unsubscribe}} for every templated email.
+ *
+ * @param {{projectId?: unknown, scriptUrl?: unknown, version?: unknown}} config
+ * @returns {{projectId: number|null, scriptUrl: string|null, version: string|null, systemMergeTags: boolean}}
+ */
+const editorConfigFrom = (config) => {
+  const projectId = Number.isSafeInteger(config.projectId) && config.projectId > 0 ? config.projectId : null;
+  let scriptUrl = null;
+  if (typeof config.scriptUrl === 'string') {
+    try {
+      const url = new URL(config.scriptUrl);
+      if (url.protocol === 'https:' && !url.username && !url.password) scriptUrl = url.href;
+    } catch {
+      scriptUrl = null;
+    }
+  }
+  const version = typeof config.version === 'string' && UNLAYER_VERSION_PATTERN.test(config.version)
+    ? config.version
+    : null;
+  return { projectId, scriptUrl, version, systemMergeTags: true };
+};
+
 module.exports = ({ strapi }) => ({
   /**
    * Get all templates
@@ -316,6 +343,16 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Visual editor (Unlayer) settings from the plugin config `designer` block.
+   * Only well-formed values are returned; the admin falls back to its pinned
+   * defaults for anything missing.
+   */
+  async getEditorConfig(ctx) {
+    const config = strapi.config.get('plugin::magic-mail.designer') || {};
+    return ctx.send({ success: true, data: editorConfigFrom(config) });
+  },
+
+  /**
    * Get template statistics
    */
   async getStats(ctx) {
@@ -514,3 +551,5 @@ module.exports = ({ strapi }) => ({
     }
   },
 });
+
+module.exports.editorConfigFrom = editorConfigFrom;

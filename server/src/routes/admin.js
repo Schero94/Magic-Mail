@@ -373,6 +373,15 @@ module.exports = {
     },
     {
       method: 'GET',
+      path: '/designer/editor-config',
+      handler: 'emailDesigner.getEditorConfig',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Get the hardened visual editor (Unlayer) settings',
+      },
+    },
+    {
+      method: 'GET',
       path: '/designer/stats',
       handler: 'emailDesigner.getStats',
       config: {

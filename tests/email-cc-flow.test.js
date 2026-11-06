@@ -303,7 +303,7 @@ test('SMTP and Yahoo fake transports receive CC and BCC as separate recipient fi
       oauth: encryptCredentials({
         email: 'sender@example.com',
         accessToken: 'fake-access-token',
-        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
       }),
       config: encryptCredentials({ clientId: 'fake-client', clientSecret: 'fake-secret' }),
     }, { ...emailData });

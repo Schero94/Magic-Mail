@@ -11,7 +11,7 @@ const expected = {
   accounts: 7,
   'routing-rules': 5,
   oauth: 8,
-  designer: 18,
+  designer: 19,
   analytics: 7,
   settings: 2,
   'content-send': 2,
