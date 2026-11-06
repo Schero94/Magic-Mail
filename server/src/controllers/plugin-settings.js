@@ -22,8 +22,7 @@ module.exports = ({ strapi }) => ({
         data: settings,
       };
     } catch (error) {
-      strapi.log.error('[magic-mail] [SETTINGS] Error getting settings:', error);
-      ctx.throw(500, 'Failed to get settings');
+      handleControllerError(ctx, error, '[magic-mail] [SETTINGS] Error getting settings', 'Failed to get settings');
     }
   },
 

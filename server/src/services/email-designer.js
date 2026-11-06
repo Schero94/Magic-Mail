@@ -10,10 +10,57 @@
 
 const Mustache = require('mustache');
 const htmlToTextLib = require('html-to-text');
+const { errors } = require('@strapi/utils');
 
 // Content Type UIDs
 const EMAIL_TEMPLATE_UID = 'plugin::magic-mail.email-template';
 const EMAIL_TEMPLATE_VERSION_UID = 'plugin::magic-mail.email-template-version';
+
+/** Template fields that make up a version snapshot. */
+const VERSION_FIELDS = ['name', 'subject', 'design', 'bodyHtml', 'bodyText', 'tags'];
+
+/** Simple list filters accepted by findAll() (no relations, no operators). */
+const LIST_FILTER_FIELDS = {
+  category: (value) => ['transactional', 'marketing', 'notification', 'custom'].includes(value),
+  isActive: (value) => typeof value === 'boolean',
+  templateReferenceId: (value) => Number.isInteger(value) && value > 0,
+};
+
+/**
+ * users-permissions email template placeholders. Same allowlist as the
+ * users-permissions settings controller (isValidEmailTemplate).
+ */
+const CORE_TEMPLATE_KEYS = ['URL', 'ADMIN_URL', 'SERVER_URL', 'CODE', 'USER', 'USER.email', 'USER.username', 'TOKEN'];
+const CORE_TEMPLATE_STORE_KEYS = {
+  'reset-password': 'reset_password',
+  'email-confirmation': 'email_confirmation',
+};
+
+/** Per-template in-process lock so concurrent saves get distinct version numbers. */
+const versionLocks = new Map();
+
+/**
+ * Runs `task` exclusively per key.
+ *
+ * @template T
+ * @param {string} key
+ * @param {() => Promise<T>} task
+ * @returns {Promise<T>}
+ */
+async function withVersionLock(key, task) {
+  const previous = versionLocks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  const chained = previous.then(() => current);
+  versionLocks.set(key, chained);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (versionLocks.get(key) === chained) versionLocks.delete(key);
+  }
+}
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -89,6 +136,86 @@ const convertHtmlToText = (html, options = { wordwrap: 130 }) => {
   }
 };
 
+/**
+ * Converts a users-permissions template (`<%= KEY %>`) to the editor's
+ * placeholder form (`{{ KEY }}`). Only interpolations are converted;
+ * anything else stays as stored (and is rejected again on save).
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+const coreToEditor = (value) => (typeof value === 'string' ? value : '')
+  .replace(/(?:<|&lt;|&#x3C;|&#60;)%=\s*([\w.]+)\s*%(?:>|&gt;|&#x3E;|&#62;)/gi, '{{ $1 }}');
+
+/**
+ * Converts editor placeholders to the users-permissions interpolation form
+ * and validates the result with the users-permissions rules: only
+ * `<%= KEY %>` for allowlisted keys; no `<% %>` evaluation blocks, no
+ * `${...}`, and no unknown `{{ }}` placeholders (they would reach the
+ * recipient literally).
+ *
+ * @param {string} value - Subject or HTML from the editor
+ * @param {string} field - 'subject' | 'message' (for the error details)
+ * @returns {string}
+ * @throws {errors.ValidationError}
+ */
+const editorToCore = (value, field) => {
+  const input = typeof value === 'string' ? decodeMustacheTags(value) : '';
+  const problems = [];
+
+  const converted = input.replace(/\{\{\{?\s*=?\s*([^{}]*?)\s*\}?\}\}/g, (match, key) => {
+    if (CORE_TEMPLATE_KEYS.includes(key)) return `<%= ${key} %>`;
+    problems.push(`Unknown placeholder ${match.slice(0, 60)}`);
+    return match;
+  });
+
+  if (/<%(?!=)/.test(converted)) problems.push('Evaluation blocks (<% %>) are not allowed');
+  if (/(?<!\$)\$\{[^{}]*\}/.test(converted)) problems.push('${...} expressions are not allowed');
+  for (const [, key] of converted.matchAll(/<%=\s*([\s\S]+?)\s*%>/g)) {
+    if (!CORE_TEMPLATE_KEYS.includes(key.trim())) problems.push(`Unknown placeholder ${key.trim().slice(0, 60)}`);
+  }
+
+  if (problems.length > 0) {
+    throw new errors.ValidationError(
+      `Invalid ${field}: only ${CORE_TEMPLATE_KEYS.map((key) => `{{ ${key} }}`).join(', ')} are supported`,
+      { [field]: [...new Set(problems)] }
+    );
+  }
+  return converted;
+};
+
+/**
+ * Builds a safe Document Service filter from a list query. Unknown keys,
+ * operators and relation filters are dropped (SEC-16).
+ *
+ * @param {unknown} filters
+ * @returns {object}
+ */
+const toListFilters = (filters) => {
+  const out = {};
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return out;
+  for (const [key, check] of Object.entries(LIST_FILTER_FIELDS)) {
+    if (!(key in filters)) continue;
+    let value = filters[key];
+    if (key === 'isActive' && (value === 'true' || value === 'false')) value = value === 'true';
+    if (key === 'templateReferenceId' && typeof value === 'string' && /^\d+$/.test(value)) value = Number(value);
+    if (check(value)) out[key] = value;
+  }
+  return out;
+};
+
+/**
+ * True when two version snapshots have the same content.
+ *
+ * @param {object|null} a
+ * @param {object|null} b
+ * @returns {boolean}
+ */
+const sameSnapshot = (a, b) => {
+  if (!a || !b) return false;
+  return VERSION_FIELDS.every((field) => JSON.stringify(a[field] ?? null) === JSON.stringify(b[field] ?? null));
+};
+
 // ============================================================
 // SERVICE
 // ============================================================
@@ -104,7 +231,7 @@ module.exports = ({ strapi }) => ({
    */
   async findAll(filters = {}) {
     return strapi.documents(EMAIL_TEMPLATE_UID).findMany({
-      filters,
+      filters: toListFilters(filters),
       sort: [{ createdAt: 'desc' }],
     });
   },
@@ -171,13 +298,11 @@ module.exports = ({ strapi }) => ({
     //    installs only. Emits INFO (not WARN) because this path is rare
     //    but valid; we want it visible without looking like an error.
     let byInternalId = null;
-    try {
-      byInternalId = await strapi.entityService.findOne(EMAIL_TEMPLATE_UID, numericId, {
+    if (Number.isSafeInteger(numericId) && numericId > 0) {
+      byInternalId = await strapi.db.query(EMAIL_TEMPLATE_UID).findOne({
+        where: { id: numericId },
         populate: { versions: true },
       });
-    } catch (err) {
-      // entityService throws on NaN / non-existent ids on some Strapi builds
-      strapi.log.debug(`[magic-mail] [LOOKUP] entityService.findOne(${numericId}) threw: ${err.message}`);
     }
 
     if (byInternalId) {
@@ -205,7 +330,7 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Get version by numeric ID or documentId
-   * First tries documentId, then falls back to internal database id via entityService
+   * First tries documentId, then falls back to the internal database id (Query Engine)
    */
   async findVersionById(idOrDocumentId) {
     strapi.log.info(`[magic-mail] [LOOKUP] Finding version by ID: ${idOrDocumentId}`);
@@ -225,13 +350,13 @@ module.exports = ({ strapi }) => ({
       }
     }
     
-    // Fallback: Try internal database id via entityService
-    // NOTE: entityService is deprecated in Strapi v5, but required here for numeric ID lookups
-    // Document Service API only supports documentId (string), not numeric database IDs
+    // Fallback: internal database id (Query Engine; the Document Service
+    // only addresses documentIds).
     const numericId = Number(idOrDocumentId);
-    if (!isNaN(numericId)) {
+    if (isNumericId && Number.isSafeInteger(numericId) && numericId > 0) {
       strapi.log.info(`[magic-mail] [FALLBACK] Trying internal db id for version: ${numericId}`);
-      const version = await strapi.entityService.findOne(EMAIL_TEMPLATE_VERSION_UID, numericId, {
+      const version = await strapi.db.query(EMAIL_TEMPLATE_VERSION_UID).findOne({
+        where: { id: numericId },
         populate: { template: true },
       });
       if (version) {
@@ -295,17 +420,8 @@ module.exports = ({ strapi }) => ({
 
     strapi.log.info(`[magic-mail] [SUCCESS] Template created: documentId=${template.documentId}, name="${template.name}"`);
 
-    // Create the initial version snapshot (versioning is always available).
-    strapi.log.info('[magic-mail] [SAVE] Creating initial version...');
-    await this.createVersion(template.documentId, {
-      name: data.name,
-      subject: data.subject,
-      design: data.design,
-      bodyHtml: data.bodyHtml,
-      bodyText: data.bodyText,
-      tags: data.tags,
-    });
-    strapi.log.info('[magic-mail] [SUCCESS] Initial version created');
+    // Version 1 is the created content.
+    await this.snapshotVersion(template.documentId, template);
 
     return template;
   },
@@ -328,30 +444,24 @@ module.exports = ({ strapi }) => ({
     const actualDocumentId = template.documentId;
     strapi.log.info(`[magic-mail] [INFO] Found template: documentId=${actualDocumentId}, name="${template.name}"`);
 
-    // 2. Create a version snapshot BEFORE update (versioning always available).
-    strapi.log.info('[magic-mail] [SAVE] Creating version snapshot before update...');
-    await this.createVersion(actualDocumentId, {
-      name: template.name,
-      subject: template.subject,
-      design: template.design,
-      bodyHtml: template.bodyHtml,
-      bodyText: template.bodyText,
-      tags: template.tags,
-    });
-    strapi.log.info('[magic-mail] [SUCCESS] Version snapshot created');
-
-    // 3. Update template using the actual documentId
+    // 2. Update, then snapshot the saved content. Versions are the history
+    //    of saved states: v1 = created content, every later version = one
+    //    content change. Snapshotting the OLD content before the update
+    //    duplicated v1 on the first save (FUN-23).
     const updateData = { ...data };
-    if ('versions' in updateData) {
-      delete updateData.versions;
-      strapi.log.warn('[magic-mail] [WARNING]  Removed versions field from update data');
-    }
-    
+    delete updateData.versions;
+
+    // Pre-4.0 histories hold the content before each save; make sure the
+    // current (pre-update) state is not lost when it was never snapshotted.
+    await this.snapshotVersion(actualDocumentId, template);
+
     const updated = await strapi.documents(EMAIL_TEMPLATE_UID).update({
       documentId: actualDocumentId,
       data: updateData,
     });
-    
+
+    await this.snapshotVersion(actualDocumentId, updated);
+
     strapi.log.info(`[magic-mail] [SUCCESS] Template updated: documentId=${updated.documentId}`);
     return updated;
   },
@@ -476,9 +586,36 @@ module.exports = ({ strapi }) => ({
   // ============================================================
 
   /**
-   * Create a new version for a template
+   * Stores `content` as a new version unless it equals the latest version
+   * (e.g. only isActive or the category changed).
+   *
+   * @param {string} templateDocumentId
+   * @param {object} content - Template record or data with VERSION_FIELDS
+   * @returns {Promise<object|null>} The new version, or null when unchanged
    */
-  async createVersion(templateDocumentId, data) {
+  async snapshotVersion(templateDocumentId, content) {
+    const snapshot = {};
+    for (const field of VERSION_FIELDS) {
+      if (content && content[field] !== undefined) snapshot[field] = content[field];
+    }
+    return this.createVersion(templateDocumentId, snapshot, { skipIfUnchanged: true });
+  },
+
+  /**
+   * Create a new version for a template. Version numbers are assigned under
+   * a per-template lock, so concurrent saves never share a number.
+   *
+   * @param {string} templateDocumentId
+   * @param {object} data - Snapshot fields
+   * @param {{skipIfUnchanged?: boolean}} [options]
+   * @returns {Promise<object|null>}
+   */
+  async createVersion(templateDocumentId, data, { skipIfUnchanged = false } = {}) {
+    return withVersionLock(String(templateDocumentId), () => this._createVersionLocked(templateDocumentId, data, skipIfUnchanged));
+  },
+
+  /** @private */
+  async _createVersionLocked(templateDocumentId, data, skipIfUnchanged) {
     strapi.log.info(`[magic-mail] [SNAPSHOT] Creating version for template documentId: ${templateDocumentId}`);
 
     // 1. Verify template exists
@@ -501,7 +638,14 @@ module.exports = ({ strapi }) => ({
       sort: [{ versionNumber: 'desc' }],
     });
 
-    const versionNumber = existingVersions.length > 0 
+    if (skipIfUnchanged && existingVersions.length > 0) {
+      const latest = existingVersions.reduce((a, b) => ((b.versionNumber || 0) > (a.versionNumber || 0) ? b : a));
+      if (sameSnapshot(latest, data)) {
+        return null;
+      }
+    }
+
+    const versionNumber = existingVersions.length > 0
       ? Math.max(...existingVersions.map(v => v.versionNumber || 0)) + 1
       : 1;
 
@@ -754,6 +898,7 @@ module.exports = ({ strapi }) => ({
       bodyText: template.bodyText,
       category: template.category,
       tags: template.tags,
+      isActive: template.isActive !== false,
     }));
 
     strapi.log.info(`[magic-mail] [SUCCESS] Exported ${exported.length} templates`);
@@ -894,80 +1039,84 @@ module.exports = ({ strapi }) => ({
   // ============================================================
 
   /**
-   * Get Strapi core email template
+   * Returns the users-permissions plugin store, or throws when the plugin
+   * is not installed (STR-08/STR-M04).
+   *
+   * @param {string} coreEmailType
+   * @returns {Promise<{store: object, storeKey: string}>}
+   * @throws {errors.ValidationError|errors.NotFoundError}
    */
-  async getCoreTemplate(coreEmailType) {
-      if (!['reset-password', 'email-confirmation'].includes(coreEmailType)) {
-        throw new Error('Invalid core email type');
-      }
-
-      const pluginStoreEmailKey =
-        coreEmailType === 'email-confirmation' ? 'email_confirmation' : 'reset_password';
-
-      const pluginStore = await strapi.store({
-        environment: '',
-        type: 'plugin',
-        name: 'users-permissions',
-      });
-
-      const emailConfig = await pluginStore.get({ key: 'email' });
-      
-      let data = null;
-      if (emailConfig && emailConfig[pluginStoreEmailKey]) {
-        data = emailConfig[pluginStoreEmailKey];
-      }
-
-    const messageConverted = data?.options?.message
-        ? data.options.message.replace(/<%|&#x3C;%/g, '{{').replace(/%>|%&#x3E;/g, '}}')
-        : '';
-      
-    const subjectConverted = data?.options?.object
-        ? data.options.object.replace(/<%|&#x3C;%/g, '{{').replace(/%>|%&#x3E;/g, '}}')
-        : '';
-
-    return {
-        from: data?.options?.from || null,
-        message: messageConverted || '',
-        subject: subjectConverted || '',
-        bodyHtml: messageConverted || '',
-        bodyText: messageConverted ? convertHtmlToText(messageConverted, { wordwrap: 130 }) : '',
-        coreEmailType,
-        design: data?.design || null,
-      };
+  async _coreTemplateStore(coreEmailType) {
+    const storeKey = CORE_TEMPLATE_STORE_KEYS[coreEmailType];
+    if (!storeKey) {
+      throw new errors.ValidationError('Invalid core email type');
+    }
+    if (typeof strapi.plugin !== 'function' || !strapi.plugin('users-permissions')) {
+      throw new errors.NotFoundError('The Users & Permissions plugin is not installed');
+    }
+    const store = await strapi.store({ environment: '', type: 'plugin', name: 'users-permissions' });
+    return { store, storeKey };
   },
 
   /**
-   * Update Strapi core email template
+   * Returns a users-permissions email template for the editor
+   * (`<%= KEY %>` shown as `{{ KEY }}`).
+   *
+   * @param {'reset-password'|'email-confirmation'} coreEmailType
+   * @returns {Promise<object>}
+   */
+  async getCoreTemplate(coreEmailType) {
+    const { store, storeKey } = await this._coreTemplateStore(coreEmailType);
+    const emailConfig = (await store.get({ key: 'email' })) || {};
+    const data = emailConfig[storeKey] || null;
+
+    const message = coreToEditor(data?.options?.message);
+    const subject = coreToEditor(data?.options?.object);
+
+    return {
+      from: data?.options?.from || null,
+      message,
+      subject,
+      bodyHtml: message,
+      bodyText: message ? convertHtmlToText(message, { wordwrap: 130 }) : '',
+      coreEmailType,
+      design: data?.design || null,
+      placeholders: CORE_TEMPLATE_KEYS,
+    };
+  },
+
+  /**
+   * Saves a users-permissions email template. Placeholders are converted to
+   * `<%= KEY %>` and validated with the users-permissions rules before the
+   * store is written (SEC-11, FUN-13, STR-02).
+   *
+   * @param {'reset-password'|'email-confirmation'} coreEmailType
+   * @param {{message: string, subject: string, design?: object|null}} data
+   * @returns {Promise<{message: string}>}
+   * @throws {errors.ValidationError} For invalid placeholders or expressions
    */
   async updateCoreTemplate(coreEmailType, data) {
-      if (!['reset-password', 'email-confirmation'].includes(coreEmailType)) {
-        throw new Error('Invalid core email type');
-      }
+    const { store, storeKey } = await this._coreTemplateStore(coreEmailType);
 
-      const pluginStoreEmailKey =
-        coreEmailType === 'email-confirmation' ? 'email_confirmation' : 'reset_password';
+    const message = editorToCore(data.message, 'message');
+    const object = editorToCore(data.subject, 'subject');
 
-      const pluginStore = await strapi.store({
-        environment: '',
-        type: 'plugin',
-        name: 'users-permissions',
-      });
+    const emailsConfig = (await store.get({ key: 'email' })) || {};
+    const current = emailsConfig[storeKey] || {};
 
-      const emailsConfig = await pluginStore.get({ key: 'email' });
+    emailsConfig[storeKey] = {
+      ...current,
+      options: {
+        ...(current.options || {}),
+        message,
+        object,
+      },
+      design: data.design ?? current.design ?? null,
+    };
 
-      emailsConfig[pluginStoreEmailKey] = {
-        ...emailsConfig[pluginStoreEmailKey],
-        options: {
-        ...(emailsConfig[pluginStoreEmailKey]?.options || {}),
-          message: data.message.replace(/{{/g, '<%').replace(/}}/g, '%>'),
-          object: data.subject.replace(/{{/g, '<%').replace(/}}/g, '%>'),
-        },
-        design: data.design,
-      };
+    await store.set({ key: 'email', value: emailsConfig });
 
-      await pluginStore.set({ key: 'email', value: emailsConfig });
-
-      strapi.log.info(`[magic-mail] [SUCCESS] Core email template updated: ${pluginStoreEmailKey}`);
-      return { message: 'Saved' };
+    strapi.log.info(`[magic-mail] [SUCCESS] Core email template updated: ${storeKey}`);
+    return { message: 'Saved' };
   },
 });

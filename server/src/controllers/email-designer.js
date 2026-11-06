@@ -5,7 +5,9 @@
 
 'use strict';
 
+const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
+const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
 
 /**
  * True when the service threw a plain "not found" Error (i.e. not a
@@ -388,15 +390,20 @@ module.exports = ({ strapi }) => ({
 
       let fileContent;
       let fileName;
+      // Never put the raw path parameter into a header.
+      const safeId = String(template.templateReferenceId || template.documentId || 'export').replace(/[^A-Za-z0-9_-]/g, '');
 
       if (type === 'json') {
         fileContent = JSON.stringify(template.design, null, 2);
-        fileName = `template-${id}.json`;
+        fileName = `template-${safeId}.json`;
         ctx.set('Content-Type', 'application/json');
       } else if (type === 'html') {
         fileContent = template.bodyHtml;
-        fileName = `template-${id}.html`;
-        ctx.set('Content-Type', 'text/html');
+        fileName = `template-${safeId}.html`;
+        // Served as a download only; never rendered in the admin origin.
+        ctx.set('Content-Type', 'text/html; charset=utf-8');
+        ctx.set('Content-Security-Policy', "default-src 'none'; sandbox");
+        ctx.set('X-Content-Type-Options', 'nosniff');
       } else {
         return ctx.badRequest('Invalid type, must be either "json" or "html".');
       }
@@ -483,7 +490,15 @@ module.exports = ({ strapi }) => ({
         sendOptions.accountName = accountName;
       }
 
-      const result = await emailRouterService.send(sendOptions);
+      let result;
+      try {
+        result = await emailRouterService.send(sendOptions);
+      } catch (sendError) {
+        if (sendError?.name === 'ValidationError') throw sendError;
+        // Raw transport errors (internal hosts, SMTP replies) stay in the log.
+        strapi.log.warn(`[magic-mail] Template test send failed: ${describeErrorForLog(sendError)}`);
+        throw new errors.ApplicationError(toClientSendMessage(sendError));
+      }
 
       return ctx.send({
         success: true,
@@ -491,7 +506,7 @@ module.exports = ({ strapi }) => ({
         data: {
           recipient: to,
           template: template.name,
-          result,
+          success: result?.success !== false,
         },
       });
     } catch (error) {
