@@ -7,6 +7,8 @@ const test = require('node:test');
 
 const files = [
   'admin/src/components/AddAccountModal.jsx',
+  'admin/src/components/AccountWizard/useOAuthPopup.js',
+  'admin/src/pages/Accounts/TestEmailModal.jsx',
   'admin/src/pages/Analytics.jsx',
   'admin/src/pages/EmailDesigner/EditorPage.jsx',
   'admin/src/pages/EmailDesigner/TemplateList.jsx',

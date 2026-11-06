@@ -145,9 +145,12 @@ test('both Admin test-send dialogs expose an accessible CC field and forward its
   const homePage = readFileSync(path.join(__dirname, '../admin/src/pages/HomePage.jsx'), 'utf8');
   const templateList = readFileSync(path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateList.jsx'), 'utf8');
 
-  assert.match(homePage, /CC recipients/i);
+  const accountTestSend = readFileSync(path.join(__dirname, '../admin/src/pages/Accounts/TestEmailModal.jsx'), 'utf8');
+  assert.match(homePage, /<TestEmailModal/);
   assert.match(homePage, /cc:\s*testOptions\.cc/i);
-  assert.match(homePage, /cc:\s*testCc/i);
+  assert.match(accountTestSend, /CC recipients/i);
+  assert.match(accountTestSend, /<ModalFieldLabel htmlFor=\{ids\.cc\}>\{t\('accounts\.test\.cc'/);
+  assert.match(accountTestSend, /cc:\s*normaliseCc\(testCc\)/);
   const templateTestSend = readFileSync(
     path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateTestSendModal.jsx'),
     'utf8'

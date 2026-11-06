@@ -15,12 +15,12 @@ const affectedFiles = [
     ],
   },
   {
-    relativePath: 'admin/src/components/AddAccountModal.jsx',
-    expectedChecked: [
-      'formData.secure',
-      'formData.isActive',
-      'formData.isPrimary',
-    ],
+    relativePath: 'admin/src/components/AccountWizard/CredentialsStep.jsx',
+    expectedChecked: ['form.secure'],
+  },
+  {
+    relativePath: 'admin/src/components/AccountWizard/SettingsStep.jsx',
+    expectedChecked: ['form.isActive', 'form.isPrimary'],
   },
   {
     relativePath: 'admin/src/pages/Routing/RuleModal.jsx',

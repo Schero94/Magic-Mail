@@ -60,7 +60,7 @@ test('account write and send controls use separate manage and test-send permissi
   assert.ok(home.includes('useMagicMailRBAC'), 'read and action capabilities in the account page');
   assert.ok(home.includes('canManage'), 'manage controls are permission-gated');
   assert.ok(home.includes('canTestSend'), 'test-send controls use their own capability');
-  assert.ok(home.includes('aria-label="Test Account"'), 'test-send action remains accessible');
+  assert.ok(home.includes("aria-label={t('accounts.actions.test', 'Test account {name}'"), 'test-send action remains accessible');
 });
 
 test('the standalone settings route requires read permission in both navigation and page protection', () => {
@@ -173,7 +173,7 @@ test('read, manage and test-send grants gate the matching visible controls', () 
   const settings = source('admin/src/pages/PluginSettings.jsx');
 
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label="Test Account"/.test(home),
+    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('accounts\.actions\.test', 'Test account \{name\}'/.test(home),
     'account test-send is shown only with the test-send capability'
   );
   assert.ok(
