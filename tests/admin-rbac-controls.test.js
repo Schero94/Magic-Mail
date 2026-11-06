@@ -13,10 +13,11 @@ const compiledRBACHook = esbuild.transformSync(
   { format: 'cjs', loader: 'js' }
 ).code;
 
-function evaluateRBACHook(allowedActions) {
+function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error: undefined }) {
   const captured = {};
   const module = { exports: {} };
   const permissions = {
+    access: [{ action: 'plugin::magic-mail.access', subject: null }],
     read: [{ action: 'plugin::magic-mail.read', subject: null }],
     manage: [{ action: 'plugin::magic-mail.manage', subject: null }],
     testSend: [{ action: 'plugin::magic-mail.test-send', subject: null }],
@@ -25,7 +26,7 @@ function evaluateRBACHook(allowedActions) {
     '@strapi/strapi/admin': {
       useRBAC: (requestedPermissions) => {
         captured.requestedPermissions = requestedPermissions;
-        return { allowedActions, isLoading: false, error: undefined };
+        return { allowedActions, ...rbacState };
       },
     },
     '../permissions': permissions,
@@ -138,8 +139,30 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
   for (const [role, grants, expected] of cases) {
     const { capabilities, requestedPermissions } = evaluateRBACHook(grants);
     assert.deepEqual(requestedPermissions, expectedPermissions, `${role}: request only route capabilities`);
-    assert.deepEqual(capabilities, { ...expected, isLoading: false, error: undefined }, role);
+    const { permissions, ...flags } = capabilities;
+    assert.deepEqual(
+      flags,
+      { ...expected, isReadOnly: expected.canRead && !expected.canManage, isLoading: false, error: undefined },
+      role
+    );
+    assert.deepEqual(Object.keys(permissions).sort(), ['access', 'manage', 'read', 'testSend'], role);
   }
+});
+
+test('RBAC hook fails closed while permissions load or when the permission request fails', () => {
+  const allGrants = { canRead: true, canManage: true, canTestSend: true };
+
+  const loading = evaluateRBACHook(allGrants, { isLoading: true, error: undefined }).capabilities;
+  assert.equal(loading.isLoading, true);
+  assert.equal(loading.canRead, false, 'no read controls before permissions resolve');
+  assert.equal(loading.canManage, false, 'write controls never flash in while loading');
+  assert.equal(loading.canTestSend, false);
+
+  const failure = new Error('permissions unavailable');
+  const failed = evaluateRBACHook(allGrants, { isLoading: false, error: failure }).capabilities;
+  assert.equal(failed.error, failure, 'the error is exposed so views can show an error state');
+  assert.equal(failed.canManage, false);
+  assert.equal(failed.isReadOnly, false);
 });
 
 test('read, manage and test-send grants gate the matching visible controls', () => {

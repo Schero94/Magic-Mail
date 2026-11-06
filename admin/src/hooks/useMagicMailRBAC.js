@@ -8,20 +8,46 @@ const ROUTE_CAPABILITIES = [
 ];
 
 /**
- * Resolves the server-registered capabilities used by MagicMail UI actions.
- * The API routes remain authoritative; this hook only keeps unavailable
- * controls out of the admin interface.
+ * Single source of truth for MagicMail UI gating.
  *
- * @returns {{canRead: boolean, canManage: boolean, canTestSend: boolean, isLoading: boolean, error?: unknown}}
+ * The API routes remain authoritative; this hook only keeps unavailable
+ * controls out of the admin interface. While permissions load, and when the
+ * permission request fails, every capability is false so write controls never
+ * flash in. Views should render a loading state while `isLoading` and an
+ * error state when `error` is set, instead of treating both as "no rights".
+ *
+ *   const { canRead, canManage, canTestSend, isLoading, error } = useMagicMailRBAC();
+ *
+ * Route-level protection keeps using `<Page.Protect permissions={permissions.read}>`
+ * with the `permissions` object returned here.
+ *
+ * @returns {{
+ *   canRead: boolean,
+ *   canManage: boolean,
+ *   canTestSend: boolean,
+ *   isReadOnly: boolean,
+ *   isLoading: boolean,
+ *   error?: unknown,
+ *   permissions: typeof pluginPermissions,
+ * }}
  */
 export const useMagicMailRBAC = () => {
-  const { allowedActions = {}, isLoading, error } = useRBAC(ROUTE_CAPABILITIES);
+  const { allowedActions = {}, isLoading = false, error } = useRBAC(ROUTE_CAPABILITIES) ?? {};
+  const settled = !isLoading && !error;
+  const allowed = (key) => settled && allowedActions?.[key] === true;
+
+  const canRead = allowed('canRead');
+  const canManage = allowed('canManage');
 
   return {
-    canRead: allowedActions.canRead === true,
-    canManage: allowedActions.canManage === true,
-    canTestSend: allowedActions.canTestSend === true,
-    isLoading,
+    canRead,
+    canManage,
+    canTestSend: allowed('canTestSend'),
+    isReadOnly: canRead && !canManage,
+    isLoading: Boolean(isLoading),
     error,
+    permissions: pluginPermissions,
   };
 };
+
+export default useMagicMailRBAC;
