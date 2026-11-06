@@ -49,6 +49,10 @@
     "verify": "strapi-plugin verify",
     "verify:runtime": "node scripts/verify-server-bundle.mjs",
     "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:integration": "node .dev/test-magic-mail.js --quick",
     "test:full": "node .dev/test-magic-mail.js --full",
     "prepublishOnly": "npm test && npm run build && npm run verify && npm run verify:runtime"
@@ -65,6 +69,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^11.0.1",
@@ -75,6 +80,10 @@
     "@strapi/sdk-plugin": "^6.1.1",
     "@strapi/strapi": "^5.61.0",
     "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "prettier": "^3.9.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
