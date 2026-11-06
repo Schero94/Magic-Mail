@@ -117,15 +117,30 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
   const getMatchTypeHelp = () => {
     switch (formData.matchType) {
       case 'emailType':
-        return t('routing.form.matchType.help.emailType', 'Match based on email type (e.g. "transactional", "marketing", "notification").');
+        return t(
+          'routing.form.matchType.help.emailType',
+          'Match based on email type (e.g. "transactional", "marketing", "notification").'
+        );
       case 'recipient':
-        return t('routing.form.matchType.help.recipient', 'Match if the recipient address contains this value (e.g. "@vip-customers.com").');
+        return t(
+          'routing.form.matchType.help.recipient',
+          'Match if the recipient address contains this value (e.g. "@vip-customers.com").'
+        );
       case 'subject':
-        return t('routing.form.matchType.help.subject', 'Match if the subject line contains this value (e.g. "Invoice", "Password Reset").');
+        return t(
+          'routing.form.matchType.help.subject',
+          'Match if the subject line contains this value (e.g. "Invoice", "Password Reset").'
+        );
       case 'template':
-        return t('routing.form.matchType.help.template', 'Match if the email uses this template name (exact match).');
+        return t(
+          'routing.form.matchType.help.template',
+          'Match if the email uses this template name (exact match).'
+        );
       case 'custom':
-        return t('routing.form.matchType.help.custom', 'Match based on the custom field value passed in emailData.customField.');
+        return t(
+          'routing.form.matchType.help.custom',
+          'Match based on the custom field value passed in emailData.customField.'
+        );
       default:
         return '';
     }
@@ -136,15 +151,26 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
     const code = errors[field];
     if (!code) return undefined;
     if (code === 'required') {
-      return touched[field] ? t('routing.form.error.required', 'This field is required.') : undefined;
+      return touched[field]
+        ? t('routing.form.error.required', 'This field is required.')
+        : undefined;
     }
     switch (code) {
       case 'inactive':
-        return t('routing.form.error.accountInactive', 'This account is inactive. Choose an active account.');
+        return t(
+          'routing.form.error.accountInactive',
+          'This account is inactive. Choose an active account.'
+        );
       case 'missing':
-        return t('routing.form.error.accountMissing', 'This account no longer exists (renamed or deleted). Choose another account.');
+        return t(
+          'routing.form.error.accountMissing',
+          'This account no longer exists (renamed or deleted). Choose another account.'
+        );
       case 'sameAsTarget':
-        return t('routing.form.error.sameAsTarget', 'The fallback account must differ from the target account.');
+        return t(
+          'routing.form.error.sameAsTarget',
+          'The fallback account must differ from the target account.'
+        );
       case 'range':
         return t('routing.form.error.priorityRange', 'Enter a whole number from {min} to {max}.', {
           min: PRIORITY_MIN,
@@ -200,18 +226,25 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                 <Field.Root name="name" required error={fieldError('name')} width="100%">
                   <Field.Label>{t('routing.form.name.label', 'Rule Name')}</Field.Label>
                   <TextInput
-                    placeholder={t('routing.form.name.placeholder', 'Marketing emails via SendGrid')}
+                    placeholder={t(
+                      'routing.form.name.placeholder',
+                      'Marketing emails via SendGrid'
+                    )}
                     value={formData.name}
                     onChange={(e) => handleChange('name', e.target.value)}
                     maxLength={255}
                   />
                   <Field.Error />
-                  <Field.Hint>{t('routing.form.name.hint', 'A descriptive name for this routing rule')}</Field.Hint>
+                  <Field.Hint>
+                    {t('routing.form.name.hint', 'A descriptive name for this routing rule')}
+                  </Field.Hint>
                 </Field.Root>
 
                 {/* Description */}
                 <Field.Root name="description" width="100%">
-                  <Field.Label>{t('routing.form.description.label', 'Description (optional)')}</Field.Label>
+                  <Field.Label>
+                    {t('routing.form.description.label', 'Description (optional)')}
+                  </Field.Label>
                   <Textarea
                     placeholder={t(
                       'routing.form.description.placeholder',
@@ -241,10 +274,18 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                 </Field.Root>
 
                 {/* Match Value */}
-                <Field.Root name="matchValue" required error={fieldError('matchValue')} width="100%">
+                <Field.Root
+                  name="matchValue"
+                  required
+                  error={fieldError('matchValue')}
+                  width="100%"
+                >
                   <Field.Label>{t('routing.form.matchValue.label', 'Match Value')}</Field.Label>
                   <TextInput
-                    placeholder={MATCH_VALUE_PLACEHOLDERS[formData.matchType] ?? MATCH_VALUE_PLACEHOLDERS.custom}
+                    placeholder={
+                      MATCH_VALUE_PLACEHOLDERS[formData.matchType] ??
+                      MATCH_VALUE_PLACEHOLDERS.custom
+                    }
                     value={formData.matchValue}
                     onChange={(e) => handleChange('matchValue', e.target.value)}
                   />
@@ -258,7 +299,12 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                 </Field.Root>
 
                 {/* Target Account */}
-                <Field.Root name="accountName" required error={fieldError('accountName')} width="100%">
+                <Field.Root
+                  name="accountName"
+                  required
+                  error={fieldError('accountName')}
+                  width="100%"
+                >
                   <Field.Label>{t('routing.form.account.label', 'Target Account')}</Field.Label>
                   <SingleSelect
                     value={formData.accountName || null}
@@ -274,18 +320,33 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                   <Field.Error />
                   <Field.Hint>
                     {targetOptions.length === 0
-                      ? t('routing.form.account.noneActive', 'There is no active email account. Add or activate an account first.')
-                      : t('routing.form.account.hint', 'The email account to use when this rule matches')}
+                      ? t(
+                          'routing.form.account.noneActive',
+                          'There is no active email account. Add or activate an account first.'
+                        )
+                      : t(
+                          'routing.form.account.hint',
+                          'The email account to use when this rule matches'
+                        )}
                   </Field.Hint>
                 </Field.Root>
 
                 {/* Fallback Account */}
-                <Field.Root name="fallbackAccountName" error={fieldError('fallbackAccountName')} width="100%">
-                  <Field.Label>{t('routing.form.fallback.label', 'Fallback Account (optional)')}</Field.Label>
+                <Field.Root
+                  name="fallbackAccountName"
+                  error={fieldError('fallbackAccountName')}
+                  width="100%"
+                >
+                  <Field.Label>
+                    {t('routing.form.fallback.label', 'Fallback Account (optional)')}
+                  </Field.Label>
                   <SingleSelect
                     value={formData.fallbackAccountName || NO_FALLBACK}
                     onChange={(value) =>
-                      handleChange('fallbackAccountName', value === NO_FALLBACK ? '' : String(value))
+                      handleChange(
+                        'fallbackAccountName',
+                        value === NO_FALLBACK ? '' : String(value)
+                      )
                     }
                   >
                     <SingleSelectOption value={NO_FALLBACK}>
@@ -342,8 +403,14 @@ export const RuleModal = ({ rule, accounts, onClose, onSave, canManage }) => {
                       </Typography>
                       <Typography variant="pi" tag="p" textColor="neutral600" marginTop={1}>
                         {formData.isActive
-                          ? t('routing.form.active.on', 'This rule is active and will be used for email routing')
-                          : t('routing.form.active.off', 'This rule is disabled and will be ignored')}
+                          ? t(
+                              'routing.form.active.on',
+                              'This rule is active and will be used for email routing'
+                            )
+                          : t(
+                              'routing.form.active.off',
+                              'This rule is disabled and will be ignored'
+                            )}
                       </Typography>
                     </Box>
                     <Box style={{ flexShrink: 0 }}>

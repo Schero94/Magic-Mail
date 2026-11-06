@@ -209,7 +209,9 @@ const EditorPage = () => {
     async ({ silent = false } = {}) => {
       if (!silent) setLoading(true);
       try {
-        const response = await get(`/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`);
+        const response = await get(
+          `/magic-mail/designer/core/${encodeURIComponent(coreEmailType)}`
+        );
         const coreTemplate = response.data?.data;
         const design = coreTemplate?.design || buildCoreDesign(coreTemplate?.message, htmlToText);
 
@@ -377,7 +379,9 @@ const EditorPage = () => {
     setLoadingVersions(true);
     setVersionsError(false);
     try {
-      const response = await get(`/magic-mail/designer/templates/${encodeURIComponent(id)}/versions`);
+      const response = await get(
+        `/magic-mail/designer/templates/${encodeURIComponent(id)}/versions`
+      );
       setVersions(Array.isArray(response.data?.data) ? response.data.data : []);
     } catch (error) {
       console.error('[Version History] Failed to load versions');
@@ -408,7 +412,9 @@ const EditorPage = () => {
       );
       toggleNotification({
         type: 'success',
-        message: t('editor.versions.restore.success', 'Restored version {number}', { number: versionNumber }),
+        message: t('editor.versions.restore.success', 'Restored version {number}', {
+          number: versionNumber,
+        }),
       });
       setPendingRestore(null);
       setShowVersionHistory(false);
@@ -439,7 +445,9 @@ const EditorPage = () => {
       );
       toggleNotification({
         type: 'success',
-        message: t('editor.versions.delete.success', 'Version {number} deleted', { number: versionNumber }),
+        message: t('editor.versions.delete.success', 'Version {number} deleted', {
+          number: versionNumber,
+        }),
       });
       setPendingVersionDelete(null);
       await fetchVersions();
@@ -571,11 +579,17 @@ const EditorPage = () => {
         new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' }),
         `${toFileName(templateData.name || coreEmailType || 'template')}-design.json`
       );
-      toggleNotification({ type: 'success', message: t('editor.design.exported', 'Design exported') });
+      toggleNotification({
+        type: 'success',
+        message: t('editor.design.exported', 'Design exported'),
+      });
     } catch {
       toggleNotification({
         type: 'warning',
-        message: t('editor.design.exportUnavailable', 'The visual editor is not ready yet. Try again in a moment.'),
+        message: t(
+          'editor.design.exportUnavailable',
+          'The visual editor is not ready yet. Try again in a moment.'
+        ),
       });
     }
   };
@@ -604,11 +618,17 @@ const EditorPage = () => {
       setTemplateData((current) => ({ ...current, design }));
       setIsDirty(true);
       if (loadDesignIntoEditor(design)) {
-        toggleNotification({ type: 'success', message: t('editor.design.imported', 'Design imported') });
+        toggleNotification({
+          type: 'success',
+          message: t('editor.design.imported', 'Design imported'),
+        });
       } else {
         toggleNotification({
           type: 'info',
-          message: t('editor.design.importPending', 'The design will load when the visual editor is ready.'),
+          message: t(
+            'editor.design.importPending',
+            'The design will load when the visual editor is ready.'
+          ),
         });
       }
     } catch {
@@ -652,7 +672,10 @@ const EditorPage = () => {
           <ExclamationTriangleIcon width={48} height={48} aria-hidden="true" />
           <Typography variant="beta" tag="h1">
             {permissionsError
-              ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+              ? t(
+                  'common.permissions.loadError',
+                  'Your permissions could not be loaded. Reload the page to try again.'
+                )
               : t('editor.loadError', 'The template could not be loaded.')}
           </Typography>
           <Flex gap={2} wrap="wrap" justifyContent="center">
@@ -663,7 +686,10 @@ const EditorPage = () => {
               {t('editor.backToList', 'Back to templates')}
             </TertiaryButton>
             {!permissionsError && (
-              <Button startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />} onClick={() => loadCurrent()}>
+              <Button
+                startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />}
+                onClick={() => loadCurrent()}
+              >
                 {t('editor.retry', 'Try again')}
               </Button>
             )}
@@ -699,7 +725,11 @@ const EditorPage = () => {
             </BackButton>
             <TitleContainer>
               <Typography variant="alpha" tag="h1">
-                {isCoreEmail ? coreEmailName : isNewTemplate ? t('editor.newTemplate', 'New template') : templateData.name}
+                {isCoreEmail
+                  ? coreEmailName
+                  : isNewTemplate
+                    ? t('editor.newTemplate', 'New template')
+                    : templateData.name}
               </Typography>
               {!isNewTemplate && !isCoreEmail && (
                 <Typography variant="pi" textColor="neutral600">
@@ -743,7 +773,11 @@ const EditorPage = () => {
               </ToolbarButton>
             )}
             {!isCoreEmail && !isNewTemplate && (
-              <ToolbarButton type="button" onClick={handleOpenVersionHistory} aria-haspopup="dialog">
+              <ToolbarButton
+                type="button"
+                onClick={handleOpenVersionHistory}
+                aria-haspopup="dialog"
+              >
                 <ClockIcon aria-hidden="true" />
                 {t('editor.versions.open', 'Version history')}
               </ToolbarButton>
@@ -753,9 +787,18 @@ const EditorPage = () => {
               onClick={handleSave}
               loading={saving}
               disabled={saving || !canManage}
-              title={!canManage ? t('editor.save.noPermission', 'Editing requires the MagicMail manage permission.') : undefined}
+              title={
+                !canManage
+                  ? t(
+                      'editor.save.noPermission',
+                      'Editing requires the MagicMail manage permission.'
+                    )
+                  : undefined
+              }
             >
-              {saving ? t('editor.save.saving', 'Saving...') : t('editor.save.button', 'Save template')}
+              {saving
+                ? t('editor.save.saving', 'Saving...')
+                : t('editor.save.button', 'Save template')}
             </SaveButton>
           </HeaderRight>
         </HeaderRow>
@@ -829,11 +872,15 @@ const EditorPage = () => {
                   <SingleSelectOption value="transactional">
                     {t('editor.category.transactional', 'Transactional')}
                   </SingleSelectOption>
-                  <SingleSelectOption value="marketing">{t('editor.category.marketing', 'Marketing')}</SingleSelectOption>
+                  <SingleSelectOption value="marketing">
+                    {t('editor.category.marketing', 'Marketing')}
+                  </SingleSelectOption>
                   <SingleSelectOption value="notification">
                     {t('editor.category.notification', 'Notification')}
                   </SingleSelectOption>
-                  <SingleSelectOption value="custom">{t('editor.category.custom', 'Custom')}</SingleSelectOption>
+                  <SingleSelectOption value="custom">
+                    {t('editor.category.custom', 'Custom')}
+                  </SingleSelectOption>
                 </SingleSelect>
               </Field.Root>
             </FieldWrapper>
@@ -841,7 +888,11 @@ const EditorPage = () => {
 
           {!isCoreEmail && (
             <SwitchWrapper>
-              <Typography variant="omega" fontWeight="semiBold" id="magic-mail-template-active-label">
+              <Typography
+                variant="omega"
+                fontWeight="semiBold"
+                id="magic-mail-template-active-label"
+              >
                 {t('editor.fields.active', 'Template active')}
               </Typography>
               <Switch
@@ -886,7 +937,10 @@ const EditorPage = () => {
                     {t('editor.designer.errorTitle', 'Visual Designer could not load')}
                   </Typography>
                   <Typography variant="omega" textColor="neutral600">
-                    {t('editor.designer.errorText', 'The visual editor is unavailable. You can continue in Plain Text.')}
+                    {t(
+                      'editor.designer.errorText',
+                      'The visual editor is unavailable. You can continue in Plain Text.'
+                    )}
                   </Typography>
                   <Typography variant="pi" textColor="neutral600">
                     {t(
@@ -923,12 +977,18 @@ const EditorPage = () => {
                 </EditorCanvas>
               ) : (
                 <ReadOnlyPanel>
-                  <DesignerLoadingContainer role="status" style={{ minHeight: 0, padding: '8px 0' }}>
+                  <DesignerLoadingContainer
+                    role="status"
+                    style={{ minHeight: 0, padding: '8px 0' }}
+                  >
                     <Typography variant="beta" tag="h2">
                       {t('editor.readOnly.title', 'Read-only view')}
                     </Typography>
                     <Typography variant="omega" textColor="neutral600">
-                      {t('editor.readOnly.text', 'Editing this template requires the MagicMail manage permission.')}
+                      {t(
+                        'editor.readOnly.text',
+                        'Editing this template requires the MagicMail manage permission.'
+                      )}
                     </Typography>
                   </DesignerLoadingContainer>
                   {templateData.bodyHtml ? (
@@ -975,7 +1035,9 @@ const EditorPage = () => {
         loadError={versionsError}
         onRetry={fetchVersions}
         canManage={canManage}
-        onRestore={(version, number) => guard.runGuarded(() => setPendingRestore({ version, number }))}
+        onRestore={(version, number) =>
+          guard.runGuarded(() => setPendingRestore({ version, number }))
+        }
         onDelete={(version, number) => setPendingVersionDelete({ version, number })}
         onDeleteAll={() => setConfirmDeleteAll(true)}
       />
@@ -998,12 +1060,18 @@ const EditorPage = () => {
       <ConfirmDialog
         isOpen={canManage && pendingVersionDelete !== null}
         title={t('editor.versions.delete.title', 'Delete this version?')}
-        description={t('editor.versions.delete.body', 'Delete version {number}? This cannot be undone.', {
-          number: pendingVersionDelete?.number ?? '',
-        })}
+        description={t(
+          'editor.versions.delete.body',
+          'Delete version {number}? This cannot be undone.',
+          {
+            number: pendingVersionDelete?.number ?? '',
+          }
+        )}
         confirmLabel={t('common.delete', 'Delete')}
         confirmIcon={<TrashIcon width={16} height={16} aria-hidden="true" />}
-        onConfirm={() => handleDeleteVersion(pendingVersionDelete.version, pendingVersionDelete.number)}
+        onConfirm={() =>
+          handleDeleteVersion(pendingVersionDelete.version, pendingVersionDelete.number)
+        }
         onClose={() => setPendingVersionDelete(null)}
       />
 

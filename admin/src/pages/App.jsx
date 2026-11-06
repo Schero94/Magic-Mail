@@ -1,7 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Box, Tabs, Flex } from '@strapi/design-system';
 import { Page } from '@strapi/strapi/admin';
-import { EnvelopeIcon, FunnelIcon, DocumentTextIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import {
+  EnvelopeIcon,
+  FunnelIcon,
+  DocumentTextIcon,
+  ChartBarIcon,
+} from '@heroicons/react/24/outline';
 import HomePage from './HomePage';
 import RoutingRules from './RoutingRules';
 import TemplateList from './EmailDesigner/TemplateList';
@@ -47,7 +52,11 @@ const App = () => {
   const tabs = [
     { value: 'accounts', Icon: EnvelopeIcon, label: t('app.tabs.accounts', 'Email Accounts') },
     { value: 'routing', Icon: FunnelIcon, label: t('app.tabs.routing', 'Routing Rules') },
-    { value: 'templates', Icon: DocumentTextIcon, label: t('app.tabs.templates', 'Email Templates') },
+    {
+      value: 'templates',
+      Icon: DocumentTextIcon,
+      label: t('app.tabs.templates', 'Email Templates'),
+    },
     { value: 'analytics', Icon: ChartBarIcon, label: t('app.tabs.analytics', 'Analytics') },
   ];
 

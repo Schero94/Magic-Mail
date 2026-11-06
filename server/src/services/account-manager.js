@@ -22,12 +22,13 @@ const IDENTITY_FIELDS = ['host', 'port', 'user', 'clientId', 'tenantId', 'domain
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
 
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 /**
  * Account Manager Service
@@ -47,14 +48,14 @@ module.exports = ({ strapi }) => ({
     if (idOrDocumentId && !/^\d+$/.test(String(idOrDocumentId))) {
       return String(idOrDocumentId);
     }
-    
+
     // Otherwise, find by numeric id
     const accounts = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
       filters: { id: Number(idOrDocumentId) },
       fields: ['documentId'],
       limit: 1,
     });
-    
+
     return accounts.length > 0 ? accounts[0].documentId : null;
   },
 
@@ -122,11 +123,11 @@ module.exports = ({ strapi }) => ({
     if (!documentId) {
       throw new errors.NotFoundError('Email account not found');
     }
-    
+
     const existingAccount = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({
       documentId,
     });
-    
+
     if (!existingAccount) {
       throw new errors.NotFoundError('Email account not found');
     }
@@ -149,9 +150,12 @@ module.exports = ({ strapi }) => ({
     const previousName = existingAccount.name;
     const providerChanged = provider !== undefined && provider !== existingAccount.provider;
     if (providerChanged && !config) {
-      throw new errors.ValidationError('Changing the provider requires a complete provider configuration', {
-        config: ['Required when the provider changes'],
-      });
+      throw new errors.ValidationError(
+        'Changing the provider requires a complete provider configuration',
+        {
+          config: ['Required when the provider changes'],
+        }
+      );
     }
 
     let encryptedConfig = existingAccount.config;
@@ -224,7 +228,7 @@ module.exports = ({ strapi }) => ({
     if (!documentId) {
       throw new errors.NotFoundError('Email account not found');
     }
-    
+
     const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({
       documentId,
     });
@@ -239,20 +243,16 @@ module.exports = ({ strapi }) => ({
     const emailRouter = strapi.plugin('magic-mail').service('email-router');
 
     // Extract test options
-    const {
-      priority = 'normal',
-      type = 'transactional',
-      unsubscribeUrl = null,
-      cc,
-    } = testOptions;
+    const { priority = 'normal', type = 'transactional', unsubscribeUrl = null, cc } = testOptions;
 
     try {
-      await emailRouter.send({
-        to: recipient,
-        cc: cc || undefined,
-        subject: 'MagicMail Test Email',
-        text: `This is a test email from MagicMail account: ${account.name}\n\nPriority: ${priority}\nType: ${type}\n\nProvider: ${account.provider}\nFrom: ${account.fromEmail}\n\nIf you receive this, your email account is configured correctly!`,
-        html: `
+      await emailRouter.send(
+        {
+          to: recipient,
+          cc: cc || undefined,
+          subject: 'MagicMail Test Email',
+          text: `This is a test email from MagicMail account: ${account.name}\n\nPriority: ${priority}\nType: ${type}\n\nProvider: ${account.provider}\nFrom: ${account.fromEmail}\n\nIf you receive this, your email account is configured correctly!`,
+          html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #0EA5E9;">MagicMail Test Email</h2>
             <p>This is a test email from account: <strong>${escapeHtml(account.name)}</strong></p>
@@ -288,21 +288,23 @@ module.exports = ({ strapi }) => ({
             ${unsubscribeUrl ? `<p style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB;"><a href="${escapeHtml(unsubscribeUrl)}" style="color: #6B7280; font-size: 12px;">Unsubscribe</a></p>` : ''}
           </div>
         `,
-        priority,
-        type,
-        unsubscribeUrl,
-      }, {
-        // Test exactly this account (also before activation); never fail
-        // over to another account and report that as a successful test.
-        accountDocumentId: account.documentId,
-        allowInactive: true,
-        source: 'account-test',
-      });
+          priority,
+          type,
+          unsubscribeUrl,
+        },
+        {
+          // Test exactly this account (also before activation); never fail
+          // over to another account and report that as a successful test.
+          accountDocumentId: account.documentId,
+          allowInactive: true,
+          source: 'account-test',
+        }
+      );
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: `Test email sent successfully to ${recipient}`,
-        testConfig: { priority, type, unsubscribeUrl: !!unsubscribeUrl }
+        testConfig: { priority, type, unsubscribeUrl: !!unsubscribeUrl },
       };
     } catch (error) {
       // Never echo raw transport errors (internal hosts, ports, SMTP
@@ -364,7 +366,7 @@ module.exports = ({ strapi }) => ({
         credentialsUnreadable = true;
         strapi.log.warn(
           `[magic-mail] Credentials of account ${account.documentId} could not be decrypted (${describeErrorForLog(err)}). ` +
-          'The encryption key likely changed since the account was saved; the admin must re-enter the secrets.'
+            'The encryption key likely changed since the account was saved; the admin must re-enter the secrets.'
         );
       }
     }
@@ -456,7 +458,9 @@ module.exports = ({ strapi }) => ({
       const text = String(value).trim();
       return key === 'host' || key === 'domain' ? text.toLowerCase() : text;
     };
-    return IDENTITY_FIELDS.filter((key) => key in incoming && norm(key, incoming[key]) !== norm(key, existingPlain[key]));
+    return IDENTITY_FIELDS.filter(
+      (key) => key in incoming && norm(key, incoming[key]) !== norm(key, existingPlain[key])
+    );
   },
 
   /**
@@ -476,8 +480,9 @@ module.exports = ({ strapi }) => ({
    * @throws {errors.ValidationError}
    */
   _mergeConfig(existingPlain, incoming, { providerChanged = false, unreadable = false } = {}) {
-    const stored = providerChanged || unreadable ? {} : (existingPlain || {});
-    const identityChanged = providerChanged || this._changedIdentityFields(existingPlain || {}, incoming).length > 0;
+    const stored = providerChanged || unreadable ? {} : existingPlain || {};
+    const identityChanged =
+      providerChanged || this._changedIdentityFields(existingPlain || {}, incoming).length > 0;
     const keepSecrets = !identityChanged && !unreadable;
     const missing = [];
 
@@ -522,7 +527,10 @@ module.exports = ({ strapi }) => ({
         ? 'The stored secret can not be decrypted; enter it again'
         : 'Enter the secret again: the provider, server or account identity changed';
       const details = { config: missing.map((field) => `${field}: ${reason}`) };
-      throw new errors.ValidationError(`Re-enter the stored secret(s): ${missing.join(', ')}`, details);
+      throw new errors.ValidationError(
+        `Re-enter the stored secret(s): ${missing.join(', ')}`,
+        details
+      );
     }
 
     return out;
@@ -542,12 +550,14 @@ module.exports = ({ strapi }) => ({
     for (const rule of rules) {
       const data = {};
       if (String(rule.accountName || '').toLowerCase() === wanted) data.accountName = newName;
-      if (String(rule.fallbackAccountName || '').toLowerCase() === wanted) data.fallbackAccountName = newName;
+      if (String(rule.fallbackAccountName || '').toLowerCase() === wanted)
+        data.fallbackAccountName = newName;
       if (Object.keys(data).length === 0) continue;
       await strapi.documents(ROUTING_RULE_UID).update({ documentId: rule.documentId, data });
       updated += 1;
     }
-    if (updated > 0) strapi.log.info(`[magic-mail] Updated ${updated} routing rule(s) after an account rename`);
+    if (updated > 0)
+      strapi.log.info(`[magic-mail] Updated ${updated} routing rule(s) after an account rename`);
     return updated;
   },
 

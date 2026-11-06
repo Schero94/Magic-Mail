@@ -11,7 +11,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { loadAdminModule, ROOT } = require('./helpers/load-admin-module');
-const { findCssVarTokens, findTinyRemFontSizes, findEmoji } = require('./helpers/admin-style-guards');
+const {
+  findCssVarTokens,
+  findTinyRemFontSizes,
+  findEmoji,
+} = require('./helpers/admin-style-guards');
 
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 const ANALYTICS = 'admin/src/pages/Analytics.jsx';
@@ -31,14 +35,26 @@ test('UI-10: email log requests carry the page and the trimmed search term to th
   assert.equal(first.searchParams.get('pageSize'), String(logs.LOGS_PAGE_SIZE));
   assert.equal(first.searchParams.has('search'), false, 'no search parameter without a term');
 
-  const searched = parse(logs.buildEmailLogsUrl({ page: 3, pageSize: 25, search: '  jane&co@example.com ' }));
+  const searched = parse(
+    logs.buildEmailLogsUrl({ page: 3, pageSize: 25, search: '  jane&co@example.com ' })
+  );
   assert.equal(searched.searchParams.get('page'), '3');
-  assert.equal(searched.searchParams.get('search'), 'jane&co@example.com', 'term is trimmed and URL-encoded');
+  assert.equal(
+    searched.searchParams.get('search'),
+    'jane&co@example.com',
+    'term is trimmed and URL-encoded'
+  );
 
-  const clamped = parse(logs.buildEmailLogsUrl({ page: -2, pageSize: 5000, search: 'x'.repeat(900) }));
+  const clamped = parse(
+    logs.buildEmailLogsUrl({ page: -2, pageSize: 5000, search: 'x'.repeat(900) })
+  );
   assert.equal(clamped.searchParams.get('page'), '1');
   assert.equal(clamped.searchParams.get('pageSize'), '100', 'never above the server maximum');
-  assert.equal(clamped.searchParams.get('search').length, logs.MAX_SEARCH_LENGTH, 'stays within the API limit');
+  assert.equal(
+    clamped.searchParams.get('search').length,
+    logs.MAX_SEARCH_LENGTH,
+    'stays within the API limit'
+  );
 
   assert.equal(parse(logs.buildEmailLogsUrl({ search: '   ' })).searchParams.has('search'), false);
 });
@@ -64,11 +80,16 @@ test('FUN-18: Clear All keeps calling the API while it reports hasMore', async (
   });
   assert.deepEqual(result, { deletedCount: 20042, complete: true });
   assert.equal(calls.length, 3);
-  assert.ok(calls.every((url) => url === '/magic-mail/analytics/emails'), 'never sends olderThan or other filters');
+  assert.ok(
+    calls.every((url) => url === '/magic-mail/analytics/emails'),
+    'never sends olderThan or other filters'
+  );
 });
 
 test('FUN-18: Clear All stops and reports an incomplete purge instead of looping forever', async () => {
-  const stuck = await logs.clearAllEmailLogsInBatches(async () => ({ data: { deletedCount: 0, hasMore: true } }));
+  const stuck = await logs.clearAllEmailLogsInBatches(async () => ({
+    data: { deletedCount: 0, hasMore: true },
+  }));
   assert.deepEqual(stuck, { deletedCount: 0, complete: false });
 
   let rounds = 0;
@@ -82,7 +103,9 @@ test('FUN-18: Clear All stops and reports an incomplete purge instead of looping
   assert.deepEqual(capped, { deletedCount: 3, complete: false });
   assert.equal(rounds, 3);
 
-  const empty = await logs.clearAllEmailLogsInBatches(async () => ({ data: { deletedCount: 0, hasMore: false } }));
+  const empty = await logs.clearAllEmailLogsInBatches(async () => ({
+    data: { deletedCount: 0, hasMore: false },
+  }));
   assert.deepEqual(empty, { deletedCount: 0, complete: true });
 
   await assert.rejects(
@@ -95,7 +118,10 @@ test('FUN-18: Clear All stops and reports an incomplete purge instead of looping
 });
 
 test('server error messages are surfaced, generic ones fall back', () => {
-  assert.equal(logs.apiErrorMessage({ response: { data: { error: { message: 'Invalid URL' } } } }), 'Invalid URL');
+  assert.equal(
+    logs.apiErrorMessage({ response: { data: { error: { message: 'Invalid URL' } } } }),
+    'Invalid URL'
+  );
   assert.equal(logs.apiErrorMessage({ response: { data: { message: ' Nope ' } } }), 'Nope');
   assert.equal(logs.apiErrorMessage(new Error('x')), null);
   assert.equal(logs.apiErrorMessage(undefined), null);
@@ -121,11 +147,23 @@ test('UI-M03: settings are normalised from the API and only changed keys are sav
     unsubscribeUrl: '',
     enableUnsubscribeHeader: true,
   });
-  assert.equal('trackingFallbackUrl' in loaded, false, 'settings the form does not edit are never echoed back');
+  assert.equal(
+    'trackingFallbackUrl' in loaded,
+    false,
+    'settings the form does not edit are never echoed back'
+  );
 
-  assert.deepEqual(settingsLib.diffSettings(loaded, { ...loaded }), {}, 'no changes means nothing to save');
   assert.deepEqual(
-    settingsLib.diffSettings(loaded, { ...loaded, enableOpenTracking: false, defaultFromEmail: ' team@example.com ' }),
+    settingsLib.diffSettings(loaded, { ...loaded }),
+    {},
+    'no changes means nothing to save'
+  );
+  assert.deepEqual(
+    settingsLib.diffSettings(loaded, {
+      ...loaded,
+      enableOpenTracking: false,
+      defaultFromEmail: ' team@example.com ',
+    }),
     { enableOpenTracking: false, defaultFromEmail: 'team@example.com' }
   );
 });
@@ -160,9 +198,20 @@ test('UI-16: settings validation flags bad URLs and email addresses per field', 
     {},
     'the {{email}} placeholder is accepted'
   );
-  assert.deepEqual(settingsLib.validateSettings({ ...base, unsubscribeUrl: 'mailto:unsubscribe@example.com' }), {});
-  assert.equal(settingsLib.validateSettings({ ...base, trackingBaseUrl: 'mailto:x@example.com' }).trackingBaseUrl, 'invalidProtocol');
-  assert.equal(settingsLib.validateSettings({ ...base, trackingBaseUrl: 'https://exa mple.com' }).trackingBaseUrl, 'invalidUrl');
+  assert.deepEqual(
+    settingsLib.validateSettings({ ...base, unsubscribeUrl: 'mailto:unsubscribe@example.com' }),
+    {}
+  );
+  assert.equal(
+    settingsLib.validateSettings({ ...base, trackingBaseUrl: 'mailto:x@example.com' })
+      .trackingBaseUrl,
+    'invalidProtocol'
+  );
+  assert.equal(
+    settingsLib.validateSettings({ ...base, trackingBaseUrl: 'https://exa mple.com' })
+      .trackingBaseUrl,
+    'invalidUrl'
+  );
 });
 
 test('UI-16: plain-http tracking URLs outside localhost are flagged as insecure', () => {
@@ -193,12 +242,23 @@ for (const file of [ANALYTICS, SETTINGS]) {
 
 test('UI-10/UI-M05/FUN-18: Analytics pages and searches on the server and shows stats errors with retry', () => {
   const src = read(ANALYTICS);
-  assert.match(src, /buildEmailLogsUrl\(\{ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm \}\)/);
-  assert.doesNotMatch(src, /pageSize=50|emailLogs\.filter\(/, 'no client-side filtering of a single page');
+  assert.match(
+    src,
+    /buildEmailLogsUrl\(\{ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm \}\)/
+  );
+  assert.doesNotMatch(
+    src,
+    /pageSize=50|emailLogs\.filter\(/,
+    'no client-side filtering of a single page'
+  );
   assert.match(src, /clearAllEmailLogsInBatches\(del\)/, 'Clear All drains every batch');
   assert.match(src, /setStatsError\(true\)/, 'a failed stats request is tracked');
   assert.match(src, /statsError \? '-'/, 'unknown counters are not shown as zero');
-  assert.match(src, /<SearchField\s+label=\{t\('analytics\.search\.label'/, 'the search field has an accessible name');
+  assert.match(
+    src,
+    /<SearchField\s+label=\{t\('analytics\.search\.label'/,
+    'the search field has an accessible name'
+  );
   assert.match(src, /<PaginationBar aria-label=\{t\('analytics\.pagination\.label'/);
   assert.match(src, /count: totalLogs/, 'the confirmation counts all logs, not one page');
   assert.match(src, /useFormatters/);
@@ -206,7 +266,11 @@ test('UI-10/UI-M05/FUN-18: Analytics pages and searches on the server and shows 
 
 test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load and guards edits', () => {
   const src = read(SETTINGS);
-  assert.match(src, /if \(loadError \|\| !initialSettings\)/, 'a failed load renders the error state, not defaults');
+  assert.match(
+    src,
+    /if \(loadError \|\| !initialSettings\)/,
+    'a failed load renders the error state, not defaults'
+  );
   assert.match(src, /onClick=\{fetchSettings\}/, 'the error state offers a retry');
   assert.match(src, /put\('\/magic-mail\/settings', changes\)/, 'only changed keys are sent');
   assert.match(src, /apiErrorMessage\(err\)/, 'server validation messages reach the user');
@@ -215,6 +279,14 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
   assert.match(src, /<UnsavedChangesDialog guard=\{guard\} \/>/);
   assert.match(src, /<PluginPageTitle>/);
   assert.match(src, /disabled=\{!hasChanges \|\| !canManage \|\| !isValid\}/);
-  assert.match(src, /color: #e2e8f0;/i, 'code snippet text is readable on the dark snippet background');
-  assert.equal((src.match(/<Field\.Error \/>/g) ?? []).length, 4, 'every text input shows its validation error');
+  assert.match(
+    src,
+    /color: #e2e8f0;/i,
+    'code snippet text is readable on the dark snippet background'
+  );
+  assert.equal(
+    (src.match(/<Field\.Error \/>/g) ?? []).length,
+    4,
+    'every text input shows its validation error'
+  );
 });

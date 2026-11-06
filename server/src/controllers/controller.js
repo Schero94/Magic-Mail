@@ -126,7 +126,12 @@ module.exports = {
 
       ctx.body = { success: true, ...result };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error sending message', 'Failed to send message');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error sending message',
+        'Failed to send message'
+      );
     }
   },
 };

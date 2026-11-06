@@ -99,7 +99,11 @@ const useStripOAuthCallbackParams = () => {
     params.delete('oauth_code');
     params.delete('oauth_state');
     const query = params.toString();
-    window.history.replaceState(window.history.state, document.title, `${window.location.pathname}${query ? `?${query}` : ''}`);
+    window.history.replaceState(
+      window.history.state,
+      document.title,
+      `${window.location.pathname}${query ? `?${query}` : ''}`
+    );
     toggleNotification({
       type: 'warning',
       message: t(
@@ -111,7 +115,12 @@ const useStripOAuthCallbackParams = () => {
 };
 
 const HomePage = () => {
-  const { canManage, canTestSend, isLoading: permissionsLoading, error: permissionsError } = useMagicMailRBAC();
+  const {
+    canManage,
+    canTestSend,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+  } = useMagicMailRBAC();
   const { get, post, del } = useFetchClient();
   const { toggleNotification } = useNotification();
   const { t } = useMagicMailIntl();
@@ -148,7 +157,11 @@ const HomePage = () => {
       console.error('[magic-mail] Failed to fetch email accounts');
       setLoadError(true);
     }
-    setRules(rulesResult.status === 'fulfilled' && Array.isArray(rulesResult.value?.data?.data) ? rulesResult.value.data.data : null);
+    setRules(
+      rulesResult.status === 'fulfilled' && Array.isArray(rulesResult.value?.data?.data)
+        ? rulesResult.value.data.data
+        : null
+    );
     setLoading(false);
   }, [get]);
 
@@ -183,7 +196,9 @@ const HomePage = () => {
       toggleNotification({
         type: 'danger',
         message: data?.message
-          ? t('accounts.test.failedReason', 'The test email failed: {reason}', { reason: data.message })
+          ? t('accounts.test.failedReason', 'The test email failed: {reason}', {
+              reason: data.message,
+            })
           : t('accounts.test.failed', 'The test email failed.'),
       });
       return false;
@@ -231,8 +246,11 @@ const HomePage = () => {
     provider: filterProvider,
   });
   const providers = uniqueProviders(accounts);
-  const filtersActive = searchQuery.trim() !== '' || filterStatus !== 'all' || filterProvider !== 'all';
-  const pendingDeleteRuleCount = pendingDelete ? countRulesForAccount(rules, pendingDelete.name) : null;
+  const filtersActive =
+    searchQuery.trim() !== '' || filterStatus !== 'all' || filterProvider !== 'all';
+  const pendingDeleteRuleCount = pendingDelete
+    ? countRulesForAccount(rules, pendingDelete.name)
+    : null;
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -244,15 +262,31 @@ const HomePage = () => {
     if (loadError) {
       return (
         <EmptyState role="alert">
-          <Flex direction="column" alignItems="center" gap={6} style={{ position: 'relative', zIndex: 1 }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
             <EmptyIconCircle $danger>
               <ExclamationTriangleIcon aria-hidden="true" />
             </EmptyIconCircle>
-            <SectionHeading tag="h2" textColor="neutral800" style={{ fontSize: '2rem', fontWeight: 700 }}>
+            <SectionHeading
+              tag="h2"
+              textColor="neutral800"
+              style={{ fontSize: '2rem', fontWeight: 700 }}
+            >
               {t('accounts.error.title', 'Email accounts could not be loaded')}
             </SectionHeading>
-            <Typography variant="omega" textColor="neutral600" style={{ maxWidth: '500px', lineHeight: '1.6' }}>
-              {t('accounts.error.body', 'Check your connection and try again. If the problem persists, check the server logs.')}
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ maxWidth: '500px', lineHeight: '1.6' }}
+            >
+              {t(
+                'accounts.error.body',
+                'Check your connection and try again. If the problem persists, check the server logs.'
+              )}
             </Typography>
             <GradientButton onClick={fetchAccounts} loading={loading}>
               {t('accounts.error.retry', 'Try again')}
@@ -269,23 +303,45 @@ const HomePage = () => {
             <EnvelopeIcon />
           </FloatingIcon>
 
-          <Flex direction="column" alignItems="center" gap={6} style={{ position: 'relative', zIndex: 1 }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
             <EmptyIconCircle>
               <EnvelopeIcon aria-hidden="true" />
             </EmptyIconCircle>
 
-            <SectionHeading tag="h2" textColor="neutral800" style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>
+            <SectionHeading
+              tag="h2"
+              textColor="neutral800"
+              style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}
+            >
               {t('accounts.empty.title', 'No email accounts yet')}
             </SectionHeading>
 
-            <Typography variant="omega" textColor="neutral600" style={{ maxWidth: '500px', lineHeight: '1.6' }}>
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ maxWidth: '500px', lineHeight: '1.6' }}
+            >
               {canManage
-                ? t('accounts.empty.body', 'Add your first email account to start sending emails through MagicMail’s multi-account routing.')
-                : t('accounts.empty.readOnly', 'No email accounts have been set up yet. Ask an administrator with manage permission to add one.')}
+                ? t(
+                    'accounts.empty.body',
+                    'Add your first email account to start sending emails through MagicMail’s multi-account routing.'
+                  )
+                : t(
+                    'accounts.empty.readOnly',
+                    'No email accounts have been set up yet. Ask an administrator with manage permission to add one.'
+                  )}
             </Typography>
 
             {canManage && (
-              <CTAButton startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />} onClick={() => setShowAddModal(true)}>
+              <CTAButton
+                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+                onClick={() => setShowAddModal(true)}
+              >
                 {t('accounts.empty.cta', 'Add first account')}
               </CTAButton>
             )}
@@ -300,7 +356,10 @@ const HomePage = () => {
           <SectionHeaderRow justifyContent="space-between" alignItems="center" marginBottom={4}>
             <SectionHeading>{t('accounts.section.title', 'Email accounts')}</SectionHeading>
             {canManage && (
-              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />} onClick={() => setShowAddModal(true)}>
+              <GradientButton
+                startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+                onClick={() => setShowAddModal(true)}
+              >
                 {t('accounts.add', 'Add account')}
               </GradientButton>
             )}
@@ -323,10 +382,18 @@ const HomePage = () => {
               placeholder={t('accounts.filters.statusPlaceholder', 'Status')}
               size="S"
             >
-              <SingleSelectOption value="all">{t('accounts.filters.allAccounts', 'All accounts')}</SingleSelectOption>
-              <SingleSelectOption value="active">{t('accounts.status.active', 'Active')}</SingleSelectOption>
-              <SingleSelectOption value="inactive">{t('accounts.status.inactive', 'Inactive')}</SingleSelectOption>
-              <SingleSelectOption value="primary">{t('accounts.status.primary', 'Primary')}</SingleSelectOption>
+              <SingleSelectOption value="all">
+                {t('accounts.filters.allAccounts', 'All accounts')}
+              </SingleSelectOption>
+              <SingleSelectOption value="active">
+                {t('accounts.status.active', 'Active')}
+              </SingleSelectOption>
+              <SingleSelectOption value="inactive">
+                {t('accounts.status.inactive', 'Inactive')}
+              </SingleSelectOption>
+              <SingleSelectOption value="primary">
+                {t('accounts.status.primary', 'Primary')}
+              </SingleSelectOption>
             </SingleSelect>
           </FilterSelectBox>
 
@@ -338,7 +405,9 @@ const HomePage = () => {
               placeholder={t('accounts.filters.providerPlaceholder', 'Provider')}
               size="S"
             >
-              <SingleSelectOption value="all">{t('accounts.filters.allProviders', 'All providers')}</SingleSelectOption>
+              <SingleSelectOption value="all">
+                {t('accounts.filters.allProviders', 'All providers')}
+              </SingleSelectOption>
               {providers.map((provider) => (
                 <SingleSelectOption key={provider} value={provider}>
                   {providerName(provider)}
@@ -357,7 +426,12 @@ const HomePage = () => {
                   <Th>{t('accounts.table.account', 'Account')}</Th>
                   <Th>{t('accounts.table.provider', 'Provider')}</Th>
                   <Th>
-                    <span title={t('accounts.table.priorityHint', 'Routing priority (higher = preferred)')}>
+                    <span
+                      title={t(
+                        'accounts.table.priorityHint',
+                        'Routing priority (higher = preferred)'
+                      )}
+                    >
                       {t('accounts.table.priority', 'Priority')}
                     </span>
                   </Th>
@@ -378,7 +452,9 @@ const HomePage = () => {
                         <Flex alignItems="center" gap={2}>
                           <OnlineBadge $active={account.isActive} aria-hidden="true" />
                           <Badge variant={account.isActive ? 'success' : 'neutral'} size="S">
-                            {account.isActive ? t('accounts.status.active', 'Active') : t('accounts.status.inactive', 'Inactive')}
+                            {account.isActive
+                              ? t('accounts.status.active', 'Active')
+                              : t('accounts.status.inactive', 'Inactive')}
                           </Badge>
                         </Flex>
                       </Td>
@@ -413,7 +489,9 @@ const HomePage = () => {
 
                       <Td>
                         <Badge size="S" variant="secondary">
-                          {t('accounts.table.priorityValue', '{priority}/10', { priority: account.priority ?? 1 })}
+                          {t('accounts.table.priorityValue', '{priority}/10', {
+                            priority: account.priority ?? 1,
+                          })}
                         </Badge>
                       </Td>
 
@@ -423,11 +501,13 @@ const HomePage = () => {
                             {formatNumber(account.emailsSentToday || 0)}
                             {account.dailyLimit > 0 ? (
                               <Typography variant="pi" textColor="neutral600" tag="span">
-                                {' '}/ {formatNumber(account.dailyLimit)}
+                                {' '}
+                                / {formatNumber(account.dailyLimit)}
                               </Typography>
                             ) : (
                               <Typography variant="pi" textColor="neutral600" tag="span">
-                                {' '}({t('accounts.table.unlimited', 'unlimited')})
+                                {' '}
+                                ({t('accounts.table.unlimited', 'unlimited')})
                               </Typography>
                             )}
                           </Typography>
@@ -437,21 +517,37 @@ const HomePage = () => {
                               aria-valuemin={0}
                               aria-valuemax={100}
                               aria-valuenow={Math.min(usagePercent, 100)}
-                              aria-label={t('accounts.table.usageLabel', 'Daily limit used: {percent}%', { percent: usagePercent })}
+                              aria-label={t(
+                                'accounts.table.usageLabel',
+                                'Daily limit used: {percent}%',
+                                { percent: usagePercent }
+                              )}
                             >
-                              <UsageFill $danger={isNearLimit} style={{ width: `${Math.min(usagePercent, 100)}%` }} />
+                              <UsageFill
+                                $danger={isNearLimit}
+                                style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                              />
                             </UsageTrack>
                           )}
                         </Flex>
                       </Td>
 
                       <Td>
-                        <Typography fontWeight="semiBold">{formatNumber(account.totalEmailsSent || 0)}</Typography>
+                        <Typography fontWeight="semiBold">
+                          {formatNumber(account.totalEmailsSent || 0)}
+                        </Typography>
                       </Td>
 
                       <Td>
-                        <Typography variant="pi" textColor={account.lastUsed ? 'neutral600' : 'neutral500'}>
-                          {formatDateTime(account.lastUsed, undefined, t('accounts.table.never', 'Never'))}
+                        <Typography
+                          variant="pi"
+                          textColor={account.lastUsed ? 'neutral600' : 'neutral500'}
+                        >
+                          {formatDateTime(
+                            account.lastUsed,
+                            undefined,
+                            t('accounts.table.never', 'Never')
+                          )}
                         </Typography>
                       </Td>
 
@@ -464,7 +560,9 @@ const HomePage = () => {
                                   e.stopPropagation();
                                   setEditingAccount(account);
                                 }}
-                                aria-label={t('accounts.actions.edit', 'Edit account {name}', { name: account.name })}
+                                aria-label={t('accounts.actions.edit', 'Edit account {name}', {
+                                  name: account.name,
+                                })}
                               >
                                 <PencilIcon aria-hidden="true" />
                               </IconButton>
@@ -475,7 +573,9 @@ const HomePage = () => {
                                   e.stopPropagation();
                                   setTestingAccount(account);
                                 }}
-                                aria-label={t('accounts.actions.test', 'Test account {name}', { name: account.name })}
+                                aria-label={t('accounts.actions.test', 'Test account {name}', {
+                                  name: account.name,
+                                })}
                               >
                                 <PlayIcon aria-hidden="true" />
                               </IconButtonPrimary>
@@ -486,7 +586,9 @@ const HomePage = () => {
                                   e.stopPropagation();
                                   setPendingDelete(account);
                                 }}
-                                aria-label={t('accounts.actions.delete', 'Delete account {name}', { name: account.name })}
+                                aria-label={t('accounts.actions.delete', 'Delete account {name}', {
+                                  name: account.name,
+                                })}
                               >
                                 <TrashIcon aria-hidden="true" />
                               </IconButtonDanger>
@@ -501,12 +603,20 @@ const HomePage = () => {
             </StyledTable>
           </TableScroller>
         ) : (
-          <Flex direction="column" alignItems="center" gap={4} padding={8} style={{ textAlign: 'center' }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={4}
+            padding={8}
+            style={{ textAlign: 'center' }}
+          >
             <Typography variant="beta" tag="p" textColor="neutral600">
               {t('accounts.filters.noResults', 'No accounts match your filters')}
             </Typography>
             {filtersActive && (
-              <TertiaryButton onClick={resetFilters}>{t('accounts.filters.reset', 'Reset filters')}</TertiaryButton>
+              <TertiaryButton onClick={resetFilters}>
+                {t('accounts.filters.reset', 'Reset filters')}
+              </TertiaryButton>
             )}
           </Flex>
         )}
@@ -524,7 +634,10 @@ const HomePage = () => {
               {t('accounts.hero.title', 'MagicMail - Email Business Suite')}
             </Title>
             <Subtitle tag="p">
-              {t('accounts.hero.subtitle', 'Multi-account email management with smart routing and OAuth support')}
+              {t(
+                'accounts.hero.subtitle',
+                'Multi-account email management with smart routing and OAuth support'
+              )}
             </Subtitle>
           </Flex>
         </HeaderContent>
@@ -533,7 +646,10 @@ const HomePage = () => {
       {permissionsError ? (
         <Box marginBottom={6}>
           <Typography variant="omega" textColor="danger600" role="alert">
-            {t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')}
+            {t(
+              'common.permissions.loadError',
+              'Your permissions could not be loaded. Reload the page to try again.'
+            )}
           </Typography>
         </Box>
       ) : null}
@@ -544,7 +660,9 @@ const HomePage = () => {
             <StatIcon className="stat-icon" $bg="rgba(2, 132, 199, 0.12)" $tone="primary">
               <EnvelopeIcon aria-hidden="true" />
             </StatIcon>
-            <StatValue className="stat-value" tag="p">{formatNumber(totalSentToday)}</StatValue>
+            <StatValue className="stat-value" tag="p">
+              {formatNumber(totalSentToday)}
+            </StatValue>
             <StatLabel tag="p">{t('accounts.stats.today', 'Emails today')}</StatLabel>
           </StatCard>
 
@@ -552,7 +670,9 @@ const HomePage = () => {
             <StatIcon className="stat-icon" $bg="rgba(22, 163, 74, 0.12)" $tone="success">
               <ServerIcon aria-hidden="true" />
             </StatIcon>
-            <StatValue className="stat-value" tag="p">{formatNumber(totalSent)}</StatValue>
+            <StatValue className="stat-value" tag="p">
+              {formatNumber(totalSent)}
+            </StatValue>
             <StatLabel tag="p">{t('accounts.stats.totalSent', 'Total sent')}</StatLabel>
           </StatCard>
 
@@ -590,7 +710,9 @@ const HomePage = () => {
             setEditingAccount(null);
           }}
           editAccount={editingAccount}
-          referencingRuleCount={editingAccount ? countRulesForAccount(rules, editingAccount.name) : null}
+          referencingRuleCount={
+            editingAccount ? countRulesForAccount(rules, editingAccount.name) : null
+          }
         />
       )}
 
@@ -605,7 +727,9 @@ const HomePage = () => {
       <ConfirmDialog
         isOpen={canManage && pendingDelete !== null}
         title={t('accounts.delete.title', 'Delete email account?')}
-        description={t('accounts.delete.body', 'Delete "{name}"? This cannot be undone.', { name: pendingDelete?.name ?? '' })}
+        description={t('accounts.delete.body', 'Delete "{name}"? This cannot be undone.', {
+          name: pendingDelete?.name ?? '',
+        })}
         confirmLabel={t('common.delete', 'Delete')}
         confirmIcon={<TrashIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
         onConfirm={() => deleteAccount(pendingDelete)}
@@ -617,7 +741,10 @@ const HomePage = () => {
               '{count, plural, one {# routing rule uses this account} other {# routing rules use this account}}. Update the rules, otherwise routing falls back to the default account.',
               { count: pendingDeleteRuleCount }
             )
-          : t('accounts.delete.rulesHint', 'Routing rules that use this account fall back to the default account.')}
+          : t(
+              'accounts.delete.rulesHint',
+              'Routing rules that use this account fall back to the default account.'
+            )}
       </ConfirmDialog>
     </Container>
   );

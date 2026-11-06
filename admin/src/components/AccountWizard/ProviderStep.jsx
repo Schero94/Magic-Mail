@@ -62,28 +62,54 @@ export const ProviderStep = ({ provider, onSelect }) => {
         <ProviderCategoryLabel tag="h3" id="mm-provider-oauth">
           {t('accountModal.providers.oauth', 'OAuth providers')}
         </ProviderCategoryLabel>
-        <ProviderCategoryHint>{t('accountModal.providers.recommended', 'Recommended')}</ProviderCategoryHint>
+        <ProviderCategoryHint>
+          {t('accountModal.providers.recommended', 'Recommended')}
+        </ProviderCategoryHint>
       </ProviderCategoryHeader>
       <ProvidersGrid role="group" aria-labelledby="mm-provider-oauth">
         {tile(
           'gmail-oauth',
-          <ProviderIcon $round $bgColor="rgba(66, 133, 244, 0.22)" $color="#4285F4" $shadowColor="rgba(66, 133, 244, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $round
+            $bgColor="rgba(66, 133, 244, 0.22)"
+            $color="#4285F4"
+            $shadowColor="rgba(66, 133, 244, 0.3)"
+            aria-hidden="true"
+          >
             G
           </ProviderIcon>,
           'Gmail',
-          t('accountModal.providers.gmailTagline', 'Google Workspace and personal accounts · 1-click OAuth')
+          t(
+            'accountModal.providers.gmailTagline',
+            'Google Workspace and personal accounts · 1-click OAuth'
+          )
         )}
         {tile(
           'microsoft-oauth',
-          <ProviderIcon $round $bgColor="rgba(0, 164, 239, 0.22)" $color="#00A4EF" $shadowColor="rgba(0, 164, 239, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $round
+            $bgColor="rgba(0, 164, 239, 0.22)"
+            $color="#00A4EF"
+            $shadowColor="rgba(0, 164, 239, 0.3)"
+            aria-hidden="true"
+          >
             M
           </ProviderIcon>,
           'Microsoft 365',
-          t('accountModal.providers.microsoftTagline', 'Outlook · Exchange · Azure AD · 1-click OAuth')
+          t(
+            'accountModal.providers.microsoftTagline',
+            'Outlook · Exchange · Azure AD · 1-click OAuth'
+          )
         )}
         {tile(
           'yahoo-oauth',
-          <ProviderIcon $round $bgColor="rgba(96, 1, 210, 0.22)" $color="#9C6BF0" $shadowColor="rgba(96, 1, 210, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $round
+            $bgColor="rgba(96, 1, 210, 0.22)"
+            $color="#9C6BF0"
+            $shadowColor="rgba(96, 1, 210, 0.3)"
+            aria-hidden="true"
+          >
             Y
           </ProviderIcon>,
           'Yahoo Mail',
@@ -99,27 +125,51 @@ export const ProviderStep = ({ provider, onSelect }) => {
       <ProvidersGrid role="group" aria-labelledby="mm-provider-custom">
         {tile(
           'smtp',
-          <ProviderIcon $bgColor="rgba(73, 69, 255, 0.22)" $color="#7B78FF" $shadowColor="rgba(73, 69, 255, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $bgColor="rgba(73, 69, 255, 0.22)"
+            $color="#7B78FF"
+            $shadowColor="rgba(73, 69, 255, 0.3)"
+            aria-hidden="true"
+          >
             <Server style={ICON_STYLE} />
           </ProviderIcon>,
           'SMTP',
-          t('accountModal.providers.smtpTagline', 'Any SMTP server · full control over host, port and authentication')
+          t(
+            'accountModal.providers.smtpTagline',
+            'Any SMTP server · full control over host, port and authentication'
+          )
         )}
         {tile(
           'sendgrid',
-          <ProviderIcon $bgColor="rgba(30, 144, 255, 0.22)" $color="#4FA8FF" $shadowColor="rgba(30, 144, 255, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $bgColor="rgba(30, 144, 255, 0.22)"
+            $color="#4FA8FF"
+            $shadowColor="rgba(30, 144, 255, 0.3)"
+            aria-hidden="true"
+          >
             <Cloud style={ICON_STYLE} />
           </ProviderIcon>,
           'SendGrid',
-          t('accountModal.providers.sendgridTagline', 'Transactional API · high deliverability · analytics')
+          t(
+            'accountModal.providers.sendgridTagline',
+            'Transactional API · high deliverability · analytics'
+          )
         )}
         {tile(
           'mailgun',
-          <ProviderIcon $bgColor="rgba(255, 107, 107, 0.22)" $color="#FF8A8A" $shadowColor="rgba(255, 107, 107, 0.3)" aria-hidden="true">
+          <ProviderIcon
+            $bgColor="rgba(255, 107, 107, 0.22)"
+            $color="#FF8A8A"
+            $shadowColor="rgba(255, 107, 107, 0.3)"
+            aria-hidden="true"
+          >
             <Mail style={ICON_STYLE} />
           </ProviderIcon>,
           'Mailgun',
-          t('accountModal.providers.mailgunTagline', 'Developer-first API · EU/US regions · routes and webhooks')
+          t(
+            'accountModal.providers.mailgunTagline',
+            'Developer-first API · EU/US regions · routes and webhooks'
+          )
         )}
       </ProvidersGrid>
     </Box>

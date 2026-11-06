@@ -1,9 +1,9 @@
 /**
  * MagicMail - Comprehensive Test Suite
  * Tests all plugin functionality before release
- * 
+ *
  * Usage: node test-magic-mail.js [--quick|--full]
- * 
+ *
  * Environment Variables:
  *   ADMIN_EMAIL    - Admin email (required)
  *   ADMIN_PASSWORD - Admin password (required)
@@ -33,7 +33,9 @@ const ADMIN_CREDENTIALS = {
 
 // Validate credentials are provided
 if (!ADMIN_CREDENTIALS.email || !ADMIN_CREDENTIALS.password) {
-  console.error('❌ Missing admin credentials. Please set ADMIN_EMAIL and ADMIN_PASSWORD environment variables.');
+  console.error(
+    '❌ Missing admin credentials. Please set ADMIN_EMAIL and ADMIN_PASSWORD environment variables.'
+  );
   console.error('\nExample:');
   console.error('  export ADMIN_EMAIL="admin@example.com"');
   console.error('  export ADMIN_PASSWORD="YourPassword123!"');
@@ -97,7 +99,7 @@ function logCategory(message) {
 }
 
 async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ============================================================
@@ -109,7 +111,7 @@ async function sleep(ms) {
  */
 async function testAdminLogin() {
   logSection('TEST 1: Admin Panel Login');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/admin/login`, {
       method: 'POST',
@@ -138,24 +140,24 @@ async function testAdminLogin() {
  */
 async function testGetAllAccounts() {
   logSection('TEST 2: Get All Email Accounts');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/accounts`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
 
     if (response.ok) {
       logSuccess(`Retrieved ${data.data?.length || 0} email accounts`);
-      logInfo(`Active: ${data.data?.filter(a => a.isActive).length || 0}`);
+      logInfo(`Active: ${data.data?.filter((a) => a.isActive).length || 0}`);
       logInfo(`Total: ${data.meta?.count || 0}`);
-      
+
       if (data.data && data.data.length > 0) {
         TEST_ACCOUNT_ID = data.data[0].id;
         logInfo(`Test Account ID: ${TEST_ACCOUNT_ID}`);
       }
-      
+
       return true;
     } else {
       logError(`Get accounts failed: ${response.status} - ${JSON.stringify(data)}`);
@@ -172,7 +174,7 @@ async function testGetAllAccounts() {
  */
 async function testCreateAccount() {
   logSection('TEST 3: Create Email Account (SMTP)');
-  
+
   try {
     const accountData = {
       name: `Test Account ${Date.now()}`,
@@ -193,22 +195,22 @@ async function testCreateAccount() {
       dailyLimit: 100,
       hourlyLimit: 10,
     };
-    
+
     logInfo(`Creating account: ${accountData.name}`);
     logInfo(`Provider: ${accountData.provider}`);
     logInfo(`Request URL: ${BASE_URL}/magic-mail/accounts`);
-    
+
     const response = await fetch(`${BASE_URL}/magic-mail/accounts`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+      headers: {
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(accountData),
     });
 
     const data = await response.json();
-    
+
     logInfo(`Response Status: ${response.status}`);
     logInfo(`Response Data: ${JSON.stringify(data, null, 2)}`);
 
@@ -234,22 +236,22 @@ async function testCreateAccount() {
  */
 async function testTestAccount() {
   logSection('TEST 4: Test Email Account');
-  
+
   if (!TEST_ACCOUNT_ID) {
     logWarning('No test account ID available, skipping test');
     return null;
   }
-  
+
   try {
     const testEmail = process.env.TEST_EMAIL || 'test@example.com';
-    
+
     const response = await fetch(`${BASE_URL}/magic-mail/accounts/${TEST_ACCOUNT_ID}/test`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+      headers: {
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         to: testEmail,
       }),
     });
@@ -285,16 +287,16 @@ async function testTestAccount() {
  */
 async function testDeleteAccount() {
   logSection('TEST 5: Delete Email Account');
-  
+
   if (!TEST_ACCOUNT_ID) {
     logWarning('No account ID available, skipping');
     return null;
   }
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/accounts/${TEST_ACCOUNT_ID}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
@@ -317,7 +319,7 @@ async function testDeleteAccount() {
  */
 async function testCreateOAuthAccount() {
   logSection('TEST 6: Create Gmail OAuth Account (Test)');
-  
+
   try {
     const accountData = {
       name: `Gmail OAuth Test ${Date.now()}`,
@@ -334,11 +336,11 @@ async function testCreateOAuthAccount() {
       dailyLimit: 500,
       hourlyLimit: 50,
     };
-    
+
     const response = await fetch(`${BASE_URL}/magic-mail/accounts`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+      headers: {
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(accountData),
@@ -351,7 +353,7 @@ async function testCreateOAuthAccount() {
       // Delete it right away
       await fetch(`${BASE_URL}/magic-mail/accounts/${data.data.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
       });
       logInfo('Test OAuth account deleted');
       return true;
@@ -371,18 +373,18 @@ async function testCreateOAuthAccount() {
  */
 async function testStrapiEmailService() {
   logSection('TEST 7: Strapi Email Service Integration');
-  
+
   // Get test email from environment or use default
   const testEmail = process.env.TEST_EMAIL || 'test@example.com';
-  
+
   logInfo(`Testing Strapi Email Service intercept...`);
   logInfo(`Test email will be sent to: ${testEmail}`);
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/test-strapi-service`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+      headers: {
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ testEmail }),
@@ -395,11 +397,11 @@ async function testStrapiEmailService() {
       logInfo(`Method used: ${data.info?.method}`);
       logInfo(`Intercepted: ${data.info?.intercepted ? 'YES' : 'NO'}`);
       logInfo(`Routed through: ${data.info?.routedThrough}`);
-      
+
       if (data.result?.accountUsed) {
         logInfo(`Account used: ${data.result.accountUsed}`);
       }
-      
+
       logSuccess('🎯 Email Designer and other plugins will work seamlessly!');
       return true;
     } else {
@@ -418,26 +420,26 @@ async function testStrapiEmailService() {
  */
 async function testEmailTemplates() {
   logSection('TEST 8: Email Templates');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/designer/templates`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
 
     // Handle different response formats
-    const templates = Array.isArray(data) ? data : (data.data || []);
-    
+    const templates = Array.isArray(data) ? data : data.data || [];
+
     if (response.ok) {
       logSuccess(`Retrieved ${templates.length} email template(s)`);
-      
+
       if (templates.length > 0) {
-        const activeTemplates = templates.filter(t => t.isActive);
+        const activeTemplates = templates.filter((t) => t.isActive);
         logInfo(`Active templates: ${activeTemplates.length}`);
         logInfo(`First template: ${templates[0].name}`);
       }
-      
+
       return true;
     } else {
       logError(`Get templates failed: ${response.status}`);
@@ -454,10 +456,10 @@ async function testEmailTemplates() {
  */
 async function testRoutingRules() {
   logSection('TEST 9: Routing Rules');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/routing-rules`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
@@ -466,12 +468,12 @@ async function testRoutingRules() {
       const rules = data.data || data;
       const count = Array.isArray(rules) ? rules.length : 0;
       logSuccess(`Retrieved ${count} routing rule(s)`);
-      
+
       if (count > 0) {
-        const activeRules = rules.filter(r => r.isActive);
+        const activeRules = rules.filter((r) => r.isActive);
         logInfo(`Active rules: ${activeRules.length}`);
       }
-      
+
       return true;
     } else {
       logError(`Get routing rules failed: ${response.status}`);
@@ -488,10 +490,10 @@ async function testRoutingRules() {
  */
 async function testAnalyticsStats() {
   logSection('TEST 10: Analytics Stats');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/analytics/stats`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
@@ -520,10 +522,10 @@ async function testAnalyticsStats() {
  */
 async function testEmailLogs() {
   logSection('TEST 11: Email Logs');
-  
+
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/analytics/emails?_limit=10`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json();
@@ -532,14 +534,14 @@ async function testEmailLogs() {
       const logs = data.data || data;
       const count = Array.isArray(logs) ? logs.length : 0;
       logSuccess(`Retrieved ${count} email log(s)`);
-      
+
       if (count > 0) {
-        const withOpens = logs.filter(l => l.openCount > 0).length;
-        const withClicks = logs.filter(l => l.clickCount > 0).length;
+        const withOpens = logs.filter((l) => l.openCount > 0).length;
+        const withClicks = logs.filter((l) => l.clickCount > 0).length;
         logInfo(`With opens: ${withOpens}`);
         logInfo(`With clicks: ${withClicks}`);
       }
-      
+
       return true;
     } else {
       logError(`Get email logs failed: ${response.status}`);
@@ -556,7 +558,7 @@ async function testEmailLogs() {
  */
 async function testTrackingPixel() {
   logSection('TEST 13: Tracking Pixel Endpoint');
-  
+
   try {
     // Test public tracking endpoint (no auth required)
     const response = await fetch(`${BASE_URL}/api/magic-mail/track/open/test123/testhash456`);
@@ -583,12 +585,12 @@ async function testPluginBuild() {
     logWarning('Plugin build test skipped (use --full to enable)');
     return null;
   }
-  
+
   logSection('TEST 14: Plugin Build Verification');
-  
+
   const fs = require('fs');
   const path = require('path');
-  
+
   try {
     const requiredFiles = [
       'dist/admin/index.js',
@@ -599,9 +601,9 @@ async function testPluginBuild() {
       'README.md',
       'LICENSE',
     ];
-    
+
     let allFilesExist = true;
-    
+
     for (const file of requiredFiles) {
       if (fs.existsSync(path.join(__dirname, file))) {
         logInfo(`✓ ${file} exists`);
@@ -610,7 +612,7 @@ async function testPluginBuild() {
         allFilesExist = false;
       }
     }
-    
+
     if (allFilesExist) {
       logSuccess('All required build files present');
       return true;
@@ -632,34 +634,34 @@ async function testPerformance() {
     logWarning('Performance test skipped (use --full to enable)');
     return null;
   }
-  
+
   logSection('TEST 15: API Performance');
-  
+
   const endpoints = [
     '/magic-mail/accounts',
     '/magic-mail/designer/templates',
     '/magic-mail/analytics/stats',
   ];
-  
+
   try {
     logInfo('Testing response times...');
-    
+
     for (const endpoint of endpoints) {
       const start = Date.now();
-      
+
       await fetch(`${BASE_URL}${endpoint}`, {
-        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
       });
-      
+
       const duration = Date.now() - start;
-      
+
       if (duration < 1000) {
         logInfo(`✓ ${endpoint}: ${duration}ms`);
       } else {
         logWarning(`⚠ ${endpoint}: ${duration}ms (slow)`);
       }
     }
-    
+
     logSuccess('Performance test completed');
     return true;
   } catch (err) {
@@ -749,7 +751,7 @@ async function testPathTraversalBlocked() {
     const response = await fetch(`${BASE_URL}/api/magic-mail/send`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -774,7 +776,7 @@ async function testPathTraversalBlocked() {
       logError('CRITICAL: Server attempted to read /etc/passwd!');
       return false;
     }
-    
+
     logSuccess('Attachment path fields are stripped from API requests');
     logInfo('Content-based attachments remain intact, file paths are removed');
     return true;
@@ -865,7 +867,7 @@ async function testErrorLeakPrevention() {
   try {
     // Trigger a 500 error with invalid data
     const response = await fetch(`${BASE_URL}/magic-mail/analytics/emails/nonexistent-id-12345`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
     const data = await response.json().catch(() => ({}));
@@ -914,7 +916,7 @@ async function testDesignerStats() {
   logSection('ENDPOINT: Designer Stats');
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/designer/stats`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
     if (response.ok) {
       const data = await response.json();
@@ -937,7 +939,7 @@ async function testCoreTemplate() {
   logSection('ENDPOINT: Core Email Template');
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/designer/core/user-address-confirmation`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
     if (response.ok) {
       logSuccess('Core template endpoint accessible');
@@ -961,7 +963,7 @@ async function testAnalyticsDebug() {
   logSection('ENDPOINT: Analytics Debug');
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/analytics/debug`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
     if (response.ok) {
       logSuccess('Analytics debug endpoint accessible');
@@ -1020,12 +1022,16 @@ async function testPluginSettings() {
   logSection('ENDPOINT: Plugin Settings');
   try {
     const response = await fetch(`${BASE_URL}/magic-mail/settings`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
     if (response.ok) {
       const data = await response.json();
       logSuccess('Plugin settings retrieved');
-      logInfo(`Settings keys: ${Object.keys(data.data || data).join(', ').substring(0, 80)}`);
+      logInfo(
+        `Settings keys: ${Object.keys(data.data || data)
+          .join(', ')
+          .substring(0, 80)}`
+      );
       return true;
     }
     logError(`Plugin settings failed: ${response.status}`);
@@ -1041,14 +1047,22 @@ async function testPluginSettings() {
  */
 async function testContentApiSendEndpoints() {
   logSection('ENDPOINT: Content-API Send Routes (Auth Check)');
-  
+
   const endpoints = [
-    { path: '/api/magic-mail/send', name: 'Send', body: { to: 'test@example.com', subject: 'test', text: 'test' } },
-    { path: '/api/magic-mail/send-message', name: 'Send Message', body: { to: 'test@example.com', message: 'test' } },
+    {
+      path: '/api/magic-mail/send',
+      name: 'Send',
+      body: { to: 'test@example.com', subject: 'test', text: 'test' },
+    },
+    {
+      path: '/api/magic-mail/send-message',
+      name: 'Send Message',
+      body: { to: 'test@example.com', message: 'test' },
+    },
   ];
-  
+
   let allPassed = true;
-  
+
   for (const ep of endpoints) {
     try {
       // Test WITHOUT auth - should be blocked
@@ -1057,7 +1071,7 @@ async function testContentApiSendEndpoints() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ep.body),
       });
-      
+
       if (noAuthResp.status === 401 || noAuthResp.status === 403) {
         logSuccess(`${ep.name} blocked without auth (${noAuthResp.status})`);
       } else {
@@ -1069,7 +1083,7 @@ async function testContentApiSendEndpoints() {
       allPassed = false;
     }
   }
-  
+
   return allPassed;
 }
 
@@ -1078,15 +1092,15 @@ async function testContentApiSendEndpoints() {
  */
 async function testTemplateCrudLifecycle() {
   logSection('ENDPOINT: Template CRUD Lifecycle');
-  
+
   let templateId = null;
-  
+
   try {
     // CREATE
     const createResp = await fetch(`${BASE_URL}/magic-mail/designer/templates`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -1098,52 +1112,55 @@ async function testTemplateCrudLifecycle() {
         templateReferenceId: Date.now(),
       }),
     });
-    
+
     const createData = await createResp.json();
     const template = createData.data || createData;
     templateId = template.documentId || template.id;
-    
+
     if (createResp.ok && templateId) {
       logSuccess(`Template created: ${template.name} (${templateId})`);
     } else {
       logError(`Template create failed: ${createResp.status}`);
       return false;
     }
-    
+
     // READ ONE
     const getResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
-    
+
     if (getResp.ok) {
       logSuccess('Template read (single) works');
     } else {
       logError(`Template read failed: ${getResp.status}`);
     }
-    
+
     // UPDATE
     const updateResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${ADMIN_JWT}`,
+        Authorization: `Bearer ${ADMIN_JWT}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         subject: 'Updated Subject {{name}}',
       }),
     });
-    
+
     if (updateResp.ok) {
       logSuccess('Template update works');
     } else {
       logError(`Template update failed: ${updateResp.status}`);
     }
-    
+
     // GET VERSIONS
-    const versionsResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/versions`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-    
+    const versionsResp = await fetch(
+      `${BASE_URL}/magic-mail/designer/templates/${templateId}/versions`,
+      {
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
+      }
+    );
+
     if (versionsResp.ok) {
       const versionsData = await versionsResp.json();
       const versions = versionsData.data || versionsData;
@@ -1151,13 +1168,16 @@ async function testTemplateCrudLifecycle() {
     } else {
       logWarning(`Template versions: ${versionsResp.status} (may not have versions yet)`);
     }
-    
+
     // DUPLICATE
-    const dupeResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/duplicate`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-    
+    const dupeResp = await fetch(
+      `${BASE_URL}/magic-mail/designer/templates/${templateId}/duplicate`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
+      }
+    );
+
     let dupeId = null;
     if (dupeResp.ok) {
       const dupeData = await dupeResp.json();
@@ -1167,38 +1187,41 @@ async function testTemplateCrudLifecycle() {
     } else {
       logWarning(`Template duplicate: ${dupeResp.status}`);
     }
-    
+
     // DOWNLOAD HTML
-    const downloadResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}/download?type=html`, {
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
-    });
-    
+    const downloadResp = await fetch(
+      `${BASE_URL}/magic-mail/designer/templates/${templateId}/download?type=html`,
+      {
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
+      }
+    );
+
     if (downloadResp.ok) {
       logSuccess('Template download (HTML) works');
     } else {
       logWarning(`Template download: ${downloadResp.status}`);
     }
-    
+
     // DELETE (template + duplicate)
     if (dupeId) {
       await fetch(`${BASE_URL}/magic-mail/designer/templates/${dupeId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+        headers: { Authorization: `Bearer ${ADMIN_JWT}` },
       });
       logInfo('Duplicate template deleted');
     }
-    
+
     const deleteResp = await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+      headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
-    
+
     if (deleteResp.ok) {
       logSuccess('Template delete works');
     } else {
       logError(`Template delete failed: ${deleteResp.status}`);
     }
-    
+
     return true;
   } catch (err) {
     logError(`Template CRUD error: ${err.message}`);
@@ -1207,7 +1230,7 @@ async function testTemplateCrudLifecycle() {
       try {
         await fetch(`${BASE_URL}/magic-mail/designer/templates/${templateId}`, {
           method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${ADMIN_JWT}` },
+          headers: { Authorization: `Bearer ${ADMIN_JWT}` },
         });
       } catch {}
     }
@@ -1220,7 +1243,7 @@ async function testTemplateCrudLifecycle() {
  */
 function printSummary() {
   logSection('TEST SUMMARY');
-  
+
   console.log('');
   log('MAGICMAIL PLUGIN TESTS:', `${colors.cyan}${colors.bold}`);
   log(`  Mode:     ${IS_FULL_TEST ? 'FULL' : 'QUICK'}`, colors.cyan);
@@ -1228,16 +1251,16 @@ function printSummary() {
   log(`  ✅ Passed:  ${results.passed}`, colors.green);
   log(`  ❌ Failed:  ${results.failed}`, colors.red);
   log(`  ⚠️  Skipped: ${results.skipped}`, colors.yellow);
-  
+
   const total = results.passed + results.failed + results.skipped;
   const passRate = total > 0 ? Math.round((results.passed / total) * 100) : 0;
-  
+
   console.log('');
   log('OVERALL:', `${colors.magenta}${colors.bold}`);
   log(`  Total Tests: ${total}`, colors.magenta);
   log(`  Pass Rate:   ${passRate}%`, passRate >= 80 ? colors.green : colors.yellow);
   console.log('');
-  
+
   if (results.failed === 0) {
     log('╔════════════════════════════════════════════════════════════════╗', colors.green);
     log('║  ✓ ALL TESTS PASSED - Plugin is ready for release!            ║', colors.green);
@@ -1247,7 +1270,7 @@ function printSummary() {
     log('║  ✗ TESTS FAILED - Please fix issues before release            ║', colors.red);
     log('╚════════════════════════════════════════════════════════════════╝', colors.red);
   }
-  
+
   console.log('\n' + '='.repeat(70) + '\n');
 }
 
@@ -1258,17 +1281,17 @@ async function runAllTests() {
   log('\n' + '█'.repeat(70), colors.magenta);
   log('  MAGICMAIL - EMAIL BUSINESS SUITE - TEST SUITE', `${colors.magenta}${colors.bold}`);
   log('█'.repeat(70) + '\n', colors.magenta);
-  
+
   logInfo(`Base URL: ${BASE_URL}`);
   logInfo(`Admin Email: ${ADMIN_CREDENTIALS.email}`);
   logInfo(`Test Mode: ${IS_FULL_TEST ? 'FULL (all tests)' : 'QUICK (core tests)'}`);
   console.log('');
-  
+
   // ============================================================
   // CORE TESTS (Always run)
   // ============================================================
   logCategory('CORE FUNCTIONALITY TESTS');
-  
+
   // Authentication
   const loginSuccess = await testAdminLogin();
   if (!loginSuccess) {
@@ -1277,47 +1300,47 @@ async function runAllTests() {
     process.exit(1);
   }
   await sleep(500);
-  
+
   // Account Management
   await testGetAllAccounts();
   await sleep(500);
-  
+
   await testCreateAccount();
   await sleep(500);
-  
+
   // Email Templates
   await testEmailTemplates();
   await sleep(500);
-  
+
   // Routing Rules
   await testRoutingRules();
   await sleep(500);
-  
+
   // Analytics
   await testAnalyticsStats();
   await sleep(500);
-  
+
   await testEmailLogs();
   await sleep(500);
-  
+
   // Tracking
   await testTrackingPixel();
   await sleep(500);
-  
+
   // ============================================================
   // INTEGRATION TESTS
   // ============================================================
   logCategory('INTEGRATION TESTS');
-  
+
   await testTestAccount();
   await sleep(500);
-  
+
   await testCreateOAuthAccount();
   await sleep(500);
-  
+
   await testStrapiEmailService();
   await sleep(500);
-  
+
   // ============================================================
   // SECURITY TESTS
   // ============================================================
@@ -1372,25 +1395,25 @@ async function runAllTests() {
   // ============================================================
   if (IS_FULL_TEST) {
     logCategory('EXTENDED TESTS (FULL MODE)');
-    
+
     await testPluginBuild();
     await sleep(500);
-    
+
     await testPerformance();
     await sleep(500);
   }
-  
+
   // ============================================================
   // CLEANUP
   // ============================================================
   logCategory('CLEANUP');
-  
+
   await testDeleteAccount();
   await sleep(500);
-  
+
   // Print Summary
   printSummary();
-  
+
   // Exit with proper code
   process.exit(results.failed > 0 ? 1 : 0);
 }
@@ -1432,9 +1455,8 @@ Examples:
 }
 
 // Run tests
-runAllTests().catch(err => {
+runAllTests().catch((err) => {
   logError(`Fatal error: ${err.message}`);
   console.error(err);
   process.exit(1);
 });
-

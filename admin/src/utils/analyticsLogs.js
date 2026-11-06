@@ -28,7 +28,8 @@ export const normalizeSearch = (value) =>
 export const buildEmailLogsUrl = ({ page = 1, pageSize = LOGS_PAGE_SIZE, search = '' } = {}) => {
   const params = new URLSearchParams();
   const safePage = Number.isInteger(page) && page > 0 ? page : 1;
-  const safeSize = Number.isInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : LOGS_PAGE_SIZE;
+  const safeSize =
+    Number.isInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : LOGS_PAGE_SIZE;
   params.set('page', String(safePage));
   params.set('pageSize', String(safeSize));
   const term = normalizeSearch(search);

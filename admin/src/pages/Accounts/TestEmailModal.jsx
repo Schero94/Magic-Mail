@@ -68,7 +68,13 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
   const [touched, setTouched] = useState({});
   const optionRefs = { direct: useRef(null), strapi: useRef(null) };
 
-  const errors = validateTestForm({ to: testEmail, cc: testCc, mode: testMode, emailType, unsubscribeUrl });
+  const errors = validateTestForm({
+    to: testEmail,
+    cc: testCc,
+    mode: testMode,
+    emailType,
+    unsubscribeUrl,
+  });
   const hasErrors = Object.keys(errors).length > 0;
   const showError = (field) => Boolean(errors[field] && (touched[field] || touched.submit));
 
@@ -79,11 +85,16 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
     },
     cc: {
       invalid: t('accounts.test.ccInvalid', 'Enter valid email addresses separated by commas.'),
-      tooMany: t('accounts.test.ccTooMany', 'Enter at most {max} CC recipients.', { max: MAX_TEST_CC }),
+      tooMany: t('accounts.test.ccTooMany', 'Enter at most {max} CC recipients.', {
+        max: MAX_TEST_CC,
+      }),
     },
     unsubscribeUrl: {
       required: t('accounts.test.unsubscribeRequired', 'Marketing emails need an unsubscribe URL.'),
-      invalid: t('accounts.test.unsubscribeInvalid', 'Enter a URL that starts with http:// or https://.'),
+      invalid: t(
+        'accounts.test.unsubscribeInvalid',
+        'Enter a URL that starts with http:// or https://.'
+      ),
     },
   };
 
@@ -98,14 +109,18 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
       if (data?.success) {
         toggleNotification({
           type: 'success',
-          message: t('accounts.test.strapiSuccess', 'Strapi email service test sent via {name}.', { name: account.name }),
+          message: t('accounts.test.strapiSuccess', 'Strapi email service test sent via {name}.', {
+            name: account.name,
+          }),
         });
         return true;
       }
       toggleNotification({
         type: 'warning',
         message: data?.message
-          ? t('accounts.test.warningReason', 'The test finished with warnings: {reason}', { reason: data.message })
+          ? t('accounts.test.warningReason', 'The test finished with warnings: {reason}', {
+              reason: data.message,
+            })
           : t('accounts.test.warning', 'The test finished with warnings.'),
       });
       return false;
@@ -114,7 +129,11 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
       toggleNotification({
         type: 'danger',
         message: reason
-          ? t('accounts.test.strapiFailedReason', 'The Strapi email service test failed: {reason}', { reason })
+          ? t(
+              'accounts.test.strapiFailedReason',
+              'The Strapi email service test failed: {reason}',
+              { reason }
+            )
           : t('accounts.test.strapiFailed', 'The Strapi email service test failed.'),
       });
       return false;
@@ -188,10 +207,20 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
         <Flex alignItems="center" gap={3}>
           <Icon className="option-icon" aria-hidden="true" />
           <Box style={{ flex: 1, minWidth: 0 }}>
-            <Typography tag="span" fontWeight="semiBold" className="option-title" style={{ display: 'block', fontSize: '14px' }}>
+            <Typography
+              tag="span"
+              fontWeight="semiBold"
+              className="option-title"
+              style={{ display: 'block', fontSize: '14px' }}
+            >
               {title}
             </Typography>
-            <Typography tag="span" variant="pi" textColor="neutral600" style={{ display: 'block', marginTop: '2px' }}>
+            <Typography
+              tag="span"
+              variant="pi"
+              textColor="neutral600"
+              style={{ display: 'block', marginTop: '2px' }}
+            >
               {description}
             </Typography>
           </Box>
@@ -217,7 +246,12 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
             <AccentText variant="pi" tag="span">
               {t('accounts.test.testing', 'Testing account')}
             </AccentText>
-            <Typography variant="beta" tag="span" textColor="neutral800" style={{ fontSize: '1.8rem', fontWeight: 700, marginTop: '4px' }}>
+            <Typography
+              variant="beta"
+              tag="span"
+              textColor="neutral800"
+              style={{ fontSize: '1.8rem', fontWeight: 700, marginTop: '4px' }}
+            >
               {account.name}
             </Typography>
             <Typography variant="pi" tag="span" textColor="neutral600" style={{ marginTop: '2px' }}>
@@ -226,7 +260,9 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
           </AccountInfoCard>
 
           <Box style={{ marginTop: '20px' }}>
-            <ModalFieldLabel htmlFor={ids.to}>{t('accounts.test.to', 'Recipient email')} *</ModalFieldLabel>
+            <ModalFieldLabel htmlFor={ids.to}>
+              {t('accounts.test.to', 'Recipient email')} *
+            </ModalFieldLabel>
             <StyledModalInput
               id={ids.to}
               placeholder="test@example.com"
@@ -247,11 +283,15 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
               $invalid={showError('to')}
               autoFocus
             />
-            {showError('to') ? <ModalError id={ids.toError}>{errorText.to[errors.to]}</ModalError> : null}
+            {showError('to') ? (
+              <ModalError id={ids.toError}>{errorText.to[errors.to]}</ModalError>
+            ) : null}
           </Box>
 
           <Box style={{ marginTop: '16px' }}>
-            <ModalFieldLabel htmlFor={ids.cc}>{t('accounts.test.cc', 'CC recipients (optional)')}</ModalFieldLabel>
+            <ModalFieldLabel htmlFor={ids.cc}>
+              {t('accounts.test.cc', 'CC recipients (optional)')}
+            </ModalFieldLabel>
             <StyledModalInput
               id={ids.cc}
               placeholder="copy@example.com, second-copy@example.com"
@@ -269,8 +309,12 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
               aria-describedby={describedBy(ids.ccHint, showError('cc') && ids.ccError)}
               $invalid={showError('cc')}
             />
-            <ModalHint id={ids.ccHint}>{t('accounts.test.ccHint', 'Separate multiple addresses with commas.')}</ModalHint>
-            {showError('cc') ? <ModalError id={ids.ccError}>{errorText.cc[errors.cc]}</ModalError> : null}
+            <ModalHint id={ids.ccHint}>
+              {t('accounts.test.ccHint', 'Separate multiple addresses with commas.')}
+            </ModalHint>
+            {showError('cc') ? (
+              <ModalError id={ids.ccError}>{errorText.cc[errors.cc]}</ModalError>
+            ) : null}
           </Box>
 
           <Box style={{ marginTop: '20px' }}>
@@ -280,15 +324,24 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
                 'direct',
                 PlayIcon,
                 t('accounts.test.direct', 'Direct test'),
-                t('accounts.test.directHint', 'Send directly through this account, even if it is inactive.')
+                t(
+                  'accounts.test.directHint',
+                  'Send directly through this account, even if it is inactive.'
+                )
               )}
               {modeOption(
                 'strapi',
                 SparklesIcon,
                 t('accounts.test.strapi', 'Strapi service test'),
                 strapiModeAvailable
-                  ? t('accounts.test.strapiHint', 'Verify that MagicMail intercepts the Strapi email service.')
-                  : t('accounts.test.strapiInactive', 'Only available for active accounts, because routing skips inactive accounts.'),
+                  ? t(
+                      'accounts.test.strapiHint',
+                      'Verify that MagicMail intercepts the Strapi email service.'
+                    )
+                  : t(
+                      'accounts.test.strapiInactive',
+                      'Only available for active accounts, because routing skips inactive accounts.'
+                    ),
                 !strapiModeAvailable
               )}
             </div>
@@ -296,30 +349,53 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
 
           {testMode === 'direct' && (
             <AdvancedBox role="group" aria-labelledby={`${idPrefix}-advanced`}>
-              <ModalGroupLabel id={`${idPrefix}-advanced`} style={{ marginBottom: '16px', fontSize: '14px' }}>
+              <ModalGroupLabel
+                id={`${idPrefix}-advanced`}
+                style={{ marginBottom: '16px', fontSize: '14px' }}
+              >
                 {t('accounts.test.advanced', 'Advanced options')}
               </ModalGroupLabel>
 
               <Box style={{ marginBottom: '12px' }}>
-                <ModalFieldLabel htmlFor={ids.priority}>{t('accounts.test.priority', 'Priority')}</ModalFieldLabel>
-                <StyledModalSelect id={ids.priority} value={priority} onChange={(e) => setPriority(e.target.value)} onKeyDown={stop}>
+                <ModalFieldLabel htmlFor={ids.priority}>
+                  {t('accounts.test.priority', 'Priority')}
+                </ModalFieldLabel>
+                <StyledModalSelect
+                  id={ids.priority}
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  onKeyDown={stop}
+                >
                   <option value="normal">{t('accounts.test.priorityNormal', 'Normal')}</option>
                   <option value="high">{t('accounts.test.priorityHigh', 'High priority')}</option>
                 </StyledModalSelect>
               </Box>
 
               <Box style={{ marginBottom: emailType === 'marketing' ? '12px' : '0' }}>
-                <ModalFieldLabel htmlFor={ids.type}>{t('accounts.test.type', 'Email type')}</ModalFieldLabel>
-                <StyledModalSelect id={ids.type} value={emailType} onChange={(e) => setEmailType(e.target.value)} onKeyDown={stop}>
-                  <option value="transactional">{t('accounts.test.typeTransactional', 'Transactional')}</option>
+                <ModalFieldLabel htmlFor={ids.type}>
+                  {t('accounts.test.type', 'Email type')}
+                </ModalFieldLabel>
+                <StyledModalSelect
+                  id={ids.type}
+                  value={emailType}
+                  onChange={(e) => setEmailType(e.target.value)}
+                  onKeyDown={stop}
+                >
+                  <option value="transactional">
+                    {t('accounts.test.typeTransactional', 'Transactional')}
+                  </option>
                   <option value="marketing">{t('accounts.test.typeMarketing', 'Marketing')}</option>
-                  <option value="notification">{t('accounts.test.typeNotification', 'Notification')}</option>
+                  <option value="notification">
+                    {t('accounts.test.typeNotification', 'Notification')}
+                  </option>
                 </StyledModalSelect>
               </Box>
 
               {emailType === 'marketing' && (
                 <Box>
-                  <ModalFieldLabel htmlFor={ids.unsubscribe}>{t('accounts.test.unsubscribe', 'Unsubscribe URL')} *</ModalFieldLabel>
+                  <ModalFieldLabel htmlFor={ids.unsubscribe}>
+                    {t('accounts.test.unsubscribe', 'Unsubscribe URL')} *
+                  </ModalFieldLabel>
                   <StyledModalInput
                     id={ids.unsubscribe}
                     type="url"
@@ -331,14 +407,22 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
                     required
                     aria-required="true"
                     aria-invalid={showError('unsubscribeUrl')}
-                    aria-describedby={describedBy(ids.unsubscribeHint, showError('unsubscribeUrl') && ids.unsubscribeError)}
+                    aria-describedby={describedBy(
+                      ids.unsubscribeHint,
+                      showError('unsubscribeUrl') && ids.unsubscribeError
+                    )}
                     $invalid={showError('unsubscribeUrl')}
                   />
                   <ModalHint id={ids.unsubscribeHint}>
-                    {t('accounts.test.unsubscribeHint', 'Required for GDPR and CAN-SPAM compliance.')}
+                    {t(
+                      'accounts.test.unsubscribeHint',
+                      'Required for GDPR and CAN-SPAM compliance.'
+                    )}
                   </ModalHint>
                   {showError('unsubscribeUrl') ? (
-                    <ModalError id={ids.unsubscribeError}>{errorText.unsubscribeUrl[errors.unsubscribeUrl]}</ModalError>
+                    <ModalError id={ids.unsubscribeError}>
+                      {errorText.unsubscribeUrl[errors.unsubscribeUrl]}
+                    </ModalError>
                   ) : null}
                 </Box>
               )}

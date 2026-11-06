@@ -20,7 +20,10 @@ const expectedKeys = {
   services: 'object',
 };
 
-for (const [label, plugin] of [['cjs', cjsPlugin], ['esm', esmPlugin]]) {
+for (const [label, plugin] of [
+  ['cjs', cjsPlugin],
+  ['esm', esmPlugin],
+]) {
   if (!plugin || typeof plugin !== 'object') {
     throw new Error(`${label} server bundle did not export a plugin object`);
   }
@@ -29,7 +32,9 @@ for (const [label, plugin] of [['cjs', cjsPlugin], ['esm', esmPlugin]]) {
   for (const [key, expectedType] of Object.entries(expectedKeys)) {
     const value = plugin[key];
     if (value === undefined || value === null || typeof value !== expectedType) {
-      problems.push(`${key} is ${value === null ? 'null' : typeof value} (expected ${expectedType})`);
+      problems.push(
+        `${key} is ${value === null ? 'null' : typeof value} (expected ${expectedType})`
+      );
     }
   }
 

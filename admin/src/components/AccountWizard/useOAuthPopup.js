@@ -10,8 +10,7 @@ const POPUP_WIDTH = 600;
 const POPUP_HEIGHT = 700;
 const POLL_MS = 500;
 
-const getBackendURL = () =>
-  typeof window !== 'undefined' ? window.strapi?.backendURL : undefined;
+const getBackendURL = () => (typeof window !== 'undefined' ? window.strapi?.backendURL : undefined);
 
 /**
  * One OAuth popup flow for Gmail, Microsoft and Yahoo.

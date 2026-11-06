@@ -41,7 +41,12 @@ function configGetter(values) {
 /**
  * Fake strapi for link rewriting: one email log, in-memory link rows.
  */
-function linkHarness({ config = {}, settings = {}, logMetadata = {}, failCreate = () => false } = {}) {
+function linkHarness({
+  config = {},
+  settings = {},
+  logMetadata = {},
+  failCreate = () => false,
+} = {}) {
   const links = [];
   const strapi = {
     log: quietLog,
@@ -49,7 +54,8 @@ function linkHarness({ config = {}, settings = {}, logMetadata = {}, failCreate 
     plugin: () => ({ service: () => ({ getSettings: async () => settings }) }),
     documents: (uid) => ({
       findFirst: async () => {
-        if (uid === 'plugin::magic-mail.email-log') return { documentId: 'log-doc', metadata: logMetadata };
+        if (uid === 'plugin::magic-mail.email-log')
+          return { documentId: 'log-doc', metadata: logMetadata };
         return null;
       },
       create: async ({ data }) => {
@@ -99,13 +105,19 @@ test('SEC-01: the rewriter handles quoting, entities and attribute look-alikes',
     '<abbr href="https://not-an-anchor.example.test">D</abbr>',
     '<a name="no-href">E</a>',
   ].join('');
-  const out = rewriteAnchorHrefs(html, (url) => { seen.push(url); return `T(${url})`; });
+  const out = rewriteAnchorHrefs(html, (url) => {
+    seen.push(url);
+    return `T(${url})`;
+  });
   assert.deepEqual(seen, [
     'https://a.example.test/?x=1&y=2',
     'https://b.example.test/p',
     'https://c.example.test/u',
   ]);
-  assert.match(out, /title="href=https:\/\/evil\.example\.test" href="T\(https:\/\/a\.example\.test\/\?x=1&amp;y=2\)"/);
+  assert.match(
+    out,
+    /title="href=https:\/\/evil\.example\.test" href="T\(https:\/\/a\.example\.test\/\?x=1&amp;y=2\)"/
+  );
   assert.match(out, /HREF = 'T\(https:\/\/b\.example\.test\/p\)'/);
   assert.match(out, /href="T\(https:\/\/c\.example\.test\/u\)" class=x/);
   assert.match(out, /<abbr href="https:\/\/not-an-anchor\.example\.test">/);
@@ -151,16 +163,26 @@ test('SEC-03/SEC-10: the V2 purge removes rows the improved classifier flags', a
   ];
   const flags = {};
   const strapi = {
-    store: () => ({ get: async ({ key }) => flags[key], set: async ({ key, value }) => { flags[key] = value; } }),
+    store: () => ({
+      get: async ({ key }) => flags[key],
+      set: async ({ key, value }) => {
+        flags[key] = value;
+      },
+    }),
     db: {
       query: () => ({
         findMany: async ({ where }) => rows.filter((row) => row.id > where.id.$gt),
-        deleteMany: async ({ where }) => { rows = rows.filter((row) => !where.id.$in.includes(row.id)); },
+        deleteMany: async ({ where }) => {
+          rows = rows.filter((row) => !where.id.$in.includes(row.id));
+        },
       }),
     },
   };
   await purgeSensitiveLinkMappings(strapi, quietLog);
-  assert.deepEqual(rows.map((row) => row.id), [1]);
+  assert.deepEqual(
+    rows.map((row) => row.id),
+    [1]
+  );
   assert.equal(flags.sensitiveLinkPurgeV2.done, true);
 });
 
@@ -183,9 +205,16 @@ test('SEC-05: open events store a truncated IP, a capped user agent and no locat
     const strapi = {
       log: quietLog,
       documents: (uid) => ({
-        findFirst: async () => ({ documentId: 'log-doc', recipient: 'person@example.test', openCount: 0 }),
+        findFirst: async () => ({
+          documentId: 'log-doc',
+          recipient: 'person@example.test',
+          openCount: 0,
+        }),
         update: async () => ({}),
-        create: async ({ data }) => { if (uid.endsWith('email-event')) events.push(data); return data; },
+        create: async ({ data }) => {
+          if (uid.endsWith('email-event')) events.push(data);
+          return data;
+        },
       }),
     };
     const analytics = require(ANALYTICS_PATH)({ strapi });
@@ -194,7 +223,10 @@ test('SEC-05: open events store a truncated IP, a capped user agent and no locat
       ip: '203.0.113.77',
       headers: { 'x-forwarded-for': '198.51.100.1', 'user-agent': 'U'.repeat(5000) },
     });
-    await analytics.recordOpen(EMAIL_ID, hash, { ip: '', headers: { 'x-forwarded-for': '198.51.100.1' } });
+    await analytics.recordOpen(EMAIL_ID, hash, {
+      ip: '',
+      headers: { 'x-forwarded-for': '198.51.100.1' },
+    });
     assert.equal(events.length, 2);
     assert.equal(events[0].ipAddress, '203.0.113.0');
     assert.equal(events[0].userAgent.length, 512);
@@ -208,9 +240,27 @@ test('SEC-05: retention deletes expired events and links; the legacy migration a
   const daysAgo = (days) => new Date(now.getTime() - days * 86_400_000);
   const tables = {
     'plugin::magic-mail.email-event': [
-      { id: 1, timestamp: daysAgo(120), ipAddress: '203.0.113.5', location: { ip: '203.0.113.5' }, linkUrl: null },
-      { id: 2, timestamp: daysAgo(10), ipAddress: '203.0.113.6', location: { ip: '203.0.113.6' }, linkUrl: 'https://app.example.test/a?loginToken=x' },
-      { id: 3, timestamp: daysAgo(5), ipAddress: '203.0.113.0', location: null, linkUrl: 'https://shop.example.test/sale' },
+      {
+        id: 1,
+        timestamp: daysAgo(120),
+        ipAddress: '203.0.113.5',
+        location: { ip: '203.0.113.5' },
+        linkUrl: null,
+      },
+      {
+        id: 2,
+        timestamp: daysAgo(10),
+        ipAddress: '203.0.113.6',
+        location: { ip: '203.0.113.6' },
+        linkUrl: 'https://app.example.test/a?loginToken=x',
+      },
+      {
+        id: 3,
+        timestamp: daysAgo(5),
+        ipAddress: '203.0.113.0',
+        location: null,
+        linkUrl: 'https://shop.example.test/sale',
+      },
     ],
     'plugin::magic-mail.email-link': [
       { id: 1, createdAt: daysAgo(200) },
@@ -218,18 +268,25 @@ test('SEC-05: retention deletes expired events and links; the legacy migration a
     ],
   };
   const flags = {};
-  const matches = (row, where) => Object.entries(where).every(([field, cond]) => {
-    if (cond.$lt) return row[field] < cond.$lt;
-    if (cond.$gt !== undefined) return row[field] > cond.$gt;
-    if (cond.$in) return cond.$in.includes(row[field]);
-    return row[field] === cond;
-  });
+  const matches = (row, where) =>
+    Object.entries(where).every(([field, cond]) => {
+      if (cond.$lt) return row[field] < cond.$lt;
+      if (cond.$gt !== undefined) return row[field] > cond.$gt;
+      if (cond.$in) return cond.$in.includes(row[field]);
+      return row[field] === cond;
+    });
   const strapi = {
     log: quietLog,
-    store: () => ({ get: async ({ key }) => flags[key], set: async ({ key, value }) => { flags[key] = value; } }),
+    store: () => ({
+      get: async ({ key }) => flags[key],
+      set: async ({ key, value }) => {
+        flags[key] = value;
+      },
+    }),
     db: {
       query: (uid) => ({
-        findMany: async ({ where, limit }) => tables[uid].filter((row) => matches(row, where)).slice(0, limit),
+        findMany: async ({ where, limit }) =>
+          tables[uid].filter((row) => matches(row, where)).slice(0, limit),
         deleteMany: async ({ where }) => {
           const before = tables[uid].length;
           tables[uid] = tables[uid].filter((row) => !matches(row, where));
@@ -248,15 +305,24 @@ test('SEC-05: retention deletes expired events and links; the legacy migration a
   assert.equal(await analytics.migrateLegacyTrackingEvents(), 2);
   assert.equal(await analytics.migrateLegacyTrackingEvents(), 0, 'runs once');
   const events = tables['plugin::magic-mail.email-event'];
-  assert.deepEqual(events.map((e) => e.ipAddress), ['203.0.113.0', '203.0.113.0', '203.0.113.0']);
+  assert.deepEqual(
+    events.map((e) => e.ipAddress),
+    ['203.0.113.0', '203.0.113.0', '203.0.113.0']
+  );
   assert.ok(events.every((e) => e.location === null));
   assert.equal(events[1].linkUrl, null, 'sensitive click URL scrubbed');
   assert.equal(events[2].linkUrl, 'https://shop.example.test/sale');
 
   const summary = await analytics.purgeExpiredTrackingData(now);
   assert.deepEqual(summary, { events: 1, links: 1, logs: 0 });
-  assert.deepEqual(tables['plugin::magic-mail.email-event'].map((e) => e.id), [2, 3]);
-  assert.deepEqual(tables['plugin::magic-mail.email-link'].map((l) => l.id), [2]);
+  assert.deepEqual(
+    tables['plugin::magic-mail.email-event'].map((e) => e.id),
+    [2, 3]
+  );
+  assert.deepEqual(
+    tables['plugin::magic-mail.email-link'].map((l) => l.id),
+    [2]
+  );
 });
 
 // ── SEC-06 / FUN-21 / STR-M03: tracking rate limit degrades ─────────────────
@@ -270,14 +336,33 @@ test('SEC-06: over the tracking limit requests continue flagged; only abusive ra
   );
   const outcomes = [];
   for (let i = 0; i < 5; i += 1) {
-    const ctx = { path: '/api/magic-mail/track/open/x/y', state: {}, request: { ip: '203.0.113.9' }, status: 200, set() {} };
+    const ctx = {
+      path: '/api/magic-mail/track/open/x/y',
+      state: {},
+      request: { ip: '203.0.113.9' },
+      status: 200,
+      set() {},
+    };
     let passed = false;
     // eslint-disable-next-line no-await-in-loop
-    await mw(ctx, async () => { passed = true; });
-    outcomes.push({ passed, limited: ctx.state.magicMailRateLimited === true, status: ctx.status, body: ctx.body });
+    await mw(ctx, async () => {
+      passed = true;
+    });
+    outcomes.push({
+      passed,
+      limited: ctx.state.magicMailRateLimited === true,
+      status: ctx.status,
+      body: ctx.body,
+    });
   }
-  assert.deepEqual(outcomes.map((o) => o.passed), [true, true, true, true, false]);
-  assert.deepEqual(outcomes.map((o) => o.limited), [false, false, true, true, false]);
+  assert.deepEqual(
+    outcomes.map((o) => o.passed),
+    [true, true, true, true, false]
+  );
+  assert.deepEqual(
+    outcomes.map((o) => o.limited),
+    [false, false, true, true, false]
+  );
   assert.equal(outcomes[4].status, 429);
   assert.equal(typeof outcomes[4].body, 'string', 'no JSON envelope on tracking routes');
   assert.equal(warnings.length, 1, 'one warning per caller and window');
@@ -285,10 +370,14 @@ test('SEC-06: over the tracking limit requests continue flagged; only abusive ra
 });
 
 test('SEC-06: tracking routes are configured to degrade', () => {
-  const routes = require('../server/src/routes/content-api').routes.filter((r) => r.path.startsWith('/track/'));
+  const routes = require('../server/src/routes/content-api').routes.filter((r) =>
+    r.path.startsWith('/track/')
+  );
   assert.equal(routes.length, 2);
   for (const route of routes) {
-    const limiter = route.config.middlewares.find((m) => m.name === 'plugin::magic-mail.rate-limit');
+    const limiter = route.config.middlewares.find(
+      (m) => m.name === 'plugin::magic-mail.rate-limit'
+    );
     assert.equal(limiter.config.degrade, true, route.path);
     assert.ok(limiter.config.hardMax > limiter.config.max);
   }
@@ -307,27 +396,49 @@ function trackingCtx(params, state = {}) {
     state,
     request: { ip: '203.0.113.9', headers: {} },
     headers,
-    set(name, value) { headers[name] = value; },
-    redirect(url) { this.redirected = url; },
-    res: { setHeader() {}, end(body) { this.body = body; } },
+    set(name, value) {
+      headers[name] = value;
+    },
+    redirect(url) {
+      this.redirected = url;
+    },
+    res: {
+      setHeader() {},
+      end(body) {
+        this.body = body;
+      },
+    },
   };
 }
 
 test('SEC-06: a rate-limited click still redirects without recording; a limited open still gets the pixel', async () => {
   const calls = [];
   const controller = controllerWith({
-    getOriginalUrlFromHash: async (...args) => { calls.push(['resolve', args[3]]); return 'https://shop.example.test/sale'; },
-    recordClick: async () => { calls.push(['recordClick']); },
-    recordOpen: async () => { calls.push(['recordOpen']); },
+    getOriginalUrlFromHash: async (...args) => {
+      calls.push(['resolve', args[3]]);
+      return 'https://shop.example.test/sale';
+    },
+    recordClick: async () => {
+      calls.push(['recordClick']);
+    },
+    recordOpen: async () => {
+      calls.push(['recordOpen']);
+    },
   });
 
-  const click = trackingCtx({ emailId: EMAIL_ID, linkHash: LINK_HASH, recipientHash: 'c'.repeat(32) }, { magicMailRateLimited: true });
+  const click = trackingCtx(
+    { emailId: EMAIL_ID, linkHash: LINK_HASH, recipientHash: 'c'.repeat(32) },
+    { magicMailRateLimited: true }
+  );
   await controller.trackClick(click);
   assert.equal(click.redirected, 'https://shop.example.test/sale');
   assert.deepEqual(calls, [['resolve', { count: false }]]);
 
   calls.length = 0;
-  const open = trackingCtx({ emailId: EMAIL_ID, recipientHash: 'c'.repeat(32) }, { magicMailRateLimited: true });
+  const open = trackingCtx(
+    { emailId: EMAIL_ID, recipientHash: 'c'.repeat(32) },
+    { magicMailRateLimited: true }
+  );
   await controller.trackOpen(open);
   assert.equal(open.respond, false);
   assert.deepEqual(calls, [], 'no DB work when rate limited');
@@ -336,14 +447,26 @@ test('SEC-06: a rate-limited click still redirects without recording; a limited 
 test('SEC-06: malformed tracking ids never reach the database', async () => {
   const calls = [];
   const controller = controllerWith({
-    getOriginalUrlFromHash: async () => { calls.push('resolve'); return null; },
-    recordOpen: async () => { calls.push('open'); },
+    getOriginalUrlFromHash: async () => {
+      calls.push('resolve');
+      return null;
+    },
+    recordOpen: async () => {
+      calls.push('open');
+    },
   });
   const open = trackingCtx({ emailId: "x' OR 1=1", recipientHash: 'zz' });
   await controller.trackOpen(open);
-  const click = trackingCtx({ emailId: 'short', linkHash: LINK_HASH, recipientHash: 'c'.repeat(32) });
+  const click = trackingCtx({
+    emailId: 'short',
+    linkHash: LINK_HASH,
+    recipientHash: 'c'.repeat(32),
+  });
   click.type = null;
-  global.strapi = { plugin: () => ({ service: () => ({ getSettings: async () => ({}) }) }), log: quietLog };
+  global.strapi = {
+    plugin: () => ({ service: () => ({ getSettings: async () => ({}) }) }),
+    log: quietLog,
+  };
   try {
     await controller.trackClick(click);
   } finally {
@@ -359,25 +482,33 @@ test('SEC-06: malformed tracking ids never reach the database', async () => {
 
 test('SEC-M02: at most maxLinksPerEmail distinct links are stored and rewritten', async () => {
   const { analytics, links } = linkHarness();
-  const html = Array.from({ length: 3000 }, (_, i) => `<a href="https://shop.example.test/p/${i}">${i}</a>`).join('');
+  const html = Array.from(
+    { length: 3000 },
+    (_, i) => `<a href="https://shop.example.test/p/${i}">${i}</a>`
+  ).join('');
   const started = Date.now();
   const out = await analytics.rewriteLinksForTracking(html, EMAIL_ID, 'c'.repeat(32));
   assert.ok(Date.now() - started < 2000);
   assert.equal(links.length, 100);
   assert.equal((out.match(/\/magic-mail\/track\/click\//g) || []).length, 100);
-  assert.ok(out.includes('href="https://shop.example.test/p/2999"'), 'links over the cap stay untouched');
+  assert.ok(
+    out.includes('href="https://shop.example.test/p/2999"'),
+    'links over the cap stay untouched'
+  );
 });
 
 test('SEC-M02: a link whose mapping cannot be stored is left untracked (no dead links)', async () => {
   const { analytics } = linkHarness({ failCreate: (data) => data.originalUrl.endsWith('/broken') });
-  const html = '<a href="https://shop.example.test/ok">ok</a><a href="https://shop.example.test/broken">b</a>';
+  const html =
+    '<a href="https://shop.example.test/ok">ok</a><a href="https://shop.example.test/broken">b</a>';
   const out = await analytics.rewriteLinksForTracking(html, EMAIL_ID, 'c'.repeat(32));
   assert.ok(out.includes('href="https://shop.example.test/broken"'));
   assert.equal((out.match(/track\/click/g) || []).length, 1);
 });
 
 test('SEC-M03: Content-API sends mint no redirects unless tracking.allowedLinkHosts is set', async () => {
-  const html = '<a href="https://evil.example.test/x">x</a><a href="https://shop.example.test/y">y</a>';
+  const html =
+    '<a href="https://evil.example.test/x">x</a><a href="https://shop.example.test/y">y</a>';
 
   const api = linkHarness({ logMetadata: { source: 'content-api' } });
   assert.equal(await api.analytics.rewriteLinksForTracking(html, EMAIL_ID, 'c'.repeat(32)), html);
@@ -388,7 +519,10 @@ test('SEC-M03: Content-API sends mint no redirects unless tracking.allowedLinkHo
     config: { 'plugin::magic-mail.tracking': { allowedLinkHosts: ['shop.example.test'] } },
   });
   const out = await allowed.analytics.rewriteLinksForTracking(html, EMAIL_ID, 'c'.repeat(32));
-  assert.deepEqual(allowed.links.map((l) => l.originalUrl), ['https://shop.example.test/y']);
+  assert.deepEqual(
+    allowed.links.map((l) => l.originalUrl),
+    ['https://shop.example.test/y']
+  );
   assert.ok(out.includes('href="https://evil.example.test/x"'));
 
   const admin = linkHarness({ logMetadata: { source: 'service' } });
@@ -404,33 +538,56 @@ test('SEC-M03: expired links and links outside the allowlist no longer redirect'
         log: quietLog,
         config: configGetter({ 'plugin::magic-mail.tracking': tracking }),
         documents: (uid) => ({
-          findFirst: async () => (uid.endsWith('email-log')
-            ? { documentId: 'log-doc', recipient: 'person@example.test' }
-            : { documentId: 'link-doc', clickCount: 0, ...link }),
-          update: async () => { updates += 1; },
+          findFirst: async () =>
+            uid.endsWith('email-log')
+              ? { documentId: 'log-doc', recipient: 'person@example.test' }
+              : { documentId: 'link-doc', clickCount: 0, ...link },
+          update: async () => {
+            updates += 1;
+          },
         }),
       };
       const analytics = require(ANALYTICS_PATH)({ strapi });
-      return { analytics, hash: analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'), updates: () => updates };
+      return {
+        analytics,
+        hash: analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'),
+        updates: () => updates,
+      };
     };
     const fresh = new Date(Date.now() - 86_400_000).toISOString();
     const old = new Date(Date.now() - 200 * 86_400_000).toISOString();
 
     let h = make({ originalUrl: 'https://shop.example.test/a', createdAt: fresh });
-    assert.equal(await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash), 'https://shop.example.test/a');
+    assert.equal(
+      await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash),
+      'https://shop.example.test/a'
+    );
     assert.equal(h.updates(), 1);
 
     h = make({ originalUrl: 'https://shop.example.test/a', createdAt: fresh });
-    assert.equal(await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash, { count: false }), 'https://shop.example.test/a');
+    assert.equal(
+      await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash, { count: false }),
+      'https://shop.example.test/a'
+    );
     assert.equal(h.updates(), 0, 'count:false resolves without writes');
 
     h = make({ originalUrl: 'https://shop.example.test/a', createdAt: old });
-    assert.equal(await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash), null, '180-day TTL');
+    assert.equal(
+      await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash),
+      null,
+      '180-day TTL'
+    );
 
     h = make({ originalUrl: 'https://shop.example.test/a', createdAt: old }, { linkTtlDays: 0 });
-    assert.equal(await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash), 'https://shop.example.test/a');
+    assert.equal(
+      await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash),
+      'https://shop.example.test/a'
+    );
 
-    h = make({ originalUrl: 'https://evil.example.test/a', createdAt: fresh }, { allowedLinkHosts: ['example.org'] });
+    h = make(
+      { originalUrl: 'https://evil.example.test/a', createdAt: fresh },
+      { allowedLinkHosts: ['example.org'] }
+    );
     assert.equal(await h.analytics.getOriginalUrlFromHash(EMAIL_ID, LINK_HASH, h.hash), null);
   });
 });
@@ -442,33 +599,56 @@ test('FUN-03/STR-04: pixel and links share trackingBaseUrl, server.url, absolute
   const fakeStrapi = (values) => ({ log: quietLog, config: configGetter(values) });
 
   assert.equal(
-    resolveTrackingEndpoint(fakeStrapi({ 'server.url': 'https://cms.example.test' }), { trackingBaseUrl: 'https://t.example.test/' }),
+    resolveTrackingEndpoint(fakeStrapi({ 'server.url': 'https://cms.example.test' }), {
+      trackingBaseUrl: 'https://t.example.test/',
+    }),
     'https://t.example.test/api/magic-mail/track'
   );
   assert.equal(
-    resolveTrackingEndpoint(fakeStrapi({ 'server.url': '', 'server.absoluteUrl': 'https://cms.example.test/sub', 'api.rest.prefix': '/v2' })),
+    resolveTrackingEndpoint(
+      fakeStrapi({
+        'server.url': '',
+        'server.absoluteUrl': 'https://cms.example.test/sub',
+        'api.rest.prefix': '/v2',
+      })
+    ),
     'https://cms.example.test/sub/v2/magic-mail/track'
   );
 
   await withEnv({ NODE_ENV: 'production' }, async () => {
     resetWarnings();
     const warnings = [];
-    const strapi = { log: { ...quietLog, warn: (m) => warnings.push(m) }, config: configGetter({ 'server.url': '', 'server.absoluteUrl': 'http://localhost:1337' }) };
+    const strapi = {
+      log: { ...quietLog, warn: (m) => warnings.push(m) },
+      config: configGetter({ 'server.url': '', 'server.absoluteUrl': 'http://localhost:1337' }),
+    };
     assert.equal(resolveTrackingEndpoint(strapi, {}), null, 'no localhost in production');
     resolveTrackingEndpoint(strapi, {});
     assert.equal(warnings.length, 1, 'warned once');
 
-    const { analytics, links } = linkHarness({ config: { 'server.url': '', 'server.absoluteUrl': 'http://0.0.0.0:1337' } });
+    const { analytics, links } = linkHarness({
+      config: { 'server.url': '', 'server.absoluteUrl': 'http://0.0.0.0:1337' },
+    });
     const html = '<html><body><a href="https://shop.example.test/a">a</a></body></html>';
-    assert.equal(await analytics.addTracking(html, EMAIL_ID, 'c'.repeat(32)), html, 'sent untracked');
+    assert.equal(
+      await analytics.addTracking(html, EMAIL_ID, 'c'.repeat(32)),
+      html,
+      'sent untracked'
+    );
     assert.equal(links.length, 0);
   });
 
   const { analytics } = linkHarness({ settings: { trackingBaseUrl: 'https://t.example.test' } });
   const html = '<html><body><a href="https://shop.example.test/a">a</a></body></html>';
   const out = await analytics.addTracking(html, EMAIL_ID, 'c'.repeat(32));
-  assert.match(out, /<img src="https:\/\/t\.example\.test\/api\/magic-mail\/track\/open\/a{32}\/c{32}\?r=[a-f0-9]{16}"/);
-  assert.match(out, /href="https:\/\/t\.example\.test\/api\/magic-mail\/track\/click\/a{32}\/[a-f0-9]{32}\/c{32}"/);
+  assert.match(
+    out,
+    /<img src="https:\/\/t\.example\.test\/api\/magic-mail\/track\/open\/a{32}\/c{32}\?r=[a-f0-9]{16}"/
+  );
+  assert.match(
+    out,
+    /href="https:\/\/t\.example\.test\/api\/magic-mail\/track\/click\/a{32}\/[a-f0-9]{32}\/c{32}"/
+  );
   assert.ok(out.indexOf('<img') < out.indexOf('</body>'));
 });
 
@@ -477,11 +657,32 @@ test('FUN-03/STR-04: pixel and links share trackingBaseUrl, server.url, absolute
 test('FUN-09: email logs store a bare first recipient, a bounded subject and the numeric template reference', async () => {
   const created = [];
   const analytics = require(ANALYTICS_PATH)({
-    strapi: { log: quietLog, documents: () => ({ create: async ({ data }) => { created.push(data); return data; } }) },
+    strapi: {
+      log: quietLog,
+      documents: () => ({
+        create: async ({ data }) => {
+          created.push(data);
+          return data;
+        },
+      }),
+    },
   });
-  await analytics.createEmailLog({ to: ['First@Example.test', 'second@example.test'], subject: 'S'.repeat(1000), templateReferenceId: '42', templateId: 'welcome-mail' });
-  await analytics.createEmailLog({ to: '"Doe, Jane" <Jane@Example.test>', subject: 'Hi', templateId: 7 });
-  await analytics.createEmailLog({ to: 'a@example.test, b@example.test', subject: 'Hi', templateId: 'not-numeric' });
+  await analytics.createEmailLog({
+    to: ['First@Example.test', 'second@example.test'],
+    subject: 'S'.repeat(1000),
+    templateReferenceId: '42',
+    templateId: 'welcome-mail',
+  });
+  await analytics.createEmailLog({
+    to: '"Doe, Jane" <Jane@Example.test>',
+    subject: 'Hi',
+    templateId: 7,
+  });
+  await analytics.createEmailLog({
+    to: 'a@example.test, b@example.test',
+    subject: 'Hi',
+    templateId: 'not-numeric',
+  });
 
   assert.equal(created[0].recipient, 'first@example.test');
   assert.deepEqual(created[0].metadata.recipients, ['first@example.test', 'second@example.test']);
@@ -498,7 +699,10 @@ test('FUN-09: email logs store a bare first recipient, a bounded subject and the
 test('FUN-09: the recipient hash of a multi-recipient send matches the stored log recipient', async () => {
   await withEnv({ MAGIC_MAIL_TRACKING_SECRET: 't'.repeat(32) }, async () => {
     const analytics = require(ANALYTICS_PATH)({ strapi: { log: quietLog } });
-    const sendHash = analytics.generateRecipientHash(EMAIL_ID, ['first@example.test', 'second@example.test']);
+    const sendHash = analytics.generateRecipientHash(EMAIL_ID, [
+      'first@example.test',
+      'second@example.test',
+    ]);
     assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'first@example.test', sendHash), true);
   });
 });
@@ -507,20 +711,31 @@ test('FUN-09: the recipient hash of a multi-recipient send matches the stored lo
 
 function deletionHarness(logCount) {
   const tables = {
-    'plugin::magic-mail.email-log': Array.from({ length: logCount }, (_, i) => ({ id: i + 1, sentAt: i })),
-    'plugin::magic-mail.email-event': Array.from({ length: logCount }, (_, i) => ({ id: i + 1, emailLog: i + 1 })),
-    'plugin::magic-mail.email-link': Array.from({ length: logCount * 2 }, (_, i) => ({ id: i + 1, emailLog: (i % logCount) + 1 })),
+    'plugin::magic-mail.email-log': Array.from({ length: logCount }, (_, i) => ({
+      id: i + 1,
+      sentAt: i,
+    })),
+    'plugin::magic-mail.email-event': Array.from({ length: logCount }, (_, i) => ({
+      id: i + 1,
+      emailLog: i + 1,
+    })),
+    'plugin::magic-mail.email-link': Array.from({ length: logCount * 2 }, (_, i) => ({
+      id: i + 1,
+      emailLog: (i % logCount) + 1,
+    })),
   };
-  const matches = (row, where = {}) => Object.entries(where).every(([field, cond]) => {
-    if (field === 'emailLog') return cond.id.$in.includes(row.emailLog);
-    if (cond && cond.$in) return cond.$in.includes(row[field]);
-    return true;
-  });
+  const matches = (row, where = {}) =>
+    Object.entries(where).every(([field, cond]) => {
+      if (field === 'emailLog') return cond.id.$in.includes(row.emailLog);
+      if (cond && cond.$in) return cond.$in.includes(row[field]);
+      return true;
+    });
   const strapi = {
     log: quietLog,
     db: {
       query: (uid) => ({
-        findMany: async ({ where, limit }) => tables[uid].filter((row) => matches(row, where)).slice(0, limit),
+        findMany: async ({ where, limit }) =>
+          tables[uid].filter((row) => matches(row, where)).slice(0, limit),
         findOne: async () => tables[uid][0] || null,
         count: async ({ where }) => tables[uid].filter((row) => matches(row, where)).length,
         deleteMany: async ({ where }) => {
@@ -539,8 +754,14 @@ test('FUN-18: deleting logs also deletes their events and stored link mappings; 
   const analytics = require(ANALYTICS_PATH)({ strapi });
 
   assert.equal(await analytics.deleteEmailLogsByIds([1]), 1);
-  assert.equal(tables['plugin::magic-mail.email-event'].some((e) => e.emailLog === 1), false);
-  assert.equal(tables['plugin::magic-mail.email-link'].some((l) => l.emailLog === 1), false);
+  assert.equal(
+    tables['plugin::magic-mail.email-event'].some((e) => e.emailLog === 1),
+    false
+  );
+  assert.equal(
+    tables['plugin::magic-mail.email-link'].some((l) => l.emailLog === 1),
+    false
+  );
 
   const first = await analytics.deleteEmailLogs({}, { max: 20 });
   assert.deepEqual(first, { deletedCount: 20, hasMore: true });
@@ -554,15 +775,29 @@ test('FUN-18: DELETE /analytics/emails returns deletedCount and hasMore from the
   const controller = require('../server/src/controllers/analytics')({
     strapi: {
       log: quietLog,
-      plugin: () => ({ service: () => ({ deleteEmailLogs: async (where, opts) => ({ deletedCount: opts.max, hasMore: true }) }) }),
+      plugin: () => ({
+        service: () => ({
+          deleteEmailLogs: async (where, opts) => ({ deletedCount: opts.max, hasMore: true }),
+        }),
+      }),
     },
   });
-  const ctx = { query: {}, send(body) { this.body = body; } };
+  const ctx = {
+    query: {},
+    send(body) {
+      this.body = body;
+    },
+  };
   await controller.clearAllEmailLogs(ctx);
   assert.equal(ctx.body.deletedCount, 10_000);
   assert.equal(ctx.body.hasMore, true);
 
-  const bad = { query: { olderThan: 'not-a-date' }, badRequest(msg) { this.error = msg; } };
+  const bad = {
+    query: { olderThan: 'not-a-date' },
+    badRequest(msg) {
+      this.error = msg;
+    },
+  };
   await controller.clearAllEmailLogs(bad);
   assert.equal(bad.error, 'Invalid olderThan date');
 });
@@ -572,11 +807,23 @@ test('FUN-18: email log search covers template names, filters by delivery status
   const analytics = require(ANALYTICS_PATH)({
     strapi: {
       log: quietLog,
-      documents: () => ({ findMany: async (q) => { captured = q; return []; }, count: async () => 0 }),
+      documents: () => ({
+        findMany: async (q) => {
+          captured = q;
+          return [];
+        },
+        count: async () => 0,
+      }),
     },
   });
-  const result = await analytics.getEmailLogs({ search: '  welcome  ', deliveryStatus: 'failed' }, { page: 3, pageSize: 500 });
-  assert.deepEqual(captured.filters.$or.map((c) => Object.keys(c)[0]), ['recipient', 'subject', 'recipientName', 'templateName']);
+  const result = await analytics.getEmailLogs(
+    { search: '  welcome  ', deliveryStatus: 'failed' },
+    { page: 3, pageSize: 500 }
+  );
+  assert.deepEqual(
+    captured.filters.$or.map((c) => Object.keys(c)[0]),
+    ['recipient', 'subject', 'recipientName', 'templateName']
+  );
   assert.equal(captured.filters.$or[0].recipient.$containsi, 'welcome');
   assert.equal(captured.filters.deliveryStatus, 'failed');
   assert.equal(captured.limit, 100);
@@ -595,36 +842,83 @@ test('FUN-M03: tracking hashes use a dedicated secret and survive APP_KEYS rotat
   const analytics = require(ANALYTICS_PATH)({ strapi });
 
   // Hash created with the encryption key, then APP_KEYS rotates: still valid.
-  const hash = await withEnv({ MAGIC_MAIL_TRACKING_SECRET: undefined, MAGIC_MAIL_ENCRYPTION_KEY: 'e'.repeat(32), APP_KEYS: 'old1,old2' },
-    () => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'));
-  await withEnv({ MAGIC_MAIL_TRACKING_SECRET: undefined, MAGIC_MAIL_ENCRYPTION_KEY: 'e'.repeat(32), APP_KEYS: 'new1,old1' }, () => {
-    assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', hash), true);
-    assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'other@example.test', hash), false);
-  });
+  const hash = await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: undefined,
+      MAGIC_MAIL_ENCRYPTION_KEY: 'e'.repeat(32),
+      APP_KEYS: 'old1,old2',
+    },
+    () => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test')
+  );
+  await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: undefined,
+      MAGIC_MAIL_ENCRYPTION_KEY: 'e'.repeat(32),
+      APP_KEYS: 'new1,old1',
+    },
+    () => {
+      assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', hash), true);
+      assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'other@example.test', hash), false);
+    }
+  );
 
   // Pre-4.0 hashes (HMAC keyed with the raw APP_KEYS string) keep working.
   const crypto = require('crypto');
-  const legacy = crypto.createHmac('sha256', 'k1,k2').update(`${EMAIL_ID}-person@example.test`).digest('hex').substring(0, 32);
-  await withEnv({ MAGIC_MAIL_TRACKING_SECRET: 's'.repeat(32), MAGIC_MAIL_ENCRYPTION_KEY: undefined, APP_KEYS: 'k1,k2' }, () => {
-    assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', legacy), true);
-    assert.notEqual(analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'), legacy, 'new hashes use the dedicated secret');
-  });
+  const legacy = crypto
+    .createHmac('sha256', 'k1,k2')
+    .update(`${EMAIL_ID}-person@example.test`)
+    .digest('hex')
+    .substring(0, 32);
+  await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: 's'.repeat(32),
+      MAGIC_MAIL_ENCRYPTION_KEY: undefined,
+      APP_KEYS: 'k1,k2',
+    },
+    () => {
+      assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', legacy), true);
+      assert.notEqual(
+        analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'),
+        legacy,
+        'new hashes use the dedicated secret'
+      );
+    }
+  );
 
   // Rotating the dedicated secret: the previous one stays accepted when listed.
-  const before = await withEnv({ MAGIC_MAIL_TRACKING_SECRET: 'old-secret-'.padEnd(32, 'x'), APP_KEYS: undefined, MAGIC_MAIL_ENCRYPTION_KEY: undefined },
-    () => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'));
-  await withEnv({
-    MAGIC_MAIL_TRACKING_SECRET: 'new-secret-'.padEnd(32, 'x'),
-    MAGIC_MAIL_TRACKING_SECRET_PREVIOUS: 'old-secret-'.padEnd(32, 'x'),
-    APP_KEYS: undefined,
-    MAGIC_MAIL_ENCRYPTION_KEY: undefined,
-  }, () => {
-    assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', before), true);
-  });
+  const before = await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: 'old-secret-'.padEnd(32, 'x'),
+      APP_KEYS: undefined,
+      MAGIC_MAIL_ENCRYPTION_KEY: undefined,
+    },
+    () => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test')
+  );
+  await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: 'new-secret-'.padEnd(32, 'x'),
+      MAGIC_MAIL_TRACKING_SECRET_PREVIOUS: 'old-secret-'.padEnd(32, 'x'),
+      APP_KEYS: undefined,
+      MAGIC_MAIL_ENCRYPTION_KEY: undefined,
+    },
+    () => {
+      assert.equal(analytics.verifyRecipientHash(EMAIL_ID, 'person@example.test', before), true);
+    }
+  );
 
-  await withEnv({ MAGIC_MAIL_TRACKING_SECRET: undefined, MAGIC_MAIL_ENCRYPTION_KEY: undefined, APP_KEYS: undefined }, () => {
-    assert.throws(() => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'), /No tracking secret/);
-  });
+  await withEnv(
+    {
+      MAGIC_MAIL_TRACKING_SECRET: undefined,
+      MAGIC_MAIL_ENCRYPTION_KEY: undefined,
+      APP_KEYS: undefined,
+    },
+    () => {
+      assert.throws(
+        () => analytics.generateRecipientHash(EMAIL_ID, 'person@example.test'),
+        /No tracking secret/
+      );
+    }
+  );
 });
 
 // ── SUP-14 (server part): {{system.*}} merge tags ───────────────────────────
@@ -636,11 +930,19 @@ test('SUP-14: templates receive server-owned system merge tags that callers cann
     config: configGetter({}),
     plugin: () => ({
       service: (name) => {
-        if (name === 'plugin-settings') return { getSettings: async () => ({ unsubscribeUrl: 'https://shop.example.test/unsub?e={{email}}' }) };
+        if (name === 'plugin-settings')
+          return {
+            getSettings: async () => ({
+              unsubscribeUrl: 'https://shop.example.test/unsub?e={{email}}',
+            }),
+          };
         if (name === 'analytics') return require(ANALYTICS_PATH)({ strapi });
         if (name === 'email-designer') {
           return {
-            renderTemplate: async (ref, data) => { renderedWith = data; return { html: '<p>x</p>', text: 'x', subject: 's' }; },
+            renderTemplate: async (ref, data) => {
+              renderedWith = data;
+              return { html: '<p>x</p>', text: 'x', subject: 's' };
+            },
             findOne: async () => null,
           };
         }
@@ -649,10 +951,17 @@ test('SUP-14: templates receive server-owned system merge tags that callers cann
     }),
   };
   const router = require('../server/src/services/email-router')({ strapi });
-  const data = { to: 'Person@Example.test', templateReferenceId: '5', templateData: { name: 'Ann', system: { unsubscribe: 'https://evil.example.test' } } };
+  const data = {
+    to: 'Person@Example.test',
+    templateReferenceId: '5',
+    templateData: { name: 'Ann', system: { unsubscribe: 'https://evil.example.test' } },
+  };
   await router.renderTemplateFor(data);
   assert.equal(renderedWith.name, 'Ann');
-  assert.equal(renderedWith.system.unsubscribe, 'https://shop.example.test/unsub?e=person%40example.test');
+  assert.equal(
+    renderedWith.system.unsubscribe,
+    'https://shop.example.test/unsub?e=person%40example.test'
+  );
   assert.match(renderedWith.system.year, /^\d{4}$/);
   assert.match(renderedWith.system.date, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(renderedWith.system.webview, '');

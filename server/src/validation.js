@@ -12,16 +12,24 @@ const z = require('zod');
 const emailString = z.string().email().max(254);
 /** Maps an omitted optional email form value to undefined before validation. */
 const optionalEmailString = z.preprocess(
-  (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   emailString.optional()
 );
-const emailAddress = z.string().max(320).refine((value) => {
-  const candidate = value.trim();
-  if (emailString.safeParse(candidate).success) return true;
+const emailAddress = z
+  .string()
+  .max(320)
+  .refine(
+    (value) => {
+      const candidate = value.trim();
+      if (emailString.safeParse(candidate).success) return true;
 
-  const displayNameAddress = candidate.match(/^(?:"[^"\r\n]+"|[^"<>\r\n,]+)\s*<([^<>]+)>$/);
-  return Boolean(displayNameAddress && emailString.safeParse(displayNameAddress[1].trim()).success);
-}, { message: 'Invalid email address' });
+      const displayNameAddress = candidate.match(/^(?:"[^"\r\n]+"|[^"<>\r\n,]+)\s*<([^<>]+)>$/);
+      return Boolean(
+        displayNameAddress && emailString.safeParse(displayNameAddress[1].trim()).success
+      );
+    },
+    { message: 'Invalid email address' }
+  );
 /**
  * Validates one bounded comma-separated recipient list.
  *
@@ -29,17 +37,23 @@ const emailAddress = z.string().max(320).refine((value) => {
  * @param {{allowEmpty?: boolean}} options - Allow an empty optional CC/BCC value
  * @returns {import('zod').ZodType<string>}
  */
-const recipientListString = (maxRecipients, { allowEmpty = false } = {}) => z
-  .string()
-  .max(4000)
-  .refine((value) => {
-    const list = value.trim();
-    if (!list) return allowEmpty;
+const recipientListString = (maxRecipients, { allowEmpty = false } = {}) =>
+  z
+    .string()
+    .max(4000)
+    .refine(
+      (value) => {
+        const list = value.trim();
+        if (!list) return allowEmpty;
 
-    const recipients = list.split(',');
-    return recipients.length <= maxRecipients
-      && recipients.every((recipient) => emailAddress.safeParse(recipient.trim()).success);
-  }, { message: 'Invalid recipient email list' });
+        const recipients = list.split(',');
+        return (
+          recipients.length <= maxRecipients &&
+          recipients.every((recipient) => emailAddress.safeParse(recipient.trim()).success)
+        );
+      },
+      { message: 'Invalid recipient email list' }
+    );
 
 /**
  * Builds the bounded recipient input accepted by public and admin send routes.
@@ -48,75 +62,99 @@ const recipientListString = (maxRecipients, { allowEmpty = false } = {}) => z
  * @param {{allowEmptyString?: boolean}} options - Whether an empty string is treated as no CC/BCC
  * @returns {import('zod').ZodType}
  */
-const recipientListInput = (maxRecipients, { allowEmptyString = false } = {}) => z.union([
-  emailAddress,
-  z.array(emailAddress).min(1).max(maxRecipients),
-  recipientListString(maxRecipients, { allowEmpty: allowEmptyString }),
-]);
+const recipientListInput = (maxRecipients, { allowEmptyString = false } = {}) =>
+  z.union([
+    emailAddress,
+    z.array(emailAddress).min(1).max(maxRecipients),
+    recipientListString(maxRecipients, { allowEmpty: allowEmptyString }),
+  ]);
 const safeString = z.string().max(1000);
 const safeText = z.string().max(100000);
 
 /**
  * Validates that a string contains no newlines (prevents header injection).
  */
-const headerSafe = z.string().max(1000).refine(
-  (v) => !/[\r\n]/.test(v),
-  { message: 'Must not contain newline characters' }
-);
+const headerSafe = z
+  .string()
+  .max(1000)
+  .refine((v) => !/[\r\n]/.test(v), { message: 'Must not contain newline characters' });
 
 /**
  * Bounded string that must not contain CR/LF. Used for MIME part metadata
  * (filenames) that is interpolated into raw message headers by the manual
  * Gmail/Microsoft MIME builders and by provider multipart bodies.
  */
-const noNewlineString = (max) => z.string().max(max).refine(
-  (v) => !/[\r\n]/.test(v),
-  { message: 'Must not contain newline characters' }
-);
+const noNewlineString = (max) =>
+  z
+    .string()
+    .max(max)
+    .refine((v) => !/[\r\n]/.test(v), { message: 'Must not contain newline characters' });
 
 /**
  * RFC-2045 style MIME type token, e.g. `application/pdf`. Rejects CR/LF and
  * any structural characters that could smuggle extra MIME headers.
  */
-const mimeType = z.string().max(128).regex(
-  /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/,
-  { message: 'Invalid content type' }
-);
+const mimeType = z
+  .string()
+  .max(128)
+  .regex(/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/, { message: 'Invalid content type' });
 
 /** Allowed attachment transfer encodings understood by the providers. */
 const attachmentEncoding = z.enum([
-  'base64', 'hex', 'binary', 'utf-8', 'utf8', 'ascii', '7bit', '8bit',
-  'quoted-printable', 'latin1',
+  'base64',
+  'hex',
+  'binary',
+  'utf-8',
+  'utf8',
+  'ascii',
+  '7bit',
+  '8bit',
+  'quoted-printable',
+  'latin1',
 ]);
 
 /** Content-ID for inline attachments; interpolated into a `Content-ID` header. */
-const contentId = z.string().max(128).regex(
-  /^[A-Za-z0-9._%+\-@]+$/,
-  { message: 'Invalid content id' }
-);
+const contentId = z
+  .string()
+  .max(128)
+  .regex(/^[A-Za-z0-9._%+\-@]+$/, { message: 'Invalid content id' });
 
-const httpUrl = z.string().url().max(2048).refine((value) => {
-  try {
-    return ['http:', 'https:'].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
-}, { message: 'URL must use http or https' });
+const httpUrl = z
+  .string()
+  .url()
+  .max(2048)
+  .refine(
+    (value) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: 'URL must use http or https' }
+  );
 
-const unsubscribeUrl = z.string().url().max(2048).refine((value) => {
-  try {
-    return ['http:', 'https:', 'mailto:'].includes(new URL(value).protocol);
-  } catch {
-    return false;
-  }
-}, { message: 'Unsubscribe URL must use http, https, or mailto' });
+const unsubscribeUrl = z
+  .string()
+  .url()
+  .max(2048)
+  .refine(
+    (value) => {
+      try {
+        return ['http:', 'https:', 'mailto:'].includes(new URL(value).protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Unsubscribe URL must use http, https, or mailto' }
+  );
 
 /**
  * Optional email that may be cleared: '' (what the admin form sends for an
  * emptied field) and null mean "remove the stored value".
  */
 const clearableEmailString = z.preprocess(
-  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
   emailString.nullable().optional()
 );
 
@@ -124,15 +162,24 @@ const clearableEmailString = z.preprocess(
  * Microsoft tenant: GUID, verified domain, or common/organizations/consumers.
  * Host-label characters only, so it can not alter the login URL path.
  */
-const tenantId = z.string().max(253).regex(/^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/, {
-  message: 'Invalid tenant ID',
-});
+const tenantId = z
+  .string()
+  .max(253)
+  .regex(/^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/, {
+    message: 'Invalid tenant ID',
+  });
 
 const oauthProviderEnum = z.enum(['gmail', 'microsoft', 'yahoo']);
 
 // Provider enum used by both create and update.
 const providerEnum = z.enum([
-  'smtp', 'nodemailer', 'gmail-oauth', 'microsoft-oauth', 'yahoo-oauth', 'sendgrid', 'mailgun',
+  'smtp',
+  'nodemailer',
+  'gmail-oauth',
+  'microsoft-oauth',
+  'yahoo-oauth',
+  'sendgrid',
+  'mailgun',
 ]);
 
 // Bounded config record. Keys are limited to 64 chars to prevent abuse
@@ -194,16 +241,18 @@ const schemas = {
     })
     .strict(),
 
-  'accounts.test': z.object({
-    testEmail: emailString.optional(),
-    to: emailString.optional(),
-    cc: recipientListInput(50, { allowEmptyString: true }).optional(),
-    priority: z.enum(['normal', 'high', 'low']).optional(),
-    // Accept every email type the send pipeline supports, including
-    // 'notification' which the admin Direct Test offers.
-    type: z.enum(['transactional', 'marketing', 'notification']).optional(),
-    unsubscribeUrl: unsubscribeUrl.optional().nullable(),
-  }).refine((d) => d.testEmail || d.to, { message: 'testEmail or to is required' }),
+  'accounts.test': z
+    .object({
+      testEmail: emailString.optional(),
+      to: emailString.optional(),
+      cc: recipientListInput(50, { allowEmptyString: true }).optional(),
+      priority: z.enum(['normal', 'high', 'low']).optional(),
+      // Accept every email type the send pipeline supports, including
+      // 'notification' which the admin Direct Test offers.
+      type: z.enum(['transactional', 'marketing', 'notification']).optional(),
+      unsubscribeUrl: unsubscribeUrl.optional().nullable(),
+    })
+    .refine((d) => d.testEmail || d.to, { message: 'testEmail or to is required' }),
 
   'accounts.testStrapiService': z.object({
     testEmail: emailString,
@@ -216,7 +265,10 @@ const schemas = {
   'oauth.auth': z.object({
     clientId: z.string().min(1).max(512).optional(),
     tenantId: tenantId.optional(),
-    accountId: z.string().regex(/^[A-Za-z0-9]{1,64}$/).optional(),
+    accountId: z
+      .string()
+      .regex(/^[A-Za-z0-9]{1,64}$/)
+      .optional(),
   }),
 
   'oauth.reconnect': z
@@ -265,10 +317,16 @@ const schemas = {
       // a number via parseInt() before POSTing. Accepting both shapes
       // keeps the wizard working either way — the service layer stores
       // the DB column as a string regardless.
-      templateReferenceId: z.union([
-        z.string().regex(/^[1-9]\d*$/).max(10),
-        z.number().int().positive(),
-      ]).optional().nullable(),
+      templateReferenceId: z
+        .union([
+          z
+            .string()
+            .regex(/^[1-9]\d*$/)
+            .max(10),
+          z.number().int().positive(),
+        ])
+        .optional()
+        .nullable(),
       // Optional/nullable mirrors the content-type schema: Strapi serves
       // absent DB columns as `null`, and the editor re-sends the whole
       // document on save. Accepting null avoids spurious 400s whenever a
@@ -286,10 +344,16 @@ const schemas = {
 
   'emailDesigner.update': z
     .object({
-      templateReferenceId: z.union([
-        z.string().regex(/^[1-9]\d*$/).max(10),
-        z.number().int().positive(),
-      ]).optional().nullable(),
+      templateReferenceId: z
+        .union([
+          z
+            .string()
+            .regex(/^[1-9]\d*$/)
+            .max(10),
+          z.number().int().positive(),
+        ])
+        .optional()
+        .nullable(),
       name: safeString.optional().nullable(),
       subject: headerSafe.optional().nullable(),
       bodyHtml: safeText.optional().nullable(),
@@ -334,44 +398,60 @@ const schemas = {
     cc: recipientListInput(50, { allowEmptyString: true }).optional(),
   }),
 
-  'routingRules.create': z.object({
-    name: z.string().min(1).max(255),
-    description: safeText.optional().nullable(),
-    isActive: z.boolean().optional(),
-    priority: z.number().int().min(1).max(1_000_000).optional(),
-    matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']),
-    matchValue: z.string().min(1).max(10000),
-    accountName: z.string().min(1).max(255),
-    fallbackAccountName: z.string().max(255).optional().nullable(),
-  }).strict(),
+  'routingRules.create': z
+    .object({
+      name: z.string().min(1).max(255),
+      description: safeText.optional().nullable(),
+      isActive: z.boolean().optional(),
+      priority: z.number().int().min(1).max(1_000_000).optional(),
+      matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']),
+      matchValue: z.string().min(1).max(10000),
+      accountName: z.string().min(1).max(255),
+      fallbackAccountName: z.string().max(255).optional().nullable(),
+    })
+    .strict(),
 
-  'routingRules.update': z.object({
-    name: z.string().min(1).max(255).optional(),
-    description: safeText.optional().nullable(),
-    isActive: z.boolean().optional(),
-    priority: z.number().int().min(1).max(1_000_000).optional(),
-    matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']).optional(),
-    matchValue: z.string().min(1).max(10000).optional(),
-    accountName: z.string().min(1).max(255).optional(),
-    fallbackAccountName: z.string().max(255).optional().nullable(),
-  }).strict(),
+  'routingRules.update': z
+    .object({
+      name: z.string().min(1).max(255).optional(),
+      description: safeText.optional().nullable(),
+      isActive: z.boolean().optional(),
+      priority: z.number().int().min(1).max(1_000_000).optional(),
+      matchType: z.enum(['emailType', 'subject', 'recipient', 'template', 'custom']).optional(),
+      matchValue: z.string().min(1).max(10000).optional(),
+      accountName: z.string().min(1).max(255).optional(),
+      fallbackAccountName: z.string().max(255).optional().nullable(),
+    })
+    .strict(),
 
-  'analytics.statsQuery': z.object({
-    userId: z.string().max(255).optional(),
-    templateId: z.coerce.number().int().positive().optional(),
-    accountId: z.string().max(255).optional(),
-    dateFrom: z.string().max(64).refine((value) => !Number.isNaN(Date.parse(value))).optional(),
-    dateTo: z.string().max(64).refine((value) => !Number.isNaN(Date.parse(value))).optional(),
-  }).strict(),
+  'analytics.statsQuery': z
+    .object({
+      userId: z.string().max(255).optional(),
+      templateId: z.coerce.number().int().positive().optional(),
+      accountId: z.string().max(255).optional(),
+      dateFrom: z
+        .string()
+        .max(64)
+        .refine((value) => !Number.isNaN(Date.parse(value)))
+        .optional(),
+      dateTo: z
+        .string()
+        .max(64)
+        .refine((value) => !Number.isNaN(Date.parse(value)))
+        .optional(),
+    })
+    .strict(),
 
-  'analytics.logsQuery': z.object({
-    userId: z.string().max(255).optional(),
-    templateId: z.coerce.number().int().positive().optional(),
-    search: z.string().max(500).optional(),
-    deliveryStatus: z.enum(['pending', 'sent', 'failed']).optional(),
-    page: z.coerce.number().int().min(1).max(1_000_000).optional(),
-    pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  }).strict(),
+  'analytics.logsQuery': z
+    .object({
+      userId: z.string().max(255).optional(),
+      templateId: z.coerce.number().int().positive().optional(),
+      search: z.string().max(500).optional(),
+      deliveryStatus: z.enum(['pending', 'sent', 'failed']).optional(),
+      page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+      pageSize: z.coerce.number().int().min(1).max(100).optional(),
+    })
+    .strict(),
 
   'pluginSettings.update': z.object({
     enableLinkTracking: z.boolean().optional(),
@@ -419,10 +499,12 @@ const schemas = {
       // users-permissions user id or documentId. The controller verifies
       // that the user exists (API tokens) or replaces it with the
       // authenticated user (user roles).
-      userId: z.union([
-        z.number().int().positive(),
-        z.string().regex(/^(?:[1-9]\d{0,15}|[A-Za-z0-9]{1,64})$/),
-      ]).optional(),
+      userId: z
+        .union([
+          z.number().int().positive(),
+          z.string().regex(/^(?:[1-9]\d{0,15}|[A-Za-z0-9]{1,64})$/),
+        ])
+        .optional(),
       recipientName: safeString.optional(),
       // Value matched by routing rules of type "custom".
       customField: safeString.optional(),
@@ -431,9 +513,7 @@ const schemas = {
           z
             .object({
               filename: noNewlineString(255).optional(),
-              content: z
-                .union([z.string().max(25 * 1024 * 1024), z.instanceof(Buffer)])
-                .optional(),
+              content: z.union([z.string().max(25 * 1024 * 1024), z.instanceof(Buffer)]).optional(),
               contentType: mimeType.optional(),
               encoding: attachmentEncoding.optional(),
               cid: contentId.optional(),
@@ -445,8 +525,16 @@ const schemas = {
       // Allowed names (X-*, List-Id, Precedence, Auto-Submitted,
       // In-Reply-To, References) are enforced again by the router.
       headers: z
-        .record(z.string().max(128).regex(/^[A-Za-z0-9-]+$/), headerSafe.max(4000))
-        .refine((value) => Object.keys(value).length <= 20, { message: 'At most 20 custom headers' })
+        .record(
+          z
+            .string()
+            .max(128)
+            .regex(/^[A-Za-z0-9-]+$/),
+          headerSafe.max(4000)
+        )
+        .refine((value) => Object.keys(value).length <= 20, {
+          message: 'At most 20 custom headers',
+        })
         .optional(),
     })
     .strict(),
@@ -549,7 +637,7 @@ function validate(schemaName, body) {
     const strapiErrors = require('@strapi/utils').errors;
     const flattened = result.error.flatten();
     // eslint-disable-next-line global-require
-    const strapiLog = (typeof strapi !== 'undefined' && strapi && strapi.log) ? strapi.log : null;
+    const strapiLog = typeof strapi !== 'undefined' && strapi && strapi.log ? strapi.log : null;
 
     // Merge Zod's formErrors (e.g. ".strict() unrecognized keys") into the
     // details payload under a `_form` key so the admin UI can surface them
@@ -564,10 +652,10 @@ function validate(schemaName, body) {
     if (strapiLog) {
       strapiLog.warn(
         `[magic-mail] Validation failed for schema '${schemaName}': ` +
-        JSON.stringify({
-          fieldErrors: flattened.fieldErrors,
-          formErrors: flattened.formErrors,
-        })
+          JSON.stringify({
+            fieldErrors: flattened.fieldErrors,
+            formErrors: flattened.formErrors,
+          })
       );
     }
     throw new strapiErrors.ValidationError('Validation failed', details);

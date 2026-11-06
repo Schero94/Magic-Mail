@@ -46,7 +46,9 @@ const locks = new Map();
 async function runExclusive(key, task) {
   const previous = locks.get(key) || Promise.resolve();
   let release;
-  const current = new Promise((resolve) => { release = resolve; });
+  const current = new Promise((resolve) => {
+    release = resolve;
+  });
   const composed = previous.then(() => current);
   locks.set(key, composed);
 
@@ -69,14 +71,19 @@ async function runExclusive(key, task) {
  */
 function getSigningKey(strapi) {
   const configKeys = strapi?.config?.get?.('server.app.keys');
-  const appKey = (Array.isArray(configKeys) ? configKeys[0] : null)
-    || String(process.env.APP_KEYS || '').split(',').map((key) => key.trim()).find(Boolean);
-  const material = process.env.MAGIC_MAIL_OAUTH_STATE_SECRET
-    || process.env.MAGIC_MAIL_ENCRYPTION_KEY
-    || appKey;
+  const appKey =
+    (Array.isArray(configKeys) ? configKeys[0] : null) ||
+    String(process.env.APP_KEYS || '')
+      .split(',')
+      .map((key) => key.trim())
+      .find(Boolean);
+  const material =
+    process.env.MAGIC_MAIL_OAUTH_STATE_SECRET || process.env.MAGIC_MAIL_ENCRYPTION_KEY || appKey;
 
   if (!material) {
-    throw new Error('[magic-mail] No signing secret available for OAuth state. Set MAGIC_MAIL_OAUTH_STATE_SECRET or APP_KEYS.');
+    throw new Error(
+      '[magic-mail] No signing secret available for OAuth state. Set MAGIC_MAIL_OAUTH_STATE_SECRET or APP_KEYS.'
+    );
   }
   return derivePurposeKey(material, 'oauth-state');
 }
@@ -92,8 +99,13 @@ const pluginStore = (strapi) => strapi.store({ type: 'plugin', name: 'magic-mail
  * @returns {Record<string, object>}
  */
 function prunePending(pending, now) {
-  const fresh = Object.entries(pending && typeof pending === 'object' && !Array.isArray(pending) ? pending : {})
-    .filter(([, entry]) => entry && Number.isFinite(entry.createdAt) && now - entry.createdAt <= STATE_TTL_MS)
+  const fresh = Object.entries(
+    pending && typeof pending === 'object' && !Array.isArray(pending) ? pending : {}
+  )
+    .filter(
+      ([, entry]) =>
+        entry && Number.isFinite(entry.createdAt) && now - entry.createdAt <= STATE_TTL_MS
+    )
     .sort(([, a], [, b]) => a.createdAt - b.createdAt)
     .slice(-MAX_PENDING_FLOWS);
   return Object.fromEntries(fresh);
@@ -114,7 +126,9 @@ async function cleanupLegacyRows(strapi) {
   try {
     const query = strapi?.db?.query?.('strapi::core-store');
     if (query?.deleteMany) {
-      await query.deleteMany({ where: { key: { $startsWith: `plugin_magic-mail_${LEGACY_PKCE_PREFIX}` } } });
+      await query.deleteMany({
+        where: { key: { $startsWith: `plugin_magic-mail_${LEGACY_PKCE_PREFIX}` } },
+      });
     }
     await pluginStore(strapi).delete({ key: LEGACY_USED_STATE_KEY });
   } catch {
@@ -128,7 +142,8 @@ async function cleanupLegacyRows(strapi) {
  * @param {unknown} userId
  * @returns {string|null}
  */
-const normalizeUserId = (userId) => (userId === undefined || userId === null || userId === '' ? null : String(userId));
+const normalizeUserId = (userId) =>
+  userId === undefined || userId === null || userId === '' ? null : String(userId);
 
 /**
  * Creates a signed, one-time-use OAuth state with PKCE.
@@ -158,7 +173,10 @@ async function createState(strapi, { clientId, provider, userId, accountId, useP
     pkce: usePKCE,
   };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const sig = crypto.createHmac('sha256', getSigningKey(strapi)).update(payloadB64).digest('base64url');
+  const sig = crypto
+    .createHmac('sha256', getSigningKey(strapi))
+    .update(payloadB64)
+    .digest('base64url');
   const state = `${payloadB64}.${sig}`;
 
   let codeVerifier = null;
@@ -198,7 +216,7 @@ async function createState(strapi, { clientId, provider, userId, accountId, useP
  * @throws {Error} When verification fails
  */
 async function verifyAndConsumeState(strapi, stateString, expected = {}) {
-  const expectations = typeof expected === 'string' ? { clientId: expected } : (expected || {});
+  const expectations = typeof expected === 'string' ? { clientId: expected } : expected || {};
 
   if (!stateString || typeof stateString !== 'string') {
     throw new Error('Missing state');
@@ -210,9 +228,13 @@ async function verifyAndConsumeState(strapi, stateString, expected = {}) {
   }
   const [payloadB64, sig] = parts;
 
-  const expectedSig = crypto.createHmac('sha256', getSigningKey(strapi)).update(payloadB64).digest('base64url');
-  const sigOk = sig.length === expectedSig.length
-    && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
+  const expectedSig = crypto
+    .createHmac('sha256', getSigningKey(strapi))
+    .update(payloadB64)
+    .digest('base64url');
+  const sigOk =
+    sig.length === expectedSig.length &&
+    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
   if (!sigOk) {
     throw new Error('Invalid state signature');
   }
@@ -224,7 +246,12 @@ async function verifyAndConsumeState(strapi, stateString, expected = {}) {
     throw new Error('Malformed state payload');
   }
 
-  if (!payload || !Number.isFinite(payload.timestamp) || typeof payload.nonce !== 'string' || !/^[a-f0-9]{32}$/.test(payload.nonce)) {
+  if (
+    !payload ||
+    !Number.isFinite(payload.timestamp) ||
+    typeof payload.nonce !== 'string' ||
+    !/^[a-f0-9]{32}$/.test(payload.nonce)
+  ) {
     throw new Error('Incomplete state payload');
   }
 
@@ -236,7 +263,10 @@ async function verifyAndConsumeState(strapi, stateString, expected = {}) {
   if (expectations.clientId !== undefined && payload.clientId !== expectations.clientId) {
     throw new Error('State clientId mismatch');
   }
-  if ('userId' in expectations && normalizeUserId(payload.uid) !== normalizeUserId(expectations.userId)) {
+  if (
+    'userId' in expectations &&
+    normalizeUserId(payload.uid) !== normalizeUserId(expectations.userId)
+  ) {
     throw new Error('State was issued to another admin user');
   }
   if ('accountId' in expectations && (payload.acc || null) !== (expectations.accountId || null)) {

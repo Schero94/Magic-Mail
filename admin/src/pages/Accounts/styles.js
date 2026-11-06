@@ -39,7 +39,9 @@ export const FloatingIcon = styled.div`
   right: 40px;
   opacity: 0.08;
   color: ${color('neutral800')};
-  ${motionSafe(css`animation: ${float} 4s ease-in-out infinite;`)}
+  ${motionSafe(css`
+    animation: ${float} 4s ease-in-out infinite;
+  `)}
 
   svg {
     width: 72px;
@@ -48,7 +50,9 @@ export const FloatingIcon = styled.div`
 `;
 
 export const Container = styled(Box)`
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow};`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow};
+  `)}
   min-height: 100vh;
   max-width: 1440px;
   margin: 0 auto;
@@ -81,7 +85,9 @@ export const Header = styled(Box)`
     width: 200%;
     height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-    ${motionSafe(css`animation: ${shimmer} 3s infinite;`)}
+    ${motionSafe(css`
+      animation: ${shimmer} 3s infinite;
+    `)}
   }
 
   &::after {
@@ -91,7 +97,11 @@ export const Header = styled(Box)`
     right: 0;
     width: 100%;
     height: 100%;
-    background-image: radial-gradient(circle at 20% 80%, transparent 50%, rgba(255, 255, 255, 0.1) 50%);
+    background-image: radial-gradient(
+      circle at 20% 80%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.1) 50%
+    );
     background-size: 15px 15px;
     opacity: 0.3;
   }
@@ -119,7 +129,9 @@ export const Title = styled(Typography)`
     width: 28px;
     height: 28px;
     flex-shrink: 0;
-    ${motionSafe(css`animation: ${float} 3s ease-in-out infinite;`)}
+    ${motionSafe(css`
+      animation: ${float} 3s ease-in-out infinite;
+    `)}
   }
 
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -172,7 +184,9 @@ export const StatCard = styled(Box)`
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow} backwards;
+  `)}
   animation-delay: ${(p) => p.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
   border: 1px solid rgba(128, 128, 128, 0.2);
@@ -344,7 +358,11 @@ export const OnlineBadge = styled.span`
   display: inline-block;
   margin-right: 8px;
   flex-shrink: 0;
-  ${(p) => p.$active && motionSafe(css`animation: ${pulse} 2s ease-in-out infinite;`)}
+  ${(p) =>
+    p.$active &&
+    motionSafe(css`
+      animation: ${pulse} 2s ease-in-out infinite;
+    `)}
 `;
 
 export const TableScroller = styled(Box)`

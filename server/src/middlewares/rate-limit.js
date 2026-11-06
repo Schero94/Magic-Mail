@@ -54,7 +54,9 @@ const prune = (now) => {
  * @returns {string}
  */
 const ipNetworkKey = (ip) => {
-  let value = String(ip || '').trim().split('%')[0];
+  let value = String(ip || '')
+    .trim()
+    .split('%')[0];
   if (value.startsWith('[') && value.endsWith(']')) value = value.slice(1, -1);
   const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(value);
   if (mapped) return mapped[1];
@@ -65,9 +67,16 @@ const ipNetworkKey = (ip) => {
   const tailGroups = tail ? tail.split(':') : [];
   const tailCount = tailGroups.reduce((sum, group) => sum + (group.includes('.') ? 2 : 1), 0);
   const groups = lower.includes('::')
-    ? [...headGroups, ...new Array(Math.max(0, 8 - headGroups.length - tailCount)).fill('0'), ...tailGroups]
+    ? [
+        ...headGroups,
+        ...new Array(Math.max(0, 8 - headGroups.length - tailCount)).fill('0'),
+        ...tailGroups,
+      ]
     : headGroups;
-  return `${groups.slice(0, 4).map((group) => (parseInt(group, 16) || 0).toString(16)).join(':')}::/64`;
+  return `${groups
+    .slice(0, 4)
+    .map((group) => (parseInt(group, 16) || 0).toString(16))
+    .join(':')}::/64`;
 };
 
 /**
@@ -78,10 +87,7 @@ const ipNetworkKey = (ip) => {
 const callerKey = (ctx) => {
   const userId = ctx.state?.user?.id;
   if (userId) return `u:${userId}`;
-  const tokenId =
-    ctx.state?.auth?.credentials?.id ??
-    ctx.state?.auth?.credentials?.token ??
-    null;
+  const tokenId = ctx.state?.auth?.credentials?.id ?? ctx.state?.auth?.credentials?.token ?? null;
   if (tokenId) {
     const digest = crypto.createHash('sha256').update(String(tokenId)).digest('hex').slice(0, 16);
     return `t:${digest}`;
@@ -136,7 +142,9 @@ const rateLimit = (cfg = {}, { strapi }) => {
       if (!entry.warned) {
         // One warning per caller and window (no path, no caller identity).
         entry.warned = true;
-        strapi.log.warn(`[magic-mail] Rate limit exceeded on bucket "${routeBucket}" (${max}/${windowMs} ms)`);
+        strapi.log.warn(
+          `[magic-mail] Rate limit exceeded on bucket "${routeBucket}" (${max}/${windowMs} ms)`
+        );
       }
 
       if (degrade && entry.count <= hardMax) {

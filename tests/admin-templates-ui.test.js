@@ -11,11 +11,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { loadAdminModule, ROOT } = require('./helpers/load-admin-module');
-const { findCssVarTokens, findTinyRemFontSizes, findEmoji } = require('./helpers/admin-style-guards');
+const {
+  findCssVarTokens,
+  findTinyRemFontSizes,
+  findEmoji,
+} = require('./helpers/admin-style-guards');
 
 const DIR = 'admin/src/pages/EmailDesigner';
 const read = (file) => fs.readFileSync(path.join(ROOT, DIR, file), 'utf8');
-const VIEW_FILES = fs.readdirSync(path.join(ROOT, DIR)).filter((file) => /\.(jsx?|mjs)$/.test(file));
+const VIEW_FILES = fs
+  .readdirSync(path.join(ROOT, DIR))
+  .filter((file) => /\.(jsx?|mjs)$/.test(file));
 const COMPONENT_FILES = VIEW_FILES.filter((file) => file.endsWith('.jsx'));
 
 const listUtils = loadAdminModule(`${DIR}/templateListUtils.js`);
@@ -32,9 +38,18 @@ test('template search tolerates missing fields and matches name, subject and id'
     { name: null, subject: 'Reset', templateReferenceId: undefined },
   ];
   assert.equal(listUtils.filterTemplates(templates, '').length, 3);
-  assert.deepEqual(listUtils.filterTemplates(templates, 'welc').map((t) => t.templateReferenceId), [100]);
-  assert.deepEqual(listUtils.filterTemplates(templates, '205').map((t) => t.name), ['Invoice']);
-  assert.deepEqual(listUtils.filterTemplates(templates, 'RESET').map((t) => t.subject), ['Reset']);
+  assert.deepEqual(
+    listUtils.filterTemplates(templates, 'welc').map((t) => t.templateReferenceId),
+    [100]
+  );
+  assert.deepEqual(
+    listUtils.filterTemplates(templates, '205').map((t) => t.name),
+    ['Invoice']
+  );
+  assert.deepEqual(
+    listUtils.filterTemplates(templates, 'RESET').map((t) => t.subject),
+    ['Reset']
+  );
   assert.deepEqual(listUtils.filterTemplates(null, 'x'), []);
 });
 
@@ -53,12 +68,17 @@ test('pagination is clamped after deletes and exposes a centred page window (UI-
 
 test('test-send input validates To and every CC address before sending (UI-12)', () => {
   assert.deepEqual(listUtils.validateTestSendInput({ to: '', cc: '' }).errors, { to: 'required' });
-  assert.deepEqual(listUtils.validateTestSendInput({ to: 'nope@', cc: '' }).errors, { to: 'invalid' });
+  assert.deepEqual(listUtils.validateTestSendInput({ to: 'nope@', cc: '' }).errors, {
+    to: 'invalid',
+  });
   assert.deepEqual(
     listUtils.validateTestSendInput({ to: 'qa@example.com', cc: 'a@example.com, broken' }).errors,
     { cc: 'invalid' }
   );
-  const ok = listUtils.validateTestSendInput({ to: ' qa@example.com ', cc: 'a@example.com; b@example.org,' });
+  const ok = listUtils.validateTestSendInput({
+    to: ' qa@example.com ',
+    cc: 'a@example.com; b@example.org,',
+  });
   assert.equal(ok.valid, true);
   assert.equal(ok.to, 'qa@example.com');
   assert.deepEqual(ok.cc, ['a@example.com', 'b@example.org']);
@@ -73,24 +93,40 @@ test('reference ids and categories are normalised', () => {
   assert.equal(listUtils.getCategoryVariant('marketing'), 'success');
   assert.equal(listUtils.getCategoryVariant('unknown'), 'neutral');
   for (const variant of Object.values(listUtils.CATEGORY_BADGE_VARIANTS)) {
-    assert.match(variant, /^(primary|success|secondary|neutral)$/, 'DS 2 Badge variants only (STR-11)');
+    assert.match(
+      variant,
+      /^(primary|success|secondary|neutral)$/,
+      'DS 2 Badge variants only (STR-11)'
+    );
   }
 });
 
 test('backend base URL comes from the admin config, never a hard-coded localhost', () => {
   assert.equal(
-    listUtils.getBackendBaseUrl({ strapi: { backendURL: 'https://cms.example.com/' }, location: { origin: 'https://admin.example.com' } }),
+    listUtils.getBackendBaseUrl({
+      strapi: { backendURL: 'https://cms.example.com/' },
+      location: { origin: 'https://admin.example.com' },
+    }),
     'https://cms.example.com'
   );
-  assert.equal(listUtils.getBackendBaseUrl({ location: { origin: 'https://admin.example.com' } }), 'https://admin.example.com');
-  assert.equal(listUtils.getBackendBaseUrl({ strapi: { backendURL: 'javascript:alert(1)' } }), 'https://your-strapi.example.com');
+  assert.equal(
+    listUtils.getBackendBaseUrl({ location: { origin: 'https://admin.example.com' } }),
+    'https://admin.example.com'
+  );
+  assert.equal(
+    listUtils.getBackendBaseUrl({ strapi: { backendURL: 'javascript:alert(1)' } }),
+    'https://your-strapi.example.com'
+  );
 });
 
 /* ----------------------------------------------------------- code snippets */
 
 test('code snippets are plain tokens, use the Strapi 5 accessor and the real backend URL (UI-21, SUP-12)', () => {
   const list = snippets.buildCodeSnippets({ templateId: 7, baseUrl: 'https://cms.example.com' });
-  assert.deepEqual(list.map((s) => s.key), ['native', 'plugin', 'curl']);
+  assert.deepEqual(
+    list.map((s) => s.key),
+    ['native', 'plugin', 'curl']
+  );
   const text = Object.fromEntries(list.map((s) => [s.key, snippets.snippetText(s.tokens)]));
 
   assert.match(text.native, /strapi\.plugin\('email'\)\.service\('email'\)\.send\(/);
@@ -109,7 +145,10 @@ test('code snippets are plain tokens, use the Strapi 5 accessor and the real bac
 });
 
 test('a non-numeric template id never reaches the snippets', () => {
-  const list = snippets.buildCodeSnippets({ templateId: '1</span><img src=x onerror=alert(1)>', baseUrl: 'https://cms.example.com' });
+  const list = snippets.buildCodeSnippets({
+    templateId: '1</span><img src=x onerror=alert(1)>',
+    baseUrl: 'https://cms.example.com',
+  });
   for (const snippet of list) {
     const text = snippets.snippetText(snippet.tokens);
     assert.doesNotMatch(text, /<img|onerror/);
@@ -120,7 +159,11 @@ test('a non-numeric template id never reaches the snippets', () => {
 /* ---------------------------------------------------------------- unlayer */
 
 test('Unlayer defaults: pinned version, explicit script, no foreign project or third-party assets (SUP-01, SUP-02, UI-26)', () => {
-  const options = unlayer.buildUnlayerOptions({ config: unlayer.DEFAULT_EDITOR_CONFIG, isDark: false, locale: 'en' });
+  const options = unlayer.buildUnlayerOptions({
+    config: unlayer.DEFAULT_EDITOR_CONFIG,
+    isDark: false,
+    locale: 'en',
+  });
   assert.equal(unlayer.UNLAYER_SCRIPT_URL, 'https://editor.unlayer.com/embed.js?2');
   assert.match(unlayer.UNLAYER_EDITOR_VERSION, /^\d+\.\d+\.\d+$/);
   assert.equal(options.version, unlayer.UNLAYER_EDITOR_VERSION);
@@ -134,14 +177,22 @@ test('Unlayer defaults: pinned version, explicit script, no foreign project or t
   const serialized = JSON.stringify(options);
   assert.doesNotMatch(serialized, /picsum|googleapis|gstatic/);
   assert.match(options.tools.image.properties.src.value.url, /^data:image\/svg\+xml/);
-  assert.equal('specialLinks' in options, false, 'no links to {{system.*}} values the server never fills');
+  assert.equal(
+    'specialLinks' in options,
+    false,
+    'no links to {{system.*}} values the server never fills'
+  );
   assert.equal('system' in options.mergeTags, false);
   assert.equal(options.appearance.theme, 'modern_light');
 });
 
 test('Unlayer follows the admin theme and locale and accepts only sane operator settings', () => {
   const dark = unlayer.buildUnlayerOptions({
-    config: unlayer.sanitizeEditorConfig({ projectId: 4711, version: '1.2.3', systemMergeTags: true }),
+    config: unlayer.sanitizeEditorConfig({
+      projectId: 4711,
+      version: '1.2.3',
+      systemMergeTags: true,
+    }),
     isDark: true,
     locale: 'de',
     t: (key, fallback) => `${fallback}!`,
@@ -153,14 +204,22 @@ test('Unlayer follows the admin theme and locale and accepts only sane operator 
   assert.equal(dark.mergeTags.user.name, 'User!', 'merge tag labels are translated');
   assert.equal(dark.mergeTags.system.mergeTags.unsubscribe.value, '{{system.unsubscribe}}');
 
-  assert.deepEqual(unlayer.sanitizeEditorConfig({ projectId: 1.5, scriptUrl: 'http://evil.example/embed.js', version: 'latest' }), {
-    projectId: null,
-    scriptUrl: unlayer.UNLAYER_SCRIPT_URL,
-    version: unlayer.UNLAYER_EDITOR_VERSION,
-    systemMergeTags: false,
-  });
+  assert.deepEqual(
+    unlayer.sanitizeEditorConfig({
+      projectId: 1.5,
+      scriptUrl: 'http://evil.example/embed.js',
+      version: 'latest',
+    }),
+    {
+      projectId: null,
+      scriptUrl: unlayer.UNLAYER_SCRIPT_URL,
+      version: unlayer.UNLAYER_EDITOR_VERSION,
+      systemMergeTags: false,
+    }
+  );
   assert.equal(
-    unlayer.sanitizeEditorConfig({ scriptUrl: 'https://cdn.example.com/unlayer/embed.js' }).scriptUrl,
+    unlayer.sanitizeEditorConfig({ scriptUrl: 'https://cdn.example.com/unlayer/embed.js' })
+      .scriptUrl,
     'https://cdn.example.com/unlayer/embed.js'
   );
   assert.equal(unlayer.sanitizeEditorConfig(null).projectId, null);
@@ -185,7 +244,10 @@ test('editor image uploads go to the Strapi Media Library, not Unlayer hosting',
   assert.equal(calls[0].url, '/upload');
   assert.equal(calls[0].isForm, true);
   assert.ok(calls[0].file, 'the attachment is sent as "files"');
-  assert.deepEqual(results.at(-1), { progress: 100, url: 'https://cms.example.com/uploads/pic_123.png' });
+  assert.deepEqual(results.at(-1), {
+    progress: 100,
+    url: 'https://cms.example.com/uploads/pic_123.png',
+  });
 
   const failures = [];
   await unlayer.createMediaLibraryUploader({
@@ -231,32 +293,55 @@ test('the reference id is sent only when a template is created (UI-04, FUN-14)',
 
 test('editor field validation reports missing and invalid values', () => {
   const mode = { isCoreEmail: false, isNewTemplate: true };
-  assert.deepEqual(editorUtils.validateTemplateFields({ templateReferenceId: '', name: '', subject: '' }, mode), {
-    templateReferenceId: 'required',
-    name: 'required',
-    subject: 'required',
-  });
-  assert.deepEqual(editorUtils.validateTemplateFields({ templateReferenceId: '-3', name: 'a', subject: 'b' }, mode), {
-    templateReferenceId: 'invalid',
-  });
   assert.deepEqual(
-    editorUtils.validateTemplateFields({ templateReferenceId: 'x', name: 'a', subject: 'b' }, { isCoreEmail: false, isNewTemplate: false }),
+    editorUtils.validateTemplateFields({ templateReferenceId: '', name: '', subject: '' }, mode),
+    {
+      templateReferenceId: 'required',
+      name: 'required',
+      subject: 'required',
+    }
+  );
+  assert.deepEqual(
+    editorUtils.validateTemplateFields(
+      { templateReferenceId: '-3', name: 'a', subject: 'b' },
+      mode
+    ),
+    {
+      templateReferenceId: 'invalid',
+    }
+  );
+  assert.deepEqual(
+    editorUtils.validateTemplateFields(
+      { templateReferenceId: 'x', name: 'a', subject: 'b' },
+      { isCoreEmail: false, isNewTemplate: false }
+    ),
     {},
     'the locked reference id of an existing template is not re-validated'
   );
-  assert.deepEqual(editorUtils.validateTemplateFields({ subject: '' }, { isCoreEmail: true, isNewTemplate: false }), {
-    subject: 'required',
-  });
+  assert.deepEqual(
+    editorUtils.validateTemplateFields(
+      { subject: '' },
+      { isCoreEmail: true, isNewTemplate: false }
+    ),
+    {
+      subject: 'required',
+    }
+  );
 });
 
 test('core email messages become a design without breaking on quotes or backslashes', () => {
-  const design = editorUtils.buildCoreDesign('Hello "user"\\path\n<script>x</script><a href="<%= URL %>">Reset</a>');
+  const design = editorUtils.buildCoreDesign(
+    'Hello "user"\\path\n<script>x</script><a href="<%= URL %>">Reset</a>'
+  );
   const text = design.body.rows[0].columns[0].contents[0].values.text;
   assert.match(text, /Hello 'user'\\path<br \/>/);
   assert.doesNotMatch(text, /<script/);
   assert.match(text, /<a href='<%= URL %>'>Reset<\/a>/);
   assert.equal(editorUtils.buildCoreDesign(''), null);
-  assert.equal(editorUtils.buildCoreDesign('<html><body><p>Hi</p></body></html>', () => 'Hi').body.rows.length, 1);
+  assert.equal(
+    editorUtils.buildCoreDesign('<html><body><p>Hi</p></body></html>', () => 'Hi').body.rows.length,
+    1
+  );
 });
 
 test('design import accepts only Unlayer design objects', () => {
@@ -286,7 +371,11 @@ test('template views use DS tokens, readable sizes and no emoji', () => {
   for (const file of COMPONENT_FILES) {
     const source = read(file);
     assert.match(source, /useMagicMailIntl/, `${file}: translated`);
-    assert.doesNotMatch(source, /'de-DE'|'en-US'|toLocale(Date)?String\(/, `${file}: hard-coded locale`);
+    assert.doesNotMatch(
+      source,
+      /'de-DE'|'en-US'|toLocale(Date)?String\(/,
+      `${file}: hard-coded locale`
+    );
     assert.doesNotMatch(source, /backgroundColor=["{]/, `${file}: DS 2 Badge variants`);
     assert.doesNotMatch(source, /\bas="span"/, `${file}: DS 2 tag prop`);
   }
@@ -299,7 +388,10 @@ test('template list: labelled search, error state with retry, confirm dialog and
   assert.match(list, /setLoadError\(true\)/);
   assert.match(list, /templates\.retry/);
   assert.match(list, /<ConfirmDialog\s+isOpen=\{canManage && pendingDelete !== null\}/);
-  assert.match(list, /const handleDelete = async \(template\) => \{\s*if \(!canManage \|\| !template\) return;/);
+  assert.match(
+    list,
+    /const handleDelete = async \(template\) => \{\s*if \(!canManage \|\| !template\) return;/
+  );
   assert.match(list, /templates\.actions\.view/, 'read-only users can open a template');
   assert.match(list, /aria-current=\{page === pageNum \? 'page' : undefined\}/);
   assert.match(list, /input\.value = ''/, 'the import input is reset');
@@ -310,21 +402,41 @@ test('template list: labelled search, error state with retry, confirm dialog and
 
 test('editor: tabs keep Unlayer mounted, saves export from any tab, guard and dialogs in place', () => {
   const editor = read('EditorPage.jsx');
-  assert.match(editor, /<StyledTabsContent value="html" forceMount>/, 'visual edits survive tab switches (UI-M01)');
+  assert.match(
+    editor,
+    /<StyledTabsContent value="html" forceMount>/,
+    'visual edits survive tab switches (UI-M01)'
+  );
   assert.match(read('editorStyles.js'), /&\[data-state='inactive'\] \{\s*display: none;/);
-  assert.doesNotMatch(editor, /activeTab === 'html' && emailEditorRef/, 'save no longer depends on the active tab (FUN-14)');
-  assert.match(editor, /disabled=\{!canManage \|\| !isNewTemplate\}/, 'reference id is locked after creation (UI-04)');
+  assert.doesNotMatch(
+    editor,
+    /activeTab === 'html' && emailEditorRef/,
+    'save no longer depends on the active tab (FUN-14)'
+  );
+  assert.match(
+    editor,
+    /disabled=\{!canManage \|\| !isNewTemplate\}/,
+    'reference id is locked after creation (UI-04)'
+  );
   assert.match(editor, /useUnsavedChangesGuard\(canManage && isDirty\)/);
   assert.match(editor, /<UnsavedChangesDialog guard=\{guard\} \/>/);
   assert.match(editor, /guard\.bypass\(\(\) => navigate\(/);
   assert.match(editor, /addEventListener\?\.\('design:updated'/);
   assert.match(editor, /registerCallback\?\.\(\s*'image'/);
   assert.match(editor, /scriptUrl=\{editorConfig\?\.scriptUrl \|\| UNLAYER_SCRIPT_URL\}/);
-  assert.match(editor, /import \{ EmailEditor \} from 'react-email-editor'/, 'no namespace fallback (SUP-M04)');
+  assert.match(
+    editor,
+    /import \{ EmailEditor \} from 'react-email-editor'/,
+    'no namespace fallback (SUP-M04)'
+  );
   assert.match(editor, /sandbox=""/, 'read-only preview is sandboxed');
   assert.match(editor, /<PluginPageTitle>/);
   assert.match(editor, /input\.value = ''/, 'the design input is reset (UI-M06)');
-  assert.match(editor, /editor\.design\.importPending/, 'import before the editor is ready is not silent');
+  assert.match(
+    editor,
+    /editor\.design\.importPending/,
+    'import before the editor is ready is not silent'
+  );
 
   const drawer = read('VersionHistoryDrawer.jsx');
   assert.match(drawer, /<Modal\.Root open=\{isOpen\}/, 'version history is a real dialog (UI-13)');

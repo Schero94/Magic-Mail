@@ -66,9 +66,12 @@ export const createFormatters = (intl) => {
     const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
     const abs = Math.abs(seconds);
     if (abs < 60) return intl.formatRelativeTime(seconds, 'second', { numeric: 'auto' });
-    if (abs < 3600) return intl.formatRelativeTime(Math.round(seconds / 60), 'minute', { numeric: 'auto' });
-    if (abs < 86400) return intl.formatRelativeTime(Math.round(seconds / 3600), 'hour', { numeric: 'auto' });
-    if (abs < 86400 * 30) return intl.formatRelativeTime(Math.round(seconds / 86400), 'day', { numeric: 'auto' });
+    if (abs < 3600)
+      return intl.formatRelativeTime(Math.round(seconds / 60), 'minute', { numeric: 'auto' });
+    if (abs < 86400)
+      return intl.formatRelativeTime(Math.round(seconds / 3600), 'hour', { numeric: 'auto' });
+    if (abs < 86400 * 30)
+      return intl.formatRelativeTime(Math.round(seconds / 86400), 'day', { numeric: 'auto' });
     return formatDateOnly(date);
   };
 

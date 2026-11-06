@@ -24,9 +24,7 @@ const affectedFiles = [
   },
   {
     relativePath: 'admin/src/pages/Routing/RuleModal.jsx',
-    expectedChecked: [
-      'formData.isActive',
-    ],
+    expectedChecked: ['formData.isActive'],
   },
   {
     relativePath: 'admin/src/pages/EmailDesigner/EditorPage.jsx',
@@ -40,8 +38,7 @@ const affectedFiles = [
 function importsFromDesignSystem(source, componentName) {
   return scanStaticImportDeclarations(source).some(
     ({ moduleName, importedIdentifiers }) =>
-      moduleName === '@strapi/design-system' &&
-      importedIdentifiers.includes(componentName)
+      moduleName === '@strapi/design-system' && importedIdentifiers.includes(componentName)
   );
 }
 
@@ -160,12 +157,7 @@ function readStaticImportDeclaration(source, start) {
       }
 
       importedIdentifiers.push(identifier.name);
-    } else if (
-      character === ';' ||
-      character === "'" ||
-      character === '"' ||
-      character === '`'
-    ) {
+    } else if (character === ';' || character === "'" || character === '"' || character === '`') {
       return null;
     } else {
       index += 1;
@@ -496,9 +488,7 @@ function scanJsxChildren(source, start, parentName, switches) {
     if (source.startsWith('</', index)) {
       const closingTag = readJsxClosingTag(source, index);
       if (closingTag.name !== parentName) {
-        throw new Error(
-          `Mismatched JSX closing tag "${closingTag.name}" for "${parentName}"`
-        );
+        throw new Error(`Mismatched JSX closing tag "${closingTag.name}" for "${parentName}"`);
       }
       return closingTag.end;
     }
@@ -683,7 +673,7 @@ test('design-system import scanner rejects import-looking non-code text', () => 
     },
     {
       context: 'ordinary string',
-      source: "const example = \"import { Toggle } from '@strapi/design-system';\";",
+      source: 'const example = "import { Toggle } from \'@strapi/design-system\';";',
     },
     {
       context: 'template literal',
@@ -716,9 +706,7 @@ test('Switch extractor preserves the intended real-file control distribution', (
   for (const { relativePath, source, expectedChecked } of affectedFiles) {
     const simulatedMigration = source.replace(/<Toggle\b/g, '<Switch');
     const switches = extractSwitchOpeningTags(simulatedMigration);
-    const actualChecked = switches.map((tag, index) =>
-      checkedExpression(tag, relativePath, index)
-    );
+    const actualChecked = switches.map((tag, index) => checkedExpression(tag, relativePath, index));
 
     assert.equal(
       switches.length,
@@ -740,11 +728,7 @@ test('affected admin files stop importing and rendering Toggle', () => {
       false,
       `${relativePath} must not import Toggle from @strapi/design-system`
     );
-    assert.doesNotMatch(
-      source,
-      /<Toggle\b/,
-      `${relativePath} must not render a Toggle control`
-    );
+    assert.doesNotMatch(source, /<Toggle\b/, `${relativePath} must not render a Toggle control`);
   }
 });
 
@@ -768,9 +752,7 @@ for (const { relativePath, source, expectedChecked } of affectedFiles) {
       `${relativePath} must render exactly ${expectedChecked.length} Switch controls; found ${switches.length}`
     );
 
-    const actualChecked = switches.map((tag, index) =>
-      checkedExpression(tag, relativePath, index)
-    );
+    const actualChecked = switches.map((tag, index) => checkedExpression(tag, relativePath, index));
 
     for (const expectedExpression of expectedChecked) {
       const occurrenceCount = actualChecked.filter(

@@ -33,7 +33,10 @@ const DEV_ENVIRONMENTS = new Set(['', 'development', 'test']);
 let warnedMissingKey = false;
 
 /** @returns {string} NODE_ENV in lower case, '' when unset */
-const currentEnv = () => String(process.env.NODE_ENV || '').trim().toLowerCase();
+const currentEnv = () =>
+  String(process.env.NODE_ENV || '')
+    .trim()
+    .toLowerCase();
 
 /**
  * Validates an explicitly configured key.
@@ -70,12 +73,16 @@ function getKeyMaterial() {
   if (!DEV_ENVIRONMENTS.has(currentEnv())) {
     throw new Error(
       `[magic-mail] FATAL: MAGIC_MAIL_ENCRYPTION_KEY is required (NODE_ENV=${currentEnv()}). ` +
-      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
     );
   }
 
-  const fallback = process.env.ADMIN_JWT_SECRET
-    || String(process.env.APP_KEYS || '').split(',').map((key) => key.trim()).find(Boolean);
+  const fallback =
+    process.env.ADMIN_JWT_SECRET ||
+    String(process.env.APP_KEYS || '')
+      .split(',')
+      .map((key) => key.trim())
+      .find(Boolean);
   if (!fallback) {
     throw new Error(
       '[magic-mail] MAGIC_MAIL_ENCRYPTION_KEY is not set and no ADMIN_JWT_SECRET/APP_KEYS is available to derive a development key.'
@@ -87,7 +94,7 @@ function getKeyMaterial() {
     // eslint-disable-next-line no-console
     console.warn(
       '[magic-mail] MAGIC_MAIL_ENCRYPTION_KEY not set - using a development key derived from ' +
-      'ADMIN_JWT_SECRET/APP_KEYS. Set MAGIC_MAIL_ENCRYPTION_KEY before deploying.'
+        'ADMIN_JWT_SECRET/APP_KEYS. Set MAGIC_MAIL_ENCRYPTION_KEY before deploying.'
     );
   }
   return fallback;
@@ -165,7 +172,10 @@ function encryptCredentials(data) {
 function decryptWith(key, iv, authTag, ciphertextHex) {
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
-  return Buffer.concat([decipher.update(Buffer.from(ciphertextHex, 'hex')), decipher.final()]).toString('utf8');
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertextHex, 'hex')),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 /**
@@ -202,7 +212,11 @@ function decryptCredentials(encryptedData) {
     throw new Error('[magic-mail] decrypt: missing ciphertext components');
   }
   const ivHexLength = (versioned ? IV_LENGTH : LEGACY_IV_LENGTH) * 2;
-  if (ivHex.length !== ivHexLength || !/^[a-f0-9]+$/i.test(ivHex) || !/^[a-f0-9]{32}$/i.test(authTagHex)) {
+  if (
+    ivHex.length !== ivHexLength ||
+    !/^[a-f0-9]+$/i.test(ivHex) ||
+    !/^[a-f0-9]{32}$/i.test(authTagHex)
+  ) {
     throw new Error('[magic-mail] decrypt: invalid IV or authentication tag');
   }
   if (!/^(?:[a-f0-9]{2})+$/i.test(ciphertextHex)) {
@@ -226,7 +240,9 @@ function decryptCredentials(encryptedData) {
     }
   }
   if (plaintext === null) {
-    throw new Error('[magic-mail] decrypt: credentials could not be decrypted with the configured key');
+    throw new Error(
+      '[magic-mail] decrypt: credentials could not be decrypted with the configured key'
+    );
   }
 
   try {
@@ -243,7 +259,8 @@ function decryptCredentials(encryptedData) {
  * @returns {boolean}
  */
 function isLegacyCiphertext(encryptedData) {
-  const value = encryptedData && typeof encryptedData === 'object' ? encryptedData.encrypted : encryptedData;
+  const value =
+    encryptedData && typeof encryptedData === 'object' ? encryptedData.encrypted : encryptedData;
   return typeof value === 'string' && !value.startsWith(`${VERSION_PREFIX}:`);
 }
 

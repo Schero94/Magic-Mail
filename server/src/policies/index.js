@@ -15,7 +15,8 @@
 const apiTokenOnly = (policyContext, _config, { strapi }) => {
   const strategy = policyContext?.state?.auth?.strategy?.name;
   if (strategy === 'api-token') return true;
-  const allowUserRoles = strapi?.config?.get?.('plugin::magic-mail.contentApi.allowUserRoles', false) === true;
+  const allowUserRoles =
+    strapi?.config?.get?.('plugin::magic-mail.contentApi.allowUserRoles', false) === true;
   return allowUserRoles && strategy === 'users-permissions';
 };
 

@@ -15,7 +15,11 @@ const {
   contrastRatio,
   ROOT,
 } = require('./helpers/load-admin-module');
-const { findCssVarTokens, findTinyRemFontSizes, findEmoji } = require('./helpers/admin-style-guards');
+const {
+  findCssVarTokens,
+  findTinyRemFontSizes,
+  findEmoji,
+} = require('./helpers/admin-style-guards');
 
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 
@@ -36,10 +40,12 @@ const DARK_THEME = {
 };
 
 const DS_STUB = {
-  Button: React.forwardRef(({ startIcon, endIcon, loading, fullWidth, variant, size, ...props }, ref) =>
-    React.createElement('button', { ref, ...props })
+  Button: React.forwardRef(
+    ({ startIcon, endIcon, loading, fullWidth, variant, size, ...props }, ref) =>
+      React.createElement('button', { ref, ...props })
   ),
-  Tooltip: ({ label, children }) => React.createElement('span', { 'data-tooltip': label }, children),
+  Tooltip: ({ label, children }) =>
+    React.createElement('span', { 'data-tooltip': label }, children),
 };
 
 const FOUNDATION_FILES = [
@@ -51,9 +57,7 @@ const FOUNDATION_FILES = [
   'admin/src/index.js',
   'admin/src/pages/App.jsx',
   'admin/src/permissions.js',
-  ...fs
-    .readdirSync(path.join(ROOT, 'admin/src/hooks'))
-    .map((file) => `admin/src/hooks/${file}`),
+  ...fs.readdirSync(path.join(ROOT, 'admin/src/hooks')).map((file) => `admin/src/hooks/${file}`),
   ...fs
     .readdirSync(path.join(ROOT, 'admin/src/components/shared'))
     .map((file) => `admin/src/components/shared/${file}`),
@@ -68,9 +72,17 @@ test('theme helpers resolve DS tokens from the active theme and fall back to DS 
   const { color, fontSize, byScheme, resolveColor, isDarkTheme, LIGHT_FALLBACK_COLORS } =
     loadAdminModule('admin/src/utils/theme.js');
 
-  assert.equal(color('neutral0')({ theme: DARK_THEME }), '#212134', 'dark mode uses the dark token');
+  assert.equal(
+    color('neutral0')({ theme: DARK_THEME }),
+    '#212134',
+    'dark mode uses the dark token'
+  );
   assert.equal(color('neutral0')({ theme: { colors: { neutral0: '#ffffff' } } }), '#ffffff');
-  assert.equal(color('neutral100')({}), LIGHT_FALLBACK_COLORS.neutral100, 'no provider: light fallback');
+  assert.equal(
+    color('neutral100')({}),
+    LIGHT_FALLBACK_COLORS.neutral100,
+    'no provider: light fallback'
+  );
   assert.equal(resolveColor(DARK_THEME, 'neutral800'), '#ffffff');
   assert.equal(fontSize(2)({ theme: DARK_THEME }), '1.4rem');
   assert.equal(fontSize(1)({}), '1.2rem');
@@ -82,14 +94,28 @@ test('theme helpers resolve DS tokens from the active theme and fall back to DS 
 test('brand fills keep white text at WCAG AA and accents stay readable in both schemes', () => {
   const { brand, ACCENT_VALUES } = loadAdminModule('admin/src/utils/theme.js');
 
-  for (const key of ['primary', 'primaryHover', 'secondary', 'secondaryHover', 'success', 'successHover', 'warning', 'warningHover', 'danger', 'dangerHover']) {
+  for (const key of [
+    'primary',
+    'primaryHover',
+    'secondary',
+    'secondaryHover',
+    'success',
+    'successHover',
+    'warning',
+    'warningHover',
+    'danger',
+    'dangerHover',
+  ]) {
     const ratio = contrastRatio(brand[key], '#ffffff');
     assert.ok(ratio >= 4.5, `white on brand.${key} (${brand[key]}) is ${ratio.toFixed(2)}:1`);
   }
 
   for (const [name, [light, dark]] of Object.entries(ACCENT_VALUES)) {
     assert.ok(contrastRatio(light, '#ffffff') >= 4.5, `accent.${name} on light neutral0`);
-    assert.ok(contrastRatio(dark, DARK_THEME.colors.neutral0) >= 4.5, `accent.${name} on dark neutral0`);
+    assert.ok(
+      contrastRatio(dark, DARK_THEME.colors.neutral0) >= 4.5,
+      `accent.${name} on dark neutral0`
+    );
   }
 });
 
@@ -106,7 +132,9 @@ const renderWithTheme = (themeObject, ...elements) => {
         React.createElement(
           styledComponents.ThemeProvider,
           { theme: themeObject },
-          ...elements.map((build, index) => React.createElement(React.Fragment, { key: index }, build(buttons)))
+          ...elements.map((build, index) =>
+            React.createElement(React.Fragment, { key: index }, build(buttons))
+          )
         )
       )
     );
@@ -125,7 +153,10 @@ test('styled buttons follow the dark theme, use contrast-safe fills and honour r
   );
 
   assert.ok(!css.includes('var(--colors-'), 'no undefined DS custom properties');
-  assert.ok(css.includes('#0369A1') && css.includes('#9333EA'), 'primary gradient uses the AA brand stops');
+  assert.ok(
+    css.includes('#0369A1') && css.includes('#9333EA'),
+    'primary gradient uses the AA brand stops'
+  );
   assert.ok(!/#0EA5E9|#A855F7/i.test(css), 'the low-contrast gradient stops are gone');
   assert.ok(css.includes('#212134'), 'secondary button background follows the dark neutral0');
   assert.ok(css.includes('#D8B4FE'), 'secondary button text switches to the dark-mode accent');
@@ -137,13 +168,22 @@ test('styled buttons follow the dark theme, use contrast-safe fills and honour r
 test('icon buttons expose their aria-label as a tooltip and drop a duplicate native title', () => {
   const { html, css } = renderWithTheme(
     { colorScheme: 'light', colors: {} },
-    (b) => React.createElement(b.IconButtonDanger, { 'aria-label': 'Delete account', title: 'Delete account' }, 'x'),
+    (b) =>
+      React.createElement(
+        b.IconButtonDanger,
+        { 'aria-label': 'Delete account', title: 'Delete account' },
+        'x'
+      ),
     (b) => React.createElement(b.IconButton, { title: 'Edit' }, 'y')
   );
 
   assert.match(html, /data-tooltip="Delete account"><button aria-label="Delete account"/);
   assert.doesNotMatch(html, /title=/, 'no native title tooltip next to the DS tooltip');
-  assert.match(html, /data-tooltip="Edit"><button aria-label="Edit"/, 'a lone title becomes the accessible name');
+  assert.match(
+    html,
+    /data-tooltip="Edit"><button aria-label="Edit"/,
+    'a lone title becomes the accessible name'
+  );
   assert.match(css, /height:36px/, 'icon buttons share the 36px control height');
 });
 
@@ -154,24 +194,47 @@ test('unused button variants are removed and the remaining exports are stable', 
   for (const removed of ['SuccessButton', 'LinkButton', 'WhiteOutlineButton']) {
     assert.equal(buttons[removed], undefined, `${removed} is no longer exported`);
   }
-  for (const kept of ['GradientButton', 'SecondaryButton', 'TertiaryButton', 'DangerButton', 'CTAButton', 'IconButton', 'IconButtonDanger', 'IconButtonPrimary', 'IconButtonSuccess', 'IconButtonWarning', 'IconButtonPurple']) {
+  for (const kept of [
+    'GradientButton',
+    'SecondaryButton',
+    'TertiaryButton',
+    'DangerButton',
+    'CTAButton',
+    'IconButton',
+    'IconButtonDanger',
+    'IconButtonPrimary',
+    'IconButtonSuccess',
+    'IconButtonWarning',
+    'IconButtonPurple',
+  ]) {
     assert.ok(buttons[kept], `${kept} is exported`);
   }
 });
 
 /* ------------------------------------------------------------- clipboard */
 
-const loadClipboard = () => loadAdminModule('admin/src/components/shared/clipboard.js').copyToClipboard;
+const loadClipboard = () =>
+  loadAdminModule('admin/src/components/shared/clipboard.js').copyToClipboard;
 
 const fakeDocument = (execResult) => {
   const appended = [];
   const doc = {
-    activeElement: { focus() { doc.refocused = true; } },
+    activeElement: {
+      focus() {
+        doc.refocused = true;
+      },
+    },
     body: {
       appendChild: (node) => appended.push(node),
       removeChild: (node) => appended.splice(appended.indexOf(node), 1),
     },
-    createElement: () => ({ style: {}, setAttribute() {}, select() { doc.selected = true; } }),
+    createElement: () => ({
+      style: {},
+      setAttribute() {},
+      select() {
+        doc.selected = true;
+      },
+    }),
     execCommand: (command) => {
       doc.command = command;
       if (execResult instanceof Error) throw execResult;
@@ -200,7 +263,13 @@ test('copyToClipboard falls back to execCommand when the Clipboard API rejects o
   const doc = fakeDocument(true);
   const rejected = await copyToClipboard('abc', {
     window: { isSecureContext: true },
-    navigator: { clipboard: { writeText: async () => { throw new Error('denied'); } } },
+    navigator: {
+      clipboard: {
+        writeText: async () => {
+          throw new Error('denied');
+        },
+      },
+    },
     document: doc,
   });
   assert.equal(rejected, true, 'legacy copy succeeded');
@@ -228,7 +297,9 @@ test('copyToClipboard falls back to execCommand when the Clipboard API rejects o
 /* ------------------------------------------------------------ formatting */
 
 test('date and number formatters use the admin locale and handle empty or invalid values', () => {
-  const { createFormatters, EMPTY_VALUE } = loadAdminModule('admin/src/components/shared/format.js');
+  const { createFormatters, EMPTY_VALUE } = loadAdminModule(
+    'admin/src/components/shared/format.js'
+  );
   const de = createFormatters(createIntl({ locale: 'de', timeZone: 'UTC', messages: {} }));
   const en = createFormatters(createIntl({ locale: 'en-US', timeZone: 'UTC', messages: {} }));
   const iso = '2026-11-06T13:05:00.000Z';
@@ -256,11 +327,19 @@ test('every locale file has the same keys, matching ICU placeholders and no emoj
 
   for (const locale of LOCALES) {
     const data = readLocale(locale);
-    assert.deepEqual(Object.keys(data).sort(), referenceKeys, `${locale}.json key parity with en.json`);
+    assert.deepEqual(
+      Object.keys(data).sort(),
+      referenceKeys,
+      `${locale}.json key parity with en.json`
+    );
     for (const [key, value] of Object.entries(data)) {
       assert.equal(typeof value, 'string', `${locale}:${key} is a string`);
       assert.ok(value.trim().length > 0, `${locale}:${key} is not empty`);
-      assert.deepEqual(placeholders(value), placeholders(reference[key]), `${locale}:${key} placeholders`);
+      assert.deepEqual(
+        placeholders(value),
+        placeholders(reference[key]),
+        `${locale}:${key} placeholders`
+      );
       assert.deepEqual(findEmoji(value), [], `${locale}:${key} has no emoji`);
     }
   }
@@ -314,11 +393,18 @@ test('menu and settings registration use translated ids that exist in every loca
     const data = readLocale(locale);
     for (const id of ids) {
       assert.ok(id.startsWith('magic-mail.'), id);
-      assert.ok(Object.hasOwn(data, id.slice('magic-mail.'.length)), `${locale}.json defines ${id}`);
+      assert.ok(
+        Object.hasOwn(data, id.slice('magic-mail.'.length)),
+        `${locale}.json defines ${id}`
+      );
     }
   }
-  assert.deepEqual(calls.menu[0].permissions, [{ action: 'plugin::magic-mail.access', subject: null }]);
-  assert.deepEqual(calls.settings[0].links[0].permissions, [{ action: 'plugin::magic-mail.read', subject: null }]);
+  assert.deepEqual(calls.menu[0].permissions, [
+    { action: 'plugin::magic-mail.access', subject: null },
+  ]);
+  assert.deepEqual(calls.settings[0].links[0].permissions, [
+    { action: 'plugin::magic-mail.read', subject: null },
+  ]);
 });
 
 test('useMagicMailIntl prefixes ids and falls back to the English default message', () => {
@@ -349,10 +435,22 @@ test('the unsaved-changes guard blocks only real navigation while dirty', () => 
   });
   const at = (pathname, search = '') => ({ pathname, search });
 
-  assert.equal(shouldBlockNavigation(false, { currentLocation: at('/a'), nextLocation: at('/b') }), false);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/b') }), true);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/a') }), false);
-  assert.equal(shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/a', '?x=1') }), true);
+  assert.equal(
+    shouldBlockNavigation(false, { currentLocation: at('/a'), nextLocation: at('/b') }),
+    false
+  );
+  assert.equal(
+    shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/b') }),
+    true
+  );
+  assert.equal(
+    shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/a') }),
+    false
+  );
+  assert.equal(
+    shouldBlockNavigation(true, { currentLocation: at('/a'), nextLocation: at('/a', '?x=1') }),
+    true
+  );
   assert.equal(shouldBlockNavigation(true, {}), false);
 });
 
@@ -370,7 +468,12 @@ test('beforeunload protection is attached only while dirty and removed on cleanu
   assert.equal(listeners.size, 0, 'clean pages never prompt');
 
   const cleanup = attachBeforeUnload(true, win);
-  const event = { prevented: false, preventDefault() { this.prevented = true; } };
+  const event = {
+    prevented: false,
+    preventDefault() {
+      this.prevented = true;
+    },
+  };
   listeners.get('beforeunload')(event);
   assert.equal(event.prevented, true);
   assert.equal(event.returnValue, '');
@@ -381,10 +484,22 @@ test('beforeunload protection is attached only while dirty and removed on cleanu
 /* --------------------------------------------------------------- motion */
 
 test('prefersReducedMotion reads the media query and never throws', () => {
-  const { prefersReducedMotion, REDUCED_MOTION_QUERY } = loadAdminModule('admin/src/components/shared/motion.js');
-  assert.equal(prefersReducedMotion({ matchMedia: (q) => ({ matches: q === REDUCED_MOTION_QUERY }) }), true);
+  const { prefersReducedMotion, REDUCED_MOTION_QUERY } = loadAdminModule(
+    'admin/src/components/shared/motion.js'
+  );
+  assert.equal(
+    prefersReducedMotion({ matchMedia: (q) => ({ matches: q === REDUCED_MOTION_QUERY }) }),
+    true
+  );
   assert.equal(prefersReducedMotion({ matchMedia: () => ({ matches: false }) }), false);
-  assert.equal(prefersReducedMotion({ matchMedia: () => { throw new Error('x'); } }), false);
+  assert.equal(
+    prefersReducedMotion({
+      matchMedia: () => {
+        throw new Error('x');
+      },
+    }),
+    false
+  );
   assert.equal(prefersReducedMotion(undefined), false);
 });
 

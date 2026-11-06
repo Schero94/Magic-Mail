@@ -15,8 +15,10 @@ export const copyToClipboard = async (text, env = {}) => {
   if (typeof text !== 'string' || text.length === 0) return false;
 
   const win = env.window ?? (typeof window === 'undefined' ? undefined : window);
-  const nav = env.navigator ?? win?.navigator ?? (typeof navigator === 'undefined' ? undefined : navigator);
-  const doc = env.document ?? win?.document ?? (typeof document === 'undefined' ? undefined : document);
+  const nav =
+    env.navigator ?? win?.navigator ?? (typeof navigator === 'undefined' ? undefined : navigator);
+  const doc =
+    env.document ?? win?.document ?? (typeof document === 'undefined' ? undefined : document);
 
   const secure = win?.isSecureContext !== false;
   if (secure && typeof nav?.clipboard?.writeText === 'function') {
@@ -37,7 +39,11 @@ export const copyToClipboard = async (text, env = {}) => {
  * @returns {boolean}
  */
 const legacyCopy = (text, doc) => {
-  if (!doc?.body || typeof doc.createElement !== 'function' || typeof doc.execCommand !== 'function') {
+  if (
+    !doc?.body ||
+    typeof doc.createElement !== 'function' ||
+    typeof doc.execCommand !== 'function'
+  ) {
     return false;
   }
 

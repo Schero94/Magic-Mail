@@ -1,8 +1,8 @@
 /**
  * Email Designer Service
- * 
+ *
  * Handles email template creation, updates, versioning, and rendering
- * 
+ *
  * [SUCCESS] Migrated to strapi.documents() API (Strapi v5 Best Practice)
  */
 
@@ -30,7 +30,16 @@ const LIST_FILTER_FIELDS = {
  * users-permissions email template placeholders. Same allowlist as the
  * users-permissions settings controller (isValidEmailTemplate).
  */
-const CORE_TEMPLATE_KEYS = ['URL', 'ADMIN_URL', 'SERVER_URL', 'CODE', 'USER', 'USER.email', 'USER.username', 'TOKEN'];
+const CORE_TEMPLATE_KEYS = [
+  'URL',
+  'ADMIN_URL',
+  'SERVER_URL',
+  'CODE',
+  'USER',
+  'USER.email',
+  'USER.username',
+  'TOKEN',
+];
 const CORE_TEMPLATE_STORE_KEYS = {
   'reset-password': 'reset_password',
   'email-confirmation': 'email_confirmation',
@@ -50,7 +59,9 @@ const versionLocks = new Map();
 async function withVersionLock(key, task) {
   const previous = versionLocks.get(key) || Promise.resolve();
   let release;
-  const current = new Promise((resolve) => { release = resolve; });
+  const current = new Promise((resolve) => {
+    release = resolve;
+  });
   const chained = previous.then(() => current);
   versionLocks.set(key, chained);
   await previous;
@@ -77,8 +88,13 @@ const decodeHtmlEntities = (value) => {
   if (typeof value !== 'string' || !value.includes('&')) return value || '';
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
     if (entity[0] === '#') {
-      const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+      const code =
+        entity[1].toLowerCase() === 'x'
+          ? parseInt(entity.slice(2), 16)
+          : parseInt(entity.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
     }
     const named = NAMED_ENTITIES[entity.toLowerCase()];
     return named === undefined ? match : named;
@@ -106,11 +122,11 @@ const convertHtmlToText = (html, options = { wordwrap: 130 }) => {
     if (!html || typeof html !== 'string') {
       return '';
     }
-    
+
     if (!htmlToTextLib) {
       return html.replace(/<[^>]*>/g, '');
     }
-    
+
     // Try different API styles
     if (htmlToTextLib.htmlToText && typeof htmlToTextLib.htmlToText === 'function') {
       return htmlToTextLib.htmlToText(html, options);
@@ -127,7 +143,7 @@ const convertHtmlToText = (html, options = { wordwrap: 130 }) => {
         return htmlToTextLib.default(html, options);
       }
     }
-    
+
     // Fallback
     return html.replace(/<[^>]*>/g, '');
   } catch (error) {
@@ -144,8 +160,11 @@ const convertHtmlToText = (html, options = { wordwrap: 130 }) => {
  * @param {string} value
  * @returns {string}
  */
-const coreToEditor = (value) => (typeof value === 'string' ? value : '')
-  .replace(/(?:<|&lt;|&#x3C;|&#60;)%=\s*([\w.]+)\s*%(?:>|&gt;|&#x3E;|&#62;)/gi, '{{ $1 }}');
+const coreToEditor = (value) =>
+  (typeof value === 'string' ? value : '').replace(
+    /(?:<|&lt;|&#x3C;|&#60;)%=\s*([\w.]+)\s*%(?:>|&gt;|&#x3E;|&#62;)/gi,
+    '{{ $1 }}'
+  );
 
 /**
  * Converts editor placeholders to the users-permissions interpolation form
@@ -172,7 +191,8 @@ const editorToCore = (value, field) => {
   if (/<%(?!=)/.test(converted)) problems.push('Evaluation blocks (<% %>) are not allowed');
   if (/(?<!\$)\$\{[^{}]*\}/.test(converted)) problems.push('${...} expressions are not allowed');
   for (const [, key] of converted.matchAll(/<%=\s*([\s\S]+?)\s*%>/g)) {
-    if (!CORE_TEMPLATE_KEYS.includes(key.trim())) problems.push(`Unknown placeholder ${key.trim().slice(0, 60)}`);
+    if (!CORE_TEMPLATE_KEYS.includes(key.trim()))
+      problems.push(`Unknown placeholder ${key.trim().slice(0, 60)}`);
   }
 
   if (problems.length > 0) {
@@ -198,7 +218,8 @@ const toListFilters = (filters) => {
     if (!(key in filters)) continue;
     let value = filters[key];
     if (key === 'isActive' && (value === 'true' || value === 'false')) value = value === 'true';
-    if (key === 'templateReferenceId' && typeof value === 'string' && /^\d+$/.test(value)) value = Number(value);
+    if (key === 'templateReferenceId' && typeof value === 'string' && /^\d+$/.test(value))
+      value = Number(value);
     if (check(value)) out[key] = value;
   }
   return out;
@@ -213,7 +234,9 @@ const toListFilters = (filters) => {
  */
 const sameSnapshot = (a, b) => {
   if (!a || !b) return false;
-  return VERSION_FIELDS.every((field) => JSON.stringify(a[field] ?? null) === JSON.stringify(b[field] ?? null));
+  return VERSION_FIELDS.every(
+    (field) => JSON.stringify(a[field] ?? null) === JSON.stringify(b[field] ?? null)
+  );
 };
 
 // ============================================================
@@ -221,7 +244,6 @@ const sameSnapshot = (a, b) => {
 // ============================================================
 
 module.exports = ({ strapi }) => ({
-  
   // ============================================================
   // TEMPLATE CRUD OPERATIONS
   // ============================================================
@@ -308,12 +330,14 @@ module.exports = ({ strapi }) => ({
     if (byInternalId) {
       strapi.log.info(
         `[magic-mail] [LEGACY-LOOKUP] No templateReferenceId=${numericId}; resolved via internal DB id=${numericId} → "${byInternalId.name}" (documentId=${byInternalId.documentId}). ` +
-        `Consider storing the template's templateReferenceId (${byInternalId.templateReferenceId ?? 'none set'}) instead of its DB id to keep callers stable across migrations.`
+          `Consider storing the template's templateReferenceId (${byInternalId.templateReferenceId ?? 'none set'}) instead of its DB id to keep callers stable across migrations.`
       );
       return byInternalId;
     }
 
-    strapi.log.warn(`[magic-mail] [WARNING] Template with ID ${numericId} not found (tried templateReferenceId and internal DB id)`);
+    strapi.log.warn(
+      `[magic-mail] [WARNING] Template with ID ${numericId} not found (tried templateReferenceId and internal DB id)`
+    );
     return null;
   },
 
@@ -334,10 +358,10 @@ module.exports = ({ strapi }) => ({
    */
   async findVersionById(idOrDocumentId) {
     strapi.log.info(`[magic-mail] [LOOKUP] Finding version by ID: ${idOrDocumentId}`);
-    
+
     // Check if it looks like a documentId (alphanumeric string) or numeric id
     const isNumericId = /^\d+$/.test(String(idOrDocumentId));
-    
+
     if (!isNumericId) {
       // Try as documentId first (Strapi v5 standard)
       const version = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findOne({
@@ -345,11 +369,13 @@ module.exports = ({ strapi }) => ({
         populate: { template: true },
       });
       if (version) {
-        strapi.log.info(`[magic-mail] [SUCCESS] Found version by documentId: ${version.documentId}`);
+        strapi.log.info(
+          `[magic-mail] [SUCCESS] Found version by documentId: ${version.documentId}`
+        );
         return version;
       }
     }
-    
+
     // Fallback: internal database id (Query Engine; the Document Service
     // only addresses documentIds).
     const numericId = Number(idOrDocumentId);
@@ -360,11 +386,13 @@ module.exports = ({ strapi }) => ({
         populate: { template: true },
       });
       if (version) {
-        strapi.log.info(`[magic-mail] [SUCCESS] Found version by internal id ${numericId}: documentId=${version.documentId}`);
+        strapi.log.info(
+          `[magic-mail] [SUCCESS] Found version by internal id ${numericId}: documentId=${version.documentId}`
+        );
         return version;
       }
     }
-    
+
     strapi.log.warn(`[magic-mail] [WARNING] Version with ID ${idOrDocumentId} not found`);
     return null;
   },
@@ -390,7 +418,11 @@ module.exports = ({ strapi }) => ({
     // standard creation path as well.
     let templateReferenceId;
 
-    if (data.templateReferenceId !== undefined && data.templateReferenceId !== null && data.templateReferenceId !== '') {
+    if (
+      data.templateReferenceId !== undefined &&
+      data.templateReferenceId !== null &&
+      data.templateReferenceId !== ''
+    ) {
       const parsed = parseInt(data.templateReferenceId, 10);
       if (Number.isNaN(parsed) || parsed <= 0) {
         throw new Error(
@@ -406,7 +438,9 @@ module.exports = ({ strapi }) => ({
       templateReferenceId = parsed;
     } else {
       templateReferenceId = await this._generateUniqueTemplateReferenceId();
-      strapi.log.info(`[magic-mail] [INFO] Auto-generated templateReferenceId=${templateReferenceId}`);
+      strapi.log.info(
+        `[magic-mail] [INFO] Auto-generated templateReferenceId=${templateReferenceId}`
+      );
     }
 
     // 3. Create template
@@ -418,7 +452,9 @@ module.exports = ({ strapi }) => ({
       },
     });
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Template created: documentId=${template.documentId}, name="${template.name}"`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Template created: documentId=${template.documentId}, name="${template.name}"`
+    );
 
     // Version 1 is the created content.
     await this.snapshotVersion(template.documentId, template);
@@ -433,7 +469,7 @@ module.exports = ({ strapi }) => ({
    */
   async update(idOrDocumentId, data) {
     strapi.log.info(`[magic-mail] [UPDATE] Updating template: ${idOrDocumentId}`);
-    
+
     // 1. Load existing template (supports both numeric id and documentId)
     const template = await this.findOne(idOrDocumentId);
     if (!template) {
@@ -442,7 +478,9 @@ module.exports = ({ strapi }) => ({
 
     // Use the actual documentId from the found template
     const actualDocumentId = template.documentId;
-    strapi.log.info(`[magic-mail] [INFO] Found template: documentId=${actualDocumentId}, name="${template.name}"`);
+    strapi.log.info(
+      `[magic-mail] [INFO] Found template: documentId=${actualDocumentId}, name="${template.name}"`
+    );
 
     // 2. Update, then snapshot the saved content. Versions are the history
     //    of saved states: v1 = created content, every later version = one
@@ -472,7 +510,7 @@ module.exports = ({ strapi }) => ({
    */
   async delete(idOrDocumentId) {
     strapi.log.info(`[magic-mail] [DELETE] Deleting template: ${idOrDocumentId}`);
-    
+
     // Find template (supports both numeric id and documentId)
     const template = await this.findOne(idOrDocumentId);
     if (!template) {
@@ -481,7 +519,9 @@ module.exports = ({ strapi }) => ({
 
     // Use the actual documentId from the found template
     const actualDocumentId = template.documentId;
-    strapi.log.info(`[magic-mail] [DELETE] Template: documentId=${actualDocumentId}, name="${template.name}"`);
+    strapi.log.info(
+      `[magic-mail] [DELETE] Template: documentId=${actualDocumentId}, name="${template.name}"`
+    );
 
     // Delete all versions
     const allVersions = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findMany({
@@ -496,8 +536,8 @@ module.exports = ({ strapi }) => ({
 
     for (const version of allVersions) {
       try {
-        await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ 
-          documentId: version.documentId 
+        await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({
+          documentId: version.documentId,
         });
         strapi.log.info(`[magic-mail] [DELETE] Deleted version #${version.versionNumber}`);
       } catch (versionError) {
@@ -506,11 +546,13 @@ module.exports = ({ strapi }) => ({
     }
 
     // Delete template using the actual documentId
-    const result = await strapi.documents(EMAIL_TEMPLATE_UID).delete({ 
-      documentId: actualDocumentId 
+    const result = await strapi.documents(EMAIL_TEMPLATE_UID).delete({
+      documentId: actualDocumentId,
     });
-      
-    strapi.log.info(`[magic-mail] [SUCCESS] Template "${template.name}" and ${allVersions.length} versions deleted`);
+
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Template "${template.name}" and ${allVersions.length} versions deleted`
+    );
     return result;
   },
 
@@ -559,7 +601,9 @@ module.exports = ({ strapi }) => ({
       throw new Error('Template not found');
     }
 
-    strapi.log.info(`[magic-mail] [PACKAGE] Original template: documentId=${original.documentId}, name="${original.name}"`);
+    strapi.log.info(
+      `[magic-mail] [PACKAGE] Original template: documentId=${original.documentId}, name="${original.name}"`
+    );
 
     const newRefId = await this._generateUniqueTemplateReferenceId();
 
@@ -577,7 +621,9 @@ module.exports = ({ strapi }) => ({
 
     const duplicated = await this.create(duplicateData);
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Template duplicated: documentId=${duplicated.documentId}, newRefId=${newRefId}`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Template duplicated: documentId=${duplicated.documentId}, newRefId=${newRefId}`
+    );
     return duplicated;
   },
 
@@ -611,12 +657,16 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<object|null>}
    */
   async createVersion(templateDocumentId, data, { skipIfUnchanged = false } = {}) {
-    return withVersionLock(String(templateDocumentId), () => this._createVersionLocked(templateDocumentId, data, skipIfUnchanged));
+    return withVersionLock(String(templateDocumentId), () =>
+      this._createVersionLocked(templateDocumentId, data, skipIfUnchanged)
+    );
   },
 
   /** @private */
   async _createVersionLocked(templateDocumentId, data, skipIfUnchanged) {
-    strapi.log.info(`[magic-mail] [SNAPSHOT] Creating version for template documentId: ${templateDocumentId}`);
+    strapi.log.info(
+      `[magic-mail] [SNAPSHOT] Creating version for template documentId: ${templateDocumentId}`
+    );
 
     // 1. Verify template exists
     const template = await strapi.documents(EMAIL_TEMPLATE_UID).findOne({
@@ -626,7 +676,9 @@ module.exports = ({ strapi }) => ({
       throw new Error(`Template ${templateDocumentId} not found`);
     }
 
-    strapi.log.info(`[magic-mail] [PACKAGE] Template found: documentId=${template.documentId}, name="${template.name}"`);
+    strapi.log.info(
+      `[magic-mail] [PACKAGE] Template found: documentId=${template.documentId}, name="${template.name}"`
+    );
 
     // 2. Calculate next version number
     const existingVersions = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findMany({
@@ -639,17 +691,22 @@ module.exports = ({ strapi }) => ({
     });
 
     if (skipIfUnchanged && existingVersions.length > 0) {
-      const latest = existingVersions.reduce((a, b) => ((b.versionNumber || 0) > (a.versionNumber || 0) ? b : a));
+      const latest = existingVersions.reduce((a, b) =>
+        (b.versionNumber || 0) > (a.versionNumber || 0) ? b : a
+      );
       if (sameSnapshot(latest, data)) {
         return null;
       }
     }
 
-    const versionNumber = existingVersions.length > 0
-      ? Math.max(...existingVersions.map(v => v.versionNumber || 0)) + 1
-      : 1;
+    const versionNumber =
+      existingVersions.length > 0
+        ? Math.max(...existingVersions.map((v) => v.versionNumber || 0)) + 1
+        : 1;
 
-    strapi.log.info(`[magic-mail] [STATS] Existing versions: ${existingVersions.length} → Next version: #${versionNumber}`);
+    strapi.log.info(
+      `[magic-mail] [STATS] Existing versions: ${existingVersions.length} → Next version: #${versionNumber}`
+    );
 
     // 3. Create version WITH template relation
     const createdVersion = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).create({
@@ -660,7 +717,9 @@ module.exports = ({ strapi }) => ({
       },
     });
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Version created: documentId=${createdVersion.documentId}, v${versionNumber}`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Version created: documentId=${createdVersion.documentId}, v${versionNumber}`
+    );
     return createdVersion;
   },
 
@@ -673,16 +732,20 @@ module.exports = ({ strapi }) => ({
 
     // Find template first (supports both numeric id and documentId)
     const template = await this.findOne(idOrDocumentId);
-    
+
     if (!template) {
       throw new Error('Template not found');
     }
 
     const actualDocumentId = template.documentId;
-    strapi.log.info(`[magic-mail] [PACKAGE] Template has ${template.versions?.length || 0} versions`);
+    strapi.log.info(
+      `[magic-mail] [PACKAGE] Template has ${template.versions?.length || 0} versions`
+    );
 
     if (template.versions && template.versions.length > 0) {
-      const sortedVersions = [...template.versions].sort((a, b) => b.versionNumber - a.versionNumber);
+      const sortedVersions = [...template.versions].sort(
+        (a, b) => b.versionNumber - a.versionNumber
+      );
       return sortedVersions;
     }
 
@@ -706,7 +769,9 @@ module.exports = ({ strapi }) => ({
    * @param {string|number} versionIdOrDocumentId - Either numeric id or documentId of version
    */
   async restoreVersion(templateIdOrDocumentId, versionIdOrDocumentId) {
-    strapi.log.info(`[magic-mail] [RESTORE] Restoring template ${templateIdOrDocumentId} from version ${versionIdOrDocumentId}`);
+    strapi.log.info(
+      `[magic-mail] [RESTORE] Restoring template ${templateIdOrDocumentId} from version ${versionIdOrDocumentId}`
+    );
 
     // Find template first (supports both numeric id and documentId)
     const template = await this.findOne(templateIdOrDocumentId);
@@ -736,7 +801,9 @@ module.exports = ({ strapi }) => ({
       tags: version.tags,
     });
 
-    strapi.log.info(`[magic-mail] [SUCCESS] Template restored from version #${version.versionNumber}`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Template restored from version #${version.versionNumber}`
+    );
     return restored;
   },
 
@@ -766,8 +833,8 @@ module.exports = ({ strapi }) => ({
       throw new Error('Version does not belong to this template');
     }
 
-    await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ 
-      documentId: version.documentId 
+    await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({
+      documentId: version.documentId,
     });
 
     strapi.log.info(`[magic-mail] [SUCCESS] Version v${version.versionNumber} deleted`);
@@ -795,8 +862,8 @@ module.exports = ({ strapi }) => ({
     let deletedCount = 0;
     for (const version of template.versions) {
       try {
-        await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({ 
-          documentId: version.documentId 
+        await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).delete({
+          documentId: version.documentId,
         });
         deletedCount++;
       } catch (error) {
@@ -924,7 +991,9 @@ module.exports = ({ strapi }) => ({
           templateData.templateReferenceId = await this._generateUniqueTemplateReferenceId();
         }
 
-        strapi.log.info(`[magic-mail] [IMPORT] Processing: "${templateData.name}" (ref: ${templateData.templateReferenceId})`);
+        strapi.log.info(
+          `[magic-mail] [IMPORT] Processing: "${templateData.name}" (ref: ${templateData.templateReferenceId})`
+        );
 
         const existing = await this.findByReferenceId(templateData.templateReferenceId);
 
@@ -938,7 +1007,9 @@ module.exports = ({ strapi }) => ({
           strapi.log.info(`[magic-mail] [SUCCESS] Created: "${templateData.name}"`);
         }
       } catch (error) {
-        strapi.log.error(`[magic-mail] [ERROR] Import failed for "${rawData.name}": ${error.message}`);
+        strapi.log.error(
+          `[magic-mail] [ERROR] Import failed for "${rawData.name}": ${error.message}`
+        );
         results.push({
           success: false,
           action: 'failed',
@@ -948,8 +1019,8 @@ module.exports = ({ strapi }) => ({
       }
     }
 
-    const successful = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
+    const successful = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
     strapi.log.info(`[magic-mail] [IMPORT] Complete: ${successful} successful, ${failed} failed`);
 
     return results;
@@ -961,9 +1032,12 @@ module.exports = ({ strapi }) => ({
    */
   normalizeImportData(rawData) {
     // Map 'enabled' to 'isActive' (strapi-plugin-email-designer-5 format)
-    const isActive = rawData.isActive !== undefined 
-      ? rawData.isActive 
-      : (rawData.enabled !== undefined ? rawData.enabled : true);
+    const isActive =
+      rawData.isActive !== undefined
+        ? rawData.isActive
+        : rawData.enabled !== undefined
+          ? rawData.enabled
+          : true;
 
     // Only carry an explicitly provided reference id here. A missing id is
     // filled in by the importer via _generateUniqueTemplateReferenceId(), which
@@ -980,7 +1054,10 @@ module.exports = ({ strapi }) => ({
       try {
         tags = JSON.parse(tags);
       } catch (e) {
-        tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+        tags = tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
       }
     }
     if (!Array.isArray(tags)) {
@@ -1011,17 +1088,20 @@ module.exports = ({ strapi }) => ({
     const allTemplates = await strapi.documents(EMAIL_TEMPLATE_UID).findMany({
       fields: ['isActive', 'category'],
     });
-    
+
     const total = allTemplates.length;
-    const active = allTemplates.filter(t => t.isActive === true).length;
+    const active = allTemplates.filter((t) => t.isActive === true).length;
 
     const categoryMap = allTemplates.reduce((acc, template) => {
       const category = template.category || 'custom';
       acc[category] = (acc[category] || 0) + 1;
       return acc;
     }, {});
-    
-    const byCategory = Object.entries(categoryMap).map(([category, count]) => ({ category, count }));
+
+    const byCategory = Object.entries(categoryMap).map(([category, count]) => ({
+      category,
+      count,
+    }));
 
     // All features are free: templates are unlimited (-1).
     return {
@@ -1054,7 +1134,11 @@ module.exports = ({ strapi }) => ({
     if (typeof strapi.plugin !== 'function' || !strapi.plugin('users-permissions')) {
       throw new errors.NotFoundError('The Users & Permissions plugin is not installed');
     }
-    const store = await strapi.store({ environment: '', type: 'plugin', name: 'users-permissions' });
+    const store = await strapi.store({
+      environment: '',
+      type: 'plugin',
+      name: 'users-permissions',
+    });
     return { store, storeKey };
   },
 

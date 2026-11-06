@@ -29,7 +29,11 @@ module.exports = async ({ strapi }) => {
   // Legacy global registry cleanup (pre-3.0 installs).
   if (global.magicMailIntervals) {
     for (const key of Object.keys(global.magicMailIntervals)) {
-      try { clearInterval(global.magicMailIntervals[key]); } catch { /* ignore */ }
+      try {
+        clearInterval(global.magicMailIntervals[key]);
+      } catch {
+        /* ignore */
+      }
     }
     global.magicMailIntervals = undefined;
   }

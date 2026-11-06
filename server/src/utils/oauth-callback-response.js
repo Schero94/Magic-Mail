@@ -23,7 +23,8 @@ const PROVIDER_LABELS = {
 function getAdminOrigin() {
   try {
     // eslint-disable-next-line no-undef
-    const configured = typeof strapi !== 'undefined' ? strapi?.config?.get?.('admin.absoluteUrl') : null;
+    const configured =
+      typeof strapi !== 'undefined' ? strapi?.config?.get?.('admin.absoluteUrl') : null;
     if (typeof configured !== 'string' || !/^https?:\/\//i.test(configured)) return null;
     return new URL(configured).origin;
   } catch {

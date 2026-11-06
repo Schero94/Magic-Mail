@@ -50,7 +50,10 @@ async function loadAdminModuleAsync(relativePath, { stubs = {}, externalPattern 
         {
           name: 'external-relative',
           setup(build) {
-            build.onResolve({ filter: externalPattern }, (args) => ({ path: args.path, external: true }));
+            build.onResolve({ filter: externalPattern }, (args) => ({
+              path: args.path,
+              external: true,
+            }));
           },
         },
       ]
@@ -84,7 +87,9 @@ function contrastRatio(a, b) {
   const luminance = (hex) => {
     const value = hex.replace('#', '');
     const channels = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16) / 255);
-    const [r, g, bl] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    const [r, g, bl] = channels.map((c) =>
+      c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    );
     return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
   };
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);

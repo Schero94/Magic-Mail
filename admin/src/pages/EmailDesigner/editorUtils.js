@@ -105,8 +105,7 @@ export const buildCoreDesign = (message, htmlToText) => {
     .replace(/\r?\n/g, '<br />');
 
   const design = JSON.parse(JSON.stringify(STANDARD_EMAIL_TEMPLATE));
-  design.body.rows[0].columns[0].contents[0].values.text =
-    `<p style="font-size: 14px; line-height: 140%; text-align: center;"><span style="font-size: 14px; line-height: 19.6px;">${text}</span></p>`;
+  design.body.rows[0].columns[0].contents[0].values.text = `<p style="font-size: 14px; line-height: 140%; text-align: center;"><span style="font-size: 14px; line-height: 19.6px;">${text}</span></p>`;
   return design;
 };
 
@@ -185,7 +184,13 @@ export const buildCorePayload = (data, { design, bodyHtml }) => ({
 export const parseDesignFile = (text) => {
   try {
     const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.body && typeof parsed.body === 'object') {
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      parsed.body &&
+      typeof parsed.body === 'object'
+    ) {
       return parsed;
     }
   } catch {

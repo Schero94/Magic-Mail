@@ -12,8 +12,14 @@ test('Magic-Mail registers only email, OAuth, analytics, settings, and tracking 
   const contentRoutes = require('../server/src/routes/content-api').routes;
   const routes = [...adminRoutes, ...contentRoutes];
 
-  assert.equal(routes.some(({ path: routePath }) => /whatsapp/i.test(routePath)), false);
-  assert.equal(routes.some(({ handler }) => /whatsapp/i.test(handler)), false);
+  assert.equal(
+    routes.some(({ path: routePath }) => /whatsapp/i.test(routePath)),
+    false
+  );
+  assert.equal(
+    routes.some(({ handler }) => /whatsapp/i.test(handler)),
+    false
+  );
   assert.deepEqual(
     contentRoutes.map(({ method, path: routePath }) => `${method} ${routePath}`).sort(),
     [
@@ -30,7 +36,10 @@ test('WhatsApp transport is absent from package and Strapi registries', () => {
   const services = require('../server/src/services');
   const controllers = require('../server/src/controllers');
 
-  assert.equal(Object.keys(manifest.dependencies).some((name) => /baileys|pino|qrcode/i.test(name)), false);
+  assert.equal(
+    Object.keys(manifest.dependencies).some((name) => /baileys|pino|qrcode/i.test(name)),
+    false
+  );
   assert.equal(Object.hasOwn(services, 'whatsapp'), false);
   assert.equal(Object.hasOwn(controllers, 'whatsapp'), false);
   assert.equal(fs.existsSync(path.join(root, 'server/src/services/whatsapp.js')), false);
@@ -57,7 +66,10 @@ test('legacy messaging columns are gone from the routing-rule schema and rejecte
   const schema = require('../server/src/content-types/routing-rule/schema.json');
   const { validate } = require('../server/src/validation');
 
-  assert.deepEqual(Object.keys(schema.attributes).filter((key) => /whatsapp|phone/i.test(key)), []);
+  assert.deepEqual(
+    Object.keys(schema.attributes).filter((key) => /whatsapp|phone/i.test(key)),
+    []
+  );
   assert.throws(() => validate('routingRules.update', { whatsappFallback: true }));
   assert.throws(() => validate('routingRules.update', { whatsappPhoneField: 'phone' }));
 });
@@ -136,7 +148,11 @@ test('email send-message keeps its email path and has no channel parameter', asy
     templateId: undefined,
     templateData: undefined,
   });
-  assert.deepEqual(result, { success: true, emailId: 'fake-email-1' }, 'the response carries no channel field');
+  assert.deepEqual(
+    result,
+    { success: true, emailId: 'fake-email-1' },
+    'the response carries no channel field'
+  );
   await assert.rejects(
     emailRouter.sendMessage({ phoneNumber: '+491234567890', message: 'fake' }),
     /email address/i
@@ -162,16 +178,30 @@ test('send-message validation accepts email and rejects channel and removed tran
       message: 'Hello',
     }
   );
-  assert.throws(() => validate('content.sendMessage', {
-    to: 'recipient@example.test', cc: 'copy@example.test,invalid',
-  }), (error) => error.name === 'ValidationError' && Boolean(error.details?.cc));
-  assert.throws(() => validate('content.sendMessage', {
-    channel: 'email', to: 'recipient@example.test', message: 'channel was removed in 4.0',
-  }));
-  assert.throws(() => validate('content.sendMessage', { to: 'not-an-email', message: 'fake' }),
-    (error) => error.name === 'ValidationError' && Boolean(error.details?.to));
+  assert.throws(
+    () =>
+      validate('content.sendMessage', {
+        to: 'recipient@example.test',
+        cc: 'copy@example.test,invalid',
+      }),
+    (error) => error.name === 'ValidationError' && Boolean(error.details?.cc)
+  );
+  assert.throws(() =>
+    validate('content.sendMessage', {
+      channel: 'email',
+      to: 'recipient@example.test',
+      message: 'channel was removed in 4.0',
+    })
+  );
+  assert.throws(
+    () => validate('content.sendMessage', { to: 'not-an-email', message: 'fake' }),
+    (error) => error.name === 'ValidationError' && Boolean(error.details?.to)
+  );
   assert.throws(() => validate('content.sendMessage', { message: 'missing recipient' }));
-  assert.throws(() => validate('content.sendMessage', {
-    to: 'recipient@example.test', phoneNumber: '+491234567890',
-  }));
+  assert.throws(() =>
+    validate('content.sendMessage', {
+      to: 'recipient@example.test',
+      phoneNumber: '+491234567890',
+    })
+  );
 });

@@ -38,7 +38,15 @@ const TRACKING_DEFAULTS = Object.freeze({
   anonymizeIp: true,
 });
 
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]', '::', '[::]']);
+const LOCAL_HOSTNAMES = new Set([
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  '::1',
+  '[::1]',
+  '::',
+  '[::]',
+]);
 
 let warnedMissingBaseUrl = false;
 
@@ -46,7 +54,10 @@ const hashesEqual = (actual, expected) => {
   if (typeof actual !== 'string' || typeof expected !== 'string') return false;
   const actualBuffer = Buffer.from(actual);
   const expectedBuffer = Buffer.from(expected);
-  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 };
 
 const isProduction = () => process.env.NODE_ENV === 'production';
@@ -80,7 +91,9 @@ const getTrackingConfig = (strapi) => {
     if (Number.isInteger(configured[key]) && configured[key] >= 0) out[key] = configured[key];
   }
   if (Array.isArray(configured.allowedLinkHosts)) {
-    out.allowedLinkHosts = configured.allowedLinkHosts.filter((host) => typeof host === 'string' && host.trim());
+    out.allowedLinkHosts = configured.allowedLinkHosts.filter(
+      (host) => typeof host === 'string' && host.trim()
+    );
   }
   if (typeof configured.anonymizeIp === 'boolean') out.anonymizeIp = configured.anonymizeIp;
   return out;
@@ -112,7 +125,11 @@ const anonymizeIp = (value) => {
     // An embedded IPv4 tail counts as two groups; it never reaches the /48 prefix.
     const tailCount = tailGroups.reduce((sum, group) => sum + (group.includes('.') ? 2 : 1), 0);
     const groups = lower.includes('::')
-      ? [...headGroups, ...new Array(Math.max(0, 8 - headGroups.length - tailCount)).fill('0'), ...tailGroups]
+      ? [
+          ...headGroups,
+          ...new Array(Math.max(0, 8 - headGroups.length - tailCount)).fill('0'),
+          ...tailGroups,
+        ]
       : headGroups;
     const prefix = groups.slice(0, 3).map((group) => (parseInt(group, 16) || 0).toString(16));
     while (prefix.length < 3) prefix.push('0');
@@ -145,7 +162,9 @@ const normalizeRecipient = (value) => {
       if (Array.isArray(entry.group)) flat.push(...entry.group);
       else flat.push(entry);
     }
-    const found = flat.find((entry) => entry && typeof entry.address === 'string' && entry.address.includes('@'));
+    const found = flat.find(
+      (entry) => entry && typeof entry.address === 'string' && entry.address.includes('@')
+    );
     if (found) return found.address.trim().toLowerCase();
   } catch {
     // fall through to the plain form
@@ -200,15 +219,16 @@ const getRestPrefix = (strapi) => {
  * @returns {string|null} e.g. `https://cms.example.com/api/magic-mail/track`
  */
 const resolveTrackingEndpoint = (strapi, settings = {}) => {
-  const base = toPublicBaseUrl(settings?.trackingBaseUrl)
-    || toPublicBaseUrl(readConfig(strapi, 'server.url', ''))
-    || toPublicBaseUrl(readConfig(strapi, 'server.absoluteUrl', ''));
+  const base =
+    toPublicBaseUrl(settings?.trackingBaseUrl) ||
+    toPublicBaseUrl(readConfig(strapi, 'server.url', '')) ||
+    toPublicBaseUrl(readConfig(strapi, 'server.absoluteUrl', ''));
   if (!base) {
     if (!warnedMissingBaseUrl) {
       warnedMissingBaseUrl = true;
       strapi?.log?.warn?.(
-        '[magic-mail] No public URL for tracking. Set "Tracking base URL" in the MagicMail settings or '
-        + 'server.url in config/server; emails are sent without open/click tracking until then.'
+        '[magic-mail] No public URL for tracking. Set "Tracking base URL" in the MagicMail settings or ' +
+          'server.url in config/server; emails are sent without open/click tracking until then.'
       );
     }
     return null;
@@ -234,25 +254,30 @@ const NAMED_ENTITIES = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp:
  * @param {string} value
  * @returns {string}
  */
-const decodeAttributeValue = (value) => value.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z]{2,6});/gi, (entity, body) => {
-  if (body[0] === '#') {
-    const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-    try {
-      return Number.isFinite(code) ? String.fromCodePoint(code) : entity;
-    } catch {
-      return entity;
+const decodeAttributeValue = (value) =>
+  value.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z]{2,6});/gi, (entity, body) => {
+    if (body[0] === '#') {
+      const code =
+        body[1] === 'x' || body[1] === 'X'
+          ? parseInt(body.slice(2), 16)
+          : parseInt(body.slice(1), 10);
+      try {
+        return Number.isFinite(code) ? String.fromCodePoint(code) : entity;
+      } catch {
+        return entity;
+      }
     }
-  }
-  const named = NAMED_ENTITIES[body.toLowerCase()];
-  return named === undefined ? entity : named;
-});
+    const named = NAMED_ENTITIES[body.toLowerCase()];
+    return named === undefined ? entity : named;
+  });
 
-const escapeAttributeValue = (value) => String(value)
-  .replace(/&/g, '&amp;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;');
+const escapeAttributeValue = (value) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 
 const isSpace = (ch) => ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\f';
 
@@ -271,7 +296,8 @@ const findHrefAttribute = (tag) => {
     while (i < length && (isSpace(tag[i]) || tag[i] === '/')) i += 1;
     if (i >= length || tag[i] === '>') return null;
     const nameStart = i;
-    while (i < length && !isSpace(tag[i]) && tag[i] !== '=' && tag[i] !== '>' && tag[i] !== '/') i += 1;
+    while (i < length && !isSpace(tag[i]) && tag[i] !== '=' && tag[i] !== '>' && tag[i] !== '/')
+      i += 1;
     const name = tag.slice(nameStart, i).toLowerCase();
     while (i < length && isSpace(tag[i])) i += 1;
     if (tag[i] !== '=') continue; // attribute without value
@@ -360,7 +386,10 @@ const toPositiveInteger = (value) => {
 const getAppKeys = (strapi) => {
   const configured = readConfig(strapi, 'server.app.keys', null);
   if (Array.isArray(configured)) return configured.filter((key) => typeof key === 'string' && key);
-  return String(process.env.APP_KEYS || '').split(',').map((key) => key.trim()).filter(Boolean);
+  return String(process.env.APP_KEYS || '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
 };
 
 /**
@@ -369,9 +398,11 @@ const getAppKeys = (strapi) => {
  * @param {string} secret
  * @returns {Buffer}
  */
-const deriveTrackingKey = (secret) => crypto.createHmac('sha256', secret).update(TRACKING_KEY_LABEL).digest();
+const deriveTrackingKey = (secret) =>
+  crypto.createHmac('sha256', secret).update(TRACKING_KEY_LABEL).digest();
 
-const hmac32 = (key, message) => crypto.createHmac('sha256', key).update(message).digest('hex').substring(0, 32);
+const hmac32 = (key, message) =>
+  crypto.createHmac('sha256', key).update(message).digest('hex').substring(0, 32);
 
 module.exports = ({ strapi }) => ({
   /**
@@ -391,13 +422,14 @@ module.exports = ({ strapi }) => ({
    * @throws {Error} When no secret is configured at all
    */
   getTrackingSecret() {
-    const secret = process.env.MAGIC_MAIL_TRACKING_SECRET
-      || process.env.MAGIC_MAIL_ENCRYPTION_KEY
-      || getAppKeys(strapi)[0];
+    const secret =
+      process.env.MAGIC_MAIL_TRACKING_SECRET ||
+      process.env.MAGIC_MAIL_ENCRYPTION_KEY ||
+      getAppKeys(strapi)[0];
     if (!secret) {
       throw new Error(
-        '[magic-mail] FATAL: No tracking secret configured. '
-        + 'Set MAGIC_MAIL_TRACKING_SECRET or MAGIC_MAIL_ENCRYPTION_KEY in your environment variables.'
+        '[magic-mail] FATAL: No tracking secret configured. ' +
+          'Set MAGIC_MAIL_TRACKING_SECRET or MAGIC_MAIL_ENCRYPTION_KEY in your environment variables.'
       );
     }
     return secret;
@@ -440,18 +472,28 @@ module.exports = ({ strapi }) => ({
       // only legacy secrets may exist
     }
     String(process.env.MAGIC_MAIL_TRACKING_SECRET_PREVIOUS || '')
-      .split(',').map((value) => value.trim()).filter(Boolean)
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
       .forEach((value) => secrets.add(value));
     for (const value of getAppKeys(strapi)) secrets.add(value);
     if (process.env.MAGIC_MAIL_ENCRYPTION_KEY) secrets.add(process.env.MAGIC_MAIL_ENCRYPTION_KEY);
     for (const secret of secrets) {
       // Evaluate every candidate (no early exit) to keep timing uniform.
-      if (hashesEqual(candidate, hmac32(deriveTrackingKey(secret), `${emailId}:${normalized}`))) matched = true;
+      if (hashesEqual(candidate, hmac32(deriveTrackingKey(secret), `${emailId}:${normalized}`)))
+        matched = true;
     }
 
     // Pre-4.0 hashes: HMAC(APP_KEYS || MAGIC_MAIL_ENCRYPTION_KEY, `${emailId}-${recipient}`).
-    const legacySecrets = new Set([process.env.APP_KEYS, process.env.MAGIC_MAIL_ENCRYPTION_KEY].filter(Boolean));
-    const legacyRecipients = new Set([normalized, String(storedRecipient || '').trim().toLowerCase()]);
+    const legacySecrets = new Set(
+      [process.env.APP_KEYS, process.env.MAGIC_MAIL_ENCRYPTION_KEY].filter(Boolean)
+    );
+    const legacyRecipients = new Set([
+      normalized,
+      String(storedRecipient || '')
+        .trim()
+        .toLowerCase(),
+    ]);
     for (const secret of legacySecrets) {
       for (const recipient of legacyRecipients) {
         if (hashesEqual(candidate, hmac32(secret, `${emailId}-${recipient}`))) matched = true;
@@ -479,14 +521,21 @@ module.exports = ({ strapi }) => ({
       .filter((value) => typeof value === 'string' && value.trim())
       .map((value) => value.trim().toLowerCase());
     const subject = String(data.subject ?? '').slice(0, MAX_SUBJECT_LENGTH);
-    const templateId = toPositiveInteger(data.templateReferenceId) ?? toPositiveInteger(data.templateId);
+    const templateId =
+      toPositiveInteger(data.templateReferenceId) ?? toPositiveInteger(data.templateId);
 
-    const metadata = { ...(data.metadata && typeof data.metadata === 'object' ? data.metadata : {}) };
+    const metadata = {
+      ...(data.metadata && typeof data.metadata === 'object' ? data.metadata : {}),
+    };
     if (allRecipients.length > 1 || (allRecipients[0] && allRecipients[0] !== recipient)) {
       metadata.recipients = allRecipients.slice(0, 100);
     }
-    if (data.templateId !== undefined && data.templateId !== null && data.templateId !== ''
-      && toPositiveInteger(data.templateId) !== templateId) {
+    if (
+      data.templateId !== undefined &&
+      data.templateId !== null &&
+      data.templateId !== '' &&
+      toPositiveInteger(data.templateId) !== templateId
+    ) {
       metadata.requestedTemplateId = String(data.templateId).slice(0, 128);
     }
 
@@ -527,7 +576,8 @@ module.exports = ({ strapi }) => ({
     let ipAddress = null;
     if (rawIp) ipAddress = shouldAnonymize ? anonymizeIp(rawIp) : rawIp.slice(0, 64);
     const agent = req?.headers?.['user-agent'];
-    const userAgent = typeof agent === 'string' && agent ? agent.slice(0, MAX_USER_AGENT_LENGTH) : null;
+    const userAgent =
+      typeof agent === 'string' && agent ? agent.slice(0, MAX_USER_AGENT_LENGTH) : null;
     return { ipAddress, userAgent };
   },
 
@@ -570,7 +620,9 @@ module.exports = ({ strapi }) => ({
         },
       });
 
-      strapi.log.info(`[magic-mail] [EMAIL] Tracking open recorded (count: ${(emailLog.openCount || 0) + 1})`);
+      strapi.log.info(
+        `[magic-mail] [EMAIL] Tracking open recorded (count: ${(emailLog.openCount || 0) + 1})`
+      );
       return event;
     } catch (error) {
       strapi.log.error('[magic-mail] Error recording open:', error?.name || 'Error');
@@ -715,9 +767,10 @@ module.exports = ({ strapi }) => ({
     }
 
     const page = Number.isInteger(pagination.page) && pagination.page > 0 ? pagination.page : 1;
-    const pageSize = Number.isInteger(pagination.pageSize) && pagination.pageSize > 0
-      ? Math.min(pagination.pageSize, 100)
-      : 25;
+    const pageSize =
+      Number.isInteger(pagination.pageSize) && pagination.pageSize > 0
+        ? Math.min(pagination.pageSize, 100)
+        : 25;
 
     const [logs, total] = await Promise.all([
       strapi.documents(EMAIL_LOG_UID).findMany({
@@ -836,11 +889,17 @@ module.exports = ({ strapi }) => ({
    * @param {{openTracking?: boolean, linkTracking?: boolean, settings?: object}} [options]
    * @returns {Promise<string>}
    */
-  async addTracking(html, emailId, recipientHash, { openTracking = true, linkTracking = true, settings } = {}) {
+  async addTracking(
+    html,
+    emailId,
+    recipientHash,
+    { openTracking = true, linkTracking = true, settings } = {}
+  ) {
     let pluginSettings = settings;
     if (!pluginSettings) {
       try {
-        pluginSettings = (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
+        pluginSettings =
+          (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
       } catch {
         pluginSettings = {};
       }
@@ -848,7 +907,8 @@ module.exports = ({ strapi }) => ({
     const endpoint = resolveTrackingEndpoint(strapi, pluginSettings);
     if (!endpoint) return html;
     let result = html;
-    if (linkTracking) result = await this.rewriteLinksForTracking(result, emailId, recipientHash, { endpoint });
+    if (linkTracking)
+      result = await this.rewriteLinksForTracking(result, emailId, recipientHash, { endpoint });
     if (openTracking) result = this.injectTrackingPixel(result, emailId, recipientHash, endpoint);
     return result;
   },
@@ -872,7 +932,9 @@ module.exports = ({ strapi }) => ({
   async rewriteLinksForTracking(html, emailId, recipientHash, options = {}) {
     if (typeof html !== 'string' || html.length === 0) return html;
     if (html.length > MAX_TRACKED_HTML_LENGTH) {
-      strapi.log.warn('[magic-mail] [LINK-TRACK] HTML too large for click tracking; links left unchanged');
+      strapi.log.warn(
+        '[magic-mail] [LINK-TRACK] HTML too large for click tracking; links left unchanged'
+      );
       return html;
     }
 
@@ -880,7 +942,8 @@ module.exports = ({ strapi }) => ({
     if (endpoint === undefined) {
       let settings = {};
       try {
-        settings = (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
+        settings =
+          (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
       } catch {
         settings = {};
       }
@@ -899,7 +962,9 @@ module.exports = ({ strapi }) => ({
     const config = getTrackingConfig(strapi);
     const restrictHosts = config.allowedLinkHosts.length > 0;
     if (!restrictHosts && emailLog.metadata?.source === 'content-api') {
-      strapi.log.debug('[magic-mail] [LINK-TRACK] Content-API send without tracking.allowedLinkHosts; links left unchanged');
+      strapi.log.debug(
+        '[magic-mail] [LINK-TRACK] Content-API send without tracking.allowedLinkHosts; links left unchanged'
+      );
       return html;
     }
 
@@ -933,7 +998,9 @@ module.exports = ({ strapi }) => ({
     });
 
     if (skippedOverCap > 0) {
-      strapi.log.warn(`[magic-mail] [LINK-TRACK] Link limit reached; ${skippedOverCap} link(s) left untracked`);
+      strapi.log.warn(
+        `[magic-mail] [LINK-TRACK] Link limit reached; ${skippedOverCap} link(s) left untracked`
+      );
     }
     if (candidates.size === 0) {
       strapi.log.debug('[magic-mail] [LINK-TRACK] No eligible links found in email HTML');
@@ -942,14 +1009,18 @@ module.exports = ({ strapi }) => ({
 
     // Persist mappings with bounded concurrency; only stored links are rewritten.
     const stored = new Map();
-    await runWithConcurrency([...candidates.entries()], LINK_STORE_CONCURRENCY, async ([url, linkHash]) => {
-      try {
-        await this.storeLinkMapping(emailLog.documentId, linkHash, url);
-        stored.set(url, `${endpoint}/click/${emailId}/${linkHash}/${recipientHash}`);
-      } catch {
-        // storeLinkMapping already logged; the link stays untracked
+    await runWithConcurrency(
+      [...candidates.entries()],
+      LINK_STORE_CONCURRENCY,
+      async ([url, linkHash]) => {
+        try {
+          await this.storeLinkMapping(emailLog.documentId, linkHash, url);
+          stored.set(url, `${endpoint}/click/${emailId}/${linkHash}/${recipientHash}`);
+        } catch {
+          // storeLinkMapping already logged; the link stays untracked
+        }
       }
-    });
+    );
 
     // Pass 2: replace hrefs in a single linear scan.
     const result = rewriteAnchorHrefs(html, (url) => stored.get(url) || null);
@@ -1055,8 +1126,14 @@ module.exports = ({ strapi }) => ({
 
       const config = getTrackingConfig(strapi);
       if (config.linkTtlDays > 0) {
-        const created = new Date(linkMapping.createdAt || emailLog.sentAt || emailLog.createdAt || 0).getTime();
-        if (Number.isFinite(created) && created > 0 && Date.now() - created > config.linkTtlDays * DAY_MS) {
+        const created = new Date(
+          linkMapping.createdAt || emailLog.sentAt || emailLog.createdAt || 0
+        ).getTime();
+        if (
+          Number.isFinite(created) &&
+          created > 0 &&
+          Date.now() - created > config.linkTtlDays * DAY_MS
+        ) {
           strapi.log.debug('[magic-mail] Tracking link expired');
           return null;
         }
@@ -1114,7 +1191,9 @@ module.exports = ({ strapi }) => ({
         if (rows.length < 1000) break;
       }
     }
-    const result = await strapi.db.query(EMAIL_LOG_UID).deleteMany({ where: { id: { $in: logIds } } });
+    const result = await strapi.db
+      .query(EMAIL_LOG_UID)
+      .deleteMany({ where: { id: { $in: logIds } } });
     return typeof result?.count === 'number' ? result.count : logIds.length;
   },
 
@@ -1189,7 +1268,10 @@ module.exports = ({ strapi }) => ({
       if (rows.length < BATCH_SIZE) break;
     }
 
-    await store.set({ key: 'trackingPrivacyMigrationV1', value: { done: true, changed, at: new Date().toISOString() } });
+    await store.set({
+      key: 'trackingPrivacyMigrationV1',
+      value: { done: true, changed, at: new Date().toISOString() },
+    });
     return changed;
   },
 
@@ -1212,7 +1294,11 @@ module.exports = ({ strapi }) => ({
       let removed = 0;
       for (let guard = 0; guard < 1000; guard += 1) {
         // eslint-disable-next-line no-await-in-loop
-        const rows = await query.findMany({ select: ['id'], where: { [field]: { $lt: cutoff } }, limit: 1000 });
+        const rows = await query.findMany({
+          select: ['id'],
+          where: { [field]: { $lt: cutoff } },
+          limit: 1000,
+        });
         if (!rows || rows.length === 0) break;
         // eslint-disable-next-line no-await-in-loop
         await query.deleteMany({ where: { id: { $in: rows.map((row) => row.id) } } });
@@ -1226,7 +1312,10 @@ module.exports = ({ strapi }) => ({
     summary.links = await purgeOlderThan(EMAIL_LINK_UID, 'createdAt', config.linkTtlDays);
     if (config.logRetentionDays > 0) {
       const cutoff = new Date(now.getTime() - config.logRetentionDays * DAY_MS);
-      const { deletedCount } = await this.deleteEmailLogs({ sentAt: { $lt: cutoff } }, { max: 50_000 });
+      const { deletedCount } = await this.deleteEmailLogs(
+        { sentAt: { $lt: cutoff } },
+        { max: 50_000 }
+      );
       summary.logs = deletedCount;
     }
     return summary;
@@ -1241,14 +1330,20 @@ module.exports = ({ strapi }) => ({
   async runTrackingMaintenance() {
     try {
       const changed = await this.migrateLegacyTrackingEvents();
-      if (changed > 0) strapi.log.info(`[magic-mail] [PRIVACY] Anonymised ${changed} stored tracking event(s)`);
+      if (changed > 0)
+        strapi.log.info(`[magic-mail] [PRIVACY] Anonymised ${changed} stored tracking event(s)`);
     } catch (error) {
-      strapi.log.warn('[magic-mail] Tracking privacy migration failed; it runs again later:', error?.name || 'Error');
+      strapi.log.warn(
+        '[magic-mail] Tracking privacy migration failed; it runs again later:',
+        error?.name || 'Error'
+      );
     }
     try {
       const { events, links, logs } = await this.purgeExpiredTrackingData();
       if (events + links + logs > 0) {
-        strapi.log.info(`[magic-mail] [RETENTION] Removed ${events} event(s), ${links} link(s), ${logs} log(s)`);
+        strapi.log.info(
+          `[magic-mail] [RETENTION] Removed ${events} event(s), ${links} link(s), ${logs} log(s)`
+        );
       }
     } catch (error) {
       strapi.log.warn('[magic-mail] Tracking retention purge failed:', error?.name || 'Error');

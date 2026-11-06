@@ -34,7 +34,9 @@ function createSendHarness() {
         service(serviceName) {
           if (serviceName === 'email-router') return router;
           if (serviceName === 'plugin-settings') {
-            return { getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }) };
+            return {
+              getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }),
+            };
           }
           throw new Error(`Unexpected service requested: ${serviceName}`);
         },
@@ -196,7 +198,11 @@ test('Content API send-message rejects malformed CC before contacting a provider
 
     await assert.rejects(controller.sendMessage(ctx), (error) => {
       assert.equal(error.name, 'ValidationError');
-      assert.equal(error.details?._form, undefined, 'CC must be a recognized field, not rejected as an unknown key');
+      assert.equal(
+        error.details?._form,
+        undefined,
+        'CC must be a recognized field, not rejected as an unknown key'
+      );
       assert.ok(error.details?.cc, 'malformed CC must be reported on the CC field');
       return true;
     });
@@ -253,12 +259,15 @@ test('direct service calls reject invalid array recipients before provider dispa
   try {
     const { router } = createSendHarness();
 
-    await assert.rejects(router.send({
-      to: 'primary@example.com',
-      cc: ['valid@example.com', 'not-an-address'],
-      subject: 'Invalid service CC regression test',
-      text: 'This message must not reach a provider.',
-    }), /invalid.*cc|cc.*invalid|recipient/i);
+    await assert.rejects(
+      router.send({
+        to: 'primary@example.com',
+        cc: ['valid@example.com', 'not-an-address'],
+        subject: 'Invalid service CC regression test',
+        text: 'This message must not reach a provider.',
+      }),
+      /invalid.*cc|cc.*invalid|recipient/i
+    );
     assert.equal(providerCalls, 0);
   } finally {
     global.fetch = originalFetch;
@@ -289,24 +298,30 @@ test('SMTP and Yahoo fake transports receive CC and BCC as separate recipient fi
       text: 'Captured locally by a fake transport.',
     };
 
-    await router.sendViaSMTP({
-      provider: 'smtp',
-      fromEmail: 'sender@example.com',
-      fromName: 'Sender',
-      config: encryptCredentials({ host: 'smtp.invalid', user: 'fake-user', pass: 'fake-pass' }),
-    }, { ...emailData });
+    await router.sendViaSMTP(
+      {
+        provider: 'smtp',
+        fromEmail: 'sender@example.com',
+        fromName: 'Sender',
+        config: encryptCredentials({ host: 'smtp.invalid', user: 'fake-user', pass: 'fake-pass' }),
+      },
+      { ...emailData }
+    );
 
-    await router.sendViaYahooOAuth({
-      provider: 'yahoo-oauth',
-      fromEmail: 'sender@example.com',
-      fromName: 'Sender',
-      oauth: encryptCredentials({
-        email: 'sender@example.com',
-        accessToken: 'fake-access-token',
-        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-      }),
-      config: encryptCredentials({ clientId: 'fake-client', clientSecret: 'fake-secret' }),
-    }, { ...emailData });
+    await router.sendViaYahooOAuth(
+      {
+        provider: 'yahoo-oauth',
+        fromEmail: 'sender@example.com',
+        fromName: 'Sender',
+        oauth: encryptCredentials({
+          email: 'sender@example.com',
+          accessToken: 'fake-access-token',
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        }),
+        config: encryptCredentials({ clientId: 'fake-client', clientSecret: 'fake-secret' }),
+      },
+      { ...emailData }
+    );
 
     assert.equal(received.length, 2);
     for (const mailOptions of received) {
@@ -327,23 +342,31 @@ test('Mailgun receives the normalized CC list in its fake multipart request', as
   let capturedForm;
   global.fetch = async (_url, options) => {
     capturedForm = options.body;
-    return { ok: true, status: 200, json: async () => ({ id: 'fake-mailgun-message' }), text: async () => '' };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'fake-mailgun-message' }),
+      text: async () => '',
+    };
   };
 
   try {
     const { router } = createSendHarness();
-    await router.sendViaMailgun({
-      provider: 'mailgun',
-      fromEmail: 'sender@example.com',
-      fromName: 'Sender',
-      config: encryptCredentials({ apiKey: 'fake-key', domain: 'mg.example.invalid' }),
-    }, {
-      to: 'primary@example.com',
-      cc: ['cc-one@example.com', 'cc-two@example.com'],
-      bcc: 'hidden@example.com',
-      subject: 'Mailgun CC regression test',
-      text: 'Captured locally by a fake fetch implementation.',
-    });
+    await router.sendViaMailgun(
+      {
+        provider: 'mailgun',
+        fromEmail: 'sender@example.com',
+        fromName: 'Sender',
+        config: encryptCredentials({ apiKey: 'fake-key', domain: 'mg.example.invalid' }),
+      },
+      {
+        to: 'primary@example.com',
+        cc: ['cc-one@example.com', 'cc-two@example.com'],
+        bcc: 'hidden@example.com',
+        subject: 'Mailgun CC regression test',
+        text: 'Captured locally by a fake fetch implementation.',
+      }
+    );
 
     assert.equal(capturedForm.get('to'), 'primary@example.com');
     assert.equal(capturedForm.get('cc'), 'cc-one@example.com, cc-two@example.com');
@@ -371,11 +394,17 @@ test('recipient count limits and invalid BCC values are enforced for internal se
       text: 'This message must not reach a provider.',
     };
 
-    await assert.rejects(router.send({
-      ...base,
-      cc: Array.from({ length: 51 }, (_, index) => `cc-${index}@example.com`),
-    }), /too many cc recipients/i);
-    await assert.rejects(router.send({ ...base, bcc: ['not-an-address'] }), /invalid bcc recipient/i);
+    await assert.rejects(
+      router.send({
+        ...base,
+        cc: Array.from({ length: 51 }, (_, index) => `cc-${index}@example.com`),
+      }),
+      /too many cc recipients/i
+    );
+    await assert.rejects(
+      router.send({ ...base, bcc: ['not-an-address'] }),
+      /invalid bcc recipient/i
+    );
     assert.equal(providerCalls, 0);
   } finally {
     global.fetch = originalFetch;

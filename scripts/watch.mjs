@@ -18,10 +18,13 @@ import { BUNDLE_MARKER, buildServerBundle, serverBundleOptions } from './build-s
 const link = process.argv.includes('--link');
 const BUNDLE = 'dist/server/index.js';
 
-const contexts = await Promise.all((await serverBundleOptions()).map((options) => context(options)));
+const contexts = await Promise.all(
+  (await serverBundleOptions()).map((options) => context(options))
+);
 await Promise.all(contexts.map((ctx) => ctx.watch()));
 
-const isOurBundle = () => existsSync(BUNDLE) && readFileSync(BUNDLE, 'utf8').startsWith(BUNDLE_MARKER);
+const isOurBundle = () =>
+  existsSync(BUNDLE) && readFileSync(BUNDLE, 'utf8').startsWith(BUNDLE_MARKER);
 
 let rebuilding = false;
 const repair = async () => {
@@ -30,8 +33,12 @@ const repair = async () => {
   try {
     await buildServerBundle();
     if (link) {
-      const result = spawnSync('yalc', ['push', '--changed'], { stdio: 'inherit', shell: process.platform === 'win32' });
-      if (result.status !== 0) console.warn('[magic-mail] yalc push failed; install yalc globally for watch:link.');
+      const result = spawnSync('yalc', ['push', '--changed'], {
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+      });
+      if (result.status !== 0)
+        console.warn('[magic-mail] yalc push failed; install yalc globally for watch:link.');
     }
   } catch (error) {
     console.error('[magic-mail] server bundle rebuild failed:', error.message);

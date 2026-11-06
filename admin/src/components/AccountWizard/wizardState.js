@@ -37,10 +37,19 @@ export const PORT_MIN = 1;
 export const PORT_MAX = 65535;
 
 /** Defaults for NEW accounts only. Existing accounts keep their stored values. */
-export const NEW_ACCOUNT_DEFAULTS = Object.freeze({ priority: 5, dailyLimit: 500, hourlyLimit: 50 });
+export const NEW_ACCOUNT_DEFAULTS = Object.freeze({
+  priority: 5,
+  dailyLimit: 500,
+  hourlyLimit: 50,
+});
 
 /** Defaults the database applies when a value was never stored (0 = unlimited). */
-export const STORED_DEFAULTS = Object.freeze({ priority: 1, dailyLimit: 0, hourlyLimit: 0, port: 587 });
+export const STORED_DEFAULTS = Object.freeze({
+  priority: 1,
+  dailyLimit: 0,
+  hourlyLimit: 0,
+  port: 587,
+});
 
 /** @param {string} provider */
 export const isOAuthProvider = (provider) => OAUTH_PROVIDERS.includes(provider);
@@ -96,7 +105,10 @@ export const accountToForm = (account = {}) => {
     dailyLimit: numberOr(account.dailyLimit, STORED_DEFAULTS.dailyLimit),
     hourlyLimit: numberOr(account.hourlyLimit, STORED_DEFAULTS.hourlyLimit),
     host: stringOr(config.host),
-    port: numberOr(typeof config.port === 'string' ? Number(config.port) : config.port, STORED_DEFAULTS.port),
+    port: numberOr(
+      typeof config.port === 'string' ? Number(config.port) : config.port,
+      STORED_DEFAULTS.port
+    ),
     user: stringOr(config.user),
     // Secrets arrive masked ("****a1b2"). Sending the mask back keeps the
     // stored secret (server-side merge); typing a new value replaces it.
@@ -138,7 +150,14 @@ export const validateLimits = (form) => {
  * @returns {boolean}
  */
 export const canProceedStep = (step, ctx) => {
-  const { provider, form, isEditMode = false, credentialsUnreadable = false, oauthCode, oauthState } = ctx;
+  const {
+    provider,
+    form,
+    isEditMode = false,
+    credentialsUnreadable = false,
+    oauthCode,
+    oauthState,
+  } = ctx;
   if (step === 1) return Boolean(provider);
 
   if (step === 2) {
@@ -233,7 +252,11 @@ const sharedDetails = (form) => ({
  * @param {Record<string, any>} form
  * @param {{isEditMode?: boolean, credentialsUnreadable?: boolean}} [options]
  */
-export const buildAccountPayload = (provider, form, { isEditMode = false, credentialsUnreadable = false } = {}) => {
+export const buildAccountPayload = (
+  provider,
+  form,
+  { isEditMode = false, credentialsUnreadable = false } = {}
+) => {
   const payload = { ...sharedDetails(form), provider };
   const oauth = isOAuthProvider(provider);
 
@@ -290,7 +313,11 @@ export const buildOAuthAuthQuery = (provider, { clientId, tenantId, accountId } 
 export const buildOAuthReconnectPayload = (provider, authorization) => {
   if (!OAUTH_API_PROVIDER[provider] || !authorization?.code || !authorization?.state) return null;
   if (authorization.provider && authorization.provider !== provider) return null;
-  return { provider: OAUTH_API_PROVIDER[provider], code: authorization.code, state: authorization.state };
+  return {
+    provider: OAUTH_API_PROVIDER[provider],
+    code: authorization.code,
+    state: authorization.state,
+  };
 };
 
 /** Serialises everything that the user can change, for dirty checks. */
@@ -304,7 +331,8 @@ const trimSlash = (value) => value.replace(/\/+$/, '');
  * @param {{backendURL?: unknown, origin?: string}} env
  */
 export const resolveBackendBase = ({ backendURL, origin } = {}) => {
-  if (typeof backendURL === 'string' && /^https?:\/\//i.test(backendURL)) return trimSlash(backendURL);
+  if (typeof backendURL === 'string' && /^https?:\/\//i.test(backendURL))
+    return trimSlash(backendURL);
   return trimSlash(origin || '');
 };
 

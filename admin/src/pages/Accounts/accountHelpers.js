@@ -33,7 +33,9 @@ export const filterAccounts = (accounts, { query = '', status = 'all', provider 
 
 /** @param {Array<Record<string, any>>} accounts @returns {string[]} sorted provider values */
 export const uniqueProviders = (accounts) =>
-  [...new Set((Array.isArray(accounts) ? accounts : []).map((a) => a.provider).filter(Boolean))].sort();
+  [
+    ...new Set((Array.isArray(accounts) ? accounts : []).map((a) => a.provider).filter(Boolean)),
+  ].sort();
 
 /**
  * Routing rules that reference an account by name (primary or fallback).
@@ -48,7 +50,8 @@ export const countRulesForAccount = (rules, accountName) => {
   const name = lower(accountName).trim();
   if (!name) return 0;
   return rules.filter(
-    (rule) => lower(rule.accountName).trim() === name || lower(rule.fallbackAccountName).trim() === name
+    (rule) =>
+      lower(rule.accountName).trim() === name || lower(rule.fallbackAccountName).trim() === name
   ).length;
 };
 
@@ -74,7 +77,13 @@ export const MAX_TEST_CC = 50;
  * @param {{to: string, cc: string, mode: 'direct'|'strapi', emailType: string, unsubscribeUrl: string}} values
  * @returns {{to?: 'required'|'invalid', cc?: 'invalid'|'tooMany', unsubscribeUrl?: 'required'|'invalid'}}
  */
-export const validateTestForm = ({ to = '', cc = '', mode = 'direct', emailType = 'transactional', unsubscribeUrl = '' }) => {
+export const validateTestForm = ({
+  to = '',
+  cc = '',
+  mode = 'direct',
+  emailType = 'transactional',
+  unsubscribeUrl = '',
+}) => {
   const errors = {};
   const recipient = to.trim();
   if (!recipient) errors.to = 'required';

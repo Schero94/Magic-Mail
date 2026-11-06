@@ -49,7 +49,10 @@ const adminPolicy = (capability, extraActions = []) => [
  * @returns {Array<object>}
  */
 const testSendRateLimit = () => [
-  { name: `plugin::${PLUGIN_ID}.rate-limit`, config: { bucket: 'admin-test-send', max: 10, window: 60_000 } },
+  {
+    name: `plugin::${PLUGIN_ID}.rate-limit`,
+    config: { bucket: 'admin-test-send', max: 10, window: 60_000 },
+  },
 ];
 
 /**

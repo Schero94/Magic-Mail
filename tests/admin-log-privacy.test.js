@@ -21,12 +21,14 @@ const files = [
 test('admin logs never print raw API responses, errors, account credentials or template data', () => {
   for (const file of files) {
     const source = readFileSync(path.join(__dirname, '..', file), 'utf8');
-    const loggingLines = source.split('\n').filter((line) => /console\.(?:log|error|warn|debug)\s*\(/.test(line));
+    const loggingLines = source
+      .split('\n')
+      .filter((line) => /console\.(?:log|error|warn|debug)\s*\(/.test(line));
 
     for (const line of loggingLines) {
       assert.ok(
         !/,\s*(?:err|error|response|data|account|template|token|settings)\b/i.test(line),
-        `${file} logs a potentially sensitive runtime value`,
+        `${file} logs a potentially sensitive runtime value`
       );
     }
 

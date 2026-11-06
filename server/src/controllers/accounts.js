@@ -23,7 +23,12 @@ module.exports = {
         meta: { count: accounts.length },
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting accounts', 'Error fetching email accounts');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting accounts',
+        'Error fetching email accounts'
+      );
     }
   },
 
@@ -42,7 +47,12 @@ module.exports = {
         message: 'Email account created successfully',
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error creating account', 'Error creating email account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error creating account',
+        'Error creating email account'
+      );
     }
   },
 
@@ -70,7 +80,12 @@ module.exports = {
         data: account,
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting account', 'Error fetching email account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting account',
+        'Error fetching email account'
+      );
     }
   },
 
@@ -94,7 +109,12 @@ module.exports = {
         message: 'Email account updated successfully',
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error updating account', 'Error updating email account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error updating account',
+        'Error updating email account'
+      );
     }
   },
 
@@ -107,22 +127,30 @@ module.exports = {
   async test(ctx) {
     try {
       const { accountId } = ctx.params;
-      const { testEmail, to, cc, priority, type, unsubscribeUrl } = validate('accounts.test', ctx.request.body);
+      const { testEmail, to, cc, priority, type, unsubscribeUrl } = validate(
+        'accounts.test',
+        ctx.request.body
+      );
       const recipientEmail = testEmail || to;
-      
+
       const testOptions = {
         priority: priority || 'normal',
         type: type || 'transactional',
         unsubscribeUrl: unsubscribeUrl || null,
         cc: cc || undefined,
       };
-      
+
       const accountManager = strapi.plugin('magic-mail').service('account-manager');
       const result = await accountManager.testAccount(accountId, recipientEmail, testOptions);
 
       ctx.body = result;
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error testing account', 'Error testing email account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error testing account',
+        'Error testing email account'
+      );
     }
   },
 
@@ -134,10 +162,15 @@ module.exports = {
    */
   async testStrapiService(ctx) {
     try {
-      const { testEmail, accountName, cc } = validate('accounts.testStrapiService', ctx.request.body);
+      const { testEmail, accountName, cc } = validate(
+        'accounts.testStrapiService',
+        ctx.request.body
+      );
 
       strapi.log.info('[magic-mail] [TEST] Testing Strapi Email Service integration...');
-      strapi.log.info('[magic-mail] [EMAIL] Calling strapi.plugin("email").service("email").send()');
+      strapi.log.info(
+        '[magic-mail] [EMAIL] Calling strapi.plugin("email").service("email").send()'
+      );
       if (accountName) {
         strapi.log.info(`[magic-mail] [FORCE] Forcing specific account: ${accountName}`);
       }
@@ -146,12 +179,15 @@ module.exports = {
       // Do NOT pass a hardcoded `from` — the router picks the account's own
       // fromEmail, and supplying a non-existent sender domain would hurt
       // deliverability / spam reputation.
-      const result = await strapi.plugin('email').service('email').send({
-        to: testEmail,
-        cc: cc || undefined,
-        subject: 'MagicMail Integration Test',
-        text: 'This email was sent using Strapi\'s native email service but routed through MagicMail!',
-        html: `
+      const result = await strapi
+        .plugin('email')
+        .service('email')
+        .send({
+          to: testEmail,
+          cc: cc || undefined,
+          subject: 'MagicMail Integration Test',
+          text: "This email was sent using Strapi's native email service but routed through MagicMail!",
+          html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #0EA5E9;">MagicMail Integration Test</h1>
             <p style="font-size: 16px; color: #374151;">
@@ -186,9 +222,9 @@ module.exports = {
             </p>
           </div>
         `,
-        type: 'transactional',
-        accountName: accountName || null, // Force specific account if provided
-      });
+          type: 'transactional',
+          accountName: accountName || null, // Force specific account if provided
+        });
 
       strapi.log.info('[magic-mail] [SUCCESS] Strapi Email Service test completed');
 
@@ -204,11 +240,18 @@ module.exports = {
     } catch (err) {
       if (err?.name === 'ValidationError' && err?.code !== 'MAGIC_MAIL_VALIDATION') {
         // Request validation (validate()) - let Strapi render the 400.
-        handleControllerError(ctx, err, '[magic-mail] Strapi Email Service test rejected', 'Failed to send test email');
+        handleControllerError(
+          ctx,
+          err,
+          '[magic-mail] Strapi Email Service test rejected',
+          'Failed to send test email'
+        );
         return;
       }
       // Never return the raw transport error (internal hosts, SMTP replies).
-      strapi.log.error(`[magic-mail] [ERROR] Strapi Email Service test failed: ${describeErrorForLog(err)}`);
+      strapi.log.error(
+        `[magic-mail] [ERROR] Strapi Email Service test failed: ${describeErrorForLog(err)}`
+      );
       ctx.status = 502;
       ctx.body = {
         success: false,
@@ -234,8 +277,12 @@ module.exports = {
         data: result || { deactivatedRules: 0, clearedFallbacks: 0 },
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error deleting account', 'Error deleting email account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error deleting account',
+        'Error deleting email account'
+      );
     }
   },
 };
-

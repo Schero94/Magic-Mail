@@ -51,7 +51,10 @@ module.exports = {
       if (typeof config.contentApi !== 'object' || config.contentApi === null) {
         throw new Error('[magic-mail] config.contentApi must be an object');
       }
-      if (config.contentApi.allowUserRoles !== undefined && typeof config.contentApi.allowUserRoles !== 'boolean') {
+      if (
+        config.contentApi.allowUserRoles !== undefined &&
+        typeof config.contentApi.allowUserRoles !== 'boolean'
+      ) {
         throw new Error('[magic-mail] config.contentApi.allowUserRoles must be a boolean');
       }
     }
@@ -60,17 +63,25 @@ module.exports = {
       if (typeof tracking !== 'object' || tracking === null || Array.isArray(tracking)) {
         throw new Error('[magic-mail] config.tracking must be an object');
       }
-      for (const key of ['eventRetentionDays', 'linkTtlDays', 'logRetentionDays', 'maxLinksPerEmail']) {
+      for (const key of [
+        'eventRetentionDays',
+        'linkTtlDays',
+        'logRetentionDays',
+        'maxLinksPerEmail',
+      ]) {
         const value = tracking[key];
         if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
           throw new Error(`[magic-mail] config.tracking.${key} must be a non-negative integer`);
         }
       }
-      if (tracking.allowedLinkHosts !== undefined && (
-        !Array.isArray(tracking.allowedLinkHosts)
-        || tracking.allowedLinkHosts.some((host) => typeof host !== 'string' || !host.trim())
-      )) {
-        throw new Error('[magic-mail] config.tracking.allowedLinkHosts must be an array of host names');
+      if (
+        tracking.allowedLinkHosts !== undefined &&
+        (!Array.isArray(tracking.allowedLinkHosts) ||
+          tracking.allowedLinkHosts.some((host) => typeof host !== 'string' || !host.trim()))
+      ) {
+        throw new Error(
+          '[magic-mail] config.tracking.allowedLinkHosts must be an array of host names'
+        );
       }
       if (tracking.anonymizeIp !== undefined && typeof tracking.anonymizeIp !== 'boolean') {
         throw new Error('[magic-mail] config.tracking.anonymizeIp must be a boolean');
@@ -81,7 +92,10 @@ module.exports = {
       if (typeof designer !== 'object' || designer === null || Array.isArray(designer)) {
         throw new Error('[magic-mail] config.designer must be an object');
       }
-      if (designer.projectId != null && !(Number.isSafeInteger(designer.projectId) && designer.projectId > 0)) {
+      if (
+        designer.projectId != null &&
+        !(Number.isSafeInteger(designer.projectId) && designer.projectId > 0)
+      ) {
         throw new Error('[magic-mail] config.designer.projectId must be a positive integer');
       }
       if (designer.scriptUrl != null) {
@@ -95,8 +109,13 @@ module.exports = {
           throw new Error('[magic-mail] config.designer.scriptUrl must be an https URL');
         }
       }
-      if (designer.version != null && !(typeof designer.version === 'string' && /^\d+\.\d+\.\d+$/.test(designer.version))) {
-        throw new Error('[magic-mail] config.designer.version must be an exact version such as "1.524.0"');
+      if (
+        designer.version != null &&
+        !(typeof designer.version === 'string' && /^\d+\.\d+\.\d+$/.test(designer.version))
+      ) {
+        throw new Error(
+          '[magic-mail] config.designer.version must be an exact version such as "1.524.0"'
+        );
       }
     }
     if (config?.quotaTimezone !== undefined) {

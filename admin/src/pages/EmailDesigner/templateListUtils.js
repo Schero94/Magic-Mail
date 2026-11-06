@@ -16,7 +16,9 @@ export const PAGE_SIZE_OPTIONS = Object.freeze([5, 10, 25, 50]);
  */
 export const filterTemplates = (templates, term) => {
   const list = Array.isArray(templates) ? templates : [];
-  const needle = String(term ?? '').trim().toLowerCase();
+  const needle = String(term ?? '')
+    .trim()
+    .toLowerCase();
   if (!needle) return list;
   return list.filter((template) => {
     const name = String(template?.name ?? '').toLowerCase();

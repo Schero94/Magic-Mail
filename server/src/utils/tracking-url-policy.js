@@ -38,18 +38,62 @@ const SENSITIVE_PATH_PATTERNS = [
 // Parameter names (normalised: lower case, without `-`, `_`, `.`) that are
 // always sensitive.
 const SENSITIVE_PARAM_EXACT = new Set([
-  'code', 'key', 'sig', 'otp', 'auth', 'state', 'hash', 'pin', 'sid', 'jwt',
-  'reset', 'confirmation', 'activation', 'invite', 'invitation', 'ticket',
-  'nonce', 'signature', 'secret', 'password', 'pwd', 'passwd', 'token',
-  'apikey', 'credential', 'credentials', 'session', 'magic', 'k', 'oobcode',
+  'code',
+  'key',
+  'sig',
+  'otp',
+  'auth',
+  'state',
+  'hash',
+  'pin',
+  'sid',
+  'jwt',
+  'reset',
+  'confirmation',
+  'activation',
+  'invite',
+  'invitation',
+  'ticket',
+  'nonce',
+  'signature',
+  'secret',
+  'password',
+  'pwd',
+  'passwd',
+  'token',
+  'apikey',
+  'credential',
+  'credentials',
+  'session',
+  'magic',
+  'k',
+  'oobcode',
 ]);
 
 // Any parameter name CONTAINING one of these is sensitive
 // (loginToken, accessToken, resetPasswordToken, x-amz-signature, ...).
 const SENSITIVE_PARAM_SUBSTRINGS = [
-  'token', 'secret', 'passw', 'pwd', 'session', 'jwt', 'magic', 'apikey',
-  'accesskey', 'privatekey', 'credential', 'nonce', 'ticket', 'signature',
-  'invit', 'reset', 'confirm', 'verif', 'activat', 'oauth', 'bearer',
+  'token',
+  'secret',
+  'passw',
+  'pwd',
+  'session',
+  'jwt',
+  'magic',
+  'apikey',
+  'accesskey',
+  'privatekey',
+  'credential',
+  'nonce',
+  'ticket',
+  'signature',
+  'invit',
+  'reset',
+  'confirm',
+  'verif',
+  'activat',
+  'oauth',
+  'bearer',
 ];
 
 // Any parameter name ENDING with one of these is sensitive
@@ -58,7 +102,16 @@ const SENSITIVE_PARAM_SUFFIXES = ['code', 'key', 'sig', 'otp', 'auth', 'state', 
 
 // Individual words of a camelCase / separated name that are sensitive
 // (e.g. `auth_user`, `keyId`).
-const SENSITIVE_PARAM_WORDS = new Set(['auth', 'key', 'code', 'otp', 'sig', 'token', 'secret', 'session']);
+const SENSITIVE_PARAM_WORDS = new Set([
+  'auth',
+  'key',
+  'code',
+  'otp',
+  'sig',
+  'token',
+  'secret',
+  'session',
+]);
 
 // A JWT-looking triple of base64url segments.
 const JWT_LIKE = /\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/;
@@ -89,7 +142,11 @@ function isSensitiveParamName(name) {
   if (!normalized) return false;
   if (SENSITIVE_PARAM_EXACT.has(normalized)) return true;
   if (SENSITIVE_PARAM_SUBSTRINGS.some((part) => normalized.includes(part))) return true;
-  if (SENSITIVE_PARAM_SUFFIXES.some((suffix) => normalized.length > suffix.length && normalized.endsWith(suffix))) {
+  if (
+    SENSITIVE_PARAM_SUFFIXES.some(
+      (suffix) => normalized.length > suffix.length && normalized.endsWith(suffix)
+    )
+  ) {
     return true;
   }
   return paramWords(name).some((word) => SENSITIVE_PARAM_WORDS.has(word));
@@ -170,7 +227,8 @@ function isSensitiveTrackingUrl(rawUrl) {
   }
   // Percent-encoded keywords (`/reset%2Dpassword`, `/%6Dagic-link`) are not
   // decoded by the URL parser; check the decoded form too.
-  if (decodedPath !== path && SENSITIVE_PATH_PATTERNS.some((pattern) => pattern.test(decodedPath))) return true;
+  if (decodedPath !== path && SENSITIVE_PATH_PATTERNS.some((pattern) => pattern.test(decodedPath)))
+    return true;
   if (decodedPath.split('/').some((segment) => looksLikeSecretValue(segment, 32))) return true;
 
   if (hasSensitiveParams(url.searchParams)) return true;
@@ -221,7 +279,11 @@ function isHostAllowed(hostname, allowedHosts) {
   const host = hostname.toLowerCase().replace(/\.$/, '');
   return (allowedHosts || []).some((entry) => {
     if (typeof entry !== 'string') return false;
-    const allowed = entry.trim().toLowerCase().replace(/^\*?\./, '').replace(/\.$/, '');
+    const allowed = entry
+      .trim()
+      .toLowerCase()
+      .replace(/^\*?\./, '')
+      .replace(/\.$/, '');
     if (!allowed) return false;
     return host === allowed || host.endsWith(`.${allowed}`);
   });

@@ -24,7 +24,9 @@ const sourceText = [...listSources('admin/src'), ...listSources('server/src')].m
 test('every runtime dependency is imported by the plugin source', () => {
   for (const name of Object.keys(pkg.dependencies)) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-    const imported = new RegExp(`(?:from\\s+|require\\(\\s*|import\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`).test(sourceText);
+    const imported = new RegExp(
+      `(?:from\\s+|require\\(\\s*|import\\(\\s*)['"]${escaped}(?:/[^'"]*)?['"]`
+    ).test(sourceText);
     assert.ok(imported, `${name} is listed in dependencies but never imported`);
   }
   for (const removed of ['form-data', 'striptags', 'yup', 'decode-html']) {
@@ -42,19 +44,35 @@ test('engines and build target require Node 22.12 or later', () => {
 
 test('peer dependencies match the host APIs the plugin uses', () => {
   const peers = pkg.peerDependencies;
-  assert.equal(peers['@strapi/plugin-users-permissions'], '^5.57.0', 'email-log.user targets plugin::users-permissions.user');
-  assert.equal(pkg.peerDependenciesMeta?.['@strapi/plugin-users-permissions']?.optional, undefined, 'the relation is unconditional, so the peer is required');
+  assert.equal(
+    peers['@strapi/plugin-users-permissions'],
+    '^5.57.0',
+    'email-log.user targets plugin::users-permissions.user'
+  );
+  assert.equal(
+    pkg.peerDependenciesMeta?.['@strapi/plugin-users-permissions']?.optional,
+    undefined,
+    'the relation is unconditional, so the peer is required'
+  );
   assert.equal(peers['@strapi/strapi'], '^5.57.0');
   assert.equal(peers['@strapi/utils'], '^5.57.0');
   assert.equal(peers['react-router-dom'], '^6.30.3', 'no stricter than the Strapi 5 admin peer');
-  assert.match(sourceText, /from 'react-intl'/, 'react-intl stays a peer only while it is imported');
+  assert.match(
+    sourceText,
+    /from 'react-intl'/,
+    'react-intl stays a peer only while it is imported'
+  );
 });
 
 test('overrides do not pin known-vulnerable versions', () => {
   const overrides = JSON.stringify(pkg.overrides);
   assert.doesNotMatch(overrides, /"vite":"6\.4\.4"/);
   assert.doesNotMatch(overrides, /"undici":"7\.30\.0"/);
-  assert.equal(pkg.overrides.undici, undefined, 'a global undici override forces 7.x onto ^6 consumers');
+  assert.equal(
+    pkg.overrides.undici,
+    undefined,
+    'a global undici override forces 7.x onto ^6 consumers'
+  );
   assert.equal(pkg.overrides['@rushstack/node-core-library']['.'], undefined);
 });
 
@@ -85,7 +103,11 @@ test('workflows pin actions by SHA, use least privilege and never run install sc
       assert.match(line, /--ignore-scripts/, `${file}: ${line.trim()}`);
     }
     const topLevel = yaml.split(/^jobs:/m)[0].replace(/^\s*#.*$/gm, '');
-    assert.doesNotMatch(topLevel, /contents:\s*write|id-token:\s*write|pages:\s*write/, `${file}: write scopes belong on jobs`);
+    assert.doesNotMatch(
+      topLevel,
+      /contents:\s*write|id-token:\s*write|pages:\s*write/,
+      `${file}: write scopes belong on jobs`
+    );
   }
   const release = read('.github/workflows/release.yml');
   assert.match(release, /needs:\s*verify/);
@@ -101,7 +123,8 @@ test('npm pack ships only dist, the entry shims and the package docs', () => {
     stdio: ['ignore', 'pipe', 'ignore'],
   });
   const [{ files }] = JSON.parse(output);
-  const allowed = /^(dist\/(admin|server)\/[^/]+|strapi-(admin|server)\.js|README\.md|LICENSE|CHANGELOG\.md|package\.json)$/;
+  const allowed =
+    /^(dist\/(admin|server)\/[^/]+|strapi-(admin|server)\.js|README\.md|LICENSE|CHANGELOG\.md|package\.json)$/;
   const unexpected = files.map((file) => file.path).filter((file) => !allowed.test(file));
   assert.deepEqual(unexpected, []);
   const unpacked = files.reduce((sum, file) => sum + file.size, 0);

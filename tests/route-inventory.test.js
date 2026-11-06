@@ -24,7 +24,8 @@ const category = (scope, route) => {
     if (['/send', '/send-message'].includes(route.path)) return 'content-send';
     return 'unaccounted';
   }
-  if (route.path === '/test-strapi-service' || route.path.startsWith('/accounts')) return 'accounts';
+  if (route.path === '/test-strapi-service' || route.path.startsWith('/accounts'))
+    return 'accounts';
   if (route.path.startsWith('/routing-rules')) return 'routing-rules';
   if (route.path.startsWith('/oauth')) return 'oauth';
   if (route.path.startsWith('/designer')) return 'designer';
@@ -36,7 +37,10 @@ const category = (scope, route) => {
 test('every route belongs to a frozen functional inventory group', () => {
   const actual = {};
   const seen = new Set();
-  for (const [scope, routes] of [['admin', admin], ['content-api', content]]) {
+  for (const [scope, routes] of [
+    ['admin', admin],
+    ['content-api', content],
+  ]) {
     for (const route of routes) {
       const key = `${scope} ${route.method} ${route.path}`;
       assert.ok(!seen.has(key), `duplicate route ${key}`);
@@ -53,7 +57,9 @@ test('only signed OAuth callbacks and bounded tracking routes are public', () =>
   const publicAdmin = admin.filter((route) => route.config?.auth === false);
   const publicContent = content.filter((route) => route.config?.auth === false);
   assert.deepEqual(publicAdmin.map((r) => r.path).sort(), [
-    '/oauth/gmail/callback', '/oauth/microsoft/callback', '/oauth/yahoo/callback',
+    '/oauth/gmail/callback',
+    '/oauth/microsoft/callback',
+    '/oauth/yahoo/callback',
   ]);
   assert.deepEqual(publicContent.map((r) => r.path).sort(), [
     '/track/click/:emailId/:linkHash/:recipientHash',
@@ -64,30 +70,42 @@ test('only signed OAuth callbacks and bounded tracking routes are public', () =>
     assert.notEqual(route.config?.auth, false);
     if (admin.includes(route)) {
       assert.ok(route.config?.policies?.includes('admin::isAuthenticatedAdmin'), route.path);
-      assert.ok(route.config?.policies?.some((p) => p.name === 'admin::hasPermissions'), route.path);
+      assert.ok(
+        route.config?.policies?.some((p) => p.name === 'admin::hasPermissions'),
+        route.path
+      );
     }
   }
 });
 
 test('admin routes require the matching least-privilege capability', () => {
   const capabilityFor = (route) => {
-    if (route.path === '/oauth/gmail/callback'
-      || route.path === '/oauth/microsoft/callback'
-      || route.path === '/oauth/yahoo/callback') return null;
+    if (
+      route.path === '/oauth/gmail/callback' ||
+      route.path === '/oauth/microsoft/callback' ||
+      route.path === '/oauth/yahoo/callback'
+    )
+      return null;
 
-    if (route.path === '/accounts/:accountId/test'
-      || route.path === '/test-strapi-service'
-      || route.path === '/designer/templates/:id/test-send') return 'test-send';
+    if (
+      route.path === '/accounts/:accountId/test' ||
+      route.path === '/test-strapi-service' ||
+      route.path === '/designer/templates/:id/test-send'
+    )
+      return 'test-send';
 
-    if (route.path === '/oauth/gmail/auth'
-      || route.path === '/oauth/microsoft/auth'
-      || route.path === '/oauth/yahoo/auth'
-      || route.path === '/oauth/create-account'
-      || route.path === '/oauth/reconnect/:accountId') return 'manage';
+    if (
+      route.path === '/oauth/gmail/auth' ||
+      route.path === '/oauth/microsoft/auth' ||
+      route.path === '/oauth/yahoo/auth' ||
+      route.path === '/oauth/create-account' ||
+      route.path === '/oauth/reconnect/:accountId'
+    )
+      return 'manage';
 
     // Rendering/exporting a template reads plugin data but does not mutate it.
-    if (route.path === '/designer/render/:templateReferenceId'
-      || route.path === '/designer/export') return 'read';
+    if (route.path === '/designer/render/:templateReferenceId' || route.path === '/designer/export')
+      return 'read';
 
     return route.method === 'GET' ? 'read' : 'manage';
   };
@@ -99,11 +117,18 @@ test('admin routes require the matching least-privilege capability', () => {
     const permissionPolicies = (route.config.policies || []).filter(
       (policy) => typeof policy === 'object' && policy.name === 'admin::hasPermissions'
     );
-    assert.equal(permissionPolicies.length, 1, `${route.method} ${route.path} must have one permission policy`);
+    assert.equal(
+      permissionPolicies.length,
+      1,
+      `${route.method} ${route.path} must have one permission policy`
+    );
     // users-permissions email templates also need the users-permissions grant.
-    const extra = route.path === '/designer/core/:coreEmailType'
-      ? [`plugin::users-permissions.email-templates.${route.method === 'GET' ? 'read' : 'update'}`]
-      : [];
+    const extra =
+      route.path === '/designer/core/:coreEmailType'
+        ? [
+            `plugin::users-permissions.email-templates.${route.method === 'GET' ? 'read' : 'update'}`,
+          ]
+        : [];
     assert.deepEqual(
       permissionPolicies[0].config.actions,
       [`plugin::magic-mail.${expectedCapability}`, ...extra],
@@ -128,10 +153,12 @@ test('server and admin register read, manage and test-send grants separately fro
     },
   });
 
-  assert.deepEqual(
-    registered.map(({ uid }) => uid).sort(),
-    ['access', 'manage', 'read', 'test-send']
-  );
+  assert.deepEqual(registered.map(({ uid }) => uid).sort(), [
+    'access',
+    'manage',
+    'read',
+    'test-send',
+  ]);
   for (const action of registered) {
     assert.equal(action.section, 'plugins', `${action.uid} must be a plugin permission`);
     assert.equal(action.pluginName, 'magic-mail', `${action.uid} must belong to Magic-Mail`);

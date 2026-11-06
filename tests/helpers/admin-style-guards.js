@@ -26,7 +26,9 @@ function findTinyRemFontSizes(source) {
 
 /** Pictographic emoji (text symbols such as arrows or the en dash are allowed). */
 function findEmoji(source) {
-  return source.match(/[\p{Extended_Pictographic}\u{FE0F}]/gu)?.filter((ch) => !/[©®™]/.test(ch)) ?? [];
+  return (
+    source.match(/[\p{Extended_Pictographic}\u{FE0F}]/gu)?.filter((ch) => !/[©®™]/.test(ch)) ?? []
+  );
 }
 
 module.exports = { findCssVarTokens, findTinyRemFontSizes, findEmoji };

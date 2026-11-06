@@ -13,7 +13,17 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const ADMIN_SRC = path.join(ROOT, 'admin/src');
 const LOCALES = ['en', 'de', 'fr', 'es', 'pt'];
-const NAMESPACES = ['accounts', 'accountModal', 'analytics', 'editor', 'routing', 'settings', 'templates', 'common', 'plugin'];
+const NAMESPACES = [
+  'accounts',
+  'accountModal',
+  'analytics',
+  'editor',
+  'routing',
+  'settings',
+  'templates',
+  'common',
+  'plugin',
+];
 
 const locales = Object.fromEntries(
   LOCALES.map((locale) => [
@@ -44,12 +54,20 @@ const unescape = (value) => value.replace(/\\(.)/g, '$1');
 /** Collects t('key', 'default'), getTranslation('key') and id: 'magic-mail.key'. */
 const collectCalls = () => {
   const calls = [];
-  const callPattern = new RegExp(String.raw`\b(t|getTranslation)\(\s*(?:${STRING})(?:\s*,\s*(?:${STRING}))?`, 'g');
+  const callPattern = new RegExp(
+    String.raw`\b(t|getTranslation)\(\s*(?:${STRING})(?:\s*,\s*(?:${STRING}))?`,
+    'g'
+  );
   for (const { file, code } of sources) {
     for (const match of code.matchAll(callPattern)) {
       const key = match[2] ?? match[3] ?? match[4];
       const fallback = match[5] ?? match[6] ?? match[7];
-      calls.push({ file, kind: match[1], key: unescape(key), fallback: fallback === undefined ? undefined : unescape(fallback) });
+      calls.push({
+        file,
+        kind: match[1],
+        key: unescape(key),
+        fallback: fallback === undefined ? undefined : unescape(fallback),
+      });
     }
     for (const match of code.matchAll(/\bid:\s*['"]magic-mail\.([^'"]+)['"]/g)) {
       calls.push({ file, kind: 'id', key: match[1] });
@@ -60,7 +78,10 @@ const collectCalls = () => {
 
 test('every statically referenced translation id exists in all locales', () => {
   const calls = collectCalls();
-  assert.ok(calls.length > 300, `expected the admin views to be translated (found ${calls.length} calls)`);
+  assert.ok(
+    calls.length > 300,
+    `expected the admin views to be translated (found ${calls.length} calls)`
+  );
   const missing = [];
   for (const { file, key } of calls) {
     for (const locale of LOCALES) {
@@ -71,7 +92,10 @@ test('every statically referenced translation id exists in all locales', () => {
 });
 
 test('key-map string literals (for dynamic t() calls) resolve in all locales', () => {
-  const literal = new RegExp(String.raw`['"\x60]((?:${NAMESPACES.join('|')})\.[A-Za-z0-9_.]+)['"\x60]`, 'g');
+  const literal = new RegExp(
+    String.raw`['"\x60]((?:${NAMESPACES.join('|')})\.[A-Za-z0-9_.]+)['"\x60]`,
+    'g'
+  );
   const missing = [];
   for (const { file, code } of sources) {
     for (const match of code.matchAll(literal)) {
@@ -98,9 +122,14 @@ test('template-literal key prefixes only expand to existing keys', () => {
 
 test('English defaults written in code match en.json', () => {
   const drift = collectCalls()
-    .filter(({ kind, fallback, key }) => kind === 't' && fallback !== undefined && Object.hasOwn(locales.en, key))
+    .filter(
+      ({ kind, fallback, key }) =>
+        kind === 't' && fallback !== undefined && Object.hasOwn(locales.en, key)
+    )
     .filter(({ key, fallback }) => locales.en[key] !== fallback)
-    .map(({ file, key, fallback }) => `${key} (${file}): code "${fallback}" vs en "${locales.en[key]}"`);
+    .map(
+      ({ file, key, fallback }) => `${key} (${file}): code "${fallback}" vs en "${locales.en[key]}"`
+    );
   assert.deepEqual(drift, []);
 });
 

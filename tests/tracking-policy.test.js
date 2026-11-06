@@ -10,10 +10,19 @@ test('sensitive tracking URLs are classified correctly', () => {
 
   // Auth / one-time-token URLs must never be tracked.
   assert.equal(isSensitiveTrackingUrl('https://app.example.com/reset-password?code=abc123'), true);
-  assert.equal(isSensitiveTrackingUrl('https://app.example.com/auth/email-confirmation?confirmation=xyz'), true);
-  assert.equal(isSensitiveTrackingUrl('https://app.example.com/magic-link/login?token=secret'), true);
+  assert.equal(
+    isSensitiveTrackingUrl('https://app.example.com/auth/email-confirmation?confirmation=xyz'),
+    true
+  );
+  assert.equal(
+    isSensitiveTrackingUrl('https://app.example.com/magic-link/login?token=secret'),
+    true
+  );
   assert.equal(isSensitiveTrackingUrl('https://app.example.com/verify?token=t'), true);
-  assert.equal(isSensitiveTrackingUrl('https://app.example.com/p?jwt=aaaaaaaaaa.bbbbbbbbbb.cccccccccc'), true);
+  assert.equal(
+    isSensitiveTrackingUrl('https://app.example.com/p?jwt=aaaaaaaaaa.bbbbbbbbbb.cccccccccc'),
+    true
+  );
   assert.equal(isSensitiveTrackingUrl('https://app.example.com/unsubscribe?u=1'), true);
   assert.equal(isSensitiveTrackingUrl('ftp://example.com/file'), true);
   assert.equal(isSensitiveTrackingUrl('not-a-url'), true);
@@ -42,7 +51,10 @@ test('link rewriting skips sensitive URLs and only stores marketing links', asyn
         if (uid === 'plugin::magic-mail.email-log') return { documentId: 'log-1' };
         return null; // no existing link mapping
       },
-      create: async ({ data }) => { stored.push(data.originalUrl); return { documentId: 'link-1', ...data }; },
+      create: async ({ data }) => {
+        stored.push(data.originalUrl);
+        return { documentId: 'link-1', ...data };
+      },
     }),
   };
   const analytics = require('../server/src/services/analytics')({ strapi });
@@ -55,7 +67,10 @@ test('link rewriting skips sensitive URLs and only stores marketing links', asyn
   const result = await analytics.rewriteLinksForTracking(html, 'email-1', 'recipient-hash');
 
   // Reset link is left untouched; marketing link is rewritten to the tracker.
-  assert.ok(result.includes('https://app.example.com/reset-password?code=abc'), 'reset link preserved');
+  assert.ok(
+    result.includes('https://app.example.com/reset-password?code=abc'),
+    'reset link preserved'
+  );
   assert.ok(!/track\/click\/[^"]*reset/.test(result));
   assert.ok(result.includes('/api/magic-mail/track/click/email-1/'), 'marketing link rewritten');
 

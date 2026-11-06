@@ -8,8 +8,14 @@ const quietLog = { debug() {}, info() {}, warn() {}, error() {} };
 test('account DTOs never expose encrypted config or oauth blobs', () => {
   const { toAccountListDTO, toAccountEditDTO } = require('../server/src/utils/account-dto');
   const raw = {
-    id: 1, documentId: 'doc-1', name: 'Primary', provider: 'gmail-oauth',
-    fromEmail: 'a@b.c', isActive: true, config: 'ENCRYPTED_CONFIG', oauth: 'ENCRYPTED_OAUTH',
+    id: 1,
+    documentId: 'doc-1',
+    name: 'Primary',
+    provider: 'gmail-oauth',
+    fromEmail: 'a@b.c',
+    isActive: true,
+    config: 'ENCRYPTED_CONFIG',
+    oauth: 'ENCRYPTED_OAUTH',
   };
 
   const list = toAccountListDTO(raw);
@@ -19,7 +25,11 @@ test('account DTOs never expose encrypted config or oauth blobs', () => {
   assert.equal(list.hasOAuth, true);
   assert.equal(list.name, 'Primary');
 
-  const edit = toAccountEditDTO(raw, { clientSecret: '****abcd' }, { credentialsUnreadable: false });
+  const edit = toAccountEditDTO(
+    raw,
+    { clientSecret: '****abcd' },
+    { credentialsUnreadable: false }
+  );
   assert.deepEqual(edit.config, { clientSecret: '****abcd' });
   assert.equal(edit.oauth, undefined);
   assert.equal(edit.credentialsUnreadable, false);
@@ -46,7 +56,10 @@ test('email log listing uses a field-limited user populate and Strapi start pagi
   const strapi = {
     log: quietLog,
     documents: () => ({
-      findMany: async (query) => { capturedQuery = query; return []; },
+      findMany: async (query) => {
+        capturedQuery = query;
+        return [];
+      },
       count: async () => 0,
     }),
   };

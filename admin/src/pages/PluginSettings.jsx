@@ -1,13 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Box,
-  Typography,
-  Flex,
-  Loader,
-  Switch,
-  TextInput,
-  Field,
-} from '@strapi/design-system';
+import { Box, Typography, Flex, Loader, Switch, TextInput, Field } from '@strapi/design-system';
 import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -46,7 +38,9 @@ const mobile = '768px';
 
 // ================ STYLED COMPONENTS ================
 const PageContainer = styled(Box)`
-  ${motionSafe(css`animation: ${fadeIn} 0.4s ease-out;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} 0.4s ease-out;
+  `)}
   max-width: 900px;
   margin: 0 auto;
   padding: 40px 32px;
@@ -242,7 +236,10 @@ const ICON_18 = { width: 18, height: 18 };
 const errorMessage = (t, code) => {
   switch (code) {
     case 'invalidUrl':
-      return t('settings.errors.invalidUrl', 'Enter a valid URL, for example https://api.example.com');
+      return t(
+        'settings.errors.invalidUrl',
+        'Enter a valid URL, for example https://api.example.com'
+      );
     case 'invalidProtocol':
       return t('settings.errors.invalidProtocol', 'This URL type is not allowed here');
     case 'invalidEmail':
@@ -318,7 +315,9 @@ const PluginSettingsContent = () => {
     setSaving(true);
     try {
       const response = await put('/magic-mail/settings', changes);
-      const saved = response?.data?.data ? normalizeSettings(response.data.data) : { ...settings, ...changes };
+      const saved = response?.data?.data
+        ? normalizeSettings(response.data.data)
+        : { ...settings, ...changes };
       if (!mounted.current) return;
       setInitialSettings(saved);
       setSettings(saved);
@@ -366,7 +365,10 @@ const PluginSettingsContent = () => {
     <PageHeader>
       <PageTitle tag="h1">{t('settings.title', 'Plugin Settings')}</PageTitle>
       <PageSubtitle tag="p">
-        {t('settings.subtitle', 'Configure email tracking, analytics, and default sender information')}
+        {t(
+          'settings.subtitle',
+          'Configure email tracking, analytics, and default sender information'
+        )}
       </PageSubtitle>
     </PageHeader>
   );
@@ -385,9 +387,15 @@ const PluginSettingsContent = () => {
             {loadError || t('settings.loadError', 'Failed to load settings')}
           </Typography>
           <Typography variant="pi" textColor="neutral600">
-            {t('settings.loadErrorHint', 'Saving is disabled until the current settings have been loaded.')}
+            {t(
+              'settings.loadErrorHint',
+              'Saving is disabled until the current settings have been loaded.'
+            )}
           </Typography>
-          <TertiaryButton startIcon={<ArrowPathIcon style={ICON_18} aria-hidden="true" />} onClick={fetchSettings}>
+          <TertiaryButton
+            startIcon={<ArrowPathIcon style={ICON_18} aria-hidden="true" />}
+            onClick={fetchSettings}
+          >
             {t('settings.retry', 'Retry')}
           </TertiaryButton>
         </ErrorState>
@@ -396,9 +404,15 @@ const PluginSettingsContent = () => {
   }
 
   const statusText = rbacError
-    ? t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')
+    ? t(
+        'common.permissions.loadError',
+        'Your permissions could not be loaded. Reload the page to try again.'
+      )
     : !canManage
-      ? t('settings.status.readOnly', 'Read-only access. You need the MagicMail manage permission to change settings.')
+      ? t(
+          'settings.status.readOnly',
+          'Read-only access. You need the MagicMail manage permission to change settings.'
+        )
       : !isValid
         ? t('settings.status.invalid', 'Please correct the highlighted fields')
         : hasChanges
@@ -453,14 +467,19 @@ const PluginSettingsContent = () => {
               {t('settings.linkTracking.title', 'Link Tracking')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('settings.linkTracking.subtitle', 'Track when recipients click links in your emails')}
+              {t(
+                'settings.linkTracking.subtitle',
+                'Track when recipients click links in your emails'
+              )}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>{t('settings.linkTracking.label', 'Enable Link Tracking')}</SettingLabel>
+              <SettingLabel>
+                {t('settings.linkTracking.label', 'Enable Link Tracking')}
+              </SettingLabel>
               <SettingDescription>
                 {t(
                   'settings.linkTracking.description',
@@ -499,7 +518,9 @@ const PluginSettingsContent = () => {
                         )
                   }
                 >
-                  <Field.Label>{t('settings.trackingBaseUrl.label', 'Tracking Base URL')}</Field.Label>
+                  <Field.Label>
+                    {t('settings.trackingBaseUrl.label', 'Tracking Base URL')}
+                  </Field.Label>
                   <TextInput
                     type="url"
                     inputMode="url"
@@ -515,10 +536,19 @@ const PluginSettingsContent = () => {
               </Box>
 
               <InfoBox>
-                <Typography variant="pi" textColor="primary700" fontWeight="medium" style={{ display: 'block' }}>
+                <Typography
+                  variant="pi"
+                  textColor="primary700"
+                  fontWeight="medium"
+                  style={{ display: 'block' }}
+                >
                   {t('settings.override.title', 'Per-Email Override')}
                 </Typography>
-                <Typography variant="pi" textColor="primary600" style={{ marginTop: '4px', display: 'block' }}>
+                <Typography
+                  variant="pi"
+                  textColor="primary600"
+                  style={{ marginTop: '4px', display: 'block' }}
+                >
                   {t(
                     'settings.override.body',
                     'Disable tracking for sensitive emails (password resets, magic links) by passing {code} when sending.',
@@ -549,7 +579,9 @@ const PluginSettingsContent = () => {
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>{t('settings.openTracking.label', 'Enable Open Tracking')}</SettingLabel>
+              <SettingLabel>
+                {t('settings.openTracking.label', 'Enable Open Tracking')}
+              </SettingLabel>
               <SettingDescription>
                 {t(
                   'settings.openTracking.description',
@@ -583,14 +615,19 @@ const PluginSettingsContent = () => {
               {t('settings.unsubscribe.title', 'Unsubscribe Settings')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('settings.unsubscribe.subtitle', 'List-Unsubscribe headers for one-click unsubscribe')}
+              {t(
+                'settings.unsubscribe.subtitle',
+                'List-Unsubscribe headers for one-click unsubscribe'
+              )}
             </Typography>
           </Flex>
         </SectionHeader>
         <SectionContent>
           <SettingRow alignItems="center">
             <SettingInfo>
-              <SettingLabel>{t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}</SettingLabel>
+              <SettingLabel>
+                {t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}
+              </SettingLabel>
               <SettingDescription>
                 {t(
                   'settings.unsubscribe.description',
@@ -649,7 +686,10 @@ const PluginSettingsContent = () => {
               {t('settings.sender.title', 'Default Sender')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('settings.sender.subtitle', 'Fallback sender information when not specified per email')}
+              {t(
+                'settings.sender.subtitle',
+                'Fallback sender information when not specified per email'
+              )}
             </Typography>
           </Flex>
         </SectionHeader>
@@ -674,7 +714,10 @@ const PluginSettingsContent = () => {
             <Field.Root
               name="defaultFromEmail"
               error={errorMessage(t, errors.defaultFromEmail)}
-              hint={t('settings.fromEmail.hint', "Reference only. Emails are always sent from the selected account's address.")}
+              hint={t(
+                'settings.fromEmail.hint',
+                "Reference only. Emails are always sent from the selected account's address."
+              )}
             >
               <Field.Label>{t('settings.fromEmail.label', 'Default From Email')}</Field.Label>
               <TextInput

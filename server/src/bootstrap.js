@@ -63,13 +63,18 @@ module.exports = async ({ strapi }) => {
 
   // One-time purge of historic tracking link mappings that captured a
   // sensitive/authentication URL before the tracking policy existed.
-  registerTimer(setTimeout(async () => {
-    try {
-      await purgeSensitiveLinkMappings(strapi, log);
-    } catch (err) {
-      log.warn('[PURGE] Sensitive link purge did not complete; it will run again on next start:', err);
-    }
-  }, 10 * 1000));
+  registerTimer(
+    setTimeout(async () => {
+      try {
+        await purgeSensitiveLinkMappings(strapi, log);
+      } catch (err) {
+        log.warn(
+          '[PURGE] Sensitive link purge did not complete; it will run again on next start:',
+          err
+        );
+      }
+    }, 10 * 1000)
+  );
 
   // Tracking privacy and retention: one-time anonymisation of legacy events,
   // then periodic deletion of expired events, links and (optionally) logs.
@@ -229,7 +234,9 @@ async function purgeSensitiveLinkMappings(strapi, log) {
     if (!rows || rows.length === 0) break;
 
     lastId = rows[rows.length - 1].id;
-    const sensitiveIds = rows.filter((row) => isSensitiveTrackingUrl(row.originalUrl)).map((row) => row.id);
+    const sensitiveIds = rows
+      .filter((row) => isSensitiveTrackingUrl(row.originalUrl))
+      .map((row) => row.id);
     if (sensitiveIds.length > 0) {
       // eslint-disable-next-line no-await-in-loop
       await query.deleteMany({ where: { id: { $in: sensitiveIds } } });
@@ -238,7 +245,10 @@ async function purgeSensitiveLinkMappings(strapi, log) {
     if (rows.length < pageSize) break;
   }
 
-  await store.set({ key: 'sensitiveLinkPurgeV2', value: { done: true, removed, at: new Date().toISOString() } });
+  await store.set({
+    key: 'sensitiveLinkPurgeV2',
+    value: { done: true, removed, at: new Date().toISOString() },
+  });
   if (removed > 0) {
     log.info(`[PURGE] Removed ${removed} historic sensitive tracking link mapping(s)`);
   }

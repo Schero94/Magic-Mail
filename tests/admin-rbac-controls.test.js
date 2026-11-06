@@ -8,10 +8,10 @@ const esbuild = require('esbuild');
 
 const source = (relativePath) => readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
 
-const compiledRBACHook = esbuild.transformSync(
-  source('admin/src/hooks/useMagicMailRBAC.js'),
-  { format: 'cjs', loader: 'js' }
-).code;
+const compiledRBACHook = esbuild.transformSync(source('admin/src/hooks/useMagicMailRBAC.js'), {
+  format: 'cjs',
+  loader: 'js',
+}).code;
 
 function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error: undefined }) {
   const captured = {};
@@ -51,8 +51,14 @@ function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error:
 
 test('plugin pages require read permission in addition to the navigation grant', () => {
   const app = source('admin/src/pages/App.jsx');
-  assert.ok(/Page\.Protect permissions=\{pluginPermissions\.access\}/.test(app), 'keep the plugin access gate');
-  assert.ok(/Page\.Protect permissions=\{pluginPermissions\.read\}/.test(app), 'protect data routes with read');
+  assert.ok(
+    /Page\.Protect permissions=\{pluginPermissions\.access\}/.test(app),
+    'keep the plugin access gate'
+  );
+  assert.ok(
+    /Page\.Protect permissions=\{pluginPermissions\.read\}/.test(app),
+    'protect data routes with read'
+  );
 });
 
 test('account write and send controls use separate manage and test-send permissions', () => {
@@ -60,21 +66,33 @@ test('account write and send controls use separate manage and test-send permissi
   assert.ok(home.includes('useMagicMailRBAC'), 'read and action capabilities in the account page');
   assert.ok(home.includes('canManage'), 'manage controls are permission-gated');
   assert.ok(home.includes('canTestSend'), 'test-send controls use their own capability');
-  assert.ok(home.includes("aria-label={t('accounts.actions.test', 'Test account {name}'"), 'test-send action remains accessible');
+  assert.ok(
+    home.includes("aria-label={t('accounts.actions.test', 'Test account {name}'"),
+    'test-send action remains accessible'
+  );
 });
 
 test('the standalone settings route requires read permission in both navigation and page protection', () => {
   const adminIndex = source('admin/src/index.js');
   const settings = source('admin/src/pages/PluginSettings.jsx');
   assert.match(adminIndex, /id: 'plugin-settings'[\s\S]*?permissions: pluginPermissions\.read/);
-  assert.match(settings, /<Page\.Protect permissions=\{pluginPermissions\.read\}>[\s\S]*?<PluginSettingsContent \/>/);
+  assert.match(
+    settings,
+    /<Page\.Protect permissions=\{pluginPermissions\.read\}>[\s\S]*?<PluginSettingsContent \/>/
+  );
 });
 
 test('routing and template mutation controls require manage permission', () => {
   const routing = source('admin/src/pages/RoutingRules.jsx');
   const templates = source('admin/src/pages/EmailDesigner/TemplateList.jsx');
-  assert.ok(routing.includes('useMagicMailRBAC') && routing.includes('canManage'), 'routing mutations require manage');
-  assert.ok(templates.includes('useMagicMailRBAC') && templates.includes('canManage'), 'template mutations require manage');
+  assert.ok(
+    routing.includes('useMagicMailRBAC') && routing.includes('canManage'),
+    'routing mutations require manage'
+  );
+  assert.ok(
+    templates.includes('useMagicMailRBAC') && templates.includes('canManage'),
+    'template mutations require manage'
+  );
   assert.ok(templates.includes('canTestSend'), 'template delivery uses test-send capability');
 });
 
@@ -82,10 +100,16 @@ test('analytics deletion, template save and settings updates are hidden or disab
   const analytics = source('admin/src/pages/Analytics.jsx');
   const editor = source('admin/src/pages/EmailDesigner/EditorPage.jsx');
   const settings = source('admin/src/pages/PluginSettings.jsx');
-  assert.ok(analytics.includes('useMagicMailRBAC') && analytics.includes('canManage'), 'clear-all requires manage');
+  assert.ok(
+    analytics.includes('useMagicMailRBAC') && analytics.includes('canManage'),
+    'clear-all requires manage'
+  );
   assert.ok(editor.includes('useMagicMailRBAC'), 'template editor checks role permissions');
   assert.ok(editor.includes('!canManage'), 'template saves require manage');
-  assert.ok(settings.includes('useMagicMailRBAC') && settings.includes('canManage'), 'settings updates require manage');
+  assert.ok(
+    settings.includes('useMagicMailRBAC') && settings.includes('canManage'),
+    'settings updates require manage'
+  );
 });
 
 test('template editor guards every server mutation and keeps read-only content non-editable', () => {
@@ -106,13 +130,37 @@ test('template editor guards every server mutation and keeps read-only content n
     );
   }
 
-  assert.match(editor, /disabled=\{saving \|\| !canManage\}/, 'save is visibly disabled for read-only users');
-  assert.match(editor, /<Textarea[\s\S]*?disabled=\{!canManage\}/, 'plain text is read-only without manage permission');
-  assert.match(editor, /\{canManage \? \([\s\S]*?<EmailEditorComponent/, 'the visual editor is not mounted for read-only users');
-  assert.match(editor, /role="status"[\s\S]*?Editing this template requires/, 'read-only users receive an accessible explanation');
+  assert.match(
+    editor,
+    /disabled=\{saving \|\| !canManage\}/,
+    'save is visibly disabled for read-only users'
+  );
+  assert.match(
+    editor,
+    /<Textarea[\s\S]*?disabled=\{!canManage\}/,
+    'plain text is read-only without manage permission'
+  );
+  assert.match(
+    editor,
+    /\{canManage \? \([\s\S]*?<EmailEditorComponent/,
+    'the visual editor is not mounted for read-only users'
+  );
+  assert.match(
+    editor,
+    /role="status"[\s\S]*?Editing this template requires/,
+    'read-only users receive an accessible explanation'
+  );
   const drawer = source('admin/src/pages/EmailDesigner/VersionHistoryDrawer.jsx');
-  assert.match(drawer, /\{canManage && versions\.length > 0 && \([\s\S]*?onClick=\{onDeleteAll\}/, 'bulk version deletion is hidden for read-only users');
-  assert.match(editor, /isOpen=\{canManage && confirmDeleteAll\}[\s\S]*?onConfirm=\{handleDeleteAllVersions\}/, 'bulk version deletion is confirmed and stays gated');
+  assert.match(
+    drawer,
+    /\{canManage && versions\.length > 0 && \([\s\S]*?onClick=\{onDeleteAll\}/,
+    'bulk version deletion is hidden for read-only users'
+  );
+  assert.match(
+    editor,
+    /isOpen=\{canManage && confirmDeleteAll\}[\s\S]*?onConfirm=\{handleDeleteAllVersions\}/,
+    'bulk version deletion is confirmed and stays gated'
+  );
 });
 
 test('RBAC hook keeps read, manage and test-send independent across role grants', () => {
@@ -125,29 +173,54 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
     ['no grants', {}, { canRead: false, canManage: false, canTestSend: false }],
     ['read only', { canRead: true }, { canRead: true, canManage: false, canTestSend: false }],
     ['manage only', { canManage: true }, { canRead: false, canManage: true, canTestSend: false }],
-    ['test-send only', { canTestSend: true }, { canRead: false, canManage: false, canTestSend: true }],
-    ['all grants', { canRead: true, canManage: true, canTestSend: true }, {
-      canRead: true,
-      canManage: true,
-      canTestSend: true,
-    }],
-    ['non-boolean grants fail closed', { canRead: 1, canManage: 'true', canTestSend: true }, {
-      canRead: false,
-      canManage: false,
-      canTestSend: true,
-    }],
+    [
+      'test-send only',
+      { canTestSend: true },
+      { canRead: false, canManage: false, canTestSend: true },
+    ],
+    [
+      'all grants',
+      { canRead: true, canManage: true, canTestSend: true },
+      {
+        canRead: true,
+        canManage: true,
+        canTestSend: true,
+      },
+    ],
+    [
+      'non-boolean grants fail closed',
+      { canRead: 1, canManage: 'true', canTestSend: true },
+      {
+        canRead: false,
+        canManage: false,
+        canTestSend: true,
+      },
+    ],
   ];
 
   for (const [role, grants, expected] of cases) {
     const { capabilities, requestedPermissions } = evaluateRBACHook(grants);
-    assert.deepEqual(requestedPermissions, expectedPermissions, `${role}: request only route capabilities`);
+    assert.deepEqual(
+      requestedPermissions,
+      expectedPermissions,
+      `${role}: request only route capabilities`
+    );
     const { permissions, ...flags } = capabilities;
     assert.deepEqual(
       flags,
-      { ...expected, isReadOnly: expected.canRead && !expected.canManage, isLoading: false, error: undefined },
+      {
+        ...expected,
+        isReadOnly: expected.canRead && !expected.canManage,
+        isLoading: false,
+        error: undefined,
+      },
       role
     );
-    assert.deepEqual(Object.keys(permissions).sort(), ['access', 'manage', 'read', 'testSend'], role);
+    assert.deepEqual(
+      Object.keys(permissions).sort(),
+      ['access', 'manage', 'read', 'testSend'],
+      role
+    );
   }
 });
 
@@ -173,7 +246,9 @@ test('read, manage and test-send grants gate the matching visible controls', () 
   const settings = source('admin/src/pages/PluginSettings.jsx');
 
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('accounts\.actions\.test', 'Test account \{name\}'/.test(home),
+    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('accounts\.actions\.test', 'Test account \{name\}'/.test(
+      home
+    ),
     'account test-send is shown only with the test-send capability'
   );
   assert.ok(
@@ -185,11 +260,15 @@ test('read, manage and test-send grants gate the matching visible controls', () 
     'template export requires read while template import requires manage'
   );
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('templates\.actions\.testSend', 'Send test email'\)\}/.test(templates),
+    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('templates\.actions\.testSend', 'Send test email'\)\}/.test(
+      templates
+    ),
     'template test-send is shown only with the test-send capability'
   );
   assert.ok(
-    /<TemplateTestSendModal[\s\S]{0,120}?isOpen=\{canTestSend && showTestSendModal\}/.test(templates),
+    /<TemplateTestSendModal[\s\S]{0,120}?isOpen=\{canTestSend && showTestSendModal\}/.test(
+      templates
+    ),
     'the template test-send dialog closes when its capability is absent'
   );
   assert.ok(
@@ -210,7 +289,9 @@ test('analytics delete confirmation stays gated if manage permission is removed 
     'an already-open confirmation closes when manage permission is absent'
   );
   assert.ok(
-    /isOpen=\{canManage && showClearDialog\}[\s\S]{0,160}?onConfirm=\{handleClearAll\}/.test(analytics),
+    /isOpen=\{canManage && showClearDialog\}[\s\S]{0,160}?onConfirm=\{handleClearAll\}/.test(
+      analytics
+    ),
     'the confirmation action is only reachable through the manage-gated dialog'
   );
   assert.ok(

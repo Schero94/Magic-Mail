@@ -55,7 +55,12 @@ test('new analytics logs start pending and legacy rows need acceptance evidence'
   const analytics = require('../server/src/services/analytics')({
     strapi: {
       log: quietLog,
-      documents: () => ({ create: async ({ data }) => { created = data; return data; } }),
+      documents: () => ({
+        create: async ({ data }) => {
+          created = data;
+          return data;
+        },
+      }),
     },
   });
   await analytics.createEmailLog({ to: 'recipient@example.invalid', subject: 'Audit fixture' });
@@ -80,7 +85,9 @@ test('provider rejection records the attempt as failed without incrementing sent
     plugin: () => ({
       service(name) {
         if (name === 'plugin-settings') {
-          return { getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }) };
+          return {
+            getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }),
+          };
         }
         if (name === 'analytics') {
           return {
@@ -100,19 +107,28 @@ test('provider rejection records the attempt as failed without incrementing sent
   const router = require('../server/src/services/email-router')({ strapi });
   router.selectAccount = async () => account;
   router.checkRateLimits = async () => true;
-  router.updateAccountStats = async () => assert.fail('failed deliveries must not increment sent counters');
-  router.sendViaSendGrid = async () => { throw new Error('fake provider rejection'); };
+  router.updateAccountStats = async () =>
+    assert.fail('failed deliveries must not increment sent counters');
+  router.sendViaSendGrid = async () => {
+    throw new Error('fake provider rejection');
+  };
 
   try {
-    await assert.rejects(router.send({
-      to: 'recipient@example.invalid',
-      subject: 'Audit failure fixture',
-      html: '<p>Fake provider rejection</p>',
-      text: 'Fake provider rejection',
-    }), /fake provider rejection/);
+    await assert.rejects(
+      router.send({
+        to: 'recipient@example.invalid',
+        subject: 'Audit failure fixture',
+        html: '<p>Fake provider rejection</p>',
+        text: 'Fake provider rejection',
+      }),
+      /fake provider rejection/
+    );
 
     assert.ok(updates.some((data) => data.deliveryStatus === 'failed'));
-    assert.equal(updates.some((data) => data.deliveryStatus === 'sent'), false);
+    assert.equal(
+      updates.some((data) => data.deliveryStatus === 'sent'),
+      false
+    );
   } finally {
     if (previousKey === undefined) delete process.env.MAGIC_MAIL_ENCRYPTION_KEY;
     else process.env.MAGIC_MAIL_ENCRYPTION_KEY = previousKey;
@@ -136,11 +152,17 @@ test('provider acceptance marks the email log sent before successful accounting 
     plugin: () => ({
       service(name) {
         if (name === 'plugin-settings') {
-          return { getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }) };
+          return {
+            getSettings: async () => ({ enableOpenTracking: false, enableLinkTracking: false }),
+          };
         }
         if (name === 'analytics') {
           return {
-            createEmailLog: async () => ({ documentId: 'sent-log', emailId: 'sent-email', deliveryStatus: 'pending' }),
+            createEmailLog: async () => ({
+              documentId: 'sent-log',
+              emailId: 'sent-email',
+              deliveryStatus: 'pending',
+            }),
             generateRecipientHash: () => 'fake-recipient-hash',
             injectTrackingPixel: (html) => html,
             rewriteLinksForTracking: async (html) => html,
@@ -166,8 +188,13 @@ test('provider acceptance marks the email log sent before successful accounting 
     });
 
     assert.equal(result.success, true);
-    assert.ok(updates.some((data) => data.deliveryStatus === 'sent' && data.deliveredAt instanceof Date));
-    assert.equal(updates.some((data) => data.deliveryStatus === 'failed'), false);
+    assert.ok(
+      updates.some((data) => data.deliveryStatus === 'sent' && data.deliveredAt instanceof Date)
+    );
+    assert.equal(
+      updates.some((data) => data.deliveryStatus === 'failed'),
+      false
+    );
   } finally {
     if (previousKey === undefined) delete process.env.MAGIC_MAIL_ENCRYPTION_KEY;
     else process.env.MAGIC_MAIL_ENCRYPTION_KEY = previousKey;

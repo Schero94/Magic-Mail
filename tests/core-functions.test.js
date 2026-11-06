@@ -21,15 +21,23 @@ function routingStrapi({ accounts, rules }) {
     config: { get: (_key, fallback) => fallback },
     documents: (uid) => ({
       findMany: async ({ filters = {} } = {}) => {
-        if (uid.endsWith('routing-rule')) return sortDesc(rules.filter((rule) => rule.isActive !== false), 'priority');
+        if (uid.endsWith('routing-rule'))
+          return sortDesc(
+            rules.filter((rule) => rule.isActive !== false),
+            'priority'
+          );
         const excluded = filters.documentId?.$notIn || [];
-        return sortDesc(accounts.filter((a) => a.isActive !== false && !excluded.includes(a.documentId)), 'priority');
+        return sortDesc(
+          accounts.filter((a) => a.isActive !== false && !excluded.includes(a.documentId)),
+          'priority'
+        );
       },
     }),
   };
 }
 
-const router = (fixtures) => require('../server/src/services/email-router')({ strapi: routingStrapi(fixtures) });
+const router = (fixtures) =>
+  require('../server/src/services/email-router')({ strapi: routingStrapi(fixtures) });
 
 test('ruleMatches evaluates every match type', () => {
   const r = router({ accounts: [], rules: [] });
@@ -59,9 +67,17 @@ test('ruleMatches evaluates every match type', () => {
     [{ matchType: 'unknown', matchValue: 'x' }, 'transactional', false],
   ];
   for (const [rule, type, expected] of cases) {
-    assert.equal(r.ruleMatches(rule, type, email), expected, `${rule.matchType}=${rule.matchValue} (${type})`);
+    assert.equal(
+      r.ruleMatches(rule, type, email),
+      expected,
+      `${rule.matchType}=${rule.matchValue} (${type})`
+    );
   }
-  assert.equal(r.ruleMatches({ matchType: 'custom', matchValue: 'x' }, 'transactional', {}), false, 'no customField');
+  assert.equal(
+    r.ruleMatches({ matchType: 'custom', matchValue: 'x' }, 'transactional', {}),
+    false,
+    'no customField'
+  );
 });
 
 test('selectAccount uses the highest-priority matching rule, then its fallback, then the primary account', async () => {
@@ -72,19 +88,75 @@ test('selectAccount uses the highest-priority matching rule, then its fallback, 
     { documentId: 'a-vip', name: 'VIP', priority: 3 },
   ];
   const rules = [
-    { name: 'low catch-all', matchType: 'emailType', matchValue: 'marketing', accountName: 'Primary', priority: 1 },
-    { name: 'marketing', matchType: 'emailType', matchValue: 'marketing', accountName: 'marketing', priority: 50 },
-    { name: 'vip', matchType: 'recipient', matchValue: '@vip.example.test', accountName: 'Missing', fallbackAccountName: 'VIP', priority: 100 },
-    { name: 'inactive', matchType: 'emailType', matchValue: 'marketing', accountName: 'High Volume', priority: 1000, isActive: false },
+    {
+      name: 'low catch-all',
+      matchType: 'emailType',
+      matchValue: 'marketing',
+      accountName: 'Primary',
+      priority: 1,
+    },
+    {
+      name: 'marketing',
+      matchType: 'emailType',
+      matchValue: 'marketing',
+      accountName: 'marketing',
+      priority: 50,
+    },
+    {
+      name: 'vip',
+      matchType: 'recipient',
+      matchValue: '@vip.example.test',
+      accountName: 'Missing',
+      fallbackAccountName: 'VIP',
+      priority: 100,
+    },
+    {
+      name: 'inactive',
+      matchType: 'emailType',
+      matchValue: 'marketing',
+      accountName: 'High Volume',
+      priority: 1000,
+      isActive: false,
+    },
   ];
   const r = router({ accounts, rules });
 
-  assert.equal((await r.selectAccount('marketing', 'normal', [], { to: 'a@example.test' })).name, 'Marketing', 'higher rule wins, name match is case-insensitive');
-  assert.equal((await r.selectAccount('marketing', 'normal', [], { to: 'a@vip.example.test' })).name, 'VIP', 'rule fallback when the target account is missing');
-  assert.equal((await r.selectAccount('marketing', 'normal', ['a-marketing'], { to: 'a@example.test' })).name, 'Primary', 'excluded rule account falls through to the next matching rule');
-  assert.equal((await r.selectAccount('transactional', 'normal', [], { to: 'a@example.test' })).name, 'Primary', 'no rule: primary account');
-  assert.equal((await r.selectAccount('transactional', 'normal', ['a-primary'], { to: 'a@example.test' })).name, 'High Volume', 'primary excluded: highest account priority');
-  assert.equal(await r.selectAccount('transactional', 'normal', accounts.map((a) => a.documentId), {}), null, 'nothing left');
+  assert.equal(
+    (await r.selectAccount('marketing', 'normal', [], { to: 'a@example.test' })).name,
+    'Marketing',
+    'higher rule wins, name match is case-insensitive'
+  );
+  assert.equal(
+    (await r.selectAccount('marketing', 'normal', [], { to: 'a@vip.example.test' })).name,
+    'VIP',
+    'rule fallback when the target account is missing'
+  );
+  assert.equal(
+    (await r.selectAccount('marketing', 'normal', ['a-marketing'], { to: 'a@example.test' })).name,
+    'Primary',
+    'excluded rule account falls through to the next matching rule'
+  );
+  assert.equal(
+    (await r.selectAccount('transactional', 'normal', [], { to: 'a@example.test' })).name,
+    'Primary',
+    'no rule: primary account'
+  );
+  assert.equal(
+    (await r.selectAccount('transactional', 'normal', ['a-primary'], { to: 'a@example.test' }))
+      .name,
+    'High Volume',
+    'primary excluded: highest account priority'
+  );
+  assert.equal(
+    await r.selectAccount(
+      'transactional',
+      'normal',
+      accounts.map((a) => a.documentId),
+      {}
+    ),
+    null,
+    'nothing left'
+  );
 });
 
 test('inactive accounts are never selected, even when a rule names them', async () => {
@@ -93,7 +165,9 @@ test('inactive accounts are never selected, even when a rule names them', async 
       { documentId: 'a1', name: 'Off', priority: 10, isActive: false },
       { documentId: 'a2', name: 'On', priority: 1 },
     ],
-    rules: [{ matchType: 'emailType', matchValue: 'transactional', accountName: 'Off', priority: 5 }],
+    rules: [
+      { matchType: 'emailType', matchValue: 'transactional', accountName: 'Off', priority: 5 },
+    ],
   });
   assert.equal((await r.selectAccount('transactional', 'normal', [], {})).name, 'On');
 });
@@ -108,7 +182,8 @@ function templateStore() {
     ...template,
     versions: versions.filter((v) => v.template === template.documentId).map((v) => ({ ...v })),
   });
-  const matches = (row, filters) => Object.entries(filters || {}).every(([key, value]) => row[key] === value);
+  const matches = (row, filters) =>
+    Object.entries(filters || {}).every(([key, value]) => row[key] === value);
   const strapi = {
     log: quietLog,
     documents: (uid) => {
@@ -149,10 +224,23 @@ test('templates survive an export -> import round trip and a re-import updates i
   const source = templateStore();
   const designerA = require('../server/src/services/email-designer')({ strapi: source.strapi });
   await designerA.create({
-    templateReferenceId: 101, name: 'Welcome', subject: 'Hi {{user.firstName}}', bodyHtml: '<p>Hello</p>',
-    bodyText: 'Hello', category: 'transactional', tags: ['onboarding'], design: { body: { rows: [] } },
+    templateReferenceId: 101,
+    name: 'Welcome',
+    subject: 'Hi {{user.firstName}}',
+    bodyHtml: '<p>Hello</p>',
+    bodyText: 'Hello',
+    category: 'transactional',
+    tags: ['onboarding'],
+    design: { body: { rows: [] } },
   });
-  await designerA.create({ templateReferenceId: 102, name: 'Promo', subject: 'Deal', bodyHtml: '<p>50%</p>', category: 'marketing', isActive: false });
+  await designerA.create({
+    templateReferenceId: 102,
+    name: 'Promo',
+    subject: 'Deal',
+    bodyHtml: '<p>50%</p>',
+    category: 'marketing',
+    isActive: false,
+  });
 
   const exported = await designerA.exportTemplates();
   assert.equal(exported.length, 2);
@@ -167,35 +255,59 @@ test('templates survive an export -> import round trip and a re-import updates i
   assert.deepEqual(welcome.design, { body: { rows: [] } });
   assert.equal(target.templates.find((t) => t.templateReferenceId === 102).isActive, false);
 
-  const changed = exported.map((t) => (t.templateReferenceId === 101 ? { ...t, subject: 'Welcome back' } : t));
+  const changed = exported.map((t) =>
+    t.templateReferenceId === 101 ? { ...t, subject: 'Welcome back' } : t
+  );
   const secondImport = await designerB.importTemplates(changed);
   assert.deepEqual(secondImport.map((r) => r.action).sort(), ['updated', 'updated']);
   assert.equal(target.templates.length, 2, 'no duplicates');
   assert.equal(target.templates.find((t) => t.templateReferenceId === 101).subject, 'Welcome back');
 
-  const failed = await designerB.importTemplates([{ name: 'Bad', templateReferenceId: 'not-a-number' }]);
+  const failed = await designerB.importTemplates([
+    { name: 'Bad', templateReferenceId: 'not-a-number' },
+  ]);
   assert.equal(failed[0].success, false, 'invalid entries are reported, not thrown');
 });
 
 test('version history lists saved states newest first and restore saves the old content as a new version', async () => {
   const store = templateStore();
   const designer = require('../server/src/services/email-designer')({ strapi: store.strapi });
-  const created = await designer.create({ templateReferenceId: 7, name: 'Receipt', subject: 'v1 subject', bodyHtml: '<p>v1</p>' });
+  const created = await designer.create({
+    templateReferenceId: 7,
+    name: 'Receipt',
+    subject: 'v1 subject',
+    bodyHtml: '<p>v1</p>',
+  });
   await designer.update(created.documentId, { subject: 'v2 subject', bodyHtml: '<p>v2</p>' });
 
   const history = await designer.getVersions(created.documentId);
-  assert.deepEqual(history.map((v) => v.versionNumber), [2, 1]);
+  assert.deepEqual(
+    history.map((v) => v.versionNumber),
+    [2, 1]
+  );
   const v1 = history.find((v) => v.versionNumber === 1);
 
   const restored = await designer.restoreVersion(created.documentId, v1.documentId);
   assert.equal(restored.subject, 'v1 subject');
   assert.equal(restored.bodyHtml, '<p>v1</p>');
   const after = await designer.getVersions(created.documentId);
-  assert.deepEqual(after.map((v) => v.versionNumber), [3, 2, 1], 'restore adds a version');
+  assert.deepEqual(
+    after.map((v) => v.versionNumber),
+    [3, 2, 1],
+    'restore adds a version'
+  );
   assert.equal(after[0].bodyHtml, '<p>v1</p>');
 
   // A version of another template cannot be restored into this one.
-  const other = await designer.create({ templateReferenceId: 8, name: 'Other', subject: 's', bodyHtml: '<p>o</p>' });
+  const other = await designer.create({
+    templateReferenceId: 8,
+    name: 'Other',
+    subject: 's',
+    bodyHtml: '<p>o</p>',
+  });
   const otherVersion = (await designer.getVersions(other.documentId))[0];
-  await assert.rejects(designer.restoreVersion(created.documentId, otherVersion.documentId), /does not belong/);
+  await assert.rejects(
+    designer.restoreVersion(created.documentId, otherVersion.documentId),
+    /does not belong/
+  );
 });

@@ -6,7 +6,12 @@
  */
 import styled, { keyframes, css } from 'styled-components';
 import { Box, Flex, Modal, Table, Typography } from '@strapi/design-system';
-import { CheckCircleIcon, CodeBracketIcon, DocumentArrowDownIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+  CheckCircleIcon,
+  CodeBracketIcon,
+  DocumentArrowDownIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
 import { accent, brand, color, fontSize, theme } from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
 
@@ -34,7 +39,9 @@ const tone = (p) => accent[p.$tone] ?? accent.primary;
 
 // ================ PAGE ================
 export const Container = styled(Box)`
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow};`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow};
+  `)}
   min-height: 100vh;
   max-width: 1440px;
   margin: 0 auto;
@@ -68,7 +75,9 @@ export const Header = styled(Box)`
     width: 200%;
     height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-    ${motionSafe(css`animation: ${shimmer} 3s infinite;`)}
+    ${motionSafe(css`
+      animation: ${shimmer} 3s infinite;
+    `)}
   }
 
   &::after {
@@ -78,7 +87,11 @@ export const Header = styled(Box)`
     right: 0;
     width: 100%;
     height: 100%;
-    background-image: radial-gradient(circle at 20% 80%, transparent 50%, rgba(255, 255, 255, 0.1) 50%);
+    background-image: radial-gradient(
+      circle at 20% 80%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.1) 50%
+    );
     background-size: 15px 15px;
     opacity: 0.3;
   }
@@ -102,7 +115,9 @@ export const Title = styled(Typography)`
   svg {
     width: 28px;
     height: 28px;
-    ${motionSafe(css`animation: ${float} 3s ease-in-out infinite;`)}
+    ${motionSafe(css`
+      animation: ${float} 3s ease-in-out infinite;
+    `)}
   }
 
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -148,7 +163,9 @@ export const StatCard = styled(Box)`
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow} backwards;
+  `)}
   animation-delay: ${(p) => p.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
   border: 1px solid rgba(128, 128, 128, 0.2);

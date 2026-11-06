@@ -39,7 +39,9 @@ const adminUserId = (ctx) => ctx.state?.user?.id ?? null;
  * @throws {errors.NotFoundError|errors.ValidationError}
  */
 async function loadOAuthAccount(accountId, provider) {
-  const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId: String(accountId) });
+  const account = await strapi
+    .documents(EMAIL_ACCOUNT_UID)
+    .findOne({ documentId: String(accountId) });
   if (!account) {
     throw new errors.NotFoundError('Email account not found');
   }
@@ -105,7 +107,8 @@ async function startFlow(ctx, provider) {
     const pkce = { codeChallenge, codeChallengeMethod };
     let authUrl;
     if (provider === 'gmail') authUrl = oauthService.getGmailAuthUrl(clientId, state, pkce);
-    else if (provider === 'microsoft') authUrl = oauthService.getMicrosoftAuthUrl(clientId, tenantId, state, pkce);
+    else if (provider === 'microsoft')
+      authUrl = oauthService.getMicrosoftAuthUrl(clientId, tenantId, state, pkce);
     else authUrl = oauthService.getYahooAuthUrl(clientId, state, pkce);
 
     ctx.body = {
@@ -115,10 +118,18 @@ async function startFlow(ctx, provider) {
     };
   } catch (err) {
     // Configuration problems the admin can fix (fixed, server-authored texts).
-    if (err?.message === 'Invalid Microsoft tenant ID' || /^OAuth needs a public https URL/.test(err?.message || '')) {
+    if (
+      err?.message === 'Invalid Microsoft tenant ID' ||
+      /^OAuth needs a public https URL/.test(err?.message || '')
+    ) {
       return ctx.badRequest(err.message);
     }
-    handleControllerError(ctx, err, `[magic-mail] ${provider} OAuth init failed`, 'Could not start the OAuth flow');
+    handleControllerError(
+      ctx,
+      err,
+      `[magic-mail] ${provider} OAuth init failed`,
+      'Could not start the OAuth flow'
+    );
   }
 }
 
@@ -140,7 +151,9 @@ async function consumeState(ctx, { state, provider, clientId, accountId }) {
     });
   } catch {
     strapi.log.warn('[magic-mail] OAuth state verification failed');
-    throw new errors.ValidationError('Invalid or expired OAuth state. Please restart the authorization flow.');
+    throw new errors.ValidationError(
+      'Invalid or expired OAuth state. Please restart the authorization flow.'
+    );
   }
   if (verification.payload.provider !== provider) {
     strapi.log.warn('[magic-mail] OAuth state/provider mismatch');
@@ -158,9 +171,14 @@ async function consumeState(ctx, { state, provider, clientId, accountId }) {
 async function exchange(provider, code, config, codeVerifier) {
   let tokenData;
   try {
-    tokenData = await strapi.plugin('magic-mail').service('oauth').exchangeCode(provider, code, config, codeVerifier);
+    tokenData = await strapi
+      .plugin('magic-mail')
+      .service('oauth')
+      .exchangeCode(provider, code, config, codeVerifier);
   } catch (err) {
-    strapi.log.error(`[magic-mail] ${provider} OAuth token exchange failed: ${err?.name || 'Error'}`);
+    strapi.log.error(
+      `[magic-mail] ${provider} OAuth token exchange failed: ${err?.name || 'Error'}`
+    );
     throw new errors.ApplicationError(
       'The OAuth provider rejected the authorization. Check the client ID, client secret and redirect URI, then try again.'
     );
@@ -210,22 +228,28 @@ module.exports = {
    */
   async createOAuthAccount(ctx) {
     try {
-      const { provider, code, state, accountDetails } = validate('oauth.createOAuthAccount', ctx.request.body);
+      const { provider, code, state, accountDetails } = validate(
+        'oauth.createOAuthAccount',
+        ctx.request.body
+      );
       const config = accountDetails.config;
 
       if (provider === 'microsoft' && !config.tenantId) {
         throw new errors.ValidationError('Tenant ID is required for Microsoft OAuth');
       }
 
-      const { codeVerifier } = await consumeState(ctx, { state, provider, clientId: config.clientId, accountId: null });
+      const { codeVerifier } = await consumeState(ctx, {
+        state,
+        provider,
+        clientId: config.clientId,
+        accountId: null,
+      });
       const tokenData = await exchange(provider, code, config, codeVerifier);
 
-      const account = await strapi.plugin('magic-mail').service('oauth').storeOAuthAccount(
-        provider,
-        tokenData,
-        accountDetails,
-        config
-      );
+      const account = await strapi
+        .plugin('magic-mail')
+        .service('oauth')
+        .storeOAuthAccount(provider, tokenData, accountDetails, config);
 
       ctx.body = {
         success: true,
@@ -233,7 +257,12 @@ module.exports = {
         message: 'OAuth account created successfully',
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Create OAuth account failed', 'Could not create the OAuth account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Create OAuth account failed',
+        'Could not create the OAuth account'
+      );
     }
   },
 
@@ -261,7 +290,10 @@ module.exports = {
 
       let updated;
       try {
-        updated = await strapi.plugin('magic-mail').service('oauth').updateOAuthTokens(account, tokenData);
+        updated = await strapi
+          .plugin('magic-mail')
+          .service('oauth')
+          .updateOAuthTokens(account, tokenData);
       } catch (err) {
         if (err?.code === 'MAILBOX_MISMATCH') {
           throw new errors.ValidationError(
@@ -277,7 +309,12 @@ module.exports = {
         message: 'OAuth account reconnected',
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Reconnect OAuth account failed', 'Could not reconnect the OAuth account');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Reconnect OAuth account failed',
+        'Could not reconnect the OAuth account'
+      );
     }
   },
 };

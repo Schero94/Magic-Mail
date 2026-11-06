@@ -111,27 +111,63 @@ export const buildUnlayerOptions = ({ config, isDark, locale, t }) => {
     user: {
       name: label('editor.mergeTags.user', 'User'),
       mergeTags: {
-        firstName: mergeTag(label('editor.mergeTags.firstName', 'First name'), '{{user.firstName}}', 'John'),
-        lastName: mergeTag(label('editor.mergeTags.lastName', 'Last name'), '{{user.lastName}}', 'Doe'),
-        email: mergeTag(label('editor.mergeTags.email', 'Email'), '{{user.email}}', 'john@example.com'),
-        username: mergeTag(label('editor.mergeTags.username', 'Username'), '{{user.username}}', 'johndoe'),
+        firstName: mergeTag(
+          label('editor.mergeTags.firstName', 'First name'),
+          '{{user.firstName}}',
+          'John'
+        ),
+        lastName: mergeTag(
+          label('editor.mergeTags.lastName', 'Last name'),
+          '{{user.lastName}}',
+          'Doe'
+        ),
+        email: mergeTag(
+          label('editor.mergeTags.email', 'Email'),
+          '{{user.email}}',
+          'john@example.com'
+        ),
+        username: mergeTag(
+          label('editor.mergeTags.username', 'Username'),
+          '{{user.username}}',
+          'johndoe'
+        ),
       },
     },
     company: {
       name: label('editor.mergeTags.company', 'Company'),
       mergeTags: {
-        name: mergeTag(label('editor.mergeTags.companyName', 'Name'), '{{company.name}}', 'ACME Corp'),
-        url: mergeTag(label('editor.mergeTags.website', 'Website'), '{{company.url}}', 'https://acme.example'),
-        address: mergeTag(label('editor.mergeTags.address', 'Address'), '{{company.address}}', '123 Main St, City'),
+        name: mergeTag(
+          label('editor.mergeTags.companyName', 'Name'),
+          '{{company.name}}',
+          'ACME Corp'
+        ),
+        url: mergeTag(
+          label('editor.mergeTags.website', 'Website'),
+          '{{company.url}}',
+          'https://acme.example'
+        ),
+        address: mergeTag(
+          label('editor.mergeTags.address', 'Address'),
+          '{{company.address}}',
+          '123 Main St, City'
+        ),
       },
     },
     order: {
       name: label('editor.mergeTags.order', 'Order'),
       mergeTags: {
-        number: mergeTag(label('editor.mergeTags.orderNumber', 'Number'), '{{order.number}}', '#12345'),
+        number: mergeTag(
+          label('editor.mergeTags.orderNumber', 'Number'),
+          '{{order.number}}',
+          '#12345'
+        ),
         total: mergeTag(label('editor.mergeTags.orderTotal', 'Total'), '{{order.total}}', '199.99'),
         date: mergeTag(label('editor.mergeTags.orderDate', 'Date'), '{{order.date}}', '2024-01-15'),
-        status: mergeTag(label('editor.mergeTags.orderStatus', 'Status'), '{{order.status}}', 'Shipped'),
+        status: mergeTag(
+          label('editor.mergeTags.orderStatus', 'Status'),
+          '{{order.status}}',
+          'Shipped'
+        ),
       },
     },
   };
@@ -186,8 +222,16 @@ export const buildUnlayerOptions = ({ config, isDark, locale, t }) => {
     mergeTags.system = {
       name: label('editor.mergeTags.system', 'System'),
       mergeTags: {
-        date: mergeTag(label('editor.mergeTags.currentDate', 'Current date'), '{{system.date}}', '2026-01-01'),
-        year: mergeTag(label('editor.mergeTags.currentYear', 'Current year'), '{{system.year}}', '2026'),
+        date: mergeTag(
+          label('editor.mergeTags.currentDate', 'Current date'),
+          '{{system.date}}',
+          '2026-01-01'
+        ),
+        year: mergeTag(
+          label('editor.mergeTags.currentYear', 'Current year'),
+          '{{system.year}}',
+          '2026'
+        ),
         unsubscribe: mergeTag(
           label('editor.mergeTags.unsubscribe', 'Unsubscribe link'),
           '{{system.unsubscribe}}',
@@ -235,22 +279,26 @@ export const toAbsoluteMediaUrl = (url, base) => {
  * @param {string} params.failureMessage
  * @returns {(file: {attachments?: File[]}, done: (result: object) => void) => Promise<void>}
  */
-export const createMediaLibraryUploader = ({ post, baseUrl, failureMessage }) => async (file, done) => {
-  const attachment = file?.attachments?.[0];
-  if (!attachment) {
-    done({ abort: true });
-    return;
-  }
-  try {
-    done({ progress: 10 });
-    const body = new FormData();
-    body.append('files', attachment);
-    const response = await post('/upload', body);
-    const uploaded = Array.isArray(response?.data) ? response.data[0] : response?.data?.[0] ?? response?.data;
-    const url = toAbsoluteMediaUrl(uploaded?.url, baseUrl);
-    if (!url) throw new Error('missing url');
-    done({ progress: 100, url });
-  } catch {
-    done({ error: failureMessage });
-  }
-};
+export const createMediaLibraryUploader =
+  ({ post, baseUrl, failureMessage }) =>
+  async (file, done) => {
+    const attachment = file?.attachments?.[0];
+    if (!attachment) {
+      done({ abort: true });
+      return;
+    }
+    try {
+      done({ progress: 10 });
+      const body = new FormData();
+      body.append('files', attachment);
+      const response = await post('/upload', body);
+      const uploaded = Array.isArray(response?.data)
+        ? response.data[0]
+        : (response?.data?.[0] ?? response?.data);
+      const url = toAbsoluteMediaUrl(uploaded?.url, baseUrl);
+      if (!url) throw new Error('missing url');
+      done({ progress: 100, url });
+    } catch {
+      done({ error: failureMessage });
+    }
+  };

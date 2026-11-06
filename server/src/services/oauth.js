@@ -42,10 +42,9 @@ function tenantSegment(tenant) {
  * @throws {Error} When no usable public URL is configured in production
  */
 function getPublicBaseUrl(strapi) {
-  const candidates = [
-    process.env.URL,
-    strapi?.config?.get?.('server.absoluteUrl'),
-  ].filter((value) => typeof value === 'string' && value.trim());
+  const candidates = [process.env.URL, strapi?.config?.get?.('server.absoluteUrl')].filter(
+    (value) => typeof value === 'string' && value.trim()
+  );
 
   const production = process.env.NODE_ENV === 'production';
   for (const candidate of candidates) {
@@ -56,12 +55,18 @@ function getPublicBaseUrl(strapi) {
       continue;
     }
     if (!['http:', 'https:'].includes(parsed.protocol)) continue;
-    if (production && (parsed.protocol !== 'https:' || LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase()))) continue;
+    if (
+      production &&
+      (parsed.protocol !== 'https:' || LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase()))
+    )
+      continue;
     return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
   }
 
   if (production) {
-    throw new Error('OAuth needs a public https URL: set server.url (or URL) to the public address of this Strapi server.');
+    throw new Error(
+      'OAuth needs a public https URL: set server.url (or URL) to the public address of this Strapi server.'
+    );
   }
   return 'http://localhost:1337';
 }
@@ -113,7 +118,8 @@ module.exports = ({ strapi }) => ({
       'openid',
     ].join(' ');
 
-    let authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+    let authUrl =
+      'https://accounts.google.com/o/oauth2/v2/auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -187,7 +193,9 @@ module.exports = ({ strapi }) => ({
     }
 
     const userInfo = await userInfoResponse.json();
-    strapi.log.info(`[magic-mail] [SUCCESS] Google profile returned an email: ${Boolean(userInfo.email)}`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Google profile returned an email: ${Boolean(userInfo.email)}`
+    );
 
     if (!userInfo.email) {
       strapi.log.error('[magic-mail] Google profile did not contain an email address');
@@ -209,7 +217,6 @@ module.exports = ({ strapi }) => ({
    * @param {string} clientSecret - OAuth Client Secret (from DB!)
    */
   async refreshGmailTokens(refreshToken, clientId, clientSecret) {
-
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -264,7 +271,8 @@ module.exports = ({ strapi }) => ({
       'email',
     ].join(' ');
 
-    let authUrl = `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/authorize?` +
+    let authUrl =
+      `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/authorize?` +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -311,7 +319,8 @@ module.exports = ({ strapi }) => ({
       client_secret: clientSecret,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
-      scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+      scope:
+        'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
     };
     if (options.codeVerifier) {
       bodyParams.code_verifier = options.codeVerifier;
@@ -346,7 +355,9 @@ module.exports = ({ strapi }) => ({
         const payloadBase64 = tokens.id_token.split('.')[1];
         const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
         email = payload.email || payload.preferred_username || payload.upn;
-        strapi.log.info(`[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`);
+        strapi.log.info(
+          `[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`
+        );
       } catch (jwtErr) {
         strapi.log.warn('[magic-mail] Could not decode Microsoft ID token');
       }
@@ -356,24 +367,33 @@ module.exports = ({ strapi }) => ({
     if (!email) {
       strapi.log.info('[magic-mail] Fetching user info from Microsoft Graph API /me endpoint...');
       const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
-        headers: { 
-          'Authorization': `Bearer ${tokens.access_token}`,
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!userInfoResponse.ok) {
-        strapi.log.error('[magic-mail] Microsoft Graph user-info request failed:', userInfoResponse.status);
-        throw new Error(`Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`);
+        strapi.log.error(
+          '[magic-mail] Microsoft Graph user-info request failed:',
+          userInfoResponse.status
+        );
+        throw new Error(
+          `Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`
+        );
       }
 
       const userInfo = await userInfoResponse.json();
       email = userInfo.mail || userInfo.userPrincipalName;
-      strapi.log.info(`[magic-mail] [SUCCESS] Microsoft Graph profile returned an email: ${Boolean(email)}`);
+      strapi.log.info(
+        `[magic-mail] [SUCCESS] Microsoft Graph profile returned an email: ${Boolean(email)}`
+      );
     }
 
     if (!email) {
-      strapi.log.error('[magic-mail] Microsoft did not provide email - ID token and Graph API both failed');
+      strapi.log.error(
+        '[magic-mail] Microsoft did not provide email - ID token and Graph API both failed'
+      );
       throw new Error('Microsoft did not provide email address');
     }
 
@@ -410,7 +430,8 @@ module.exports = ({ strapi }) => ({
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: 'refresh_token',
-        scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+        scope:
+          'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
       }),
     });
 
@@ -445,13 +466,10 @@ module.exports = ({ strapi }) => ({
     // resolves the account address; `mail-w` grants mail send access. The old
     // `sdps-r` (social directory) scope is not valid for Mail apps and caused
     // `invalid_scope` / missing-email failures.
-    const scopes = [
-      'openid',
-      'email',
-      'mail-w',
-    ].join(' ');
+    const scopes = ['openid', 'email', 'mail-w'].join(' ');
 
-    let authUrl = 'https://api.login.yahoo.com/oauth2/request_auth?' +
+    let authUrl =
+      'https://api.login.yahoo.com/oauth2/request_auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -496,7 +514,7 @@ module.exports = ({ strapi }) => ({
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
       },
       body: new URLSearchParams(bodyParams),
     });
@@ -551,9 +569,9 @@ module.exports = ({ strapi }) => ({
 
     const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
       },
       body: new URLSearchParams({
         refresh_token: refreshToken,
@@ -622,7 +640,13 @@ module.exports = ({ strapi }) => ({
       return this.exchangeGoogleCode(code, config.clientId, config.clientSecret, options);
     }
     if (provider === 'microsoft') {
-      return this.exchangeMicrosoftCode(code, config.clientId, config.clientSecret, config.tenantId, options);
+      return this.exchangeMicrosoftCode(
+        code,
+        config.clientId,
+        config.clientSecret,
+        config.tenantId,
+        options
+      );
     }
     if (provider === 'yahoo') {
       return this.exchangeYahooCode(code, config.clientId, config.clientSecret, options);
@@ -649,7 +673,9 @@ module.exports = ({ strapi }) => ({
       configToStore.tenantId = oauthCredentials.tenantId;
     }
 
-    const email = String(tokenData.email || '').trim().toLowerCase();
+    const email = String(tokenData.email || '')
+      .trim()
+      .toLowerCase();
     const isPrimary = accountDetails.isPrimary || false;
     // Keep the single-primary invariant.
     if (isPrimary) {
@@ -694,8 +720,16 @@ module.exports = ({ strapi }) => ({
    * @throws {Error & {code: string}} MAILBOX_MISMATCH when another mailbox authorized
    */
   async updateOAuthTokens(account, tokenData) {
-    const email = String(tokenData.email || '').trim().toLowerCase();
-    if (!email || email !== String(account.fromEmail || '').trim().toLowerCase()) {
+    const email = String(tokenData.email || '')
+      .trim()
+      .toLowerCase();
+    if (
+      !email ||
+      email !==
+        String(account.fromEmail || '')
+          .trim()
+          .toLowerCase()
+    ) {
       const error = new Error('The authorized mailbox does not match this account');
       error.code = 'MAILBOX_MISMATCH';
       throw error;

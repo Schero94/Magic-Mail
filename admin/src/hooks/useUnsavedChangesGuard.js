@@ -23,7 +23,10 @@ export const shouldBlockNavigation = (isDirty, transition = {}) => {
  * @param {Window|undefined} [win]
  * @returns {() => void} cleanup
  */
-export const attachBeforeUnload = (active, win = typeof window === 'undefined' ? undefined : window) => {
+export const attachBeforeUnload = (
+  active,
+  win = typeof window === 'undefined' ? undefined : window
+) => {
   if (!active || typeof win?.addEventListener !== 'function') return () => {};
   const handler = (event) => {
     event.preventDefault();

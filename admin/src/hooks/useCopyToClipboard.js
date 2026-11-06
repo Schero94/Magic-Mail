@@ -22,9 +22,9 @@ export const useCopyToClipboard = () => {
       toggleNotification({
         type: copied ? 'success' : 'warning',
         message: copied
-          ? messages.success ?? t('common.clipboard.copied', 'Copied to clipboard')
-          : messages.failure ??
-            t('common.clipboard.failed', 'Copy failed. Select the text and copy it manually.'),
+          ? (messages.success ?? t('common.clipboard.copied', 'Copied to clipboard'))
+          : (messages.failure ??
+            t('common.clipboard.failed', 'Copy failed. Select the text and copy it manually.')),
       });
       return copied;
     },

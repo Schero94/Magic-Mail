@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Magic-Mail is an email management plugin for Strapi 5 with multi-account routing, templates, analytics, and OAuth account setup.">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Magic-Mail is an email management plugin for Strapi 5 with multi-account routing, templates, analytics, and OAuth account setup."
+    />
     <title>MagicMail | Email for Strapi 5</title>
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
-    <link rel="stylesheet" href="./site.css">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./site.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -29,7 +32,10 @@
         <div class="hero-copy">
           <span class="eyebrow">Strapi plugin · email delivery</span>
           <h1 id="page-title">Email accounts and delivery, managed in Strapi.</h1>
-          <p>Magic-Mail is a Strapi 5 plugin for managing email accounts, routing rules, templates, and delivery analytics. It handles email only.</p>
+          <p>
+            Magic-Mail is a Strapi 5 plugin for managing email accounts, routing rules, templates,
+            and delivery analytics. It handles email only.
+          </p>
           <div class="hero-actions">
             <a class="button primary" href="#install">Install the plugin</a>
             <a class="button" href="https://github.com/Schero94/Magic-Mail">View source</a>
@@ -56,30 +62,51 @@
       <div class="content">
         <section class="section" id="features" aria-labelledby="features-title">
           <h2 id="features-title">Features</h2>
-          <p class="section-lead">Magic-Mail provides email account management and delivery tools in the Strapi admin.</p>
+          <p class="section-lead">
+            Magic-Mail provides email account management and delivery tools in the Strapi admin.
+          </p>
           <div class="card-grid">
             <article class="card">
               <h3>Email accounts and routing rules</h3>
-              <p>Configure email accounts and route messages by type, recipient, subject, template or a custom value, with quotas and safe failover. Supported providers: Gmail, Microsoft 365 and Yahoo (OAuth 2.0), SMTP, SendGrid and Mailgun.</p>
+              <p>
+                Configure email accounts and route messages by type, recipient, subject, template or
+                a custom value, with quotas and safe failover. Supported providers: Gmail, Microsoft
+                365 and Yahoo (OAuth 2.0), SMTP, SendGrid and Mailgun.
+              </p>
             </article>
             <article class="card">
               <h3>Templates and analytics</h3>
-              <p>Design templates in the visual editor or as plain HTML/text, keep versions, and review delivery logs with privacy-friendly open and click tracking (truncated IPs, configurable retention).</p>
+              <p>
+                Design templates in the visual editor or as plain HTML/text, keep versions, and
+                review delivery logs with privacy-friendly open and click tracking (truncated IPs,
+                configurable retention).
+              </p>
             </article>
             <article class="card">
               <h3>OAuth account setup</h3>
-              <p>Start Gmail, Microsoft, and Yahoo account authorization from the admin interface.</p>
+              <p>
+                Start Gmail, Microsoft, and Yahoo account authorization from the admin interface.
+              </p>
             </article>
             <article class="card">
               <h3>Drop-in for the Strapi email service</h3>
-              <p>Mail sent with <code>strapi.plugin('email')</code>, including <code>sendTemplatedEmail()</code>, is routed through MagicMail. Without a usable account it falls back to the original Strapi email provider.</p>
+              <p>
+                Mail sent with <code>strapi.plugin('email')</code>, including
+                <code>sendTemplatedEmail()</code>, is routed through MagicMail. Without a usable
+                account it falls back to the original Strapi email provider.
+              </p>
             </article>
           </div>
         </section>
 
         <section class="section" id="install" aria-labelledby="install-title">
           <h2 id="install-title">Install</h2>
-          <p class="section-lead">The package declares Strapi <code>^5.57.0</code> and <code>@strapi/plugin-users-permissions</code> <code>^5.57.0</code> as peer dependencies and requires Node.js <code>&gt;=22.12.0 &lt;=26.x.x</code>. Upgrading from 3.x? Follow the 4.0 migration steps in the changelog first.</p>
+          <p class="section-lead">
+            The package declares Strapi <code>^5.57.0</code> and
+            <code>@strapi/plugin-users-permissions</code> <code>^5.57.0</code> as peer dependencies
+            and requires Node.js <code>&gt;=22.12.0 &lt;=26.x.x</code>. Upgrading from 3.x? Follow
+            the 4.0 migration steps in the changelog first.
+          </p>
           <div class="code-card">
             <div class="code-label"><span>Terminal</span><span>npm</span></div>
             <pre><code>npm install strapi-plugin-magic-mail
@@ -98,45 +125,126 @@ npm run build</code></pre>
 
         <section class="section" id="configuration" aria-labelledby="configuration-title">
           <h2 id="configuration-title">Configuration</h2>
-          <p class="section-lead">After enabling the plugin, open MagicMail in the Strapi admin to add an email account and configure routing rules, templates, and plugin settings.</p>
-          <div class="callout">Enter provider credentials when you add an account in the admin. In every environment other than development and test, set <code>MAGIC_MAIL_ENCRYPTION_KEY</code> to a secret of at least 32 bytes. Keep it stable: changing the key without <code>MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS</code> makes stored credentials unreadable. Set Strapi's <code>server.url</code> to your public https URL for OAuth redirects and tracking links.</div>
-          <p>Optional plugin config covers Content API access (<code>contentApi.allowUserRoles</code>), quota time zone, tracking retention and link allowlist, and the visual designer (<code>designer.projectId</code>, <code>scriptUrl</code>, <code>version</code>). The visual designer needs <code>https://editor.unlayer.com</code> in the <code>script-src</code> and <code>frame-src</code> CSP directives; the plain HTML editor works without it.</p>
-          <p>See the <a href="https://github.com/Schero94/Magic-Mail#readme">README setup guide</a> for provider-specific configuration and callback URLs.</p>
+          <p class="section-lead">
+            After enabling the plugin, open MagicMail in the Strapi admin to add an email account
+            and configure routing rules, templates, and plugin settings.
+          </p>
+          <div class="callout">
+            Enter provider credentials when you add an account in the admin. In every environment
+            other than development and test, set <code>MAGIC_MAIL_ENCRYPTION_KEY</code> to a secret
+            of at least 32 bytes. Keep it stable: changing the key without
+            <code>MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS</code> makes stored credentials unreadable. Set
+            Strapi's <code>server.url</code> to your public https URL for OAuth redirects and
+            tracking links.
+          </div>
+          <p>
+            Optional plugin config covers Content API access
+            (<code>contentApi.allowUserRoles</code>), quota time zone, tracking retention and link
+            allowlist, and the visual designer (<code>designer.projectId</code>,
+            <code>scriptUrl</code>, <code>version</code>). The visual designer needs
+            <code>https://editor.unlayer.com</code> in the <code>script-src</code> and
+            <code>frame-src</code> CSP directives; the plain HTML editor works without it.
+          </p>
+          <p>
+            See the
+            <a href="https://github.com/Schero94/Magic-Mail#readme">README setup guide</a> for
+            provider-specific configuration and callback URLs.
+          </p>
         </section>
 
         <section class="section" id="security" aria-labelledby="security-title">
           <h2 id="security-title">Security and permissions</h2>
-          <p class="section-lead">Each admin API route requires an authenticated administrator plus <code>plugin::magic-mail.read</code>, <code>.manage</code> or <code>.test-send</code>; <code>.access</code> only controls navigation.</p>
+          <p class="section-lead">
+            Each admin API route requires an authenticated administrator plus
+            <code>plugin::magic-mail.read</code>, <code>.manage</code> or <code>.test-send</code>;
+            <code>.access</code> only controls navigation.
+          </p>
           <ul>
-            <li>Email send routes accept API tokens only (users-permissions roles only with <code>contentApi.allowUserRoles</code>), validate request data strictly, and share a per-caller in-memory rate limit of 60 requests per minute.</li>
-            <li>OAuth callback routes are public because providers redirect to them. The callback flow checks signed, single-use state bound to the admin who started it.</li>
-            <li>Account credentials and OAuth tokens are encrypted with AES-256-GCM and never returned to the browser.</li>
-            <li>Open and click tracking routes are public for email-client compatibility, never track authentication links, store truncated IPs only and have a separate in-memory rate limit.</li>
-            <li>Rate-limit counters are local to each server process, not shared across multiple Strapi instances.</li>
+            <li>
+              Email send routes accept API tokens only (users-permissions roles only with
+              <code>contentApi.allowUserRoles</code>), validate request data strictly, and share a
+              per-caller in-memory rate limit of 60 requests per minute.
+            </li>
+            <li>
+              OAuth callback routes are public because providers redirect to them. The callback flow
+              checks signed, single-use state bound to the admin who started it.
+            </li>
+            <li>
+              Account credentials and OAuth tokens are encrypted with AES-256-GCM and never returned
+              to the browser.
+            </li>
+            <li>
+              Open and click tracking routes are public for email-client compatibility, never track
+              authentication links, store truncated IPs only and have a separate in-memory rate
+              limit.
+            </li>
+            <li>
+              Rate-limit counters are local to each server process, not shared across multiple
+              Strapi instances.
+            </li>
           </ul>
         </section>
 
         <section class="section" id="api" aria-labelledby="api-title">
           <h2 id="api-title">API</h2>
-          <p class="section-lead">Content API routes use the <code>/api/magic-mail</code> prefix.</p>
+          <p class="section-lead">
+            Content API routes use the <code>/api/magic-mail</code> prefix.
+          </p>
           <div class="table-wrap">
             <table>
-              <thead><tr><th scope="col">Method</th><th scope="col">Path</th><th scope="col">Purpose</th></tr></thead>
+              <thead>
+                <tr>
+                  <th scope="col">Method</th>
+                  <th scope="col">Path</th>
+                  <th scope="col">Purpose</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr><td><code>POST</code></td><td><code>/send</code></td><td>Send an email through the Magic-Mail router (API token).</td></tr>
-                <tr><td><code>POST</code></td><td><code>/send-message</code></td><td>Send a simple email: recipients, subject and message (API token).</td></tr>
-                <tr><td><code>GET</code></td><td><code>/track/open/:emailId/:recipientHash</code></td><td>Record an email open.</td></tr>
-                <tr><td><code>GET</code></td><td><code>/track/click/:emailId/:linkHash/:recipientHash</code></td><td>Record a tracked click and redirect.</td></tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/send</code></td>
+                  <td>Send an email through the Magic-Mail router (API token).</td>
+                </tr>
+                <tr>
+                  <td><code>POST</code></td>
+                  <td><code>/send-message</code></td>
+                  <td>Send a simple email: recipients, subject and message (API token).</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/track/open/:emailId/:recipientHash</code></td>
+                  <td>Record an email open.</td>
+                </tr>
+                <tr>
+                  <td><code>GET</code></td>
+                  <td><code>/track/click/:emailId/:linkHash/:recipientHash</code></td>
+                  <td>Record a tracked click and redirect.</td>
+                </tr>
               </tbody>
             </table>
           </div>
-          <p>Admin routes cover accounts, OAuth setup, routing rules, templates, analytics, and plugin settings. They require the admin permissions described above. See the <a href="https://github.com/Schero94/Magic-Mail">route definitions and README</a> for details.</p>
+          <p>
+            Admin routes cover accounts, OAuth setup, routing rules, templates, analytics, and
+            plugin settings. They require the admin permissions described above. See the
+            <a href="https://github.com/Schero94/Magic-Mail">route definitions and README</a> for
+            details.
+          </p>
         </section>
 
         <section class="section" id="releases" aria-labelledby="releases-title">
           <h2 id="releases-title">Releases and testing</h2>
-          <p class="section-lead">Releases use semantic-release on pushes to <code>main</code>. Conventional Commits determine version changes. A read-only job runs tests, builds the plugin and verifies its exports and server bundle; only then does a separate release job use GitHub OIDC to publish to npm with provenance. Actions are pinned by commit SHA and dependencies are installed without lifecycle scripts.</p>
-          <p>Before the first release, configure npm Trusted Publishing for <code>Schero94/Magic-Mail</code> and <code>.github/workflows/release.yml</code>. No long-lived npm write token is used.</p>
+          <p class="section-lead">
+            Releases use semantic-release on pushes to <code>main</code>. Conventional Commits
+            determine version changes. A read-only job runs tests, builds the plugin and verifies
+            its exports and server bundle; only then does a separate release job use GitHub OIDC to
+            publish to npm with provenance. Actions are pinned by commit SHA and dependencies are
+            installed without lifecycle scripts.
+          </p>
+          <p>
+            Before the first release, configure npm Trusted Publishing for
+            <code>Schero94/Magic-Mail</code> and <code>.github/workflows/release.yml</code>. No
+            long-lived npm write token is used.
+          </p>
           <div class="link-list">
             <a href="https://github.com/Schero94/Magic-Mail/releases">Release history</a>
             <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>
@@ -156,7 +264,10 @@ npm run verify:runtime</code></pre>
 
     <footer class="footer">
       <p>Magic-Mail is distributed under the MIT License.</p>
-      <p><a href="https://github.com/Schero94/Magic-Mail">GitHub repository</a> · <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a></p>
+      <p>
+        <a href="https://github.com/Schero94/Magic-Mail">GitHub repository</a> ·
+        <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>
+      </p>
     </footer>
   </body>
 </html>

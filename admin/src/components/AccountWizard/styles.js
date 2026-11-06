@@ -41,7 +41,9 @@ export const StepHeader = styled(Box)`
   padding-bottom: 24px;
   margin-bottom: 32px;
   position: relative;
-  ${motionSafe(css`animation: ${fadeIn} 0.4s ease;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} 0.4s ease;
+  `)}
 
   &::after {
     content: '';
@@ -129,7 +131,11 @@ export const StepDot = styled.button`
   padding: 0;
   border-radius: 50%;
   background: ${(p) =>
-    p.$active ? wizardColors.primary(p) : p.$completed ? wizardColors.successFill(p) : wizardColors.surface(p)};
+    p.$active
+      ? wizardColors.primary(p)
+      : p.$completed
+        ? wizardColors.successFill(p)
+        : wizardColors.surface(p)};
   color: ${(p) => (p.$active || p.$completed ? '#ffffff' : wizardColors.textLight(p))};
   border: 4px solid
     ${(p) => (p.$active ? wizardColors.primary(p) : p.$completed ? wizardColors.successFill(p) : wizardColors.border)};
@@ -150,7 +156,11 @@ export const StepDot = styled.button`
         ? '0 4px 12px rgba(50, 128, 72, 0.2)'
         : '0 2px 8px rgba(0,0,0,0.08)'};
 
-  ${(p) => p.$active && motionSafe(css`animation: ${pulse} 2s infinite;`)}
+  ${(p) =>
+    p.$active &&
+    motionSafe(css`
+      animation: ${pulse} 2s infinite;
+    `)}
 
   &:hover {
     transform: ${(p) => (p.$completed ? 'scale(1.1)' : p.$active ? 'scale(1.05)' : 'scale(1)')};
@@ -185,7 +195,11 @@ export const StepLabel = styled(Typography)`
     margin-top: 12px;
     font-size: 13px;
     color: ${(p) =>
-      p.$active ? wizardColors.primary(p) : p.$completed ? wizardColors.successFill(p) : wizardColors.textLight(p)};
+      p.$active
+        ? wizardColors.primary(p)
+        : p.$completed
+          ? wizardColors.successFill(p)
+          : wizardColors.textLight(p)};
     white-space: nowrap;
     font-weight: ${(p) => (p.$active ? 600 : 500)};
     text-align: center;
@@ -206,7 +220,9 @@ export const ProviderCategoryHeader = styled(Box)`
   flex-wrap: wrap;
   gap: 12px;
   margin: 0 0 16px;
-  ${motionSafe(css`animation: ${fadeIn} 0.4s ease;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} 0.4s ease;
+  `)}
 
   &::after {
     content: '';
@@ -242,7 +258,9 @@ export const ProvidersGrid = styled(Box)`
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin: 0 auto 28px;
-  ${motionSafe(css`animation: ${slideIn} 0.5s ease;`)}
+  ${motionSafe(css`
+    animation: ${slideIn} 0.5s ease;
+  `)}
   max-width: 960px;
 
   @media (max-width: 960px) {
@@ -269,7 +287,11 @@ export const ProviderCard = styled.button`
   border-radius: 14px;
   padding: 22px 20px 20px;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  transition:
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s,
+    border-color 0.2s,
+    background 0.2s;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -306,7 +328,9 @@ export const ProviderCard = styled.button`
   ${(p) =>
     p.$selected &&
     css`
-      box-shadow: 0 0 0 1px ${wizardColors.successFill}, 0 10px 28px rgba(92, 177, 118, 0.18);
+      box-shadow:
+        0 0 0 1px ${wizardColors.successFill},
+        0 10px 28px rgba(92, 177, 118, 0.18);
     `}
 
   @media (max-width: 600px) {
@@ -381,7 +405,9 @@ export const ProviderTagline = styled(Typography)`
 export const InfoAlert = styled(Alert)`
   background: ${wizardColors.primaryLight};
   border: 1px solid rgba(73, 69, 255, 0.2);
-  ${motionSafe(css`animation: ${fadeIn} 0.4s ease;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} 0.4s ease;
+  `)}
 
   svg {
     color: ${wizardColors.primary};
@@ -389,7 +415,9 @@ export const InfoAlert = styled(Alert)`
 `;
 
 export const FormSection = styled(Box)`
-  ${motionSafe(css`animation: ${slideIn} 0.4s ease;`)}
+  ${motionSafe(css`
+    animation: ${slideIn} 0.4s ease;
+  `)}
   width: 100%;
   max-width: 100%;
 `;

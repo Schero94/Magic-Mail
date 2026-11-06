@@ -61,10 +61,17 @@ export const sortRulesByEvaluationOrder = (rules) =>
  * @returns {Array<object>}
  */
 export const filterRules = (rules, { search = '', status = 'all', matchType = 'all' } = {}) => {
-  const query = String(search ?? '').trim().toLowerCase();
+  const query = String(search ?? '')
+    .trim()
+    .toLowerCase();
   return (Array.isArray(rules) ? rules : []).filter((rule) => {
-    const haystack = [rule?.name, rule?.description, rule?.matchValue, rule?.accountName, rule?.fallbackAccountName]
-      .map((value) => String(value ?? '').toLowerCase());
+    const haystack = [
+      rule?.name,
+      rule?.description,
+      rule?.matchValue,
+      rule?.accountName,
+      rule?.fallbackAccountName,
+    ].map((value) => String(value ?? '').toLowerCase());
     const matchesSearch = !query || haystack.some((value) => value.includes(query));
     const matchesStatus =
       status === 'all' ||
@@ -98,8 +105,13 @@ export const getAccountStatus = (name, accounts) => {
 export const hasBrokenAccountReference = (rule, accounts) => {
   const target = getAccountStatus(rule?.accountName, accounts);
   const fallback = getAccountStatus(rule?.fallbackAccountName, accounts);
-  return target === 'missing' || target === 'inactive' || target === 'none' ||
-    fallback === 'missing' || fallback === 'inactive';
+  return (
+    target === 'missing' ||
+    target === 'inactive' ||
+    target === 'none' ||
+    fallback === 'missing' ||
+    fallback === 'inactive'
+  );
 };
 
 /**
@@ -115,7 +127,12 @@ export const buildAccountOptions = (accounts, currentValue, { exclude } = {}) =>
   const list = Array.isArray(accounts) ? accounts : [];
   const options = list
     .filter((account) => account?.isActive && account.name !== exclude)
-    .map((account) => ({ value: account.name, name: account.name, provider: account.provider, status: 'active' }));
+    .map((account) => ({
+      value: account.name,
+      name: account.name,
+      provider: account.provider,
+      status: 'active',
+    }));
 
   if (currentValue && !options.some((option) => option.value === currentValue)) {
     const stored = list.find((account) => account?.name === currentValue);

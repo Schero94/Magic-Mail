@@ -21,22 +21,38 @@ function withEncryptionKey() {
 
 function captureLog() {
   const entries = { debug: [], info: [], warn: [], error: [] };
-  const log = Object.fromEntries(Object.keys(entries).map((level) => [
-    level,
-    (...args) => entries[level].push(args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')),
-  ]));
+  const log = Object.fromEntries(
+    Object.keys(entries).map((level) => [
+      level,
+      (...args) =>
+        entries[level].push(
+          args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
+        ),
+    ])
+  );
   return { log, entries };
 }
 
 function fakeAccepted() {
-  return { ok: true, status: 202, headers: { get: () => 'fake-id' }, json: async () => ({ id: 'fake-id' }) };
+  return {
+    ok: true,
+    status: 202,
+    headers: { get: () => 'fake-id' },
+    json: async () => ({ id: 'fake-id' }),
+  };
 }
 
 /**
  * Builds a fake strapi for router.send(): in-memory accounts, rules and
  * logs, fake analytics/settings services and no database connection.
  */
-function createRouterHarness({ accounts = [], rules = [], settings = {}, templates = {}, log = quietLog } = {}) {
+function createRouterHarness({
+  accounts = [],
+  rules = [],
+  settings = {},
+  templates = {},
+  log = quietLog,
+} = {}) {
   const logs = [];
   const logUpdates = [];
   const strapi = {
@@ -50,12 +66,18 @@ function createRouterHarness({ accounts = [], rules = [], settings = {}, templat
           if (serviceName === 'analytics') {
             return {
               createEmailLog: async (data) => {
-                const entry = { documentId: `log-${logs.length + 1}`, emailId: `email-${logs.length + 1}`, metadata: data.metadata, data };
+                const entry = {
+                  documentId: `log-${logs.length + 1}`,
+                  emailId: `email-${logs.length + 1}`,
+                  metadata: data.metadata,
+                  data,
+                };
                 logs.push(entry);
                 return entry;
               },
               generateRecipientHash: () => 'hash',
-              injectTrackingPixel: (html, emailId) => `${html}<img src="https://track.example.test/o/${emailId}">`,
+              injectTrackingPixel: (html, emailId) =>
+                `${html}<img src="https://track.example.test/o/${emailId}">`,
               rewriteLinksForTracking: async (html) => html,
             };
           }
@@ -84,8 +106,12 @@ function createRouterHarness({ accounts = [], rules = [], settings = {}, templat
           }
           return [...list].sort((a, b) => (b.priority || 0) - (a.priority || 0));
         },
-        findOne: async ({ documentId }) => accounts.find((a) => a.documentId === documentId) || null,
-        update: async ({ documentId, data }) => { logUpdates.push({ documentId, data }); return data; },
+        findOne: async ({ documentId }) =>
+          accounts.find((a) => a.documentId === documentId) || null,
+        update: async ({ documentId, data }) => {
+          logUpdates.push({ documentId, data });
+          return data;
+        },
       };
     },
   };
@@ -121,16 +147,28 @@ test('SEC-02: From parsing rejects quoted-angle and comment spoofing forms', () 
   const { isFromAllowed, resolveSender } = require(ROUTER_PATH).__test__;
   const accountAddress = 'sender@company.example.test';
 
-  assert.equal(isFromAllowed('"<sender@company.example.test>" attacker@evil.example.test', accountAddress), false);
-  assert.equal(isFromAllowed('attacker@evil.example.test (<sender@company.example.test>)', accountAddress), false);
+  assert.equal(
+    isFromAllowed('"<sender@company.example.test>" attacker@evil.example.test', accountAddress),
+    false
+  );
+  assert.equal(
+    isFromAllowed('attacker@evil.example.test (<sender@company.example.test>)', accountAddress),
+    false
+  );
   assert.equal(isFromAllowed('a@x.test, sender@company.example.test', accountAddress), false);
   assert.equal(isFromAllowed('"Brand" <SENDER@company.example.test>', accountAddress), true);
 
-  const spoofed = resolveSender({ fromEmail: accountAddress, fromName: 'Company' }, '"<sender@company.example.test>" attacker@evil.example.test');
+  const spoofed = resolveSender(
+    { fromEmail: accountAddress, fromName: 'Company' },
+    '"<sender@company.example.test>" attacker@evil.example.test'
+  );
   assert.equal(spoofed.rejected, true);
   assert.deepEqual(spoofed.sender, { name: 'Company', address: accountAddress });
 
-  const aligned = resolveSender({ fromEmail: accountAddress }, '"Support Team" <sender@company.example.test>');
+  const aligned = resolveSender(
+    { fromEmail: accountAddress },
+    '"Support Team" <sender@company.example.test>'
+  );
   assert.deepEqual(aligned.sender, { name: 'Support Team', address: accountAddress });
 });
 
@@ -140,7 +178,10 @@ test('SEC-02: content.send only accepts a single mailbox for from and replyTo', 
   assert.throws(() => validate('content.send', { ...base, from: '"<a@b.test>" evil@x.test' }));
   assert.throws(() => validate('content.send', { ...base, from: 'evil@x.test (<a@b.test>)' }));
   assert.throws(() => validate('content.send', { ...base, replyTo: 'not an address' }));
-  assert.equal(validate('content.send', { ...base, from: 'Brand <a@b.test>' }).from, 'Brand <a@b.test>');
+  assert.equal(
+    validate('content.send', { ...base, from: 'Brand <a@b.test>' }).from,
+    'Brand <a@b.test>'
+  );
 });
 
 test('SEC-02: SMTP never forwards a spoofed raw From string', async () => {
@@ -148,16 +189,24 @@ test('SEC-02: SMTP never forwards a spoofed raw From string', async () => {
   const nodemailer = require('nodemailer');
   const original = nodemailer.createTransport;
   let sent;
-  nodemailer.createTransport = () => ({ sendMail: async (options) => { sent = options; return { messageId: 'x' }; } });
+  nodemailer.createTransport = () => ({
+    sendMail: async (options) => {
+      sent = options;
+      return { messageId: 'x' };
+    },
+  });
   try {
     const { encryptCredentials } = require('../server/src/utils/encryption');
     delete require.cache[require.resolve(ROUTER_PATH)];
     const router = require(ROUTER_PATH)({ strapi: { log: quietLog } });
-    await router.sendViaSMTP({
-      fromEmail: 'sender@company.example.test',
-      fromName: 'Company',
-      config: encryptCredentials({ host: 'smtp.example.test', user: 'u', pass: 'p' }),
-    }, { ...baseMail(), from: '"<sender@company.example.test>" attacker@evil.example.test' });
+    await router.sendViaSMTP(
+      {
+        fromEmail: 'sender@company.example.test',
+        fromName: 'Company',
+        config: encryptCredentials({ host: 'smtp.example.test', user: 'u', pass: 'p' }),
+      },
+      { ...baseMail(), from: '"<sender@company.example.test>" attacker@evil.example.test' }
+    );
     assert.deepEqual(sent.from, { name: 'Company', address: 'sender@company.example.test' });
   } finally {
     nodemailer.createTransport = original;
@@ -183,8 +232,18 @@ test('SEC-08: custom headers use an allowlist and cannot override MagicMail head
       'List-Id': '<news.example.test>',
     },
   });
-  for (const forbidden of ['Return-Path', 'Disposition-Notification-To', 'Resent-From', 'DKIM-Signature', 'MIME-Version']) {
-    assert.equal(Object.keys(headers).some((k) => k.toLowerCase() === forbidden.toLowerCase()), false, forbidden);
+  for (const forbidden of [
+    'Return-Path',
+    'Disposition-Notification-To',
+    'Resent-From',
+    'DKIM-Signature',
+    'MIME-Version',
+  ]) {
+    assert.equal(
+      Object.keys(headers).some((k) => k.toLowerCase() === forbidden.toLowerCase()),
+      false,
+      forbidden
+    );
   }
   assert.equal(headers['X-Mailer'], 'MagicMail/1.0');
   assert.equal(headers['Auto-Submitted'], 'auto-generated');
@@ -205,20 +264,46 @@ test('SEC-14/DOC-08: path and href attachments are rejected for every entry poin
   const restore = withEncryptionKey();
   const previousFetch = global.fetch;
   let fetchCalls = 0;
-  global.fetch = async () => { fetchCalls += 1; return fakeAccepted(); };
+  global.fetch = async () => {
+    fetchCalls += 1;
+    return fakeAccepted();
+  };
   try {
     const { router } = createRouterHarness({ accounts: [account('a1')] });
-    await assert.rejects(router.send({ ...baseMail(), attachments: [{ path: '/etc/passwd' }] }), /not supported/);
-    await assert.rejects(router.send({ ...baseMail(), attachments: [{ href: 'http://169.254.169.254/' }] }), /not supported/);
-    await assert.rejects(router.sendViaSendGrid(account('a1'), { ...baseMail(), attachments: [{ path: '/etc/passwd' }] }), /not supported/);
-    await assert.rejects(router.sendViaMailgun(account('a1', {
-      provider: 'mailgun',
-      config: require('../server/src/utils/encryption').encryptCredentials({ apiKey: 'k', domain: 'mg.example.test' }),
-    }), { ...baseMail(), attachments: [{ path: '/etc/passwd' }] }), /not supported/);
+    await assert.rejects(
+      router.send({ ...baseMail(), attachments: [{ path: '/etc/passwd' }] }),
+      /not supported/
+    );
+    await assert.rejects(
+      router.send({ ...baseMail(), attachments: [{ href: 'http://169.254.169.254/' }] }),
+      /not supported/
+    );
+    await assert.rejects(
+      router.sendViaSendGrid(account('a1'), {
+        ...baseMail(),
+        attachments: [{ path: '/etc/passwd' }],
+      }),
+      /not supported/
+    );
+    await assert.rejects(
+      router.sendViaMailgun(
+        account('a1', {
+          provider: 'mailgun',
+          config: require('../server/src/utils/encryption').encryptCredentials({
+            apiKey: 'k',
+            domain: 'mg.example.test',
+          }),
+        }),
+        { ...baseMail(), attachments: [{ path: '/etc/passwd' }] }
+      ),
+      /not supported/
+    );
     assert.equal(fetchCalls, 0);
 
     const { validate } = require('../server/src/validation');
-    assert.throws(() => validate('content.send', { ...baseMail(), attachments: [{ path: '/etc/passwd' }] }));
+    assert.throws(() =>
+      validate('content.send', { ...baseMail(), attachments: [{ path: '/etc/passwd' }] })
+    );
   } finally {
     global.fetch = previousFetch;
     restore();
@@ -229,7 +314,10 @@ test('DOC-14/FUN-17: SendGrid encodes base64 attachments once and maps cid to in
   const restore = withEncryptionKey();
   const previousFetch = global.fetch;
   let body;
-  global.fetch = async (_url, options) => { body = JSON.parse(options.body); return fakeAccepted(); };
+  global.fetch = async (_url, options) => {
+    body = JSON.parse(options.body);
+    return fakeAccepted();
+  };
   try {
     const { router } = createRouterHarness();
     const bytes = Buffer.from([0, 1, 2, 250, 251, 252]);
@@ -238,7 +326,12 @@ test('DOC-14/FUN-17: SendGrid encodes base64 attachments once and maps cid to in
       from: '"Campaign" <a1@sender.example.test>',
       headers: { 'X-Campaign': 'c1' },
       attachments: [
-        { filename: 'data.bin', content: bytes.toString('base64'), encoding: 'base64', contentType: 'application/octet-stream' },
+        {
+          filename: 'data.bin',
+          content: bytes.toString('base64'),
+          encoding: 'base64',
+          contentType: 'application/octet-stream',
+        },
         { filename: 'logo.png', content: bytes, contentType: 'image/png', cid: 'logo@brand' },
         { filename: 'note.txt', content: 'hello' },
       ],
@@ -261,23 +354,35 @@ test('FUN-17: Mailgun forwards custom headers, aligned display name and decoded 
   const previousFetch = global.fetch;
   let form;
   let url;
-  global.fetch = async (requestUrl, options) => { url = requestUrl; form = options.body; return { ok: true, status: 200, json: async () => ({ id: 'm' }) }; };
+  global.fetch = async (requestUrl, options) => {
+    url = requestUrl;
+    form = options.body;
+    return { ok: true, status: 200, json: async () => ({ id: 'm' }) };
+  };
   try {
     const { encryptCredentials } = require('../server/src/utils/encryption');
     const { router } = createRouterHarness();
-    const mailgun = account('mg', { provider: 'mailgun', config: encryptCredentials({ apiKey: 'k', domain: 'mg.example.test' }) });
+    const mailgun = account('mg', {
+      provider: 'mailgun',
+      config: encryptCredentials({ apiKey: 'k', domain: 'mg.example.test' }),
+    });
     await router.sendViaMailgun(mailgun, {
       ...baseMail(),
       from: 'Team <mg@sender.example.test>',
       headers: { 'X-Campaign': 'c2' },
-      attachments: [{ filename: 'a.bin', content: Buffer.from('xyz').toString('base64'), encoding: 'base64' }],
+      attachments: [
+        { filename: 'a.bin', content: Buffer.from('xyz').toString('base64'), encoding: 'base64' },
+      ],
     });
     assert.equal(url, 'https://api.mailgun.net/v3/mg.example.test/messages');
     assert.equal(form.get('from'), '"Team" <mg@sender.example.test>');
     assert.equal(form.get('h:X-Campaign'), 'c2');
     assert.equal(Buffer.from(await form.get('attachment').arrayBuffer()).toString(), 'xyz');
 
-    const badDomain = account('mg2', { provider: 'mailgun', config: encryptCredentials({ apiKey: 'k', domain: 'evil.test/../x' }) });
+    const badDomain = account('mg2', {
+      provider: 'mailgun',
+      config: encryptCredentials({ apiKey: 'k', domain: 'evil.test/../x' }),
+    });
     await assert.rejects(router.sendViaMailgun(badDomain, baseMail()), /valid host name/);
   } finally {
     global.fetch = previousFetch;
@@ -306,7 +411,10 @@ test('FUN-04: sanitizer keeps email layout markup and still strips active conten
   };
   router.validateEmailSecurity(data);
   const html = data.html;
-  assert.match(html, /<style type="text\/css">@media \(max-width:600px\)\{td > p\{color:red\}\}<\/style>/);
+  assert.match(
+    html,
+    /<style type="text\/css">@media \(max-width:600px\)\{td > p\{color:red\}\}<\/style>/
+  );
   assert.doesNotMatch(html, /javascript:/);
   assert.match(html, /role="presentation"/);
   assert.match(html, /bgcolor="#ffffff"/);
@@ -325,14 +433,47 @@ test('FUN-05: recipient rules work with arrays, CSV strings and display names', 
   try {
     const vip = account('vip');
     const primary = account('primary', { isPrimary: true });
-    const rules = [{ matchType: 'recipient', matchValue: '@vip.example.test', accountName: 'VIP', priority: 5 }];
+    const rules = [
+      { matchType: 'recipient', matchValue: '@vip.example.test', accountName: 'VIP', priority: 5 },
+    ];
     const { router } = createRouterHarness({ accounts: [primary, vip], rules });
 
-    assert.equal((await router.selectAccount('transactional', 'normal', [], { to: ['x@other.test', 'y@vip.example.test'] })).name, 'vip');
-    assert.equal((await router.selectAccount('transactional', 'normal', [], { to: 'x@other.test, Boss <BOSS@vip.example.test>' })).name, 'vip');
-    assert.equal((await router.selectAccount('transactional', 'normal', [], { to: ['x@other.test'] })).name, 'primary');
-    assert.equal(router.ruleMatches({ matchType: 'recipient', matchValue: 'exact@vip.example.test' }, 'transactional', { to: 'Exact <exact@vip.example.test>' }), true);
-    assert.equal(router.ruleMatches({ matchType: 'recipient', matchValue: 'exact@vip.example.test' }, 'transactional', { to: 'notexact@vip.example.test' }), false);
+    assert.equal(
+      (
+        await router.selectAccount('transactional', 'normal', [], {
+          to: ['x@other.test', 'y@vip.example.test'],
+        })
+      ).name,
+      'vip'
+    );
+    assert.equal(
+      (
+        await router.selectAccount('transactional', 'normal', [], {
+          to: 'x@other.test, Boss <BOSS@vip.example.test>',
+        })
+      ).name,
+      'vip'
+    );
+    assert.equal(
+      (await router.selectAccount('transactional', 'normal', [], { to: ['x@other.test'] })).name,
+      'primary'
+    );
+    assert.equal(
+      router.ruleMatches(
+        { matchType: 'recipient', matchValue: 'exact@vip.example.test' },
+        'transactional',
+        { to: 'Exact <exact@vip.example.test>' }
+      ),
+      true
+    );
+    assert.equal(
+      router.ruleMatches(
+        { matchType: 'recipient', matchValue: 'exact@vip.example.test' },
+        'transactional',
+        { to: 'notexact@vip.example.test' }
+      ),
+      false
+    );
   } finally {
     restore();
   }
@@ -349,7 +490,11 @@ test('FUN-06: provider errors that guarantee non-delivery fail over to the next 
     const used = [];
     router.sendViaSendGrid = async (acc) => {
       used.push(acc.name);
-      if (acc.name === 'first') { const e = new Error('refused'); e.code = 'ECONNECTION'; throw e; }
+      if (acc.name === 'first') {
+        const e = new Error('refused');
+        e.code = 'ECONNECTION';
+        throw e;
+      }
       return { messageId: 'ok' };
     };
     const result = await router.send(baseMail());
@@ -365,9 +510,16 @@ test('FUN-06: provider errors that guarantee non-delivery fail over to the next 
 test('FUN-06: ambiguous provider errors are not retried (no duplicate delivery)', async () => {
   const restore = withEncryptionKey();
   try {
-    const { router } = createRouterHarness({ accounts: [account('first', { priority: 9 }), account('second')] });
+    const { router } = createRouterHarness({
+      accounts: [account('first', { priority: 9 }), account('second')],
+    });
     const used = [];
-    router.sendViaSendGrid = async (acc) => { used.push(acc.name); const e = new Error('timeout'); e.code = 'ETIMEDOUT'; throw e; };
+    router.sendViaSendGrid = async (acc) => {
+      used.push(acc.name);
+      const e = new Error('timeout');
+      e.code = 'ETIMEDOUT';
+      throw e;
+    };
     await assert.rejects(router.send(baseMail()), /timeout/);
     assert.deepEqual(used, ['first']);
   } finally {
@@ -380,7 +532,8 @@ test('FUN-06: quota exhaustion skips to any account with capacity, not just one 
   try {
     const { quotaWindowKeys } = require(ROUTER_PATH).__test__;
     const keys = quotaWindowKeys();
-    const full = (id, priority) => account(id, { priority, dailyLimit: 1, emailsSentToday: 1, quotaDayKey: keys.day });
+    const full = (id, priority) =>
+      account(id, { priority, dailyLimit: 1, emailsSentToday: 1, quotaDayKey: keys.day });
     const { router, logUpdates } = createRouterHarness({
       accounts: [full('a', 9), full('b', 8), account('c', { priority: 1 })],
     });
@@ -402,13 +555,23 @@ test('FUN-06/FUN-07: an explicit account is never replaced and name lookup is ca
     const busy = account('Busy', { dailyLimit: 1, emailsSentToday: 1, quotaDayKey: keys.day });
     const { router } = createRouterHarness({ accounts: [busy, account('other')] });
     const used = [];
-    router.sendViaSendGrid = async (acc) => { used.push(acc.name); return { messageId: 'ok' }; };
+    router.sendViaSendGrid = async (acc) => {
+      used.push(acc.name);
+      return { messageId: 'ok' };
+    };
 
-    await assert.rejects(router.send({ ...baseMail(), accountName: 'busy' }), /over its sending quota/);
+    await assert.rejects(
+      router.send({ ...baseMail(), accountName: 'busy' }),
+      /over its sending quota/
+    );
     assert.deepEqual(used, []);
 
     const failing = createRouterHarness({ accounts: [account('Solo'), account('other')] }).router;
-    failing.sendViaSendGrid = async () => { const e = new Error('refused'); e.code = 'ECONNECTION'; throw e; };
+    failing.sendViaSendGrid = async () => {
+      const e = new Error('refused');
+      e.code = 'ECONNECTION';
+      throw e;
+    };
     await assert.rejects(failing.send({ ...baseMail(), accountName: 'SOLO' }), /refused/);
   } finally {
     restore();
@@ -419,11 +582,19 @@ test('FUN-07: the account test can target an inactive account by documentId', as
   const restore = withEncryptionKey();
   try {
     const inactive = account('draft', { isActive: false });
-    const { router } = createRouterHarness({ accounts: [inactive, account('live', { isPrimary: true })] });
+    const { router } = createRouterHarness({
+      accounts: [inactive, account('live', { isPrimary: true })],
+    });
     const used = [];
-    router.sendViaSendGrid = async (acc) => { used.push(acc.name); return { messageId: 'ok' }; };
+    router.sendViaSendGrid = async (acc) => {
+      used.push(acc.name);
+      return { messageId: 'ok' };
+    };
     await assert.rejects(router.send(baseMail(), { accountDocumentId: 'draft' }), /not available/);
-    const result = await router.send(baseMail(), { accountDocumentId: 'draft', allowInactive: true });
+    const result = await router.send(baseMail(), {
+      accountDocumentId: 'draft',
+      allowInactive: true,
+    });
     assert.equal(result.accountUsed, 'draft');
     assert.deepEqual(used, ['draft']);
   } finally {
@@ -467,11 +638,18 @@ function createSqliteQuotaHarness() {
 
 test('FUN-08: quota reservation is a conditional atomic update with clock-aligned windows', async () => {
   const { db, router } = createSqliteQuotaHarness();
-  db.prepare('INSERT INTO accounts (document_id, daily_limit, hourly_limit, emails_sent_today, emails_sent_this_hour, total_emails_sent, quota_day_key, quota_hour_key) VALUES (?,?,?,?,?,?,?,?)')
-    .run('acc', 3, 0, 99, 99, 0, '2000-01-01', '2000-01-01T00');
+  db.prepare(
+    'INSERT INTO accounts (document_id, daily_limit, hourly_limit, emails_sent_today, emails_sent_this_hour, total_emails_sent, quota_day_key, quota_hour_key) VALUES (?,?,?,?,?,?,?,?)'
+  ).run('acc', 3, 0, 99, 99, 0, '2000-01-01', '2000-01-01T00');
 
-  const results = await Promise.all(Array.from({ length: 10 }, () => router.reserveQuota({ documentId: 'acc' })));
-  assert.equal(results.filter((r) => r === 'reserved').length, 3, 'a stale window restarts at zero and stops at the limit');
+  const results = await Promise.all(
+    Array.from({ length: 10 }, () => router.reserveQuota({ documentId: 'acc' }))
+  );
+  assert.equal(
+    results.filter((r) => r === 'reserved').length,
+    3,
+    'a stale window restarts at zero and stops at the limit'
+  );
   assert.equal(results.filter((r) => r === false).length, 7);
 
   let row = db.prepare('SELECT * FROM accounts WHERE document_id = ?').get('acc');
@@ -488,7 +666,9 @@ test('FUN-08: quota reservation is a conditional atomic update with clock-aligne
   assert.equal(row.total_emails_sent, 1);
   assert.equal(row.emails_sent_today, 2, 'reserved counters are not incremented twice');
 
-  db.prepare('UPDATE accounts SET quota_hour_key = ?, quota_day_key = ?, emails_sent_this_hour = 5').run('2000-01-01T00', '2000-01-01');
+  db.prepare(
+    'UPDATE accounts SET quota_hour_key = ?, quota_day_key = ?, emails_sent_this_hour = 5'
+  ).run('2000-01-01T00', '2000-01-01');
   await router.refreshQuotaWindows();
   row = db.prepare('SELECT * FROM accounts WHERE document_id = ?').get('acc');
   assert.equal(row.emails_sent_today, 0);
@@ -499,7 +679,10 @@ test('FUN-08: quota windows follow the configured time zone', () => {
   const { quotaWindowKeys } = require(ROUTER_PATH).__test__;
   const instant = new Date('2026-03-01T23:30:00Z');
   assert.deepEqual(quotaWindowKeys(instant, 'UTC'), { day: '2026-03-01', hour: '2026-03-01T23' });
-  assert.deepEqual(quotaWindowKeys(instant, 'Europe/Berlin'), { day: '2026-03-02', hour: '2026-03-02T00' });
+  assert.deepEqual(quotaWindowKeys(instant, 'Europe/Berlin'), {
+    day: '2026-03-02',
+    hour: '2026-03-02T00',
+  });
 });
 
 // ── FUN-10 template category, FUN-11 sender defaults ───────────────────────
@@ -508,19 +691,38 @@ test('FUN-10: a marketing template routes and is labelled as marketing', async (
   const restore = withEncryptionKey();
   const previousFetch = global.fetch;
   let body;
-  global.fetch = async (_url, options) => { body = JSON.parse(options.body); return fakeAccepted(); };
+  global.fetch = async (_url, options) => {
+    body = JSON.parse(options.body);
+    return fakeAccepted();
+  };
   try {
-    const rules = [{ matchType: 'emailType', matchValue: 'marketing', accountName: 'bulk', priority: 3 }];
+    const rules = [
+      { matchType: 'emailType', matchValue: 'marketing', accountName: 'bulk', priority: 3 },
+    ];
     const { router } = createRouterHarness({
       accounts: [account('main', { isPrimary: true }), account('bulk')],
       rules,
-      templates: { 7: { html: '<p>Sale</p>', text: 'Sale', subject: 'Sale', category: 'marketing', templateName: 'Sale' } },
-      settings: { enableUnsubscribeHeader: true, unsubscribeUrl: 'https://example.test/u?e={{email}}' },
+      templates: {
+        7: {
+          html: '<p>Sale</p>',
+          text: 'Sale',
+          subject: 'Sale',
+          category: 'marketing',
+          templateName: 'Sale',
+        },
+      },
+      settings: {
+        enableUnsubscribeHeader: true,
+        unsubscribeUrl: 'https://example.test/u?e={{email}}',
+      },
     });
     const result = await router.send({ to: 'Buyer@example.test', templateReferenceId: '7' });
     assert.equal(result.accountUsed, 'bulk');
     assert.equal(body.headers['X-Email-Type'], 'marketing');
-    assert.equal(body.headers['List-Unsubscribe'], '<https://example.test/u?e=buyer%40example.test>');
+    assert.equal(
+      body.headers['List-Unsubscribe'],
+      '<https://example.test/u?e=buyer%40example.test>'
+    );
     assert.equal(body.headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
     assert.equal(body.headers.Precedence, 'bulk');
   } finally {
@@ -532,10 +734,19 @@ test('FUN-10: a marketing template routes and is labelled as marketing', async (
 test('FUN-12: the unsubscribe toggle gates the global URL and mailto gets no One-Click', () => {
   const { buildOutboundHeaders } = require(ROUTER_PATH).__test__;
   assert.deepEqual(
-    Object.keys(buildOutboundHeaders({ type: 'marketing', unsubscribeUrl: 'mailto:unsub@example.test' })).filter((k) => k.startsWith('List-')),
+    Object.keys(
+      buildOutboundHeaders({ type: 'marketing', unsubscribeUrl: 'mailto:unsub@example.test' })
+    ).filter((k) => k.startsWith('List-')),
     ['List-Unsubscribe']
   );
-  assert.equal(buildOutboundHeaders({ type: 'marketing', to: ['a@x.test', 'b@x.test'], unsubscribeUrl: 'https://x.test/u?e={{email}}' })['List-Unsubscribe'], undefined);
+  assert.equal(
+    buildOutboundHeaders({
+      type: 'marketing',
+      to: ['a@x.test', 'b@x.test'],
+      unsubscribeUrl: 'https://x.test/u?e={{email}}',
+    })['List-Unsubscribe'],
+    undefined
+  );
 });
 
 test('FUN-12: with the toggle off the global unsubscribe URL is not applied', async () => {
@@ -546,7 +757,10 @@ test('FUN-12: with the toggle off the global unsubscribe URL is not applied', as
       settings: { enableUnsubscribeHeader: false, unsubscribeUrl: 'https://example.test/u' },
     });
     let seen;
-    router.sendViaSendGrid = async (_acc, data) => { seen = data; return { messageId: 'ok' }; };
+    router.sendViaSendGrid = async (_acc, data) => {
+      seen = data;
+      return { messageId: 'ok' };
+    };
     await router.send({ ...baseMail(), type: 'transactional' });
     assert.equal(seen.unsubscribeUrl, undefined);
   } finally {
@@ -564,10 +778,16 @@ test('FUN-11: defaultFromName is the display-name fallback and produces no warni
       log,
     });
     let seen;
-    router.sendViaSendGrid = async (_acc, data) => { seen = data; return { messageId: 'ok' }; };
+    router.sendViaSendGrid = async (_acc, data) => {
+      seen = data;
+      return { messageId: 'ok' };
+    };
     await router.send(baseMail());
     assert.deepEqual(seen.from, { name: 'Brand Mail', address: 'main@sender.example.test' });
-    assert.equal(entries.warn.some((line) => /from-override/i.test(line)), false);
+    assert.equal(
+      entries.warn.some((line) => /from-override/i.test(line)),
+      false
+    );
   } finally {
     restore();
   }
@@ -580,8 +800,16 @@ test('FUN-M01: send() never mutates the caller payload', async () => {
   try {
     const { router } = createRouterHarness({ accounts: [account('main')] });
     const htmls = [];
-    router.sendViaSendGrid = async (_acc, data) => { htmls.push(data.html); return { messageId: 'ok' }; };
-    const payload = { to: 'ONE@example.test', subject: 'Hi', html: '<p>Hi</p>', cc: ['C@example.test'] };
+    router.sendViaSendGrid = async (_acc, data) => {
+      htmls.push(data.html);
+      return { messageId: 'ok' };
+    };
+    const payload = {
+      to: 'ONE@example.test',
+      subject: 'Hi',
+      html: '<p>Hi</p>',
+      cc: ['C@example.test'],
+    };
     const snapshot = JSON.parse(JSON.stringify(payload));
     await router.send(payload);
     assert.deepEqual(payload, snapshot);
@@ -600,7 +828,10 @@ test('FUN-M02: text-only and tracking-disabled mails are logged too', async () =
   try {
     const { router, logs, logUpdates } = createRouterHarness({ accounts: [account('main')] });
     let seenHtml;
-    router.sendViaSendGrid = async (_acc, data) => { seenHtml = data.html; return { messageId: 'ok' }; };
+    router.sendViaSendGrid = async (_acc, data) => {
+      seenHtml = data.html;
+      return { messageId: 'ok' };
+    };
     await router.send(baseMail());
     await router.send({ ...baseMail(), html: '<p>x</p>', enableTracking: false });
     assert.equal(logs.length, 2);
@@ -620,22 +851,37 @@ test('FUN-M04: allowInsecure is honoured outside production or for loopback host
   const original = nodemailer.createTransport;
   const previousEnv = process.env.NODE_ENV;
   const configs = [];
-  nodemailer.createTransport = (config) => { configs.push(config); return { sendMail: async () => ({ messageId: 'x' }) }; };
+  nodemailer.createTransport = (config) => {
+    configs.push(config);
+    return { sendMail: async () => ({ messageId: 'x' }) };
+  };
   try {
     const { encryptCredentials } = require('../server/src/utils/encryption');
     delete require.cache[require.resolve(ROUTER_PATH)];
     const router = require(ROUTER_PATH)({ strapi: { log: quietLog } });
-    const smtp = (host) => ({ fromEmail: 'a@b.test', config: encryptCredentials({ host, port: 1025, allowInsecure: true }) });
+    const smtp = (host) => ({
+      fromEmail: 'a@b.test',
+      config: encryptCredentials({ host, port: 1025, allowInsecure: true }),
+    });
 
     process.env.NODE_ENV = 'development';
     await router.sendViaSMTP(smtp('mailpit'), baseMail());
     process.env.NODE_ENV = 'production';
     await router.sendViaSMTP(smtp('smtp.example.test'), baseMail());
     await router.sendViaSMTP(smtp('127.0.0.1'), baseMail());
-    await router.sendViaSMTP({ fromEmail: 'a@b.test', config: encryptCredentials({ host: 'smtp.example.test' }) }, baseMail());
+    await router.sendViaSMTP(
+      { fromEmail: 'a@b.test', config: encryptCredentials({ host: 'smtp.example.test' }) },
+      baseMail()
+    );
 
-    assert.deepEqual(configs.map((c) => c.requireTLS), [false, true, false, true]);
-    assert.deepEqual(configs.map((c) => c.tls.rejectUnauthorized), [false, true, false, true]);
+    assert.deepEqual(
+      configs.map((c) => c.requireTLS),
+      [false, true, false, true]
+    );
+    assert.deepEqual(
+      configs.map((c) => c.tls.rejectUnauthorized),
+      [false, true, false, true]
+    );
   } finally {
     nodemailer.createTransport = original;
     if (previousEnv === undefined) delete process.env.NODE_ENV;
@@ -649,10 +895,18 @@ test('FUN-M04: allowInsecure is honoured outside production or for loopback host
 function createInterceptionHarness({ routerSend }) {
   const providerCalls = [];
   const emailPlugin = {
-    provider: { send: async (options) => { providerCalls.push(options); return { messageId: 'native' }; } },
+    provider: {
+      send: async (options) => {
+        providerCalls.push(options);
+        return { messageId: 'native' };
+      },
+    },
   };
   // The real @strapi/email 5.x service: both methods call provider.send().
-  const emailServicePath = require('node:path').join(__dirname, '../node_modules/@strapi/email/dist/server/services/email.js');
+  const emailServicePath = require('node:path').join(
+    __dirname,
+    '../node_modules/@strapi/email/dist/server/services/email.js'
+  );
   const strapiEmailService = require(emailServicePath)();
   emailPlugin.service = () => strapiEmailService;
   const routerCalls = [];
@@ -661,7 +915,15 @@ function createInterceptionHarness({ routerSend }) {
     config: { get: () => ({}) },
     plugin(name) {
       if (name === 'email') return emailPlugin;
-      return { service: () => ({ send: async (payload, options) => { routerCalls.push({ payload, options }); return routerSend(payload, options); }, refreshQuotaWindows: async () => {} }) };
+      return {
+        service: () => ({
+          send: async (payload, options) => {
+            routerCalls.push({ payload, options });
+            return routerSend(payload, options);
+          },
+          refreshQuotaWindows: async () => {},
+        }),
+      };
     },
     store: () => ({ get: async () => true, set: async () => {} }),
   };
@@ -679,14 +941,27 @@ test('FUN-02/STR-01: send() and sendTemplatedEmail() are both routed through Mag
     await bootstrap({ strapi: h.fakeStrapi });
     await bootstrap({ strapi: h.fakeStrapi }); // hot reload must not stack wrappers
 
-    await h.strapiEmailService.send({ to: 'u@example.test', subject: 's', text: 't', data: { a: 1 } });
+    await h.strapiEmailService.send({
+      to: 'u@example.test',
+      subject: 's',
+      text: 't',
+      data: { a: 1 },
+    });
     await h.strapiEmailService.sendTemplatedEmail(
       { to: 'admin@example.test' },
-      { subject: 'Reset <%= user.name %>', text: 'Hi <%= user.name %>', html: '<p>Hi <%= user.name %></p>' },
+      {
+        subject: 'Reset <%= user.name %>',
+        text: 'Hi <%= user.name %>',
+        html: '<p>Hi <%= user.name %></p>',
+      },
       { user: { name: 'Ada' } }
     );
 
-    assert.equal(h.providerCalls.length, 0, 'the native provider is not used while MagicMail can send');
+    assert.equal(
+      h.providerCalls.length,
+      0,
+      'the native provider is not used while MagicMail can send'
+    );
     assert.equal(h.routerCalls.length, 2);
     assert.deepEqual(h.routerCalls[0].payload.templateData, { a: 1 });
     assert.equal(h.routerCalls[1].payload.subject, 'Reset Ada');
@@ -726,13 +1001,21 @@ test('FUN-01/DOC-09: without a usable account the original provider sends; provi
     const options = { to: 'u@example.test', subject: 'Welcome', text: 'Hello' };
     const result = await h.strapiEmailService.send(options);
     assert.equal(result.fallback, 'strapi-email-provider');
-    assert.deepEqual(h.providerCalls, [options], 'the untouched original payload goes to the native provider');
+    assert.deepEqual(
+      h.providerCalls,
+      [options],
+      'the untouched original payload goes to the native provider'
+    );
     const fallbackLog = routerHarness.logUpdates.find((u) => u.data.deliveryStatus === 'sent');
     assert.equal(fallbackLog.data.accountName, 'strapi-email-provider');
 
     mode = 'provider-error';
     await assert.rejects(h.strapiEmailService.send(options), /provider rejected/);
-    assert.equal(h.providerCalls.length, 1, 'a dispatch failure is surfaced, never re-sent natively');
+    assert.equal(
+      h.providerCalls.length,
+      1,
+      'a dispatch failure is surfaced, never re-sent natively'
+    );
   } finally {
     await destroy({ strapi: h.fakeStrapi });
     if (previousStrapi === undefined) delete global.strapi;
@@ -745,7 +1028,10 @@ test('FUN-01: direct service callers get no silent fallback when no account exis
   const restore = withEncryptionKey();
   try {
     const { router, logUpdates } = createRouterHarness({ accounts: [] });
-    await assert.rejects(router.send(baseMail()), (error) => error.code === 'MAGIC_MAIL_NO_ACCOUNT');
+    await assert.rejects(
+      router.send(baseMail()),
+      (error) => error.code === 'MAGIC_MAIL_NO_ACCOUNT'
+    );
     assert.ok(logUpdates.some((u) => u.data.deliveryStatus === 'failed'));
   } finally {
     restore();
@@ -759,19 +1045,36 @@ test('SEC-10: the sensitive-link purge pages by id and does not skip rows after 
   const { isSensitiveTrackingUrl } = require('../server/src/utils/tracking-url-policy');
   const sensitive = 'https://app.example.test/reset-password?code=abc';
   assert.equal(isSensitiveTrackingUrl(sensitive), true);
-  let rows = Array.from({ length: 450 }, (_, i) => ({ id: i + 1, originalUrl: i % 2 === 0 ? sensitive : `https://shop.example.test/p/${i}` }));
+  let rows = Array.from({ length: 450 }, (_, i) => ({
+    id: i + 1,
+    originalUrl: i % 2 === 0 ? sensitive : `https://shop.example.test/p/${i}`,
+  }));
   let flag = null;
   const fakeStrapi = {
-    store: () => ({ get: async () => flag, set: async ({ value }) => { flag = value; } }),
+    store: () => ({
+      get: async () => flag,
+      set: async ({ value }) => {
+        flag = value;
+      },
+    }),
     db: {
       query: () => ({
-        findMany: async ({ where, limit }) => rows.filter((r) => r.id > where.id.$gt).sort((a, b) => a.id - b.id).slice(0, limit),
-        deleteMany: async ({ where }) => { rows = rows.filter((r) => !where.id.$in.includes(r.id)); },
+        findMany: async ({ where, limit }) =>
+          rows
+            .filter((r) => r.id > where.id.$gt)
+            .sort((a, b) => a.id - b.id)
+            .slice(0, limit),
+        deleteMany: async ({ where }) => {
+          rows = rows.filter((r) => !where.id.$in.includes(r.id));
+        },
       }),
     },
   };
   await purgeSensitiveLinkMappings(fakeStrapi, { info() {} });
-  assert.equal(rows.some((r) => r.originalUrl === sensitive), false);
+  assert.equal(
+    rows.some((r) => r.originalUrl === sensitive),
+    false
+  );
   assert.equal(rows.length, 225);
   assert.equal(flag.removed, 225);
 });
@@ -804,9 +1107,25 @@ function createControllerHarness({ allowUserRoles = false, users = [] } = {}) {
     sent,
     strapi: {
       log: quietLog,
-      config: { get: (key, fallback) => (key === 'plugin::magic-mail.contentApi.allowUserRoles' ? allowUserRoles : fallback) },
-      db: { query: () => ({ findOne: async ({ where }) => users.find((u) => (where.id ? u.id === where.id : u.documentId === where.documentId)) || null }) },
-      plugin: () => ({ service: () => ({ send: async (body, options) => { sent.push({ body, options }); return { accountUsed: 'x' }; } }) }),
+      config: {
+        get: (key, fallback) =>
+          key === 'plugin::magic-mail.contentApi.allowUserRoles' ? allowUserRoles : fallback,
+      },
+      db: {
+        query: () => ({
+          findOne: async ({ where }) =>
+            users.find((u) => (where.id ? u.id === where.id : u.documentId === where.documentId)) ||
+            null,
+        }),
+      },
+      plugin: () => ({
+        service: () => ({
+          send: async (body, options) => {
+            sent.push({ body, options });
+            return { accountUsed: 'x' };
+          },
+        }),
+      }),
     },
   };
 }
@@ -822,8 +1141,14 @@ test('Content-API send routes accept API tokens only unless allowUserRoles is se
     global.strapi = h.strapi;
     const controller = require('../server/src/controllers/controller');
 
-    await assert.rejects(controller.send(controllerContext(baseMail(), 'users-permissions', { id: 5 })), (e) => e.name === 'ForbiddenError');
-    await assert.rejects(controller.send(controllerContext(baseMail(), undefined)), (e) => e.name === 'ForbiddenError');
+    await assert.rejects(
+      controller.send(controllerContext(baseMail(), 'users-permissions', { id: 5 })),
+      (e) => e.name === 'ForbiddenError'
+    );
+    await assert.rejects(
+      controller.send(controllerContext(baseMail(), undefined)),
+      (e) => e.name === 'ForbiddenError'
+    );
     assert.equal(h.sent.length, 0);
 
     const ctx = controllerContext(baseMail(), 'api-token');
@@ -833,7 +1158,9 @@ test('Content-API send routes accept API tokens only unless allowUserRoles is se
 
     const allowed = createControllerHarness({ allowUserRoles: true });
     global.strapi = allowed.strapi;
-    await controller.send(controllerContext({ ...baseMail(), userId: 99 }, 'users-permissions', { id: 5 }));
+    await controller.send(
+      controllerContext({ ...baseMail(), userId: 99 }, 'users-permissions', { id: 5 })
+    );
     assert.equal(allowed.sent[0].body.userId, 5, 'user-role sends are attributed to the caller');
   } finally {
     if (previousStrapi === undefined) delete global.strapi;
@@ -848,7 +1175,10 @@ test('SEC-M04: API-token sends can only attribute logs to existing users', async
     global.strapi = h.strapi;
     const controller = require('../server/src/controllers/controller');
 
-    await assert.rejects(controller.send(controllerContext({ ...baseMail(), userId: 404 }, 'api-token')), (e) => e.name === 'ValidationError');
+    await assert.rejects(
+      controller.send(controllerContext({ ...baseMail(), userId: 404 }, 'api-token')),
+      (e) => e.name === 'ValidationError'
+    );
     await controller.send(controllerContext({ ...baseMail(), userId: 'abc123' }, 'api-token'));
     assert.equal(h.sent[0].body.userId, 7);
   } finally {
@@ -865,7 +1195,8 @@ test('SUP-09: template rendering keeps escaped literal text and decodes only Mus
     isActive: true,
     name: 'Fixture',
     category: 'transactional',
-    bodyHtml: '<p>Use &lt;b&gt; for bold, {{#show}}{{ name }}{{/show}} &amp; <a title="&quot;x&quot;">{{ link &amp;&amp; 1 }}</a></p>',
+    bodyHtml:
+      '<p>Use &lt;b&gt; for bold, {{#show}}{{ name }}{{/show}} &amp; <a title="&quot;x&quot;">{{ link &amp;&amp; 1 }}</a></p>',
     bodyText: 'Tom &amp; Jerry {{ name }}',
     subject: 'Hi &amp; welcome {{ name }}',
   });
@@ -883,14 +1214,33 @@ test('FUN-07: testAccount sends through exactly the tested account', async () =>
   let call;
   const strapi = {
     log: quietLog,
-    documents: () => ({ findOne: async () => ({ documentId: 'acc-1', name: 'Inactive', isActive: false, fromEmail: 'a@b.test', provider: 'smtp' }) }),
-    plugin: () => ({ service: () => ({ send: async (data, options) => { call = { data, options }; return { success: true }; } }) }),
+    documents: () => ({
+      findOne: async () => ({
+        documentId: 'acc-1',
+        name: 'Inactive',
+        isActive: false,
+        fromEmail: 'a@b.test',
+        provider: 'smtp',
+      }),
+    }),
+    plugin: () => ({
+      service: () => ({
+        send: async (data, options) => {
+          call = { data, options };
+          return { success: true };
+        },
+      }),
+    }),
   };
   const manager = require('../server/src/services/account-manager')({ strapi });
   manager.resolveDocumentId = async () => 'acc-1';
   const result = await manager.testAccount('acc-1', 'r@example.test');
   assert.equal(result.success, true);
-  assert.deepEqual(call.options, { accountDocumentId: 'acc-1', allowInactive: true, source: 'account-test' });
+  assert.deepEqual(call.options, {
+    accountDocumentId: 'acc-1',
+    allowInactive: true,
+    source: 'account-test',
+  });
   assert.equal(call.data.accountName, undefined);
   assert.equal(call.data.from, undefined);
 });

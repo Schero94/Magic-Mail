@@ -5,7 +5,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { loadAdminModule, ROOT } = require('./helpers/load-admin-module');
-const { findCssVarTokens, findTinyRemFontSizes, findEmoji } = require('./helpers/admin-style-guards');
+const {
+  findCssVarTokens,
+  findTinyRemFontSizes,
+  findEmoji,
+} = require('./helpers/admin-style-guards');
 
 const FILES = [
   'admin/src/pages/RoutingRules.jsx',
@@ -20,7 +24,9 @@ const modal = sources['admin/src/pages/Routing/RuleModal.jsx'];
 
 const utils = loadAdminModule('admin/src/pages/Routing/ruleUtils.js');
 const fakeT = (key, defaultMessage, values) =>
-  String(defaultMessage).replace(/\{(\w+)\}/g, (_, name) => (values && name in values ? values[name] : `{${name}}`));
+  String(defaultMessage).replace(/\{(\w+)\}/g, (_, name) =>
+    values && name in values ? values[name] : `{${name}}`
+  );
 
 const ACCOUNTS = [
   { name: 'Primary SMTP', provider: 'smtp', isActive: true },
@@ -37,7 +43,11 @@ for (const file of FILES) {
     assert.deepEqual(findTinyRemFontSizes(src), []);
     assert.deepEqual(findEmoji(src), []);
     assert.doesNotMatch(src, /useAuthRefresh/);
-    assert.doesNotMatch(src, /(?:^|[^.\w])confirm\(/m, 'window.confirm is replaced by ConfirmDialog');
+    assert.doesNotMatch(
+      src,
+      /(?:^|[^.\w])confirm\(/m,
+      'window.confirm is replaced by ConfirmDialog'
+    );
     assert.doesNotMatch(src, /navigator\.clipboard/);
     assert.doesNotMatch(src, /'de-DE'|'en-US'|toLocale(?:Date)?String\(/);
     assert.doesNotMatch(src, /backgroundColor=/, 'DS Badge variants instead of backgroundColor');
@@ -66,7 +76,11 @@ test('routing view: RBAC, delete confirmation, unsaved-changes guard and error h
   assert.match(page, /permissionsError/);
   assert.match(page, /isOpen=\{canManage && pendingDelete !== null\}/);
   assert.match(page, /const deleteRule = async \(rule\) => \{\s*if \(!canManage\) return;/);
-  assert.match(page, /\{canManage && \(?\s*<Th>/, 'the Actions column is hidden for read-only users');
+  assert.match(
+    page,
+    /\{canManage && \(?\s*<Th>/,
+    'the Actions column is hidden for read-only users'
+  );
   assert.match(page, /Promise\.allSettled/, 'a failing accounts request keeps rules visible');
   assert.match(page, /setLoadError\(true\)/);
   assert.match(page, /routing\.error\.retry/);
@@ -97,20 +111,53 @@ test('rules are listed in evaluation order (priority desc, stable for ties)', ()
     { name: 'd', priority: 50 },
     { name: 'e' },
   ];
-  assert.deepEqual(utils.sortRulesByEvaluationOrder(rules).map((r) => r.name), ['b', 'd', 'c', 'a', 'e']);
-  assert.deepEqual(rules.map((r) => r.name), ['a', 'b', 'c', 'd', 'e'], 'input is not mutated');
+  assert.deepEqual(
+    utils.sortRulesByEvaluationOrder(rules).map((r) => r.name),
+    ['b', 'd', 'c', 'a', 'e']
+  );
+  assert.deepEqual(
+    rules.map((r) => r.name),
+    ['a', 'b', 'c', 'd', 'e'],
+    'input is not mutated'
+  );
   assert.deepEqual(utils.sortRulesByEvaluationOrder(undefined), []);
 });
 
 test('filterRules searches name, description, value and both accounts and applies filters', () => {
   const rules = [
-    { name: 'VIP', description: null, matchValue: '@vip.example', accountName: 'Marketing', isActive: true, matchType: 'recipient' },
-    { name: 'Invoices', matchValue: 'Invoice', accountName: 'Primary SMTP', fallbackAccountName: 'Backup', isActive: false, matchType: 'subject' },
+    {
+      name: 'VIP',
+      description: null,
+      matchValue: '@vip.example',
+      accountName: 'Marketing',
+      isActive: true,
+      matchType: 'recipient',
+    },
+    {
+      name: 'Invoices',
+      matchValue: 'Invoice',
+      accountName: 'Primary SMTP',
+      fallbackAccountName: 'Backup',
+      isActive: false,
+      matchType: 'subject',
+    },
   ];
-  assert.deepEqual(utils.filterRules(rules, { search: '  BACKUP ' }).map((r) => r.name), ['Invoices']);
-  assert.deepEqual(utils.filterRules(rules, { status: 'active' }).map((r) => r.name), ['VIP']);
-  assert.deepEqual(utils.filterRules(rules, { status: 'inactive' }).map((r) => r.name), ['Invoices']);
-  assert.deepEqual(utils.filterRules(rules, { matchType: 'recipient' }).map((r) => r.name), ['VIP']);
+  assert.deepEqual(
+    utils.filterRules(rules, { search: '  BACKUP ' }).map((r) => r.name),
+    ['Invoices']
+  );
+  assert.deepEqual(
+    utils.filterRules(rules, { status: 'active' }).map((r) => r.name),
+    ['VIP']
+  );
+  assert.deepEqual(
+    utils.filterRules(rules, { status: 'inactive' }).map((r) => r.name),
+    ['Invoices']
+  );
+  assert.deepEqual(
+    utils.filterRules(rules, { matchType: 'recipient' }).map((r) => r.name),
+    ['VIP']
+  );
   assert.equal(utils.filterRules(rules, {}).length, 2);
   // null values must not throw
   assert.equal(utils.filterRules([{ name: null, matchValue: null }], { search: 'x' }).length, 0);
@@ -126,18 +173,33 @@ test('match-type labels are translated and unknown types still show a label', ()
 
 test('account options always include the stored account, flagged as inactive or missing (UI-23)', () => {
   const inactive = utils.buildAccountOptions(ACCOUNTS, 'Old Mailgun');
-  assert.deepEqual(inactive[0], { value: 'Old Mailgun', name: 'Old Mailgun', provider: 'mailgun', status: 'inactive' });
-  assert.deepEqual(inactive.slice(1).map((o) => o.value), ['Primary SMTP', 'Marketing']);
+  assert.deepEqual(inactive[0], {
+    value: 'Old Mailgun',
+    name: 'Old Mailgun',
+    provider: 'mailgun',
+    status: 'inactive',
+  });
+  assert.deepEqual(
+    inactive.slice(1).map((o) => o.value),
+    ['Primary SMTP', 'Marketing']
+  );
 
   const missing = utils.buildAccountOptions(ACCOUNTS, 'Renamed Account');
   assert.equal(missing[0].status, 'missing');
   assert.equal(missing[0].value, 'Renamed Account');
 
   const active = utils.buildAccountOptions(ACCOUNTS, 'Marketing');
-  assert.deepEqual(active.map((o) => o.value), ['Primary SMTP', 'Marketing'], 'no duplicate for an active account');
+  assert.deepEqual(
+    active.map((o) => o.value),
+    ['Primary SMTP', 'Marketing'],
+    'no duplicate for an active account'
+  );
 
   const fallback = utils.buildAccountOptions(ACCOUNTS, '', { exclude: 'Primary SMTP' });
-  assert.deepEqual(fallback.map((o) => o.value), ['Marketing']);
+  assert.deepEqual(
+    fallback.map((o) => o.value),
+    ['Marketing']
+  );
 });
 
 test('rules pointing at a missing or inactive account are flagged (UI-M04)', () => {
@@ -147,20 +209,53 @@ test('rules pointing at a missing or inactive account are flagged (UI-M04)', () 
   assert.equal(utils.getAccountStatus('', ACCOUNTS), 'none');
   assert.equal(utils.hasBrokenAccountReference({ accountName: 'Marketing' }, ACCOUNTS), false);
   assert.equal(utils.hasBrokenAccountReference({ accountName: 'Gone' }, ACCOUNTS), true);
-  assert.equal(utils.hasBrokenAccountReference({ accountName: 'Marketing', fallbackAccountName: 'Old Mailgun' }, ACCOUNTS), true);
+  assert.equal(
+    utils.hasBrokenAccountReference(
+      { accountName: 'Marketing', fallbackAccountName: 'Old Mailgun' },
+      ACCOUNTS
+    ),
+    true
+  );
 });
 
 test('the rule form cannot submit a stale, inactive or duplicate account', () => {
-  const base = { ...utils.getInitialFormData(null), name: 'VIP', matchValue: '@vip.example', accountName: 'Marketing' };
+  const base = {
+    ...utils.getInitialFormData(null),
+    name: 'VIP',
+    matchValue: '@vip.example',
+    accountName: 'Marketing',
+  };
   assert.deepEqual(utils.validateRuleForm(base, ACCOUNTS), {});
-  assert.equal(utils.validateRuleForm({ ...base, accountName: '' }, ACCOUNTS).accountName, 'required');
-  assert.equal(utils.validateRuleForm({ ...base, accountName: 'Old Mailgun' }, ACCOUNTS).accountName, 'inactive');
-  assert.equal(utils.validateRuleForm({ ...base, accountName: 'Gone' }, ACCOUNTS).accountName, 'missing');
-  assert.equal(utils.validateRuleForm({ ...base, fallbackAccountName: 'Marketing' }, ACCOUNTS).fallbackAccountName, 'sameAsTarget');
-  assert.equal(utils.validateRuleForm({ ...base, fallbackAccountName: 'Gone' }, ACCOUNTS).fallbackAccountName, 'missing');
+  assert.equal(
+    utils.validateRuleForm({ ...base, accountName: '' }, ACCOUNTS).accountName,
+    'required'
+  );
+  assert.equal(
+    utils.validateRuleForm({ ...base, accountName: 'Old Mailgun' }, ACCOUNTS).accountName,
+    'inactive'
+  );
+  assert.equal(
+    utils.validateRuleForm({ ...base, accountName: 'Gone' }, ACCOUNTS).accountName,
+    'missing'
+  );
+  assert.equal(
+    utils.validateRuleForm({ ...base, fallbackAccountName: 'Marketing' }, ACCOUNTS)
+      .fallbackAccountName,
+    'sameAsTarget'
+  );
+  assert.equal(
+    utils.validateRuleForm({ ...base, fallbackAccountName: 'Gone' }, ACCOUNTS).fallbackAccountName,
+    'missing'
+  );
   assert.equal(utils.validateRuleForm({ ...base, name: '   ' }, ACCOUNTS).name, 'required');
-  assert.equal(utils.validateRuleForm({ ...base, matchValue: '' }, ACCOUNTS).matchValue, 'required');
-  assert.equal(utils.validateRuleForm({ ...base, matchType: 'whatever' }, ACCOUNTS).matchType, 'required');
+  assert.equal(
+    utils.validateRuleForm({ ...base, matchValue: '' }, ACCOUNTS).matchValue,
+    'required'
+  );
+  assert.equal(
+    utils.validateRuleForm({ ...base, matchType: 'whatever' }, ACCOUNTS).matchType,
+    'required'
+  );
   // Nothing passes when the account list is empty (e.g. failed to load).
   assert.equal(utils.validateRuleForm(base, []).accountName, 'missing');
 });
@@ -176,8 +271,16 @@ test('priority uses the server range 1..1,000,000 and a cleared value blocks sub
   for (const bad of [undefined, null, '', 0, -1, 1.5, 1_000_001, 'abc', Number.NaN]) {
     assert.equal(utils.parsePriority(bad), null, `rejects ${String(bad)}`);
   }
-  const form = { ...utils.getInitialFormData(null), name: 'n', matchValue: 'v', accountName: 'Marketing' };
-  assert.equal(utils.validateRuleForm({ ...form, priority: undefined }, ACCOUNTS).priority, 'range');
+  const form = {
+    ...utils.getInitialFormData(null),
+    name: 'n',
+    matchValue: 'v',
+    accountName: 'Marketing',
+  };
+  assert.equal(
+    utils.validateRuleForm({ ...form, priority: undefined }, ACCOUNTS).priority,
+    'range'
+  );
   assert.equal(utils.validateRuleForm({ ...form, priority: 500 }, ACCOUNTS).priority, undefined);
 });
 
@@ -204,7 +307,14 @@ test('editing keeps stored values and the payload matches the strict server sche
 
   const payload = utils.toRulePayload({ ...form, name: '  High  ', matchValue: ' Invoice ' });
   assert.deepEqual(Object.keys(payload).sort(), [
-    'accountName', 'description', 'fallbackAccountName', 'isActive', 'matchType', 'matchValue', 'name', 'priority',
+    'accountName',
+    'description',
+    'fallbackAccountName',
+    'isActive',
+    'matchType',
+    'matchValue',
+    'name',
+    'priority',
   ]);
   assert.equal(payload.name, 'High');
   assert.equal(payload.matchValue, 'Invoice');
@@ -214,7 +324,9 @@ test('editing keeps stored values and the payload matches the strict server sche
 
   const { validate } = require('../server/src/validation');
   assert.doesNotThrow(() => validate('routingRules.update', payload));
-  assert.doesNotThrow(() => validate('routingRules.create', utils.toRulePayload({ ...form, priority: 1_000_000 })));
+  assert.doesNotThrow(() =>
+    validate('routingRules.create', utils.toRulePayload({ ...form, priority: 1_000_000 }))
+  );
 });
 
 test('new rules default to priority 1 and active', () => {

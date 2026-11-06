@@ -122,7 +122,10 @@ const TemplateList = () => {
     {
       type: 'reset-password',
       name: t('templates.core.resetPassword.name', 'Reset password'),
-      description: t('templates.core.resetPassword.description', 'Sent when a user requests a password reset'),
+      description: t(
+        'templates.core.resetPassword.description',
+        'Sent when a user requests a password reset'
+      ),
     },
     {
       type: 'email-confirmation',
@@ -151,7 +154,7 @@ const TemplateList = () => {
         console.error('[MagicMail] Failed to load templates');
         setLoadError(true);
       }
-      setStats(statsResult.status === 'fulfilled' ? statsResult.value?.data?.data ?? null : null);
+      setStats(statsResult.status === 'fulfilled' ? (statsResult.value?.data?.data ?? null) : null);
       setLoading(false);
     },
     [get]
@@ -165,7 +168,10 @@ const TemplateList = () => {
     }
   }, [canRead, permissionsLoading, fetchData]);
 
-  const filteredTemplates = useMemo(() => filterTemplates(templates, searchTerm), [templates, searchTerm]);
+  const filteredTemplates = useMemo(
+    () => filterTemplates(templates, searchTerm),
+    [templates, searchTerm]
+  );
   const totalPages = countPages(filteredTemplates.length, itemsPerPage);
   const page = clampPage(currentPage, totalPages);
   const startIndex = (page - 1) * itemsPerPage;
@@ -189,10 +195,14 @@ const TemplateList = () => {
   const handleDelete = async (template) => {
     if (!canManage || !template) return;
     try {
-      await del(`/magic-mail/designer/templates/${encodeURIComponent(template.templateReferenceId)}`);
+      await del(
+        `/magic-mail/designer/templates/${encodeURIComponent(template.templateReferenceId)}`
+      );
       toggleNotification({
         type: 'success',
-        message: t('templates.delete.success', 'Template "{name}" deleted', { name: template.name }),
+        message: t('templates.delete.success', 'Template "{name}" deleted', {
+          name: template.name,
+        }),
       });
       setPendingDelete(null);
       await fetchData({ silent: true });
@@ -238,7 +248,9 @@ const TemplateList = () => {
       const duplicated = response.data?.data;
       toggleNotification({
         type: 'success',
-        message: t('templates.duplicate.success', 'Template "{name}" duplicated', { name: template.name }),
+        message: t('templates.duplicate.success', 'Template "{name}" duplicated', {
+          name: template.name,
+        }),
       });
       if (duplicated?.templateReferenceId) {
         navigate(`/plugins/magic-mail/designer/${duplicated.templateReferenceId}`);
@@ -266,12 +278,16 @@ const TemplateList = () => {
         new Blob([dataStr], { type: 'application/json' }),
         `magic-mail-templates-${new Date().toISOString().split('T')[0]}.json`
       );
-      toggleNotification({ type: 'success', message: t('templates.export.success', 'Templates exported') });
+      toggleNotification({
+        type: 'success',
+        message: t('templates.export.success', 'Templates exported'),
+      });
     } catch (error) {
       toggleNotification({
         type: 'danger',
         message:
-          error?.response?.data?.error?.message || t('templates.export.failure', 'The templates could not be exported.'),
+          error?.response?.data?.error?.message ||
+          t('templates.export.failure', 'The templates could not be exported.'),
       });
     }
   };
@@ -317,7 +333,9 @@ const TemplateList = () => {
     } catch (error) {
       toggleNotification({
         type: 'danger',
-        message: error?.response?.data?.error?.message || t('templates.import.failure', 'The import failed.'),
+        message:
+          error?.response?.data?.error?.message ||
+          t('templates.import.failure', 'The import failed.'),
       });
     } finally {
       // Allow choosing the same file again (UI-M06).
@@ -361,7 +379,10 @@ const TemplateList = () => {
               <ExclamationTriangleIcon aria-hidden="true" />
             </EmptyIcon>
             <EmptyText variant="omega" textColor="neutral700">
-              {t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')}
+              {t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )}
             </EmptyText>
           </EmptyContent>
         </EmptyState>
@@ -402,7 +423,10 @@ const TemplateList = () => {
               {t('templates.empty.feature.editor.title', 'Drag-and-drop editor')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('templates.empty.feature.editor.text', 'Build emails visually with the Unlayer editor')}
+              {t(
+                'templates.empty.feature.editor.text',
+                'Build emails visually with the Unlayer editor'
+              )}
             </Typography>
           </EmptyFeatureItem>
           <EmptyFeatureItem>
@@ -411,7 +435,10 @@ const TemplateList = () => {
               {t('templates.empty.feature.dynamic.title', 'Dynamic content')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('templates.empty.feature.dynamic.text', 'Use Mustache variables for personalised emails')}
+              {t(
+                'templates.empty.feature.dynamic.text',
+                'Use Mustache variables for personalised emails'
+              )}
             </Typography>
           </EmptyFeatureItem>
           <EmptyFeatureItem>
@@ -420,7 +447,10 @@ const TemplateList = () => {
               {t('templates.empty.feature.versions.title', 'Version history')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
-              {t('templates.empty.feature.versions.text', 'Track changes and restore earlier versions')}
+              {t(
+                'templates.empty.feature.versions.text',
+                'Track changes and restore earlier versions'
+              )}
             </Typography>
           </EmptyFeatureItem>
         </EmptyFeatureList>
@@ -428,7 +458,10 @@ const TemplateList = () => {
         {(canManage || canImport) && (
           <EmptyButtonGroup>
             {canManage && (
-              <CTAButton startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />} onClick={handleCreateTemplate}>
+              <CTAButton
+                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+                onClick={handleCreateTemplate}
+              >
                 {t('templates.empty.create', 'Create your first template')}
               </CTAButton>
             )}
@@ -457,7 +490,10 @@ const TemplateList = () => {
           {t('templates.error.title', 'Templates could not be loaded')}
         </EmptyTitle>
         <EmptyText variant="omega" textColor="neutral600">
-          {t('templates.error.description', 'Check your connection and permissions, then try again.')}
+          {t(
+            'templates.error.description',
+            'Check your connection and permissions, then try again.'
+          )}
         </EmptyText>
         <EmptyButtonGroup>
           <GradientButton
@@ -545,7 +581,12 @@ const TemplateList = () => {
           })}
         </Typography>
         <Flex gap={2} alignItems="center">
-          <Typography variant="pi" textColor="neutral600" tag="label" htmlFor="magic-mail-templates-page-size">
+          <Typography
+            variant="pi"
+            textColor="neutral600"
+            tag="label"
+            htmlFor="magic-mail-templates-page-size"
+          >
             {t('templates.pagination.perPage', 'Per page')}
           </Typography>
           <PageSizeSelect
@@ -663,14 +704,18 @@ const TemplateList = () => {
                     <Typography variant="sigma">{t('templates.table.name', 'Name')}</Typography>
                   </Th>
                   <Th style={{ width: '140px' }}>
-                    <Typography variant="sigma">{t('templates.table.category', 'Category')}</Typography>
+                    <Typography variant="sigma">
+                      {t('templates.table.category', 'Category')}
+                    </Typography>
                   </Th>
                   <Th style={{ width: '110px' }}>
                     <Typography variant="sigma">{t('templates.table.status', 'Status')}</Typography>
                   </Th>
                   <Th style={{ width: '300px' }}>
                     <Flex justifyContent="flex-end" width="100%">
-                      <Typography variant="sigma">{t('templates.table.actions', 'Actions')}</Typography>
+                      <Typography variant="sigma">
+                        {t('templates.table.actions', 'Actions')}
+                      </Typography>
                     </Flex>
                   </Th>
                 </Tr>
@@ -738,9 +783,13 @@ const TemplateList = () => {
             </Title>
             {stats && (
               <Subtitle variant="epsilon" tag="p">
-                {t('templates.subtitle', '{count, plural, one {# template created} other {# templates created}}', {
-                  count: stats.total || 0,
-                })}
+                {t(
+                  'templates.subtitle',
+                  '{count, plural, one {# template created} other {# templates created}}',
+                  {
+                    count: stats.total || 0,
+                  }
+                )}
               </Subtitle>
             )}
           </div>
@@ -779,7 +828,9 @@ const TemplateList = () => {
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List aria-label={t('templates.tabs.label', 'Template types')}>
-          <Tabs.Trigger value="customTemplates">{t('templates.tabs.custom', 'Custom templates')}</Tabs.Trigger>
+          <Tabs.Trigger value="customTemplates">
+            {t('templates.tabs.custom', 'Custom templates')}
+          </Tabs.Trigger>
           <Tabs.Trigger value="coreEmails">{t('templates.tabs.core', 'Core emails')}</Tabs.Trigger>
         </Tabs.List>
 
@@ -802,11 +853,15 @@ const TemplateList = () => {
                 <Thead>
                   <Tr>
                     <Th>
-                      <Typography variant="sigma">{t('templates.core.table.type', 'Email type')}</Typography>
+                      <Typography variant="sigma">
+                        {t('templates.core.table.type', 'Email type')}
+                      </Typography>
                     </Th>
                     <Th>
                       <Flex justifyContent="flex-end" width="100%">
-                        <Typography variant="sigma">{t('templates.table.actions', 'Actions')}</Typography>
+                        <Typography variant="sigma">
+                          {t('templates.table.actions', 'Actions')}
+                        </Typography>
                       </Flex>
                     </Th>
                   </Tr>
@@ -827,14 +882,20 @@ const TemplateList = () => {
                       <Td>
                         <Flex gap={2} justifyContent="flex-end">
                           <IconButtonPrimary
-                            onClick={() => navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)}
+                            onClick={() =>
+                              navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
+                            }
                             aria-label={
                               !canManage
                                 ? t('templates.core.view', 'View {name}', { name: coreEmail.name })
                                 : t('templates.core.edit', 'Edit {name}', { name: coreEmail.name })
                             }
                           >
-                            {canManage ? <PencilIcon aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}
+                            {canManage ? (
+                              <PencilIcon aria-hidden="true" />
+                            ) : (
+                              <EyeIcon aria-hidden="true" />
+                            )}
                           </IconButtonPrimary>
                         </Flex>
                       </Td>
@@ -870,7 +931,10 @@ const TemplateList = () => {
         onConfirm={() => handleDelete(pendingDelete)}
         onClose={() => setPendingDelete(null)}
       >
-        {t('templates.delete.hint', 'Code that sends this template by its ID will fail afterwards.')}
+        {t(
+          'templates.delete.hint',
+          'Code that sends this template by its ID will fail afterwards.'
+        )}
       </ConfirmDialog>
 
       {canImport && (

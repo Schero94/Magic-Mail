@@ -47,12 +47,18 @@ const OAUTH_APP_FIELDS = ['oauthClientId', 'oauthClientSecret', 'microsoftTenant
  * @param {object|null} [props.editAccount] - account row from the list (edit mode)
  * @param {number|null} [props.referencingRuleCount] - routing rules that use the account name
  */
-const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, referencingRuleCount = null }) => {
+const AddAccountModal = ({
+  isOpen,
+  onClose,
+  onAccountAdded,
+  editAccount = null,
+  referencingRuleCount = null,
+}) => {
   const { post, get, put } = useFetchClient();
   const { toggleNotification } = useNotification();
   const { t } = useMagicMailIntl();
   const isEditMode = Boolean(editAccount);
-  const accountId = editAccount ? editAccount.documentId ?? editAccount.id : null;
+  const accountId = editAccount ? (editAccount.documentId ?? editAccount.id) : null;
 
   const [saving, setSaving] = useState(false);
   const [loadState, setLoadState] = useState('idle'); // idle | loading | error
@@ -62,17 +68,47 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
   const [formData, setFormData] = useState(createEmptyForm);
   const [credentialsUnreadable, setCredentialsUnreadable] = useState(false);
   const [originalName, setOriginalName] = useState('');
-  const initialSnapshotRef = useRef(snapshotWizard({ provider: '', form: createEmptyForm(), oauthCode: null }));
+  const initialSnapshotRef = useRef(
+    snapshotWizard({ provider: '', form: createEmptyForm(), oauthCode: null })
+  );
 
   const handleOAuthEvent = useCallback(
     ({ type, provider: eventProvider }) => {
       const name = OAUTH_PROVIDER_NAMES[eventProvider] ?? '';
       const messages = {
-        blocked: ['warning', t('accountModal.oauth.blocked', 'The authorization window was blocked. Allow pop-ups for this site and try again.')],
-        started: ['info', t('accountModal.oauth.started', 'Complete the authorization in the pop-up window.')],
-        success: ['success', t('accountModal.oauth.success', '{provider} authorization succeeded. Complete the account setup.', { provider: name })],
-        closed: ['info', t('accountModal.oauth.closed', 'The authorization window was closed before the authorization finished. Try again if needed.')],
-        failed: ['danger', t('accountModal.oauth.failed', 'The authorization could not be started. Check the client ID and try again.')],
+        blocked: [
+          'warning',
+          t(
+            'accountModal.oauth.blocked',
+            'The authorization window was blocked. Allow pop-ups for this site and try again.'
+          ),
+        ],
+        started: [
+          'info',
+          t('accountModal.oauth.started', 'Complete the authorization in the pop-up window.'),
+        ],
+        success: [
+          'success',
+          t(
+            'accountModal.oauth.success',
+            '{provider} authorization succeeded. Complete the account setup.',
+            { provider: name }
+          ),
+        ],
+        closed: [
+          'info',
+          t(
+            'accountModal.oauth.closed',
+            'The authorization window was closed before the authorization finished. Try again if needed.'
+          ),
+        ],
+        failed: [
+          'danger',
+          t(
+            'accountModal.oauth.failed',
+            'The authorization could not be started. Check the client ID and try again.'
+          ),
+        ],
       };
       const [notificationType, message] = messages[type] ?? [];
       if (message) toggleNotification({ type: notificationType, message });
@@ -115,7 +151,11 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
         setCredentialsUnreadable(account.credentialsUnreadable === true);
         setOriginalName(form.name);
         setCurrentStep(2); // the provider cannot be changed in edit mode
-        initialSnapshotRef.current = snapshotWizard({ provider: account.provider || '', form, oauthCode: null });
+        initialSnapshotRef.current = snapshotWizard({
+          provider: account.provider || '',
+          form,
+          oauthCode: null,
+        });
         setLoadState('idle');
       } catch {
         if (cancelled) return;
@@ -133,7 +173,8 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
   const isDirty =
     isOpen &&
     loadState === 'idle' &&
-    snapshotWizard({ provider, form: formData, oauthCode: authorization?.code }) !== initialSnapshotRef.current;
+    snapshotWizard({ provider, form: formData, oauthCode: authorization?.code }) !==
+      initialSnapshotRef.current;
   const discard = useDiscardGuard(isDirty && !saving);
 
   const handleChange = (field, value) => {
@@ -186,26 +227,39 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
         );
         toggleNotification({
           type: 'success',
-          message: t('accountModal.toast.createdOAuth', '{name} was created with {provider} OAuth.', {
-            name,
-            provider: OAUTH_PROVIDER_NAMES[provider],
-          }),
+          message: t(
+            'accountModal.toast.createdOAuth',
+            '{name} was created with {provider} OAuth.',
+            {
+              name,
+              provider: OAUTH_PROVIDER_NAMES[provider],
+            }
+          ),
         });
       } else {
-        const payload = buildAccountPayload(provider, formData, { isEditMode, credentialsUnreadable });
+        const payload = buildAccountPayload(provider, formData, {
+          isEditMode,
+          credentialsUnreadable,
+        });
         if (isEditMode) {
           await put(`/magic-mail/accounts/${accountId}`, payload);
-          const reconnectPayload = isOAuthProvider(provider) ? buildOAuthReconnectPayload(provider, authorization) : null;
+          const reconnectPayload = isOAuthProvider(provider)
+            ? buildOAuthReconnectPayload(provider, authorization)
+            : null;
           if (reconnectPayload) {
             // Re-authorization of an existing OAuth account (revoked or expired
             // refresh token). The server checks state, PKCE, account and mailbox.
             await post(`/magic-mail/oauth/reconnect/${accountId}`, reconnectPayload);
             toggleNotification({
               type: 'success',
-              message: t('accountModal.toast.reconnected', '{name} was reconnected with {provider}.', {
-                name,
-                provider: OAUTH_PROVIDER_NAMES[provider],
-              }),
+              message: t(
+                'accountModal.toast.reconnected',
+                '{name} was reconnected with {provider}.',
+                {
+                  name,
+                  provider: OAUTH_PROVIDER_NAMES[provider],
+                }
+              ),
             });
           } else {
             toggleNotification({
@@ -230,7 +284,9 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
       toggleNotification({
         type: 'danger',
         message: serverMessage
-          ? t('accountModal.toast.saveFailedReason', 'The account could not be saved: {reason}', { reason: serverMessage })
+          ? t('accountModal.toast.saveFailedReason', 'The account could not be saved: {reason}', {
+              reason: serverMessage,
+            })
           : isEditMode
             ? t('accountModal.toast.updateFailed', 'The account could not be updated.')
             : t('accountModal.toast.createFailed', 'The account could not be created.'),
@@ -251,15 +307,28 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
   );
 
   const headings = {
-    1: [t('accountModal.step1.title', 'Choose an email provider'), t('accountModal.step1.subtitle', 'Select the email service that sends for this account.')],
-    2: [t('accountModal.step2.title', 'Account details'), t('accountModal.step2.subtitle', 'Configure how emails appear to recipients.')],
+    1: [
+      t('accountModal.step1.title', 'Choose an email provider'),
+      t('accountModal.step1.subtitle', 'Select the email service that sends for this account.'),
+    ],
+    2: [
+      t('accountModal.step2.title', 'Account details'),
+      t('accountModal.step2.subtitle', 'Configure how emails appear to recipients.'),
+    ],
     3: [
       t('accountModal.step3.title', 'Authentication'),
-      t('accountModal.step3.subtitle', 'Enter your {provider} credentials. They are stored encrypted.', {
-        provider: PROVIDER_LABELS[provider] ?? '',
-      }),
+      t(
+        'accountModal.step3.subtitle',
+        'Enter your {provider} credentials. They are stored encrypted.',
+        {
+          provider: PROVIDER_LABELS[provider] ?? '',
+        }
+      ),
     ],
-    4: [t('accountModal.step4.title', 'Configuration'), t('accountModal.step4.subtitle', 'Set rate limits and the priority of this account.')],
+    4: [
+      t('accountModal.step4.title', 'Configuration'),
+      t('accountModal.step4.subtitle', 'Set rate limits and the priority of this account.'),
+    ],
   };
   const StepIcon = STEP_ICONS[currentStep];
   const firstStep = isEditMode ? 2 : 1;
@@ -284,7 +353,10 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
             </TertiaryButton>
           }
         >
-          {t('accountModal.loadError.body', 'Check your connection and permissions, then try again.')}
+          {t(
+            'accountModal.loadError.body',
+            'Check your connection and permissions, then try again.'
+          )}
         </Alert>
       );
     }
@@ -315,8 +387,15 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
                     aria-current={active ? 'step' : undefined}
                     aria-label={
                       completed
-                        ? t('accountModal.steps.completedLabel', 'Step {step}: {title}, completed', { step, title: stepTitles[step] })
-                        : t('accountModal.steps.stepLabel', 'Step {step}: {title}', { step, title: stepTitles[step] })
+                        ? t(
+                            'accountModal.steps.completedLabel',
+                            'Step {step}: {title}, completed',
+                            { step, title: stepTitles[step] }
+                          )
+                        : t('accountModal.steps.stepLabel', 'Step {step}: {title}', {
+                            step,
+                            title: stepTitles[step],
+                          })
                     }
                     onClick={() => reachable && setCurrentStep(step)}
                   >
@@ -386,7 +465,11 @@ const AddAccountModal = ({ isOpen, onClose, onAccountAdded, editAccount = null, 
             <Flex justifyContent="space-between" gap={2} wrap="wrap" style={{ width: '100%' }}>
               <div>
                 {currentStep > firstStep && loadState === 'idle' && (
-                  <TertiaryButton startIcon={<ArrowLeft />} onClick={() => setCurrentStep(currentStep - 1)} disabled={saving}>
+                  <TertiaryButton
+                    startIcon={<ArrowLeft />}
+                    onClick={() => setCurrentStep(currentStep - 1)}
+                    disabled={saving}
+                  >
                     {t('accountModal.back', 'Back')}
                   </TertiaryButton>
                 )}

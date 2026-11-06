@@ -25,7 +25,9 @@ async function withKey(fn) {
 function harness({ refreshImpl } = {}) {
   const updates = [];
   const refreshCalls = [];
-  const oauthService = require('../server/src/services/oauth')({ strapi: { log: quietLog, config: { get: () => undefined } } });
+  const oauthService = require('../server/src/services/oauth')({
+    strapi: { log: quietLog, config: { get: () => undefined } },
+  });
   const strapi = {
     log: quietLog,
     config: { get: (_key, fallback) => fallback },
@@ -65,17 +67,33 @@ const gmailAccount = (oauth) => {
   };
 };
 
-const emailData = { to: 'recipient@example.test', subject: 'Synthetic', text: 'Hello', html: '<p>Hello</p>' };
+const emailData = {
+  to: 'recipient@example.test',
+  subject: 'Synthetic',
+  text: 'Hello',
+  html: '<p>Hello</p>',
+};
 
 test('a token that expires within 60 seconds is refreshed and the rotated refresh token is stored', async () => {
   await withKey(async () => {
     const { decryptCredentials } = require('../server/src/utils/encryption');
     const { router, updates } = harness({
-      refreshImpl: async () => ({ accessToken: 'access-2', refreshToken: 'refresh-2', expiresAt: new Date(Date.now() + 3600_000) }),
+      refreshImpl: async () => ({
+        accessToken: 'access-2',
+        refreshToken: 'refresh-2',
+        expiresAt: new Date(Date.now() + 3600_000),
+      }),
     });
-    const oauth = { email: 'sender@example.test', accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: new Date(Date.now() + 30_000).toISOString() };
+    const oauth = {
+      email: 'sender@example.test',
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      expiresAt: new Date(Date.now() + 30_000).toISOString(),
+    };
     const token = await router.currentOAuthToken({ documentId: 'acc-1' }, oauth, () => ({
-      accessToken: 'access-2', refreshToken: 'refresh-2', expiresAt: new Date(Date.now() + 3600_000),
+      accessToken: 'access-2',
+      refreshToken: 'refresh-2',
+      expiresAt: new Date(Date.now() + 3600_000),
     }));
     assert.equal(token, 'access-2');
     assert.equal(updates.length, 1);
@@ -90,12 +108,28 @@ test('a fresh token is used as is, and a missing rotated token keeps the old ref
     const { decryptCredentials } = require('../server/src/utils/encryption');
     const { router, updates } = harness();
     let calls = 0;
-    const fresh = { accessToken: 'still-good', refreshToken: 'r', expiresAt: new Date(Date.now() + 600_000).toISOString() };
-    assert.equal(await router.currentOAuthToken({ documentId: 'a' }, fresh, () => { calls += 1; }), 'still-good');
+    const fresh = {
+      accessToken: 'still-good',
+      refreshToken: 'r',
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    };
+    assert.equal(
+      await router.currentOAuthToken({ documentId: 'a' }, fresh, () => {
+        calls += 1;
+      }),
+      'still-good'
+    );
     assert.equal(calls, 0);
 
-    const expired = { accessToken: 'old', refreshToken: 'keep-me', expiresAt: new Date(Date.now() - 1000).toISOString() };
-    await router.currentOAuthToken({ documentId: 'a' }, expired, async () => ({ accessToken: 'new', expiresAt: new Date(Date.now() + 3600_000) }));
+    const expired = {
+      accessToken: 'old',
+      refreshToken: 'keep-me',
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    };
+    await router.currentOAuthToken({ documentId: 'a' }, expired, async () => ({
+      accessToken: 'new',
+      expiresAt: new Date(Date.now() + 3600_000),
+    }));
     assert.equal(decryptCredentials(updates[0].data.oauth).refreshToken, 'keep-me');
   });
 });
@@ -107,13 +141,25 @@ test('concurrent sends of one account share a single refresh', async () => {
     const refresh = async () => {
       calls += 1;
       await new Promise((resolve) => setTimeout(resolve, 20));
-      return { accessToken: 'shared', refreshToken: 'rotated', expiresAt: new Date(Date.now() + 3600_000) };
+      return {
+        accessToken: 'shared',
+        refreshToken: 'rotated',
+        expiresAt: new Date(Date.now() + 3600_000),
+      };
     };
-    const tokens = await Promise.all(Array.from({ length: 5 }, () => router.currentOAuthToken(
-      { documentId: 'acc-x' },
-      { accessToken: 'old', refreshToken: 'r', expiresAt: new Date(Date.now() - 1).toISOString() },
-      refresh
-    )));
+    const tokens = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        router.currentOAuthToken(
+          { documentId: 'acc-x' },
+          {
+            accessToken: 'old',
+            refreshToken: 'r',
+            expiresAt: new Date(Date.now() - 1).toISOString(),
+          },
+          refresh
+        )
+      )
+    );
     assert.deepEqual(new Set(tokens), new Set(['shared']));
     assert.equal(calls, 1);
     assert.equal(updates.length, 1);
@@ -132,9 +178,17 @@ test('Gmail 401 triggers exactly one refresh and retry; a second 401 fails', asy
     };
     try {
       const { router, refreshCalls } = harness({
-        refreshImpl: async (_token, n) => ({ accessToken: `renewed-${n}`, expiresAt: new Date(Date.now() + 3600_000) }),
+        refreshImpl: async (_token, n) => ({
+          accessToken: `renewed-${n}`,
+          expiresAt: new Date(Date.now() + 3600_000),
+        }),
       });
-      const account = gmailAccount({ email: 'sender@example.test', accessToken: 'revoked', refreshToken: 'r1', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
+      const account = gmailAccount({
+        email: 'sender@example.test',
+        accessToken: 'revoked',
+        refreshToken: 'r1',
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
       const result = await router.sendViaGmailOAuth(account, { ...emailData });
       assert.equal(result.messageId, 'gmail-id');
       assert.deepEqual(seen, ['Bearer revoked', 'Bearer renewed-1']);
@@ -142,7 +196,18 @@ test('Gmail 401 triggers exactly one refresh and retry; a second 401 fails', asy
 
       statuses = [401, 401];
       seen.length = 0;
-      await assert.rejects(router.sendViaGmailOAuth(gmailAccount({ email: 'sender@example.test', accessToken: 'revoked', refreshToken: 'r1', expiresAt: new Date(Date.now() + 3600_000).toISOString() }), { ...emailData }), (error) => error.status === 401);
+      await assert.rejects(
+        router.sendViaGmailOAuth(
+          gmailAccount({
+            email: 'sender@example.test',
+            accessToken: 'revoked',
+            refreshToken: 'r1',
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+          }),
+          { ...emailData }
+        ),
+        (error) => error.status === 401
+      );
       assert.equal(seen.length, 2, 'no retry loop');
     } finally {
       global.fetch = previousFetch;
@@ -154,11 +219,26 @@ test('Gmail errors other than 401 are not retried', async () => {
   await withKey(async () => {
     const previousFetch = global.fetch;
     let requests = 0;
-    global.fetch = async () => { requests += 1; return { ok: false, status: 500, json: async () => ({}) }; };
+    global.fetch = async () => {
+      requests += 1;
+      return { ok: false, status: 500, json: async () => ({}) };
+    };
     try {
-      const { router, refreshCalls } = harness({ refreshImpl: async () => { throw new Error('must not refresh'); } });
-      const account = gmailAccount({ email: 'sender@example.test', accessToken: 'ok', refreshToken: 'r1', expiresAt: new Date(Date.now() + 3600_000).toISOString() });
-      await assert.rejects(router.sendViaGmailOAuth(account, { ...emailData }), (error) => error.status === 500);
+      const { router, refreshCalls } = harness({
+        refreshImpl: async () => {
+          throw new Error('must not refresh');
+        },
+      });
+      const account = gmailAccount({
+        email: 'sender@example.test',
+        accessToken: 'ok',
+        refreshToken: 'r1',
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
+      await assert.rejects(
+        router.sendViaGmailOAuth(account, { ...emailData }),
+        (error) => error.status === 500
+      );
       assert.equal(requests, 1);
       assert.equal(refreshCalls.length, 0);
     } finally {
@@ -169,29 +249,62 @@ test('Gmail errors other than 401 are not retried', async () => {
 
 test('editor-config returns only well-formed designer settings and enables system merge tags', async () => {
   const { editorConfigFrom } = require('../server/src/controllers/email-designer');
-  assert.deepEqual(editorConfigFrom({}), { projectId: null, scriptUrl: null, version: null, systemMergeTags: true });
+  assert.deepEqual(editorConfigFrom({}), {
+    projectId: null,
+    scriptUrl: null,
+    version: null,
+    systemMergeTags: true,
+  });
   assert.deepEqual(
-    editorConfigFrom({ projectId: 1234, scriptUrl: 'https://cdn.example.test/unlayer/embed.js', version: '1.524.0' }),
-    { projectId: 1234, scriptUrl: 'https://cdn.example.test/unlayer/embed.js', version: '1.524.0', systemMergeTags: true }
+    editorConfigFrom({
+      projectId: 1234,
+      scriptUrl: 'https://cdn.example.test/unlayer/embed.js',
+      version: '1.524.0',
+    }),
+    {
+      projectId: 1234,
+      scriptUrl: 'https://cdn.example.test/unlayer/embed.js',
+      version: '1.524.0',
+      systemMergeTags: true,
+    }
   );
   assert.deepEqual(
-    editorConfigFrom({ projectId: -1, scriptUrl: 'http://cdn.example.test/embed.js', version: 'latest' }),
+    editorConfigFrom({
+      projectId: -1,
+      scriptUrl: 'http://cdn.example.test/embed.js',
+      version: 'latest',
+    }),
     { projectId: null, scriptUrl: null, version: null, systemMergeTags: true }
   );
 
   const controller = require('../server/src/controllers/email-designer')({
-    strapi: { config: { get: (key) => (key === 'plugin::magic-mail.designer' ? { projectId: 7 } : undefined) } },
+    strapi: {
+      config: {
+        get: (key) => (key === 'plugin::magic-mail.designer' ? { projectId: 7 } : undefined),
+      },
+    },
   });
   let sent;
-  await controller.getEditorConfig({ send: (body) => { sent = body; } });
+  await controller.getEditorConfig({
+    send: (body) => {
+      sent = body;
+    },
+  });
   assert.equal(sent.data.projectId, 7);
 });
 
 test('the designer config block is validated at boot', () => {
   const { validator, default: defaults } = require('../server/src/config');
   assert.equal(defaults.designer.projectId, null, 'no foreign Unlayer project by default');
-  assert.doesNotThrow(() => validator({ designer: { projectId: 5, scriptUrl: 'https://cdn.example.test/e.js', version: '1.2.3' } }));
+  assert.doesNotThrow(() =>
+    validator({
+      designer: { projectId: 5, scriptUrl: 'https://cdn.example.test/e.js', version: '1.2.3' },
+    })
+  );
   assert.throws(() => validator({ designer: { projectId: 'abc' } }), /projectId/);
-  assert.throws(() => validator({ designer: { scriptUrl: 'http://cdn.example.test/e.js' } }), /scriptUrl/);
+  assert.throws(
+    () => validator({ designer: { scriptUrl: 'http://cdn.example.test/e.js' } }),
+    /scriptUrl/
+  );
   assert.throws(() => validator({ designer: { version: '^1.2.0' } }), /version/);
 });

@@ -2,12 +2,12 @@
 
 Magic-Mail now registers four plugin actions in the Strapi admin role editor:
 
-| Action | Grant allows |
-| --- | --- |
-| `plugin::magic-mail.access` | Show the MagicMail menu entry and the plugin page shell. It grants no API access. |
-| `plugin::magic-mail.read` | Read accounts, routing rules, templates, analytics and settings. Also allows template rendering and export, and shows the MagicMail entry in the Settings menu. |
-| `plugin::magic-mail.manage` | Create, update or delete accounts, routing rules, templates, analytics logs and settings. Also allows OAuth setup and account creation. |
-| `plugin::magic-mail.test-send` | Send test messages from an account, the Strapi email service or a template (10 per minute per admin). |
+| Action                         | Grant allows                                                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plugin::magic-mail.access`    | Show the MagicMail menu entry and the plugin page shell. It grants no API access.                                                                               |
+| `plugin::magic-mail.read`      | Read accounts, routing rules, templates, analytics and settings. Also allows template rendering and export, and shows the MagicMail entry in the Settings menu. |
+| `plugin::magic-mail.manage`    | Create, update or delete accounts, routing rules, templates, analytics logs and settings. Also allows OAuth setup and account creation.                         |
+| `plugin::magic-mail.test-send` | Send test messages from an account, the Strapi email service or a template (10 per minute per admin).                                                           |
 
 Every protected admin API route requires an authenticated admin and its action
 above. The `access` action only controls navigation and page entry. It does not
@@ -31,15 +31,15 @@ Plugins. The actions are listed in the General subsection.
 
 ## Users & Permissions email templates
 
-Reading or editing the users-permissions *Reset password* and *Email address
-confirmation* templates through MagicMail (`/magic-mail/designer/core/:type`)
-also requires *Users & Permissions → Email templates* read or update. Grant
+Reading or editing the users-permissions _Reset password_ and _Email address
+confirmation_ templates through MagicMail (`/magic-mail/designer/core/:type`)
+also requires _Users & Permissions → Email templates_ read or update. Grant
 those to every role that edits these templates.
 
 ## Visual designer images
 
 Images added in the visual designer are uploaded to the Media Library, so
-template editors also need *Media Library → Create (upload)*.
+template editors also need _Media Library → Create (upload)_.
 
 ## Public and Content API routes
 

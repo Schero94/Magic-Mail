@@ -1,5 +1,10 @@
 import { Flex, Loader, Modal, Typography } from '@strapi/design-system';
-import { ArrowPathIcon, ArrowUturnLeftIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  ArrowUturnLeftIcon,
+  ClockIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline';
 import { TertiaryButton } from '../../components/StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useFormatters } from '../../hooks/useFormatters';
@@ -75,7 +80,11 @@ export const VersionHistoryDrawer = ({
             )}
           </VersionSheetTitle>
           {canManage && versions.length > 0 && (
-            <DeleteButton size="S" startIcon={<TrashIcon aria-hidden="true" />} onClick={onDeleteAll}>
+            <DeleteButton
+              size="S"
+              startIcon={<TrashIcon aria-hidden="true" />}
+              onClick={onDeleteAll}
+            >
               {t('editor.versions.deleteAll', 'Delete all')}
             </DeleteButton>
           )}
@@ -92,7 +101,10 @@ export const VersionHistoryDrawer = ({
               <Typography variant="beta" tag="p">
                 {t('editor.versions.error', 'Version history could not be loaded')}
               </Typography>
-              <TertiaryButton startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />} onClick={onRetry}>
+              <TertiaryButton
+                startIcon={<ArrowPathIcon width={16} height={16} aria-hidden="true" />}
+                onClick={onRetry}
+              >
                 {t('editor.retry', 'Try again')}
               </TertiaryButton>
             </EmptyVersions>
@@ -103,7 +115,10 @@ export const VersionHistoryDrawer = ({
                 {t('editor.versions.empty.title', 'No versions yet')}
               </Typography>
               <Typography variant="omega" textColor="neutral600" style={{ maxWidth: '300px' }}>
-                {t('editor.versions.empty.text', 'A version is created automatically each time you save changes.')}
+                {t(
+                  'editor.versions.empty.text',
+                  'A version is created automatically each time you save changes.'
+                )}
               </Typography>
             </EmptyVersions>
           ) : (
@@ -131,7 +146,11 @@ export const VersionHistoryDrawer = ({
                           size="S"
                           startIcon={<ArrowUturnLeftIcon aria-hidden="true" />}
                           onClick={() => onRestore(version, number)}
-                          aria-label={t('editor.versions.restoreLabel', 'Restore version {number}', { number })}
+                          aria-label={t(
+                            'editor.versions.restoreLabel',
+                            'Restore version {number}',
+                            { number }
+                          )}
                         >
                           {t('editor.versions.restore', 'Restore')}
                         </RestoreButton>
@@ -139,7 +158,9 @@ export const VersionHistoryDrawer = ({
                           size="S"
                           startIcon={<TrashIcon aria-hidden="true" />}
                           onClick={() => onDelete(version, number)}
-                          aria-label={t('editor.versions.deleteLabel', 'Delete version {number}', { number })}
+                          aria-label={t('editor.versions.deleteLabel', 'Delete version {number}', {
+                            number,
+                          })}
                         >
                           {t('common.delete', 'Delete')}
                         </DeleteButton>

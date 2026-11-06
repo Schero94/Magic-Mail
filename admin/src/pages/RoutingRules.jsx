@@ -20,7 +20,13 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
-import { GradientButton, TertiaryButton, CTAButton, IconButton, IconButtonDanger } from '../components/StyledButtons';
+import {
+  GradientButton,
+  TertiaryButton,
+  CTAButton,
+  IconButton,
+  IconButtonDanger,
+} from '../components/StyledButtons';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { SectionHeading } from '../components/shared/Headings';
 import { SearchField } from '../components/shared/SearchField';
@@ -114,7 +120,9 @@ const RoutingRulesPage = () => {
     }
 
     if (accountsResult.status === 'fulfilled') {
-      setAccounts(Array.isArray(accountsResult.value?.data?.data) ? accountsResult.value.data.data : []);
+      setAccounts(
+        Array.isArray(accountsResult.value?.data?.data) ? accountsResult.value.data.data : []
+      );
       setAccountsError(false);
     } else {
       console.error('[magic-mail] Failed to load email accounts for routing');
@@ -151,11 +159,17 @@ const RoutingRulesPage = () => {
   // Rules are listed in the order the email router evaluates them.
   const orderedRules = useMemo(() => sortRulesByEvaluationOrder(rules), [rules]);
   const filteredRules = useMemo(
-    () => filterRules(orderedRules, { search: searchQuery, status: filterStatus, matchType: filterMatchType }),
+    () =>
+      filterRules(orderedRules, {
+        search: searchQuery,
+        status: filterStatus,
+        matchType: filterMatchType,
+      }),
     [orderedRules, searchQuery, filterStatus, filterMatchType]
   );
   const brokenCount = useMemo(
-    () => (accountsError ? 0 : rules.filter((rule) => hasBrokenAccountReference(rule, accounts)).length),
+    () =>
+      accountsError ? 0 : rules.filter((rule) => hasBrokenAccountReference(rule, accounts)).length,
     [rules, accounts, accountsError]
   );
 
@@ -169,12 +183,16 @@ const RoutingRulesPage = () => {
 
   const totalRules = rules.length;
   const activeRules = rules.filter((r) => r.isActive).length;
-  const highPriorityRules = rules.filter((r) => Number(r.priority) >= HIGH_PRIORITY_THRESHOLD).length;
+  const highPriorityRules = rules.filter(
+    (r) => Number(r.priority) >= HIGH_PRIORITY_THRESHOLD
+  ).length;
   const hasFilters = searchQuery !== '' || filterStatus !== 'all' || filterMatchType !== 'all';
   const canEditRules = canManage && !accountsError;
   const knownMatchTypes = [
     ...MATCH_TYPES,
-    ...[...new Set(rules.map((r) => r.matchType))].filter((type) => type && !MATCH_TYPES.includes(type)),
+    ...[...new Set(rules.map((r) => r.matchType))].filter(
+      (type) => type && !MATCH_TYPES.includes(type)
+    ),
   ];
 
   const resetFilters = () => {
@@ -205,12 +223,20 @@ const RoutingRulesPage = () => {
     if (permissionsError) {
       return (
         <EmptyState role="alert">
-          <Flex direction="column" alignItems="center" gap={4} style={{ position: 'relative', zIndex: 1 }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={4}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
             <EmptyIconCircle $tone="danger" aria-hidden="true">
               <ExclamationTriangleIcon />
             </EmptyIconCircle>
             <EmptyText variant="omega" textColor="neutral600">
-              {t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')}
+              {t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )}
             </EmptyText>
           </Flex>
         </EmptyState>
@@ -220,7 +246,12 @@ const RoutingRulesPage = () => {
     if (loadError) {
       return (
         <EmptyState role="alert">
-          <Flex direction="column" alignItems="center" gap={6} style={{ position: 'relative', zIndex: 1 }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
             <EmptyIconCircle $tone="danger" aria-hidden="true">
               <ExclamationTriangleIcon />
             </EmptyIconCircle>
@@ -228,7 +259,10 @@ const RoutingRulesPage = () => {
               {t('routing.error.title', 'Routing rules could not be loaded')}
             </EmptyTitle>
             <EmptyText variant="omega" textColor="neutral600">
-              {t('routing.error.description', 'Check your connection and permissions, then try again.')}
+              {t(
+                'routing.error.description',
+                'Check your connection and permissions, then try again.'
+              )}
             </EmptyText>
             <GradientButton
               onClick={fetchData}
@@ -249,7 +283,12 @@ const RoutingRulesPage = () => {
             <FunnelIcon />
           </FloatingIcon>
 
-          <Flex direction="column" alignItems="center" gap={6} style={{ position: 'relative', zIndex: 1 }}>
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
             <EmptyIconCircle aria-hidden="true">
               <FunnelIcon />
             </EmptyIconCircle>
@@ -264,10 +303,7 @@ const RoutingRulesPage = () => {
                     'routing.empty.descriptionManage',
                     'Create your first routing rule to route emails based on type, recipient, subject, template, or a custom field.'
                   )
-                : t(
-                    'routing.empty.descriptionReadOnly',
-                    'No routing rules have been set up yet.'
-                  )}
+                : t('routing.empty.descriptionReadOnly', 'No routing rules have been set up yet.')}
             </EmptyText>
 
             {canManage && (
@@ -350,7 +386,10 @@ const RoutingRulesPage = () => {
           <SearchSlot>
             <SearchField
               label={t('routing.search.label', 'Search routing rules')}
-              placeholder={t('routing.search.placeholder', 'Search by name, description, value, or account...')}
+              placeholder={t(
+                'routing.search.placeholder',
+                'Search by name, description, value, or account...'
+              )}
               value={searchQuery}
               onChange={setSearchQuery}
             />
@@ -363,9 +402,15 @@ const RoutingRulesPage = () => {
               onChange={(value) => setFilterStatus(String(value))}
               size="S"
             >
-              <SingleSelectOption value="all">{t('routing.filters.allStatuses', 'All Rules')}</SingleSelectOption>
-              <SingleSelectOption value="active">{t('routing.status.active', 'Active')}</SingleSelectOption>
-              <SingleSelectOption value="inactive">{t('routing.status.inactive', 'Inactive')}</SingleSelectOption>
+              <SingleSelectOption value="all">
+                {t('routing.filters.allStatuses', 'All Rules')}
+              </SingleSelectOption>
+              <SingleSelectOption value="active">
+                {t('routing.status.active', 'Active')}
+              </SingleSelectOption>
+              <SingleSelectOption value="inactive">
+                {t('routing.status.inactive', 'Inactive')}
+              </SingleSelectOption>
             </SingleSelect>
           </FilterSlot>
 
@@ -376,7 +421,9 @@ const RoutingRulesPage = () => {
               onChange={(value) => setFilterMatchType(String(value))}
               size="S"
             >
-              <SingleSelectOption value="all">{t('routing.filters.allTypes', 'All Types')}</SingleSelectOption>
+              <SingleSelectOption value="all">
+                {t('routing.filters.allTypes', 'All Types')}
+              </SingleSelectOption>
               {knownMatchTypes.map((type) => (
                 <SingleSelectOption key={type} value={type}>
                   {getMatchTypeLabel(type, t)}
@@ -402,9 +449,7 @@ const RoutingRulesPage = () => {
                   <Th>{t('routing.table.matchValue', 'Match Value')}</Th>
                   <Th>{t('routing.table.account', 'Target Account')}</Th>
                   <Th>{t('routing.table.priority', 'Priority')}</Th>
-                  {canManage && (
-                    <Th>{t('routing.table.actions', 'Actions')}</Th>
-                  )}
+                  {canManage && <Th>{t('routing.table.actions', 'Actions')}</Th>}
                 </Tr>
               </Thead>
               <Tbody>
@@ -417,7 +462,9 @@ const RoutingRulesPage = () => {
                         <Flex alignItems="center" gap={2}>
                           <OnlineBadge $active={rule.isActive} aria-hidden="true" />
                           <Badge variant={rule.isActive ? 'success' : 'neutral'} size="S">
-                            {rule.isActive ? t('routing.status.active', 'Active') : t('routing.status.inactive', 'Inactive')}
+                            {rule.isActive
+                              ? t('routing.status.active', 'Active')
+                              : t('routing.status.inactive', 'Inactive')}
                           </Badge>
                         </Flex>
                       </Td>
@@ -453,10 +500,13 @@ const RoutingRulesPage = () => {
                           {renderAccountWarning(rule.accountName)}
                           {rule.fallbackAccountName && (
                             <Typography variant="pi" textColor="neutral600">
-                              {t('routing.table.fallback', 'Fallback: {account}', { account: rule.fallbackAccountName })}
+                              {t('routing.table.fallback', 'Fallback: {account}', {
+                                account: rule.fallbackAccountName,
+                              })}
                             </Typography>
                           )}
-                          {rule.fallbackAccountName && renderAccountWarning(rule.fallbackAccountName, { fallback: true })}
+                          {rule.fallbackAccountName &&
+                            renderAccountWarning(rule.fallbackAccountName, { fallback: true })}
                         </Flex>
                       </Td>
 
@@ -464,10 +514,14 @@ const RoutingRulesPage = () => {
                       <Td>
                         <Badge size="S" variant={isHigh ? 'warning' : 'neutral'}>
                           <Flex tag="span" alignItems="center" gap={1}>
-                            {isHigh && <SparklesIcon aria-hidden="true" style={{ width: 12, height: 12 }} />}
+                            {isHigh && (
+                              <SparklesIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
+                            )}
                             {formatNumber(rule.priority)}
                             {isHigh && (
-                              <VisuallyHidden>{t('routing.table.highPriority', 'High priority')}</VisuallyHidden>
+                              <VisuallyHidden>
+                                {t('routing.table.highPriority', 'High priority')}
+                              </VisuallyHidden>
                             )}
                           </Flex>
                         </Badge>
@@ -480,13 +534,17 @@ const RoutingRulesPage = () => {
                             <IconButton
                               onClick={() => setEditingRule(rule)}
                               disabled={!canEditRules}
-                              aria-label={t('routing.actions.edit', 'Edit rule "{name}"', { name: rule.name })}
+                              aria-label={t('routing.actions.edit', 'Edit rule "{name}"', {
+                                name: rule.name,
+                              })}
                             >
                               <PencilIcon aria-hidden="true" />
                             </IconButton>
                             <IconButtonDanger
                               onClick={() => setPendingDelete(rule)}
-                              aria-label={t('routing.actions.delete', 'Delete rule "{name}"', { name: rule.name })}
+                              aria-label={t('routing.actions.delete', 'Delete rule "{name}"', {
+                                name: rule.name,
+                              })}
                             >
                               <TrashIcon aria-hidden="true" />
                             </IconButtonDanger>
@@ -541,7 +599,12 @@ const RoutingRulesPage = () => {
       {!loadError && !permissionsError && (
         <StatsGrid>
           <StatCard $delay="0.1s" $tone="secondary">
-            <StatIcon className="stat-icon" $bg="rgba(168, 85, 247, 0.12)" $tone="secondary" aria-hidden="true">
+            <StatIcon
+              className="stat-icon"
+              $bg="rgba(168, 85, 247, 0.12)"
+              $tone="secondary"
+              aria-hidden="true"
+            >
               <FunnelIcon />
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(totalRules)}</StatValue>
@@ -549,7 +612,12 @@ const RoutingRulesPage = () => {
           </StatCard>
 
           <StatCard $delay="0.2s" $tone="success">
-            <StatIcon className="stat-icon" $bg="rgba(22, 163, 74, 0.12)" $tone="success" aria-hidden="true">
+            <StatIcon
+              className="stat-icon"
+              $bg="rgba(22, 163, 74, 0.12)"
+              $tone="success"
+              aria-hidden="true"
+            >
               <CheckIcon />
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(activeRules)}</StatValue>
@@ -557,12 +625,19 @@ const RoutingRulesPage = () => {
           </StatCard>
 
           <StatCard $delay="0.3s" $tone="warning">
-            <StatIcon className="stat-icon" $bg="rgba(234, 179, 8, 0.12)" $tone="warning" aria-hidden="true">
+            <StatIcon
+              className="stat-icon"
+              $bg="rgba(234, 179, 8, 0.12)"
+              $tone="warning"
+              aria-hidden="true"
+            >
               <SparklesIcon />
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(highPriorityRules)}</StatValue>
             <StatLabel>
-              {t('routing.stats.highPriority', 'High Priority ({threshold}+)', { threshold: HIGH_PRIORITY_THRESHOLD })}
+              {t('routing.stats.highPriority', 'High Priority ({threshold}+)', {
+                threshold: HIGH_PRIORITY_THRESHOLD,
+              })}
             </StatLabel>
           </StatCard>
         </StatsGrid>
@@ -587,13 +662,18 @@ const RoutingRulesPage = () => {
       <ConfirmDialog
         isOpen={canManage && pendingDelete !== null}
         title={t('routing.delete.title', 'Delete routing rule?')}
-        description={t('routing.delete.body', 'Delete "{name}"? This cannot be undone.', { name: pendingDelete?.name })}
+        description={t('routing.delete.body', 'Delete "{name}"? This cannot be undone.', {
+          name: pendingDelete?.name,
+        })}
         confirmLabel={t('common.delete', 'Delete')}
         confirmIcon={<TrashIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
         onConfirm={() => deleteRule(pendingDelete)}
         onClose={() => setPendingDelete(null)}
       >
-        {t('routing.delete.hint', 'Emails that matched this rule will be routed by the remaining rules instead.')}
+        {t(
+          'routing.delete.hint',
+          'Emails that matched this rule will be routed by the remaining rules instead.'
+        )}
       </ConfirmDialog>
     </Container>
   );

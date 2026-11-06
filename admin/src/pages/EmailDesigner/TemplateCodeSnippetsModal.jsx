@@ -103,7 +103,8 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
         <ScrollableDialogBody>
           <InfoBox>
             <AccentText variant="pi">
-              <strong>{t('templates.code.templateId', 'Template ID:')}</strong> #{template.templateReferenceId}
+              <strong>{t('templates.code.templateId', 'Template ID:')}</strong> #
+              {template.templateReferenceId}
             </AccentText>
             <AccentText variant="pi">
               <strong>{t('templates.code.status', 'Status:')}</strong>{' '}
@@ -117,7 +118,10 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
             <WarningBox role="note">
               <SparklesIcon aria-hidden="true" />
               <AccentText variant="pi" fontWeight="semiBold">
-                {t('templates.code.inactiveWarning', 'This template is inactive and will not be sent.')}
+                {t(
+                  'templates.code.inactiveWarning',
+                  'This template is inactive and will not be sent.'
+                )}
               </AccentText>
             </WarningBox>
           )}
@@ -134,7 +138,9 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
                       <Flex gap={2} alignItems="center" wrap="wrap">
                         {section.title}
                         {section.recommended && (
-                          <RecommendedBadge>{t('templates.code.recommended', 'Recommended')}</RecommendedBadge>
+                          <RecommendedBadge>
+                            {t('templates.code.recommended', 'Recommended')}
+                          </RecommendedBadge>
                         )}
                       </Flex>
                     </Accordion.Trigger>
@@ -162,9 +168,15 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
                             section: section.title,
                           })}
                         >
-                          {copied ? <CheckIcon aria-hidden="true" /> : <ClipboardDocumentIcon aria-hidden="true" />}
+                          {copied ? (
+                            <CheckIcon aria-hidden="true" />
+                          ) : (
+                            <ClipboardDocumentIcon aria-hidden="true" />
+                          )}
                           <span aria-live="polite">
-                            {copied ? t('templates.code.copiedShort', 'Copied') : t('templates.code.copy', 'Copy')}
+                            {copied
+                              ? t('templates.code.copiedShort', 'Copied')
+                              : t('templates.code.copy', 'Copy')}
                           </span>
                         </CopyButton>
                       </CodeBlockWrapper>

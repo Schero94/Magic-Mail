@@ -45,12 +45,13 @@ const sendPixel = (ctx) => {
  * @param {string} value
  * @returns {string}
  */
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const normalizeHttpUrl = (value) => {
   try {
@@ -82,9 +83,7 @@ const normalizeHttpUrl = (value) => {
 const renderTrackingFallbackHtml = (reason, fallbackUrl) => {
   const safeReason = escapeHtml(reason);
   const safeUrl = fallbackUrl ? escapeHtml(fallbackUrl) : '';
-  const refreshMeta = fallbackUrl
-    ? `<meta http-equiv="refresh" content="3;url=${safeUrl}">`
-    : '';
+  const refreshMeta = fallbackUrl ? `<meta http-equiv="refresh" content="3;url=${safeUrl}">` : '';
   const manualLink = fallbackUrl
     ? `<p style="margin-top:24px;font-size:14px;color:#6b7280;">
          You will be redirected in a few seconds. If nothing happens,
@@ -138,7 +137,10 @@ const respondWithTrackingFallback = async (ctx, reason) => {
   ctx.type = 'text/html; charset=utf-8';
   ctx.set('Cache-Control', 'no-store');
   ctx.set('Referrer-Policy', 'no-referrer');
-  ctx.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
+  ctx.set(
+    'Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+  );
   ctx.body = renderTrackingFallbackHtml(reason, fallbackUrl);
 };
 
@@ -153,7 +155,10 @@ module.exports = ({ strapi }) => ({
     // still get the pixel; they are just not recorded.
     if (isTrackingId(emailId) && isTrackingId(recipientHash) && !ctx.state?.magicMailRateLimited) {
       try {
-        await strapi.plugin('magic-mail').service('analytics').recordOpen(emailId, recipientHash, ctx.request);
+        await strapi
+          .plugin('magic-mail')
+          .service('analytics')
+          .recordOpen(emailId, recipientHash, ctx.request);
       } catch (err) {
         strapi.log.error('[magic-mail] Error recording open event:', err?.name || 'Error');
       }
@@ -186,17 +191,16 @@ module.exports = ({ strapi }) => ({
     try {
       if (isTrackingId(emailId) && isTrackingId(linkHash) && isTrackingId(recipientHash)) {
         const analyticsService = strapi.plugin('magic-mail').service('analytics');
-        url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash, { count: record });
+        url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash, {
+          count: record,
+        });
       }
     } catch (err) {
       strapi.log.error('[magic-mail] Error getting original URL:', err?.name || 'Error');
     }
 
     if (!url) {
-      return respondWithTrackingFallback(
-        ctx,
-        'This link has expired or is no longer available.'
-      );
+      return respondWithTrackingFallback(ctx, 'This link has expired or is no longer available.');
     }
 
     // Validate URL protocol — only http(s) redirects are allowed.
@@ -210,10 +214,7 @@ module.exports = ({ strapi }) => ({
         );
       }
     } catch {
-      return respondWithTrackingFallback(
-        ctx,
-        'This link is no longer valid.'
-      );
+      return respondWithTrackingFallback(ctx, 'This link is no longer valid.');
     }
 
     if (record) {
@@ -250,7 +251,7 @@ module.exports = ({ strapi }) => ({
       };
 
       // Remove null values
-      Object.keys(filters).forEach(key => filters[key] === null && delete filters[key]);
+      Object.keys(filters).forEach((key) => filters[key] === null && delete filters[key]);
 
       const stats = await strapi.plugin('magic-mail').service('analytics').getStats(filters);
 
@@ -259,7 +260,12 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting analytics stats', 'Error fetching analytics stats');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting analytics stats',
+        'Error fetching analytics stats'
+      );
     }
   },
 
@@ -284,7 +290,7 @@ module.exports = ({ strapi }) => ({
       };
 
       // Remove null values
-      Object.keys(filters).forEach(key => filters[key] === null && delete filters[key]);
+      Object.keys(filters).forEach((key) => filters[key] === null && delete filters[key]);
 
       const result = await strapi
         .plugin('magic-mail')
@@ -296,7 +302,12 @@ module.exports = ({ strapi }) => ({
         ...result,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting email logs', 'Error fetching email logs');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting email logs',
+        'Error fetching email logs'
+      );
     }
   },
 
@@ -325,7 +336,12 @@ module.exports = ({ strapi }) => ({
         data: emailLog,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting email log', 'Error fetching email log');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting email log',
+        'Error fetching email log'
+      );
     }
   },
 
@@ -349,7 +365,12 @@ module.exports = ({ strapi }) => ({
         data: activity,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting user activity', 'Error fetching user activity');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting user activity',
+        'Error fetching user activity'
+      );
     }
   },
 
@@ -407,10 +428,12 @@ module.exports = ({ strapi }) => ({
           settings = {};
         }
         const endpoint = analyticsService.getTrackingEndpoint(settings);
-        sampleTrackingUrls = endpoint ? {
-          trackingPixel: `${endpoint}/open/${testLog.emailId}/${testHash}`,
-          emailId: testLog.emailId,
-        } : { trackingPixel: null, note: 'No public tracking URL configured' };
+        sampleTrackingUrls = endpoint
+          ? {
+              trackingPixel: `${endpoint}/open/${testLog.emailId}/${testHash}`,
+              emailId: testLog.emailId,
+            }
+          : { trackingPixel: null, note: 'No public tracking URL configured' };
       }
 
       return ctx.send({
@@ -421,7 +444,7 @@ module.exports = ({ strapi }) => ({
           emailLogsCount: emailLogs.length,
           emailEventsCount: emailEvents.length,
           activeAccountsCount: accounts.length,
-          recentEmailLogs: emailLogs.map(log => ({
+          recentEmailLogs: emailLogs.map((log) => ({
             emailId: log.emailId,
             recipient: log.recipient,
             subject: log.subject,
@@ -432,7 +455,7 @@ module.exports = ({ strapi }) => ({
             accountName: log.accountName,
             templateName: log.templateName,
           })),
-          recentEvents: emailEvents.map(event => ({
+          recentEvents: emailEvents.map((event) => ({
             type: event.type,
             timestamp: event.timestamp,
             emailId: event.emailLog?.emailId,
@@ -450,7 +473,12 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Analytics debug failed', 'Analytics debug failed');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Analytics debug failed',
+        'Analytics debug failed'
+      );
     }
   },
 
@@ -484,7 +512,12 @@ module.exports = ({ strapi }) => ({
         message: 'Email log deleted successfully',
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error deleting email log', 'Error deleting email log');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error deleting email log',
+        'Error deleting email log'
+      );
     }
   },
 
@@ -504,7 +537,8 @@ module.exports = ({ strapi }) => ({
 
       const where = {};
       if (olderThan !== undefined && olderThan !== '') {
-        const boundary = typeof olderThan === 'string' && olderThan.length <= 64 ? new Date(olderThan) : null;
+        const boundary =
+          typeof olderThan === 'string' && olderThan.length <= 64 ? new Date(olderThan) : null;
         if (!boundary || Number.isNaN(boundary.getTime())) {
           return ctx.badRequest('Invalid olderThan date');
         }
@@ -530,7 +564,12 @@ module.exports = ({ strapi }) => ({
         hasMore,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error clearing email logs', 'Error clearing email logs');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error clearing email logs',
+        'Error clearing email logs'
+      );
     }
   },
 });

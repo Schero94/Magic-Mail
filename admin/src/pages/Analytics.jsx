@@ -85,7 +85,9 @@ const toneColor = (p) => (accent[p.$tone] ?? accent.primary)(p);
 
 // ================ STYLED COMPONENTS ================
 const Container = styled(Box)`
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow};`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow};
+  `)}
   min-height: 100vh;
   max-width: 1440px;
   margin: 0 auto;
@@ -118,7 +120,9 @@ const Header = styled(Box)`
     width: 200%;
     height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-    ${motionSafe(css`animation: ${shimmer} 3s infinite;`)}
+    ${motionSafe(css`
+      animation: ${shimmer} 3s infinite;
+    `)}
   }
 
   &::after {
@@ -128,7 +132,11 @@ const Header = styled(Box)`
     right: 0;
     width: 100%;
     height: 100%;
-    background-image: radial-gradient(circle at 20% 80%, transparent 50%, rgba(255, 255, 255, 0.1) 50%);
+    background-image: radial-gradient(
+      circle at 20% 80%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.1) 50%
+    );
     background-size: 15px 15px;
     opacity: 0.3;
   }
@@ -154,7 +162,9 @@ const Title = styled(Typography)`
     width: 28px;
     height: 28px;
     flex-shrink: 0;
-    ${motionSafe(css`animation: ${float} 3s ease-in-out infinite;`)}
+    ${motionSafe(css`
+      animation: ${float} 3s ease-in-out infinite;
+    `)}
   }
 
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -200,7 +210,9 @@ const StatCard = styled(Box)`
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
-  ${motionSafe(css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`)}
+  ${motionSafe(css`
+    animation: ${fadeIn} ${theme.transitions.slow} backwards;
+  `)}
   animation-delay: ${(props) => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
   border: 1px solid rgba(128, 128, 128, 0.2);
@@ -555,7 +567,9 @@ const Analytics = () => {
     const id = ++requestId.current;
     setLogsLoading(true);
     try {
-      const response = await get(buildEmailLogsUrl({ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm }));
+      const response = await get(
+        buildEmailLogsUrl({ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm })
+      );
       if (id !== requestId.current) return;
       const rows = response.data?.data || [];
       const nextPagination = response.data?.pagination || null;
@@ -568,7 +582,8 @@ const Analytics = () => {
     } catch (error) {
       if (id !== requestId.current) return;
       console.error('[MagicMail] Failed to fetch email logs');
-      const message = apiErrorMessage(error) || t('analytics.logs.loadError', 'Failed to load email logs');
+      const message =
+        apiErrorMessage(error) || t('analytics.logs.loadError', 'Failed to load email logs');
       setEmailLogs([]);
       setPagination(null);
       setLogsError(message);
@@ -645,10 +660,38 @@ const Analytics = () => {
   const currentPage = pagination?.page ?? page;
   const hasAnyLogs = (totalLogs ?? total) > 0;
   const statCards = [
-    { key: 'sent', tone: 'primary', bg: 'rgba(2, 132, 199, 0.12)', Icon: EnvelopeIcon, value: stats?.totalSent, label: t('analytics.stats.totalSent', 'Total Sent') },
-    { key: 'opened', tone: 'success', bg: 'rgba(22, 163, 74, 0.12)', Icon: EnvelopeOpenIcon, value: stats?.totalOpened, label: t('analytics.stats.opened', 'Opened') },
-    { key: 'clicked', tone: 'primary', bg: 'rgba(2, 132, 199, 0.12)', Icon: CursorArrowRaysIcon, value: stats?.totalClicked, label: t('analytics.stats.clicked', 'Clicked') },
-    { key: 'bounced', tone: 'danger', bg: 'rgba(220, 38, 38, 0.12)', Icon: ExclamationTriangleIcon, value: stats?.totalBounced, label: t('analytics.stats.bounced', 'Bounced') },
+    {
+      key: 'sent',
+      tone: 'primary',
+      bg: 'rgba(2, 132, 199, 0.12)',
+      Icon: EnvelopeIcon,
+      value: stats?.totalSent,
+      label: t('analytics.stats.totalSent', 'Total Sent'),
+    },
+    {
+      key: 'opened',
+      tone: 'success',
+      bg: 'rgba(22, 163, 74, 0.12)',
+      Icon: EnvelopeOpenIcon,
+      value: stats?.totalOpened,
+      label: t('analytics.stats.opened', 'Opened'),
+    },
+    {
+      key: 'clicked',
+      tone: 'primary',
+      bg: 'rgba(2, 132, 199, 0.12)',
+      Icon: CursorArrowRaysIcon,
+      value: stats?.totalClicked,
+      label: t('analytics.stats.clicked', 'Clicked'),
+    },
+    {
+      key: 'bounced',
+      tone: 'danger',
+      bg: 'rgba(220, 38, 38, 0.12)',
+      Icon: ExclamationTriangleIcon,
+      value: stats?.totalBounced,
+      label: t('analytics.stats.bounced', 'Bounced'),
+    },
   ];
 
   const renderCount = (count, tone) =>
@@ -704,10 +747,16 @@ const Analytics = () => {
           <Flex alignItems="center" gap={2}>
             <ExclamationTriangleIcon aria-hidden="true" />
             <Typography variant="omega" textColor="neutral800">
-              {t('analytics.stats.loadError', 'Statistics could not be loaded. The counters above are unknown, not zero.')}
+              {t(
+                'analytics.stats.loadError',
+                'Statistics could not be loaded. The counters above are unknown, not zero.'
+              )}
             </Typography>
           </Flex>
-          <TertiaryButton startIcon={<ArrowPathIcon style={ICON_16} aria-hidden="true" />} onClick={fetchAnalytics}>
+          <TertiaryButton
+            startIcon={<ArrowPathIcon style={ICON_16} aria-hidden="true" />}
+            onClick={fetchAnalytics}
+          >
             {t('analytics.retry', 'Retry')}
           </TertiaryButton>
         </StatsNotice>
@@ -718,8 +767,12 @@ const Analytics = () => {
         <FilterRow justifyContent="space-between" alignItems="center">
           <Typography variant="omega" fontWeight="semiBold" textColor="neutral700" tag="h2">
             {searchTerm
-              ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', { count: formatNumber(total, undefined, '0') })
-              : t('analytics.logs.heading', 'Recent emails ({count})', { count: formatNumber(total, undefined, '0') })}
+              ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', {
+                  count: formatNumber(total, undefined, '0'),
+                })
+              : t('analytics.logs.heading', 'Recent emails ({count})', {
+                  count: formatNumber(total, undefined, '0'),
+                })}
           </Typography>
           <FilterControls alignItems="center">
             <SearchBox>
@@ -744,7 +797,10 @@ const Analytics = () => {
         {rbacError && !rbacLoading && (
           <Box paddingTop={3}>
             <Typography variant="pi" textColor="danger600">
-              {t('common.permissions.loadError', 'Your permissions could not be loaded. Reload the page to try again.')}
+              {t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )}
             </Typography>
           </Box>
         )}
@@ -757,10 +813,19 @@ const Analytics = () => {
             <EmptyIcon $danger>
               <ExclamationTriangleIcon aria-hidden="true" />
             </EmptyIcon>
-            <Typography variant="delta" fontWeight="bold" tag="h2" style={{ marginBottom: '12px', display: 'block' }}>
+            <Typography
+              variant="delta"
+              fontWeight="bold"
+              tag="h2"
+              style={{ marginBottom: '12px', display: 'block' }}
+            >
               {t('analytics.logs.errorTitle', "Couldn't load email logs")}
             </Typography>
-            <Typography variant="omega" textColor="neutral600" style={{ lineHeight: '1.6', display: 'block' }}>
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ lineHeight: '1.6', display: 'block' }}
+            >
               {logsError}
             </Typography>
             <Flex justifyContent="center" paddingTop={5}>
@@ -780,15 +845,27 @@ const Analytics = () => {
             <EmptyIcon>
               <EnvelopeIcon aria-hidden="true" />
             </EmptyIcon>
-            <Typography variant="delta" fontWeight="bold" tag="h2" style={{ marginBottom: '12px', display: 'block' }}>
+            <Typography
+              variant="delta"
+              fontWeight="bold"
+              tag="h2"
+              style={{ marginBottom: '12px', display: 'block' }}
+            >
               {searchTerm
                 ? t('analytics.empty.searchTitle', 'No emails found')
                 : t('analytics.empty.title', 'No emails sent yet')}
             </Typography>
-            <Typography variant="omega" textColor="neutral600" style={{ lineHeight: '1.6', display: 'block' }}>
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ lineHeight: '1.6', display: 'block' }}
+            >
               {searchTerm
                 ? t('analytics.empty.searchBody', 'Try adjusting your search terms')
-                : t('analytics.empty.body', 'Send your first email to see analytics and tracking information here.')}
+                : t(
+                    'analytics.empty.body',
+                    'Send your first email to see analytics and tracking information here.'
+                  )}
             </Typography>
           </EmptyContent>
         </EmptyState>
@@ -798,27 +875,64 @@ const Analytics = () => {
             <StyledTable colCount={7} rowCount={emailLogs.length + 1}>
               <Thead>
                 <Tr>
-                  <Th><Typography variant="sigma">{t('analytics.table.recipient', 'Recipient')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.subject', 'Subject')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.deliveryStatus', 'Delivery Status')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.template', 'Template')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.attemptedAt', 'Attempted At')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.opened', 'Opened')}</Typography></Th>
-                  <Th><Typography variant="sigma">{t('analytics.table.clicked', 'Clicked')}</Typography></Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.recipient', 'Recipient')}
+                    </Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.subject', 'Subject')}
+                    </Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.deliveryStatus', 'Delivery Status')}
+                    </Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.template', 'Template')}
+                    </Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.attemptedAt', 'Attempted At')}
+                    </Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">{t('analytics.table.opened', 'Opened')}</Typography>
+                  </Th>
+                  <Th>
+                    <Typography variant="sigma">
+                      {t('analytics.table.clicked', 'Clicked')}
+                    </Typography>
+                  </Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {emailLogs.map((log) => {
-                  const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt);
+                  const delivery = getDeliveryStatusPresentation(
+                    log.deliveryStatus,
+                    log.deliveredAt
+                  );
 
                   return (
                     <Tr key={log.id}>
                       <Td>
-                        <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block' }}>
+                        <Typography
+                          variant="omega"
+                          fontWeight="semiBold"
+                          style={{ display: 'block' }}
+                        >
                           {log.recipient}
                         </Typography>
                         {log.recipientName && (
-                          <Typography variant="pi" textColor="neutral600" style={{ display: 'block' }}>
+                          <Typography
+                            variant="pi"
+                            textColor="neutral600"
+                            style={{ display: 'block' }}
+                          >
                             {log.recipientName}
                           </Typography>
                         )}
@@ -898,7 +1012,10 @@ const Analytics = () => {
               'This will permanently delete {count, plural, one {# email log} other {# email logs}} and all associated tracking data.',
               { count: totalLogs }
             )
-          : t('analytics.clear.countUnknown', 'This will permanently delete every email log and all associated tracking data.')}
+          : t(
+              'analytics.clear.countUnknown',
+              'This will permanently delete every email log and all associated tracking data.'
+            )}
       </ConfirmDialog>
     </Container>
   );

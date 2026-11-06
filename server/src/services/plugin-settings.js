@@ -101,7 +101,9 @@ module.exports = ({ strapi }) => {
         cacheExpiresAt = Date.now() + CACHE_TTL_MS;
         return { ...settings };
       } catch (error) {
-        strapi.log.error(`[magic-mail] [SETTINGS] Error getting settings: ${error?.name || 'Error'}`);
+        strapi.log.error(
+          `[magic-mail] [SETTINGS] Error getting settings: ${error?.name || 'Error'}`
+        );
         // Defaults keep sending working; they are not cached.
         return { ...DEFAULT_SETTINGS };
       }
@@ -115,16 +117,19 @@ module.exports = ({ strapi }) => {
      * @returns {Promise<Object>} Updated settings
      */
     async updateSettings(data) {
-      const trimToNull = (value) => (typeof value === 'string' ? (value.trim() || null) : value);
+      const trimToNull = (value) => (typeof value === 'string' ? value.trim() || null : value);
       const sanitizedData = { ...data };
-      if ('trackingBaseUrl' in data) sanitizedData.trackingBaseUrl = trimToNull(data.trackingBaseUrl);
-      if ('defaultFromName' in data) sanitizedData.defaultFromName = trimToNull(data.defaultFromName);
+      if ('trackingBaseUrl' in data)
+        sanitizedData.trackingBaseUrl = trimToNull(data.trackingBaseUrl);
+      if ('defaultFromName' in data)
+        sanitizedData.defaultFromName = trimToNull(data.defaultFromName);
       if ('defaultFromEmail' in data) {
         const email = trimToNull(data.defaultFromEmail);
         sanitizedData.defaultFromEmail = email ? email.toLowerCase() : null;
       }
       if ('unsubscribeUrl' in data) sanitizedData.unsubscribeUrl = trimToNull(data.unsubscribeUrl);
-      if ('trackingFallbackUrl' in data) sanitizedData.trackingFallbackUrl = trimToNull(data.trackingFallbackUrl);
+      if ('trackingFallbackUrl' in data)
+        sanitizedData.trackingFallbackUrl = trimToNull(data.trackingFallbackUrl);
 
       cache = null;
       try {
@@ -136,7 +141,9 @@ module.exports = ({ strapi }) => {
         strapi.log.info('[magic-mail] [SETTINGS] Updated plugin settings');
         return settings;
       } catch (error) {
-        strapi.log.error(`[magic-mail] [SETTINGS] Error updating settings: ${error?.name || 'Error'}`);
+        strapi.log.error(
+          `[magic-mail] [SETTINGS] Error updating settings: ${error?.name || 'Error'}`
+        );
         throw error;
       } finally {
         cache = null;

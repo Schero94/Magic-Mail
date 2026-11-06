@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { Field, Modal, SingleSelect, SingleSelectOption, TextInput, Typography } from '@strapi/design-system';
+import {
+  Field,
+  Modal,
+  SingleSelect,
+  SingleSelectOption,
+  TextInput,
+  Typography,
+} from '@strapi/design-system';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { GradientButton, TertiaryButton } from '../../components/StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
@@ -65,7 +72,10 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
   const errorText = {
     to: {
       required: t('templates.testSend.errors.toRequired', 'Enter a recipient email address.'),
-      invalid: t('templates.testSend.errors.toInvalid', 'Enter a valid email address, for example name@example.com.'),
+      invalid: t(
+        'templates.testSend.errors.toInvalid',
+        'Enter a valid email address, for example name@example.com.'
+      ),
     },
     cc: {
       invalid: t('templates.testSend.errors.ccInvalid', 'One or more CC addresses are not valid.'),
@@ -89,15 +99,20 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
     try {
       // templateReferenceId is the stable, user-visible identifier.
       const templateIdForLookup = template.templateReferenceId ?? template.id;
-      await post(`/magic-mail/designer/templates/${encodeURIComponent(templateIdForLookup)}/test-send`, {
-        to: result.to,
-        cc: result.cc.length > 0 ? result.cc.join(', ') : undefined,
-        accountName: testAccount === AUTO_ACCOUNT ? null : testAccount,
-      });
+      await post(
+        `/magic-mail/designer/templates/${encodeURIComponent(templateIdForLookup)}/test-send`,
+        {
+          to: result.to,
+          cc: result.cc.length > 0 ? result.cc.join(', ') : undefined,
+          accountName: testAccount === AUTO_ACCOUNT ? null : testAccount,
+        }
+      );
 
       toggleNotification({
         type: 'success',
-        message: t('templates.testSend.success', 'Test email sent to {email}', { email: result.to }),
+        message: t('templates.testSend.success', 'Test email sent to {email}', {
+          email: result.to,
+        }),
       });
       onClose();
     } catch (error) {
@@ -133,7 +148,11 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
             </ModalField>
 
             <ModalField>
-              <Field.Root name="testRecipient" required error={errors.to ? errorText.to[errors.to] : undefined}>
+              <Field.Root
+                name="testRecipient"
+                required
+                error={errors.to ? errorText.to[errors.to] : undefined}
+              >
                 <Field.Label>{t('templates.testSend.recipient', 'Recipient email')}</Field.Label>
                 <TextInput
                   placeholder="test@example.com"
@@ -175,10 +194,15 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
                         'templates.testSend.accountsUnavailable',
                         'Accounts could not be loaded. Smart routing selects the account.'
                       )
-                    : t('templates.testSend.accountHint', 'Leave on automatic to use smart routing.')
+                    : t(
+                        'templates.testSend.accountHint',
+                        'Leave on automatic to use smart routing.'
+                      )
                 }
               >
-                <Field.Label>{t('templates.testSend.account', 'Send from account (optional)')}</Field.Label>
+                <Field.Label>
+                  {t('templates.testSend.account', 'Send from account (optional)')}
+                </Field.Label>
                 <SingleSelect
                   value={testAccount}
                   onChange={(value) => setTestAccount(String(value))}
@@ -205,7 +229,11 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
               type="submit"
               loading={sending}
               disabled={sending}
-              startIcon={sending ? undefined : <PaperAirplaneIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+              startIcon={
+                sending ? undefined : (
+                  <PaperAirplaneIcon style={{ width: 16, height: 16 }} aria-hidden="true" />
+                )
+              }
             >
               {t('templates.testSend.submit', 'Send test email')}
             </GradientButton>

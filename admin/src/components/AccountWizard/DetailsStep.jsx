@@ -15,7 +15,14 @@ import { OAUTH_PROVIDER_NAMES, isOAuthProvider } from './wizardState';
  * @param {string} props.originalName - stored name (edit mode)
  * @param {number|null} props.referencingRuleCount - routing rules that use the stored name
  */
-export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName, referencingRuleCount }) => {
+export const DetailsStep = ({
+  provider,
+  form,
+  onChange,
+  isEditMode,
+  originalName,
+  referencingRuleCount,
+}) => {
   const { t } = useMagicMailIntl();
   const fromEmailInvalid = Boolean(form.fromEmail) && !isValidEmailAddress(form.fromEmail);
   const replyToInvalid = Boolean(form.replyTo) && !isOptionalEmailAddressValid(form.replyTo);
@@ -29,19 +36,29 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
           <Field.Root required name="name">
             <Field.Label>{t('accountModal.details.name', 'Account name')}</Field.Label>
             <TextInput
-              placeholder={t('accountModal.details.namePlaceholder', 'e.g. Company Gmail, Marketing SendGrid, Transactional Emails')}
+              placeholder={t(
+                'accountModal.details.namePlaceholder',
+                'e.g. Company Gmail, Marketing SendGrid, Transactional Emails'
+              )}
               value={form.name}
               onChange={(e) => onChange('name', e.target.value)}
               autoComplete="off"
             />
             <Field.Hint>
-              {t('accountModal.details.nameHint', 'Give this email account a unique, descriptive name so you can identify it later.')}
+              {t(
+                'accountModal.details.nameHint',
+                'Give this email account a unique, descriptive name so you can identify it later.'
+              )}
             </Field.Hint>
           </Field.Root>
         </FullWidthField>
 
         {nameChanged ? (
-          <Alert variant="warning" closeLabel={t('common.close', 'Close')} title={t('accountModal.details.renameTitle', 'Renaming affects routing rules')}>
+          <Alert
+            variant="warning"
+            closeLabel={t('common.close', 'Close')}
+            title={t('accountModal.details.renameTitle', 'Renaming affects routing rules')}
+          >
             {referencingRuleCount > 0
               ? t(
                   'accountModal.details.renameRules',
@@ -56,7 +73,11 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
         ) : null}
 
         {oauth ? (
-          <Alert variant="default" closeLabel={t('common.close', 'Close')} title={t('accountModal.details.oauthEmailTitle', 'Email address')}>
+          <Alert
+            variant="default"
+            closeLabel={t('common.close', 'Close')}
+            title={t('accountModal.details.oauthEmailTitle', 'Email address')}
+          >
             <Typography variant="pi">
               {t(
                 'accountModal.details.oauthEmailBody',
@@ -70,7 +91,14 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
             <Field.Root
               required
               name="fromEmail"
-              error={fromEmailInvalid ? t('accountModal.details.fromEmailInvalid', 'Enter a valid sender email address.') : undefined}
+              error={
+                fromEmailInvalid
+                  ? t(
+                      'accountModal.details.fromEmailInvalid',
+                      'Enter a valid sender email address.'
+                    )
+                  : undefined
+              }
             >
               <Field.Label>{t('accountModal.details.fromEmail', 'From email address')}</Field.Label>
               <TextInput
@@ -82,7 +110,10 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
               />
               <Field.Error />
               <Field.Hint>
-                {t('accountModal.details.fromEmailHint', 'The address that appears as the sender in the recipients’ inbox.')}
+                {t(
+                  'accountModal.details.fromEmailHint',
+                  'The address that appears as the sender in the recipients’ inbox.'
+                )}
               </Field.Hint>
             </Field.Root>
           </FullWidthField>
@@ -98,7 +129,10 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
               autoComplete="off"
             />
             <Field.Hint>
-              {t('accountModal.details.fromNameHint', 'The friendly name shown next to the email address, e.g. "ACME Corp" instead of only "noreply@acme.com".')}
+              {t(
+                'accountModal.details.fromNameHint',
+                'The friendly name shown next to the email address, e.g. "ACME Corp" instead of only "noreply@acme.com".'
+              )}
             </Field.Hint>
           </Field.Root>
         </FullWidthField>
@@ -106,7 +140,14 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
         <FullWidthField>
           <Field.Root
             name="replyTo"
-            error={replyToInvalid ? t('accountModal.details.replyToInvalid', 'Enter a valid Reply-To email address or leave the field empty.') : undefined}
+            error={
+              replyToInvalid
+                ? t(
+                    'accountModal.details.replyToInvalid',
+                    'Enter a valid Reply-To email address or leave the field empty.'
+                  )
+                : undefined
+            }
           >
             <Field.Label>{t('accountModal.details.replyTo', 'Reply-To email address')}</Field.Label>
             <TextInput
@@ -118,21 +159,32 @@ export const DetailsStep = ({ provider, form, onChange, isEditMode, originalName
             />
             <Field.Error />
             <Field.Hint>
-              {t('accountModal.details.replyToHint', 'Replies from recipients go to this address. Leave it empty to use the sender address.')}
+              {t(
+                'accountModal.details.replyToHint',
+                'Replies from recipients go to this address. Leave it empty to use the sender address.'
+              )}
             </Field.Hint>
           </Field.Root>
         </FullWidthField>
 
         <FullWidthField>
           <Field.Root name="description">
-            <Field.Label>{t('accountModal.details.description', 'Account description')}</Field.Label>
+            <Field.Label>
+              {t('accountModal.details.description', 'Account description')}
+            </Field.Label>
             <Textarea
-              placeholder={t('accountModal.details.descriptionPlaceholder', 'What is this account used for? For example marketing campaigns, order confirmations or password resets.')}
+              placeholder={t(
+                'accountModal.details.descriptionPlaceholder',
+                'What is this account used for? For example marketing campaigns, order confirmations or password resets.'
+              )}
               value={form.description}
               onChange={(e) => onChange('description', e.target.value)}
             />
             <Field.Hint>
-              {t('accountModal.details.descriptionHint', 'Notes about the purpose of this account. Only visible to admins.')}
+              {t(
+                'accountModal.details.descriptionHint',
+                'Notes about the purpose of this account. Only visible to admins.'
+              )}
             </Field.Hint>
           </Field.Root>
         </FullWidthField>

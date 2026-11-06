@@ -89,7 +89,12 @@ module.exports = {
         data: rules,
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting routing rules', 'Error fetching routing rules');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting routing rules',
+        'Error fetching routing rules'
+      );
     }
   },
 
@@ -111,7 +116,12 @@ module.exports = {
         data: rule,
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting routing rule', 'Error fetching routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting routing rule',
+        'Error fetching routing rule'
+      );
     }
   },
 
@@ -131,7 +141,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule created: ${rule.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error creating routing rule', 'Error creating routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error creating routing rule',
+        'Error creating routing rule'
+      );
     }
   },
 
@@ -141,7 +156,7 @@ module.exports = {
   async update(ctx) {
     try {
       const { ruleId } = ctx.params;
-      
+
       const existing = await strapi.documents(ROUTING_RULE_UID).findOne({ documentId: ruleId });
       if (!existing) {
         return ctx.notFound('Routing rule not found');
@@ -161,7 +176,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule updated: ${rule.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error updating routing rule', 'Error updating routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error updating routing rule',
+        'Error updating routing rule'
+      );
     }
   },
 
@@ -187,7 +207,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] Routing rule deleted: ${ruleId}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error deleting routing rule', 'Error deleting routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error deleting routing rule',
+        'Error deleting routing rule'
+      );
     }
   },
 };

@@ -12,14 +12,18 @@ const CC = 'copy@example.com, second-copy@example.com';
 
 test('account and template test-send schemas retain bounded CC input', () => {
   assert.equal(validate('accounts.test', { testEmail: 'to@example.com', cc: CC }).cc, CC);
-  assert.equal(validate('accounts.testStrapiService', { testEmail: 'to@example.com', cc: CC }).cc, CC);
+  assert.equal(
+    validate('accounts.testStrapiService', { testEmail: 'to@example.com', cc: CC }).cc,
+    CC
+  );
   assert.equal(validate('emailDesigner.testSend', { to: 'to@example.com', cc: CC }).cc, CC);
 });
 
 test('account test-send rejects malformed CC before calling the account service', () => {
   assert.throws(
-    () => validate('accounts.test', { testEmail: 'to@example.com', cc: 'copy@example.com,invalid' }),
-    (error) => error.name === 'ValidationError',
+    () =>
+      validate('accounts.test', { testEmail: 'to@example.com', cc: 'copy@example.com,invalid' }),
+    (error) => error.name === 'ValidationError'
   );
 });
 
@@ -30,7 +34,14 @@ test('account test handler forwards CC to its account-manager service', async ()
     log: { info() {}, warn() {}, error() {}, debug() {} },
     plugin(name) {
       assert.equal(name, 'magic-mail');
-      return { service: () => ({ testAccount: async (...args) => { captured = args; return { success: true }; } }) };
+      return {
+        service: () => ({
+          testAccount: async (...args) => {
+            captured = args;
+            return { success: true };
+          },
+        }),
+      };
     },
   };
 
@@ -64,7 +75,14 @@ test('account-manager test send forwards CC to the email router', async () => {
     documents: () => ({ findOne: async () => account }),
     plugin(name) {
       assert.equal(name, 'magic-mail');
-      return { service: () => ({ send: async (data) => { captured = data; return { success: true }; } }) };
+      return {
+        service: () => ({
+          send: async (data) => {
+            captured = data;
+            return { success: true };
+          },
+        }),
+      };
     },
   };
   const accountManager = require('../server/src/services/account-manager')({ strapi });
@@ -84,7 +102,14 @@ test('Strapi service test handler forwards CC into the native email service', as
     plugin(name) {
       if (name === 'magic-mail') return { service: () => ({}) };
       assert.equal(name, 'email');
-      return { service: () => ({ send: async (data) => { captured = data; return { success: true }; } }) };
+      return {
+        service: () => ({
+          send: async (data) => {
+            captured = data;
+            return { success: true };
+          },
+        }),
+      };
     },
   };
 
@@ -115,11 +140,22 @@ test('template test-send controller forwards CC to the router', async () => {
         service(serviceName) {
           if (serviceName === 'email-designer') {
             return {
-              findOne: async () => ({ id: 1, name: 'Test template', templateReferenceId: 'template-1', subject: 'Hello' }),
+              findOne: async () => ({
+                id: 1,
+                name: 'Test template',
+                templateReferenceId: 'template-1',
+                subject: 'Hello',
+              }),
               renderTemplate: async () => ({ subject: 'Hello', html: '<p>Hi</p>', text: 'Hi' }),
             };
           }
-          if (serviceName === 'email-router') return { send: async (data) => { captured = data; return { success: true }; } };
+          if (serviceName === 'email-router')
+            return {
+              send: async (data) => {
+                captured = data;
+                return { success: true };
+              },
+            };
           throw new Error(`Unexpected service requested: ${serviceName}`);
         },
       };
@@ -130,9 +166,15 @@ test('template test-send controller forwards CC to the router', async () => {
   const ctx = {
     params: { id: 'template-1' },
     request: { body: { to: 'to@example.com', accountName: 'test-account', cc: CC } },
-    send(body) { this.body = body; },
-    badRequest(message) { throw new Error(message); },
-    notFound(message) { throw new Error(message); },
+    send(body) {
+      this.body = body;
+    },
+    badRequest(message) {
+      throw new Error(message);
+    },
+    notFound(message) {
+      throw new Error(message);
+    },
   };
 
   await controller.testSend(ctx);
@@ -144,9 +186,15 @@ test('template test-send controller forwards CC to the router', async () => {
 
 test('both Admin test-send dialogs expose an accessible CC field and forward its value', () => {
   const homePage = readFileSync(path.join(__dirname, '../admin/src/pages/HomePage.jsx'), 'utf8');
-  const templateList = readFileSync(path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateList.jsx'), 'utf8');
+  const templateList = readFileSync(
+    path.join(__dirname, '../admin/src/pages/EmailDesigner/TemplateList.jsx'),
+    'utf8'
+  );
 
-  const accountTestSend = readFileSync(path.join(__dirname, '../admin/src/pages/Accounts/TestEmailModal.jsx'), 'utf8');
+  const accountTestSend = readFileSync(
+    path.join(__dirname, '../admin/src/pages/Accounts/TestEmailModal.jsx'),
+    'utf8'
+  );
   assert.match(homePage, /<TestEmailModal/);
   assert.match(homePage, /cc:\s*testOptions\.cc/i);
   assert.match(accountTestSend, /CC recipients/i);
@@ -162,5 +210,8 @@ test('both Admin test-send dialogs expose an accessible CC field and forward its
   assert.match(templateList, /<TemplateTestSendModal/);
   assert.match(templateTestSend, /CC recipients/i);
   assert.match(templateTestSend, /<Field\.Label>\{t\('templates\.testSend\.cc'/);
-  assert.match(templateTestSend, /cc:\s*result\.cc\.length > 0 \? result\.cc\.join\(', '\) : undefined/);
+  assert.match(
+    templateTestSend,
+    /cc:\s*result\.cc\.length > 0 \? result\.cc\.join\(', '\) : undefined/
+  );
 });

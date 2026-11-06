@@ -61,7 +61,8 @@ export const SecondaryButton = styled(Button)`
     background: ${color('neutral0')};
     color: ${accent.secondary};
     border: 2px solid transparent;
-    background-image: linear-gradient(${color('neutral0')}, ${color('neutral0')}), ${brand.gradient};
+    background-image:
+      linear-gradient(${color('neutral0')}, ${color('neutral0')}), ${brand.gradient};
     background-origin: border-box;
     background-clip: padding-box, border-box;
 
