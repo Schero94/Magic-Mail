@@ -13,6 +13,7 @@ const files = [
   'admin/src/pages/HomePage.jsx',
   'admin/src/pages/PluginSettings.jsx',
   'admin/src/pages/RoutingRules.jsx',
+  'admin/src/pages/Routing/RuleModal.jsx',
 ];
 
 test('admin logs never print raw API responses, errors, account credentials or template data', () => {

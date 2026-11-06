@@ -23,7 +23,7 @@ const affectedFiles = [
     ],
   },
   {
-    relativePath: 'admin/src/pages/RoutingRules.jsx',
+    relativePath: 'admin/src/pages/Routing/RuleModal.jsx',
     expectedChecked: [
       'formData.isActive',
     ],
@@ -595,17 +595,22 @@ function assertNonEmptyStringAttribute(tag, attributeName, relativePath, control
     1,
     `${relativePath} ${control} must have exactly one direct ${attributeName} attribute`
   );
-  assert.equal(
-    attributes[0].kind,
-    'string',
-    `${relativePath} ${control} ${attributeName} must be a non-empty string literal`
+  // A translated label is accepted when it is a t('key', 'English default') call
+  // with a non-empty default message (i18n, UI-03).
+  const translated =
+    attributes[0].kind === 'expression' ? TRANSLATED_LABEL.exec(attributes[0].value) : null;
+  assert.ok(
+    attributes[0].kind === 'string' || translated,
+    `${relativePath} ${control} ${attributeName} must be a non-empty string literal or t('key', 'Default')`
   );
   assert.notEqual(
-    attributes[0].value.trim(),
+    (translated ? translated[1] : attributes[0].value).trim(),
     '',
     `${relativePath} ${control} ${attributeName} must not be empty`
   );
 }
+
+const TRANSLATED_LABEL = /^t\(\s*'[\w.]+'\s*,\s*'([^']*)'\s*(?:,[\s\S]*)?\)$/;
 
 function assertHiddenLabels(tag, relativePath, control) {
   const visibleLabels = directAttributes(tag, 'visibleLabels');
