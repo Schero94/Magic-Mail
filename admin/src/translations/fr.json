@@ -818,5 +818,7 @@
   "queue.errorTitle": "Impossible de charger la boîte d'envoi",
   "queue.summary.pending": "{count} en attente",
   "queue.summary.failed": "{count} en échec",
-  "queue.summary.uncertain": "{count} incertains"
+  "queue.summary.uncertain": "{count} incertains",
+  "app.tabs.scrollPrevious": "Afficher les sections précédentes",
+  "app.tabs.scrollNext": "Afficher plus de sections"
 }

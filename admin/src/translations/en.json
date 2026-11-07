@@ -818,5 +818,7 @@
   "queue.errorTitle": "Couldn't load the outbox",
   "queue.summary.pending": "{count} pending",
   "queue.summary.failed": "{count} failed",
-  "queue.summary.uncertain": "{count} uncertain"
+  "queue.summary.uncertain": "{count} uncertain",
+  "app.tabs.scrollPrevious": "Show previous sections",
+  "app.tabs.scrollNext": "Show more sections"
 }

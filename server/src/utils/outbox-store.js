@@ -527,7 +527,9 @@ async function purgeRetention(strapi, retention, now = Date.now()) {
     .whereIn(col('status'), ['failed', 'uncertain'])
     .whereNotNull(col('payload'))
     .andWhere(col('updatedAt'), '<', unresolvedBefore)
-    .update(toColumns(col, { payload: null, updatedAt: new Date(now) }));
+    // Leave updatedAt alone: rowDays counts from the row's last state change,
+    // not from this purge (otherwise rows lived unresolvedDays + rowDays).
+    .update(toColumns(col, { payload: null }));
   const oldDeleted = await table()
     .whereIn(col('status'), ['failed', 'uncertain'])
     .andWhere(col('updatedAt'), '<', rowsBefore)

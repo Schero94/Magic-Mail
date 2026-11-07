@@ -491,8 +491,10 @@ test('FUN-06: provider errors that guarantee non-delivery fail over to the next 
     router.sendViaSendGrid = async (acc) => {
       used.push(acc.name);
       if (acc.name === 'first') {
+        // nodemailer: a refused connect, system code kept in originalCode.
         const e = new Error('refused');
         e.code = 'ECONNECTION';
+        e.originalCode = 'ECONNREFUSED';
         throw e;
       }
       return { messageId: 'ok' };
@@ -523,6 +525,118 @@ test('FUN-06: ambiguous provider errors are not retried (no duplicate delivery)'
     await assert.rejects(router.send(baseMail()), /timeout/);
     assert.deepEqual(used, ['first']);
   } finally {
+    restore();
+  }
+});
+
+test('FUN-06: inline failover uses the strict classifier (proven non-acceptance only)', async () => {
+  const restore = withEncryptionKey();
+  const httpError = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
+  const fetchFailed = (code) =>
+    Object.assign(new TypeError('fetch failed'), {
+      cause: Object.assign(new Error(code), { code }),
+    });
+  const smtpError = (fields) => Object.assign(new Error('smtp'), fields);
+  const cases = [
+    // [label, error, fails over]
+    ['HTTP 429', httpError(429), true],
+    ['HTTP 503', httpError(503), true],
+    ['HTTP 401', httpError(401), true],
+    ['SMTP 421', smtpError({ code: 'EENVELOPE', responseCode: 421 }), true],
+    ['SMTP 451 after DATA', smtpError({ code: 'EMESSAGE', responseCode: 451 }), true],
+    ['SMTP 535 auth', smtpError({ code: 'EAUTH', responseCode: 535 }), true],
+    ['connection refused (fetch)', fetchFailed('ECONNREFUSED'), true],
+    [
+      'socket drop before 354',
+      smtpError({ code: 'ECONNECTION', magicMailSmtpStage: 'before-data' }),
+      true,
+    ],
+    ['HTTP 500', httpError(500), false],
+    ['HTTP 502', httpError(502), false],
+    ['HTTP 504', httpError(504), false],
+    ['HTTP 400', httpError(400), false],
+    ['connection reset after connect (fetch)', fetchFailed('ECONNRESET'), false],
+    [
+      'socket drop after 354',
+      smtpError({ code: 'ECONNECTION', magicMailSmtpStage: 'after-data' }),
+      false,
+    ],
+    ['socket drop, stage unknown', smtpError({ code: 'ECONNECTION' }), false],
+    ['SMTP 550 to the message', smtpError({ code: 'EMESSAGE', responseCode: 550 }), false],
+    ['unknown error', new Error('boom'), false],
+  ];
+  try {
+    for (const [label, error, failsOver] of cases) {
+      const { router, logUpdates } = createRouterHarness({
+        accounts: [account('first', { priority: 9 }), account('second', { priority: 1 })],
+      });
+      const used = [];
+      router.sendViaSendGrid = async (acc) => {
+        used.push(acc.name);
+        if (acc.name === 'first') throw error;
+        return { messageId: 'ok' };
+      };
+      if (failsOver) {
+        const result = await router.send(baseMail());
+        assert.equal(result.accountUsed, 'second', label);
+        assert.deepEqual(used, ['first', 'second'], label);
+      } else {
+        await assert.rejects(router.send(baseMail()), (thrown) => thrown === error, label);
+        assert.deepEqual(used, ['first'], label);
+        const failed = logUpdates.find((u) => u.data.deliveryStatus === 'failed');
+        assert.ok(failed, `${label}: delivery log marked failed`);
+      }
+    }
+  } finally {
+    restore();
+  }
+});
+
+test('FUN-06: real SMTP sessions fail over only before the message was handed over', async () => {
+  const restore = withEncryptionKey();
+  const { startFakeSmtp } = require('./helpers/fake-smtp');
+  const { encryptCredentials } = require('../server/src/utils/encryption');
+  const primary = await startFakeSmtp();
+  const backup = await startFakeSmtp({ fixedMode: 'ok' });
+  // A port with nothing listening: connection refused.
+  const closed = await startFakeSmtp();
+  const closedPort = closed.port;
+  await closed.close();
+  const smtpAccount = (id, port, priority) =>
+    account(id, {
+      provider: 'smtp',
+      priority,
+      config: encryptCredentials({ host: '127.0.0.1', port, secure: false, allowInsecure: true }),
+    });
+  const cases = [
+    // [recipient local part, primary port, fails over]
+    ['r421', primary.port, true],
+    ['r451', primary.port, true],
+    ['dropbefore', primary.port, true],
+    ['refused', closedPort, true],
+    ['dropafter', primary.port, false],
+  ];
+  try {
+    for (const [mode, port, failsOver] of cases) {
+      const { router } = createRouterHarness({
+        accounts: [smtpAccount('first', port, 9), smtpAccount('second', backup.port, 1)],
+      });
+      const before = backup.received.length;
+      const mail = { ...baseMail(), to: `${mode}@example.test` };
+      if (failsOver) {
+        const result = await router.send(mail);
+        assert.equal(result.accountUsed, 'second', mode);
+        assert.equal(backup.received.length, before + 1, `${mode}: backup got the message`);
+      } else {
+        await assert.rejects(router.send(mail), (error) => error.code === 'ECONNECTION', mode);
+        assert.equal(backup.received.length, before, `${mode}: not handed to a second account`);
+      }
+    }
+    const dropped = primary.received.filter((entry) => entry.mode === 'dropafter');
+    assert.equal(dropped.length, 1, 'the primary received the dropped message exactly once');
+  } finally {
+    await primary.close();
+    await backup.close();
     restore();
   }
 });

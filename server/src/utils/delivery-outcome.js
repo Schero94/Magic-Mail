@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * Delivery outcome classification for the send queue (outbox).
+ * Delivery outcome classification for failover and the send queue (outbox).
  *
- * The queue may only re-send a message automatically when an error proves
- * that no provider accepted it. Everything else either fails for good
- * (permanent), waits for capacity, or goes to a person (ambiguous ->
- * `uncertain`). This module is deliberately stricter than the immediate
- * failover in email-router.js (`isSafeToRetry`), which is left unchanged.
+ * A message may only be handed to another account, or re-sent by the queue,
+ * when an error proves that no provider accepted it. Everything else either
+ * fails for good (permanent), waits for capacity, or goes to a person
+ * (ambiguous -> `uncertain`). Inline sends and queue sends use the same rule
+ * (`failoverAllowed`), so neither can deliver a message twice on its own.
  *
  * Sources (checked 2026-11-07):
  * - nodemailer 10.3.1 (installed): socket failures are reported as
@@ -327,9 +327,43 @@ function tagProviderError(error) {
   return error;
 }
 
+/**
+ * Account-level SMTP refusals (authentication, TLS, envelope). The server
+ * answered with a 5xx reply, so nothing was accepted, but another account
+ * (other server, other credentials, other sender) may still deliver.
+ */
+const ACCOUNT_REFUSAL_CODES = new Set(['EAUTH', 'ENOAUTH', 'EOAUTH2', 'ETLS', 'EENVELOPE']);
+
+/**
+ * True when the next account may be tried after this error: the error
+ * proves that the provider did not accept the message. Used by the inline
+ * failover and by the queue worker alike.
+ *
+ * - `transient` errors (refused connection, SMTP 4xx, HTTP 401/403/408/429/503,
+ *   a socket drop before the server answered DATA with 354) fail over.
+ * - A permanent SMTP reply to authentication, TLS or the envelope fails
+ *   over: the reply proves the refusal and it is specific to the account.
+ * - Ambiguous errors (socket drop or timeout after 354, HTTP 500/502/504,
+ *   fetch errors after connecting, unknown errors) never fail over: that
+ *   provider may have accepted the message.
+ * - Other permanent errors (validation, 5xx to the message, HTTP 4xx) stop:
+ *   another account would be refused for the same reason.
+ *
+ * @param {*} error - Error thrown by a provider adapter
+ * @returns {boolean}
+ */
+function failoverAllowed(error) {
+  const errorClass = classifyDeliveryError(error);
+  if (errorClass === 'transient') return true;
+  if (errorClass !== 'permanent' || !ACCOUNT_REFUSAL_CODES.has(error.code)) return false;
+  const responseCode = Number(error.responseCode);
+  return Number.isInteger(responseCode) && responseCode >= 500 && responseCode < 600;
+}
+
 module.exports = {
   PROVIDER_CAPABILITIES,
   classifyDeliveryError,
+  failoverAllowed,
   combineOutcome,
   sanitizeErrorCode,
   backoffDelay,

@@ -640,6 +640,48 @@ test(
   }
 );
 
+test(
+  'send(): an ambiguous inline failure never fails over; with queueFailedSends it is uncertain',
+  { skip: !hasSqlite },
+  async () => {
+    const backup = await startFakeSmtp({ fixedMode: 'ok' });
+    const accounts = [
+      fixtures.smtpAccount('alpha', smtp.port, { isPrimary: true, priority: 5 }),
+      fixtures.smtpAccount('beta', backup.port, { priority: 1 }),
+    ];
+    for (const queueFailedSends of [false, true]) {
+      const ctx = await setup({ accounts, settings: { queueFailedSends } });
+      try {
+        const backupBefore = backup.received.length;
+        await assert.rejects(
+          ctx.router.send({ to: 'dropafter@example.test', subject: 'Synthetic', text: 'x' }),
+          (error) => {
+            assert.equal(error.code, 'ECONNECTION');
+            assert.equal(Boolean(error.magicMailOutboxId), queueFailedSends);
+            return true;
+          }
+        );
+        assert.equal(backup.received.length, backupBefore, 'not handed to the second account');
+        const counts = await store.countByStatus(ctx.strapi);
+        assert.equal(counts.uncertain || 0, queueFailedSends ? 1 : 0);
+        assert.equal(counts.pending || 0, 0);
+
+        // Proven non-acceptance (451 after DATA) still fails over inline.
+        const result = await ctx.router.send({
+          to: 'r451@example.test',
+          subject: 'Synthetic',
+          text: 'x',
+        });
+        assert.equal(result.accountUsed, 'beta');
+        assert.equal(result.queued, undefined);
+      } finally {
+        await ctx.close();
+      }
+    }
+    await backup.close();
+  }
+);
+
 test('forgetRecipient deletes rows by recipient hash', { skip: !hasSqlite }, async () => {
   const ctx = await setup();
   try {
@@ -674,6 +716,40 @@ test('retention removes sent rows and old payloads', { skip: !hasSqlite }, async
     await ctx.close();
   }
 });
+
+test(
+  'retention: an unresolved row is removed rowDays after its last change, not after the content purge',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    try {
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 19), {
+        emailLog: null,
+        source: 's',
+      });
+      const day = 24 * 3_600_000;
+      const start = Date.now();
+      // A failed row whose last state change was 20 days ago.
+      await ctx
+        .knex(fixtures.OUTBOX_TABLE)
+        .where({ document_id: outboxId })
+        .update({ status: 'failed', updated_at: new Date(start - 20 * day) });
+      const retention = { sentDays: 7, unresolvedDays: 14, rowDays: 30 };
+      // Day 20: the content is past unresolvedDays and is purged; the row stays.
+      let result = await store.purgeRetention(ctx.strapi, retention, start);
+      assert.equal(result.payloadsCleared, 1);
+      assert.equal(result.rowsDeleted, 0);
+      const row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.payload ?? null, null);
+      // Day 31: the row is removed (30 days after its last state change).
+      result = await store.purgeRetention(ctx.strapi, retention, start + 11 * day);
+      assert.equal(result.rowsDeleted, 1);
+      assert.equal(await store.findByDocumentId(ctx.strapi, outboxId), null);
+    } finally {
+      await ctx.close();
+    }
+  }
+);
 
 test(
   'a database error on the sent write never re-sends an accepted message',

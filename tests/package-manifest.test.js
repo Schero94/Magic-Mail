@@ -54,14 +54,50 @@ test('peer dependencies match the host APIs the plugin uses', () => {
     undefined,
     'the relation is unconditional, so the peer is required'
   );
+  // @strapi/strapi 5.57.0 is the first tested floor and its admin ships
+  // @strapi/design-system / @strapi/icons 2.2.4, the version the admin needs.
   assert.equal(peers['@strapi/strapi'], '^5.57.0');
-  assert.equal(peers['@strapi/utils'], '^5.57.0');
+  assert.equal(peers['@strapi/design-system'], '^2.2.4');
+  assert.equal(peers['@strapi/icons'], '^2.2.4');
   assert.equal(peers['react-router-dom'], '^6.30.3', 'no stricter than the Strapi 5 admin peer');
+  // Server code requires @strapi/utils, so it is a dependency (an app only
+  // gets it transitively); same floor as @strapi/strapi so it dedupes.
+  assert.equal(pkg.dependencies['@strapi/utils'], '^5.57.0');
+  assert.equal(peers['@strapi/utils'], undefined);
+  // Admin packages an app only gets through @strapi/strapi: optional peers,
+  // never bundled dependencies (a second Design System copy breaks theming).
+  for (const name of ['@strapi/design-system', '@strapi/icons', 'react-intl']) {
+    assert.equal(pkg.peerDependenciesMeta?.[name]?.optional, true, `${name} optional peer`);
+    assert.equal(pkg.dependencies[name], undefined, `${name} not a dependency`);
+  }
+  // Packages a create-strapi-app project lists itself: required peers.
+  for (const name of [
+    '@strapi/strapi',
+    'react',
+    'react-dom',
+    'react-router-dom',
+    'styled-components',
+  ]) {
+    assert.ok(peers[name], `${name} peer`);
+    assert.equal(pkg.peerDependenciesMeta?.[name], undefined, `${name} required`);
+  }
   assert.match(
     sourceText,
     /from 'react-intl'/,
     'react-intl stays a peer only while it is imported'
   );
+});
+
+test('npm metadata points at the project site, repository and issues', () => {
+  assert.equal(pkg.homepage, 'https://schero94.github.io/Magic-Mail/');
+  assert.deepEqual(pkg.repository, {
+    type: 'git',
+    url: 'git+https://github.com/Schero94/Magic-Mail.git',
+  });
+  assert.equal(pkg.bugs.url, 'https://github.com/Schero94/Magic-Mail/issues');
+  assert.ok(pkg.keywords.includes('strapi-plugin') && pkg.keywords.includes('strapi-v5'));
+  assert.equal(pkg.description, pkg.strapi.description);
+  assert.ok(pkg.description.length <= 200, 'short description for npm search');
 });
 
 test('overrides do not pin known-vulnerable versions', () => {

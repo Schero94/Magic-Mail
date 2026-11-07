@@ -332,10 +332,32 @@ test('browser acceptance: Settings has a main landmark and touch-sized switches'
   assert.doesNotMatch(src, /gap: 6px/, 'gaps stay on the 4px scale');
 });
 
-test('browser acceptance: the active plugin tab scrolls into view and dialog titles stay centred', () => {
+test('narrow screens: the section tabs scroll with visible edge buttons, wide screens keep DS tabs', () => {
+  const tabs = read('admin/src/components/shared/SectionTabsList.jsx');
+  // Same breakpoint as the Strapi admin's own mobile layout.
+  assert.match(tabs, /useMediaQuery\(theme\.breakpoints\.medium\)/);
+  assert.match(tabs, /useSyncExternalStore/);
+  // Edge buttons appear only while sections are out of view, with labels.
+  assert.match(tabs, /edges\.start \?/);
+  assert.match(tabs, /edges\.end \?/);
+  assert.match(tabs, /label=\{previousLabel\}/);
+  assert.match(tabs, /label=\{nextLabel\}/);
+  assert.match(tabs, /tabIndex=\{-1\}/, 'arrow keys stay the keyboard path');
+  // Own scroll region, focused tab kept clear of the edge buttons.
+  assert.match(tabs, /overflowX: 'auto'/);
+  assert.match(tabs, /scroll-padding-inline/);
+  assert.match(tabs, /scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/);
+  assert.match(tabs, /prefersReducedMotion\(\) \? 'auto' : 'smooth'/);
+  assert.doesNotMatch(tabs, /#[0-9a-f]{3,6}\b/i, 'theme tokens only');
   const app = read('admin/src/pages/App.jsx');
-  assert.match(app, /\[role="tab"\]\[aria-selected="true"\]/);
-  assert.match(app, /list\.scrollLeft \+=/);
+  assert.match(app, /previousLabel=\{t\('app\.tabs\.scrollPrevious'/);
+  assert.match(app, /nextLabel=\{t\('app\.tabs\.scrollNext'/);
+});
+
+test('browser acceptance: the active plugin tab scrolls into view and dialog titles stay centred', () => {
+  const tabs = read('admin/src/components/shared/SectionTabsList.jsx');
+  assert.match(tabs, /\[role="tab"\]\[aria-selected="true"\]/);
+  assert.match(tabs, /list\.scrollLeft \+=/);
   const dialog = read('admin/src/components/shared/ConfirmDialog.jsx');
   assert.match(dialog, /<Dialog\.Header textAlign="center">/);
 });

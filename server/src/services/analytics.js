@@ -663,7 +663,7 @@ module.exports = ({ strapi }) => ({
       );
       return event;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error recording open:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] Error recording open: ${error?.name || 'Error'}`);
       return null;
     }
   },
@@ -716,7 +716,7 @@ module.exports = ({ strapi }) => ({
       strapi.log.info('[magic-mail] [CLICK] Tracked link click recorded');
       return event;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error recording click:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] Error recording click: ${error?.name || 'Error'}`);
       return null;
     }
   },
@@ -1125,7 +1125,7 @@ module.exports = ({ strapi }) => ({
       strapi.log.debug('[magic-mail] [SAVE] Stored link mapping');
       return linkMapping;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error storing link mapping:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] Error storing link mapping: ${error?.name || 'Error'}`);
       throw error;
     }
   },
@@ -1218,7 +1218,7 @@ module.exports = ({ strapi }) => ({
 
       return linkMapping.originalUrl;
     } catch (error) {
-      strapi.log.error('[magic-mail] Error getting original URL:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] Error getting original URL: ${error?.name || 'Error'}`);
       return null;
     }
   },
@@ -1384,8 +1384,7 @@ module.exports = ({ strapi }) => ({
         strapi.log.info(`[magic-mail] [PRIVACY] Anonymised ${changed} stored tracking event(s)`);
     } catch (error) {
       strapi.log.warn(
-        '[magic-mail] Tracking privacy migration failed; it runs again later:',
-        error?.name || 'Error'
+        `[magic-mail] Tracking privacy migration failed; it runs again later: ${error?.name || 'Error'}`
       );
     }
     try {
@@ -1396,7 +1395,7 @@ module.exports = ({ strapi }) => ({
         );
       }
     } catch (error) {
-      strapi.log.warn('[magic-mail] Tracking retention purge failed:', error?.name || 'Error');
+      strapi.log.warn(`[magic-mail] Tracking retention purge failed: ${error?.name || 'Error'}`);
     }
   },
 
