@@ -15,6 +15,9 @@
  *   t<N>@...        451 after the dot for the first N deliveries of the same
  *                   outbox id, then 250
  *
+ * `fixedMode` replaces the per-recipient choice for every session (for
+ * example a second server that accepts everything in failover tests).
+ *
  * Every complete message (final dot received) is recorded with its
  * X-MagicMail-Outbox header and whether it was accepted.
  */
@@ -22,10 +25,10 @@
 const net = require('node:net');
 
 /**
- * @param {{port?: number, host?: string}} [options]
+ * @param {{port?: number, host?: string, fixedMode?: string}} [options]
  * @returns {Promise<{port: number, received: Array<{outboxId: string|null, accepted: boolean, messageId: string|null}>, refuseConnections: (on: boolean) => void, close: () => Promise<void>}>}
  */
-function startFakeSmtp({ port = 0, host = '127.0.0.1' } = {}) {
+function startFakeSmtp({ port = 0, host = '127.0.0.1', fixedMode } = {}) {
   const received = [];
   const seenPerOutbox = new Map();
   let refusing = false;
@@ -97,7 +100,7 @@ function startFakeSmtp({ port = 0, host = '127.0.0.1' } = {}) {
           socket.write('250 2.1.0 ok\r\n');
         } else if (verb === 'RCPT') {
           const local = (/<([^@>]+)@/.exec(line) || [])[1] || 'ok';
-          if (mode === 'ok' && message.length === 0) mode = local.toLowerCase();
+          if (mode === 'ok' && message.length === 0) mode = fixedMode || local.toLowerCase();
           if (mode === 'r550') socket.write('550 5.1.1 no such user\r\n');
           else if (mode === 'r421') {
             socket.write('421 4.7.0 closing\r\n');

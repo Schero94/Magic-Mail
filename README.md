@@ -376,7 +376,7 @@ Examples:
 
 **Account order for one email.** The account of the first matching rule, then that rule's fallback account, then the accounts (and fallbacks) of the next matching rules, then the primary account, then the remaining active accounts by account priority (1 to 10, higher first). Accounts over their quota are skipped.
 
-**Failover.** Errors that guarantee the provider did not accept the message (connection or authentication failures, missing credentials, HTTP 401/403/429/500/502/503, SMTP envelope rejection) move on to the next account. Ambiguous errors such as timeouts are returned to the caller instead, so an email is never delivered twice.
+**Failover.** MagicMail moves on to the next account only when the error proves the provider did not accept the message: a refused connection or failed DNS lookup, missing credentials, an SMTP `4xx` reply (for example `421` or `451`, also after DATA), a `5xx` reply to authentication, TLS or the envelope, a connection lost before the server answered DATA with `354`, or HTTP 401/403/408/429/503. Ambiguous errors stop the send and reach the caller: a connection lost or timed out after `354`, HTTP 500/502/504, network errors after the request was sent. That provider may have accepted the message, and a second account would deliver it twice. Inline sends and the outbox use the same rule (see [Retries and the outbox](#retries-and-the-outbox)).
 
 **Account references.** Rules reference accounts by name. Creating or editing a rule with an unknown account name returns 400. Renaming an account updates its rules; deleting an account deactivates the rules that target it and clears it where it is the fallback.
 
@@ -999,7 +999,7 @@ The outbox needs nothing beyond the [multi-instance setup](#running-several-inst
 - Retries are evaluated against the routing rules at retry time, prefer another account than the one that failed last (the same one if it is the only one), and never replace an explicitly requested account.
 - The worker does not use the original Strapi email provider as a fallback. That is why a native Strapi mail is not captured when no MagicMail account exists at all.
 - Queued OAuth sends (Gmail, Microsoft, Yahoo) bound the token refresh to 30 seconds and re-check the claim after it, right before the provider request. A process that lost its claim during a slow refresh does not send.
-- The existing immediate failover between accounts is unchanged. It still moves on after `ECONNECTION`/`ECONNRESET` and HTTP 500/502/503, which in rare cases (connection lost after the message was sent) can deliver twice; queued sends use the stricter rules above.
+- Inline failover between accounts uses the same strict rules as the queue. Before this release it also moved on after a connection lost after DATA and after HTTP 500/502, which in rare cases delivered a mail twice.
 - Outbox indexes are declared through Strapi's content-type `indexes` key, which Strapi 5.61 supports but does not document; a test pins it.
 
 ---

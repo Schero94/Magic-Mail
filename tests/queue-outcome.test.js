@@ -15,6 +15,7 @@ process.env.MAGIC_MAIL_ENCRYPTION_KEY = 'synthetic-encryption-key-0123456789abcd
 const {
   classifyDeliveryError,
   combineOutcome,
+  failoverAllowed,
   sanitizeErrorCode,
   backoffDelay,
   createSmtpProbe,
@@ -75,6 +76,39 @@ test('classifier: every rule of the design table', () => {
   for (const [error, expected] of cases) {
     assert.equal(classifyDeliveryError(error), expected, JSON.stringify(error));
   }
+});
+
+test('failoverAllowed: next account only on proven non-acceptance', () => {
+  const yes = [
+    err({ responseCode: 421, code: 'EENVELOPE' }),
+    err({ responseCode: 451, code: 'EMESSAGE' }),
+    err({ status: 429 }),
+    err({ status: 503 }),
+    err({ code: 'ECONNECTION', originalCode: 'ECONNREFUSED' }),
+    err({ code: 'ECONNECTION', magicMailSmtpStage: 'before-data' }),
+    Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }),
+    err({ code: 'EAUTH', responseCode: 535 }),
+    err({ code: 'EENVELOPE', responseCode: 550 }),
+    err({ code: 'MAGIC_MAIL_ACCOUNT_CONFIG' }),
+  ];
+  const no = [
+    err({ code: 'ECONNECTION', magicMailSmtpStage: 'after-data' }),
+    err({ code: 'ECONNECTION' }),
+    err({ code: 'ETIMEDOUT' }),
+    err({ status: 500 }),
+    err({ status: 502 }),
+    err({ status: 504 }),
+    err({ status: 400 }),
+    err({ code: 'EMESSAGE', responseCode: 550 }),
+    err({ responseCode: 554 }),
+    err({ code: 'MAGIC_MAIL_VALIDATION' }),
+    Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } }),
+    Object.assign(new Error('timeout'), { name: 'TimeoutError' }),
+    err({}),
+    null,
+  ];
+  for (const error of yes) assert.equal(failoverAllowed(error), true, JSON.stringify(error));
+  for (const error of no) assert.equal(failoverAllowed(error), false, JSON.stringify(error));
 });
 
 test('classifier: SMTP socket errors depend on the probe stage', () => {

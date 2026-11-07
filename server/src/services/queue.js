@@ -582,7 +582,6 @@ module.exports = ({ strapi }) => {
         skipped: [],
         attemptOutcomes: [],
         trackOutcome: true,
-        strictFailover: true,
         bounded: true,
         softExclude: row.lastAccountDocumentId ? [row.lastAccountDocumentId] : [],
         ...(accountDocumentId ? { accountDocumentId } : {}),

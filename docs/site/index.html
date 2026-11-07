@@ -227,8 +227,8 @@
               <p>
                 Match by email type, recipient, subject, template or a custom value, with a fallback
                 account. Rules run from the highest priority down; rules pointing to a missing or
-                inactive account are flagged. Failover only retries when the provider certainly did
-                not accept the email.
+                inactive account are flagged. Failover tries the next account only when the provider
+                provably did not accept the email.
               </p>
             </article>
             <article class="card">

@@ -640,6 +640,48 @@ test(
   }
 );
 
+test(
+  'send(): an ambiguous inline failure never fails over; with queueFailedSends it is uncertain',
+  { skip: !hasSqlite },
+  async () => {
+    const backup = await startFakeSmtp({ fixedMode: 'ok' });
+    const accounts = [
+      fixtures.smtpAccount('alpha', smtp.port, { isPrimary: true, priority: 5 }),
+      fixtures.smtpAccount('beta', backup.port, { priority: 1 }),
+    ];
+    for (const queueFailedSends of [false, true]) {
+      const ctx = await setup({ accounts, settings: { queueFailedSends } });
+      try {
+        const backupBefore = backup.received.length;
+        await assert.rejects(
+          ctx.router.send({ to: 'dropafter@example.test', subject: 'Synthetic', text: 'x' }),
+          (error) => {
+            assert.equal(error.code, 'ECONNECTION');
+            assert.equal(Boolean(error.magicMailOutboxId), queueFailedSends);
+            return true;
+          }
+        );
+        assert.equal(backup.received.length, backupBefore, 'not handed to the second account');
+        const counts = await store.countByStatus(ctx.strapi);
+        assert.equal(counts.uncertain || 0, queueFailedSends ? 1 : 0);
+        assert.equal(counts.pending || 0, 0);
+
+        // Proven non-acceptance (451 after DATA) still fails over inline.
+        const result = await ctx.router.send({
+          to: 'r451@example.test',
+          subject: 'Synthetic',
+          text: 'x',
+        });
+        assert.equal(result.accountUsed, 'beta');
+        assert.equal(result.queued, undefined);
+      } finally {
+        await ctx.close();
+      }
+    }
+    await backup.close();
+  }
+);
+
 test('forgetRecipient deletes rows by recipient hash', { skip: !hasSqlite }, async () => {
   const ctx = await setup();
   try {

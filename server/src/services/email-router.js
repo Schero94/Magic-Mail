@@ -10,6 +10,7 @@ const coordination = require('../utils/coordination');
 const {
   classifyDeliveryError,
   combineOutcome,
+  failoverAllowed,
   createSmtpProbe,
   tagSmtpStage,
   tagPreDispatch,
@@ -33,30 +34,11 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MAX_CUSTOM_HEADERS = 20;
 const MAX_ROUTING_CANDIDATES = 25;
 
-/** Error codes that mark a failure as happening before the provider accepted anything. */
-const RETRYABLE_ERROR_CODES = new Set([
-  'ECONNECTION',
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'EDNS',
-  'ETLS',
-  'EAUTH',
-  'ENOAUTH',
-  'EOAUTH2',
-  'EENVELOPE',
-  'MAGIC_MAIL_ACCOUNT_CONFIG',
-]);
-/** HTTP status codes from API providers that guarantee the message was not accepted. */
 // Refresh OAuth tokens this long before they expire (clock skew, slow sends).
 const OAUTH_EXPIRY_SKEW_MS = 60_000;
 // In-flight token refreshes per account (single-flight per process; the
 // database lease in currentOAuthToken serialises processes).
 const oauthRefreshes = new Map();
-const RETRYABLE_HTTP_STATUS = new Set([401, 403, 429, 500, 502, 503]);
 
 const EMAIL_PATTERN = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:\\[\]]+$/;
 
@@ -313,8 +295,9 @@ function accountConfigError(message) {
 }
 
 /**
- * Creates the error for a non-success provider HTTP response. Status codes
- * that guarantee non-acceptance are marked retryable for failover.
+ * Creates the error for a non-success provider HTTP response. Whether the
+ * next account may be tried is decided from `status` by `failoverAllowed`
+ * (utils/delivery-outcome.js).
  *
  * @param {string} provider
  * @param {number} status
@@ -323,23 +306,19 @@ function accountConfigError(message) {
 function providerHttpError(provider, status) {
   const error = new Error(`${provider} API request failed: ${status}`);
   error.status = status;
-  error.magicMailRetryable = RETRYABLE_HTTP_STATUS.has(status);
   return error;
 }
 
 /**
  * Returns true when a send error guarantees that no provider accepted the
  * message, so trying the next account cannot cause duplicate delivery.
+ * Same rule for inline and queue sends (see `failoverAllowed`).
  *
  * @param {*} error
  * @returns {boolean}
  */
 function isSafeToRetry(error) {
-  if (!error || typeof error !== 'object') return false;
-  if (error.code === 'MAGIC_MAIL_VALIDATION') return false;
-  if (error.magicMailRetryable === true) return true;
-  if (RETRYABLE_ERROR_CODES.has(error.code)) return true;
-  return Boolean(error.cause && RETRYABLE_ERROR_CODES.has(error.cause.code));
+  return failoverAllowed(error);
 }
 
 /** @returns {Function} nodemailer's RFC 5322 address parser */
@@ -1146,7 +1125,10 @@ module.exports = ({ strapi }) => ({
       attempted,
       skipped,
       source,
-      ...(captureEnabled ? { trackOutcome: true, attemptOutcomes: [] } : {}),
+      // Every send records the SMTP stage and the class of each failed
+      // attempt: failover needs proof that a provider did not accept it.
+      trackOutcome: true,
+      attemptOutcomes: [],
     };
 
     /**
@@ -1606,12 +1588,12 @@ module.exports = ({ strapi }) => ({
         tagProviderError(error);
         if (reservation === 'reserved') await this.releaseQuota(account);
         lastError = error;
-        // Queue sends fail over only on proven non-acceptance (strict
-        // classifier); inline sends keep the 4.3 rule (isSafeToRetry).
-        const outcome = ctx.trackOutcome ? classifyDeliveryError(error) : null;
-        const canFailover = ctx.strictFailover ? outcome === 'transient' : isSafeToRetry(error);
+        // Inline and queue sends fail over only on proven non-acceptance
+        // (failoverAllowed). Ambiguous errors stop here: that provider may
+        // have accepted the message, and another account would duplicate it.
+        const canFailover = isSafeToRetry(error);
         if (!explicit && canFailover && Array.isArray(ctx.attemptOutcomes)) {
-          ctx.attemptOutcomes.push(outcome);
+          ctx.attemptOutcomes.push(classifyDeliveryError(error));
         }
         if (!explicit && canFailover) {
           strapi.log.warn(
@@ -1859,8 +1841,9 @@ module.exports = ({ strapi }) => ({
     };
     const dispatch = emailData.__dispatch || {};
     if (dispatch.bounded) Object.assign(transportConfig, BOUNDED_SMTP_TIMEOUTS);
-    // Queue sends: a private logger records whether the server answered DATA
-    // (354). It keeps booleans only; the transaction text is never stored.
+    // A private logger records whether the server answered DATA (354), so a
+    // dropped connection can be told apart before and after the message was
+    // handed over. It keeps booleans only; the transaction text is never stored.
     const smtpProbe = dispatch.trackOutcome ? createSmtpProbe() : null;
     if (smtpProbe) {
       transportConfig.logger = smtpProbe.logger;

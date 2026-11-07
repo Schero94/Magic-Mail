@@ -37,6 +37,10 @@
 * **admin:** Outbox tab (filter, details with the error history, Retry now, Mark as sent, Discard) and a "Retries and outbox" settings section, in all five languages.
 * **rbac:** new actions `plugin::magic-mail.queue.read` and `plugin::magic-mail.queue.manage`.
 
+### Fixed
+
+* **failover:** inline sends move on to the next account only when the error proves the provider did not accept the message, with the same classifier as the outbox (`utils/delivery-outcome.js`). A connection lost or timed out after the SMTP `354` reply, HTTP 500/502/504 and network errors after the request was sent no longer fail over; they reach the caller (and become `uncertain` outbox rows when _Queue failed sends_ is on). Before, these could deliver a mail twice through two accounts. SMTP `4xx` replies after DATA (for example `451`) and HTTP 408 now fail over; HTTP 401/403/429/503, SMTP 421, refused connections and authentication failures still do.
+
 ### Fixed (send queue, before release)
 
 * **queue:** a database error while recording `sent` after the provider accepted a mail no longer re-queues it. The `sent` write is retried three times (0.25, 1, 3 s); if it still fails the claim expires and the mail ends as `uncertain`. Errors after a provider was contacted that did not come from the provider adapter are classified as ambiguous.
@@ -48,7 +52,8 @@
 
 ### Migration notes
 
-* Nothing changes until `queue: true` is passed or _Queue failed sends_ is switched on.
+* Failover is stricter (see Fixed). A send whose first account returns HTTP 500/502/504, or whose SMTP connection drops after the message was transmitted, now throws instead of trying the next account. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
+* The queue itself changes nothing until `queue: true` is passed or _Queue failed sends_ is switched on.
 * Roles that had `read` get `queue.read`, roles that had `manage` get `queue.manage`, once at startup. Remove them in the role editor if a role should not see failed mails.
 * **Magic Link (and other callers with their own fallback):** with _Queue failed sends_ on, a temporary failure no longer throws, so the caller's fallback does not run and the login mail may arrive minutes later. Magic Link should call `send(..., { queue: false })`, or pass `notAfter` set to the token expiry. This needs a change in strapi-plugin-magic-link.
 * All instances need the same `MAGIC_MAIL_ENCRYPTION_KEY` to send mails queued by another instance.
