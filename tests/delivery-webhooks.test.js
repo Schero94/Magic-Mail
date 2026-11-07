@@ -221,7 +221,7 @@ const createStrapi = ({ account, logs = [] }) => {
     events,
     updates,
     log: quietLog,
-    eventHub: { emit: (name, payload) => emitted.push({ name, payload }) },
+    eventHub: { emit: async (name, payload) => emitted.push({ name, payload }) },
     documents(uid) {
       return {
         findOne: async ({ documentId }) =>
@@ -578,4 +578,20 @@ test('wizard builds the webhook URL only for saved SendGrid/Mailgun accounts', (
     apiKey: 'SG.k',
     webhookPublicKey: 'KEY',
   });
+});
+
+test('a failing eventHub listener does not fail the webhook', async () => {
+  deliveryService.__test__.resetSeen();
+  const strapi = createStrapi({ logs: [] });
+  strapi.eventHub.emit = async () => {
+    throw new Error('listener broke');
+  };
+  const service = deliveryService({ strapi });
+  const ok = await service.recordEvent('mailgun', {
+    eventId: 'evt-listener',
+    messageId: 'x@mg.example.test',
+    kind: 'bounced',
+    reasonCode: 'MAILGUN_BOUNCE_550',
+  });
+  assert.equal(ok, true);
 });

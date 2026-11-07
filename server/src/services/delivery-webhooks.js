@@ -278,7 +278,9 @@ module.exports = ({ strapi }) => ({
 
     if (eventId) remember(`event:${eventId}`);
     try {
-      strapi.eventHub.emit(`magic-mail.delivery.${event.kind}`, {
+      // eventHub.emit awaits every listener; a failing listener must not
+      // turn the provider's delivery into an error (it would retry forever).
+      await strapi.eventHub.emit(`magic-mail.delivery.${event.kind}`, {
         provider,
         messageId,
         reasonCode: event.reasonCode,
