@@ -418,6 +418,7 @@ module.exports = ({ strapi }) => ({
     'refresh_token',
     'accessToken',
     'access_token',
+    'webhookSigningKey',
   ],
 
   /** The constant secret placeholder (see SECRET_MASK). */

@@ -77,6 +77,8 @@ export const createEmptyForm = () => ({
   apiKey: '',
   mailgunDomain: '',
   mailgunRegion: 'us',
+  webhookPublicKey: '',
+  webhookSigningKey: '',
   microsoftTenantId: '',
   oauthClientId: '',
   oauthClientSecret: '',
@@ -119,6 +121,9 @@ export const accountToForm = (account = {}) => {
     mailgunDomain: stringOr(config.domain),
     // Accounts saved before regions existed use the US endpoint.
     mailgunRegion: config.region === 'eu' ? 'eu' : 'us',
+    // Optional bounce/complaint webhook secrets (SendGrid key is public).
+    webhookPublicKey: stringOr(config.webhookPublicKey),
+    webhookSigningKey: stringOr(config.webhookSigningKey),
     microsoftTenantId: stringOr(config.tenantId),
     oauthClientId: stringOr(config.clientId),
     oauthClientSecret: stringOr(config.clientSecret),
@@ -219,12 +224,16 @@ export const buildConfig = (provider, form) => {
         secure: form.secure === true,
       };
     case 'sendgrid':
-      return { apiKey: form.apiKey.trim() };
+      return {
+        apiKey: form.apiKey.trim(),
+        webhookPublicKey: (form.webhookPublicKey || '').trim(),
+      };
     case 'mailgun':
       return {
         apiKey: form.apiKey.trim(),
         domain: form.mailgunDomain.trim(),
         region: form.mailgunRegion === 'eu' ? 'eu' : 'us',
+        webhookSigningKey: form.webhookSigningKey || '',
       };
     case 'gmail-oauth':
     case 'yahoo-oauth':
@@ -356,6 +365,23 @@ export const getRedirectUri = (providerKey, { serverRedirectUri, backendURL, ori
     return serverRedirectUri;
   }
   return `${resolveBackendBase({ backendURL, origin })}/magic-mail/oauth/${providerKey}/callback`;
+};
+
+/**
+ * Public bounce/complaint webhook URL of a saved SendGrid or Mailgun account.
+ * Assumes Strapi's default REST prefix `/api`.
+ *
+ * @param {'sendgrid'|'mailgun'} provider
+ * @param {string|number|null|undefined} accountId - account documentId
+ * @param {{backendURL?: unknown, origin?: string}} env
+ * @returns {string|null} null until the account is saved
+ */
+export const getWebhookUrl = (provider, accountId, env = {}) => {
+  if (!['sendgrid', 'mailgun'].includes(provider)) return null;
+  if (accountId === null || accountId === undefined || accountId === '') return null;
+  return `${resolveBackendBase(env)}/api/magic-mail/webhooks/${provider}/${encodeURIComponent(
+    String(accountId)
+  )}`;
 };
 
 /**

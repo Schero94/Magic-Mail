@@ -719,5 +719,17 @@
   "common.table.pagination.goTo": "Ir para a página {page}",
   "common.table.pagination.more": "Mais páginas",
   "common.previous": "Anterior",
-  "common.next": "Próximo"
+  "common.next": "Próximo",
+  "analytics.delivery.bounced": "Devolvido",
+  "analytics.delivery.complained": "Reclamação",
+  "accountModal.webhook.title": "Webhook de devoluções e reclamações (opcional)",
+  "accountModal.webhook.sendgridKey": "Chave de verificação do Signed Event Webhook",
+  "accountModal.webhook.sendgridKeyHint": "SendGrid: Settings, Mail Settings, Event Webhook. Ative \"Signed Event Webhook\" e cole a chave de verificação. Selecione os eventos Bounced, Dropped e Spam Reports.",
+  "accountModal.webhook.mailgunKey": "Chave de assinatura de webhooks HTTP",
+  "accountModal.webhook.mailgunKeyHint": "Mailgun: Settings, API Security, HTTP webhook signing key. Depois adicione a URL abaixo para os eventos Permanent Failure e Spam Complaints.",
+  "accountModal.webhook.url": "URL do webhook",
+  "accountModal.webhook.copy": "Copiar URL do webhook",
+  "accountModal.webhook.copied": "URL do webhook copiada",
+  "accountModal.webhook.urlHint": "Registe esta URL no fornecedor. Pedidos sem assinatura válida são rejeitados; devoluções e reclamações aparecem depois na análise de e-mails.",
+  "accountModal.webhook.urlAfterSave": "A URL do webhook aparece aqui depois de guardar a conta."
 }

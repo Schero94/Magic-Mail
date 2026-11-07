@@ -16,11 +16,13 @@ const expected = {
   settings: 2,
   'content-send': 2,
   tracking: 2,
+  webhooks: 2,
 };
 
 const category = (scope, route) => {
   if (scope === 'content-api') {
     if (route.path.startsWith('/track/')) return 'tracking';
+    if (route.path.startsWith('/webhooks/')) return 'webhooks';
     if (['/send', '/send-message'].includes(route.path)) return 'content-send';
     return 'unaccounted';
   }
@@ -53,7 +55,7 @@ test('every route belongs to a frozen functional inventory group', () => {
   assert.deepEqual(actual, expected, 'review route inventory when adding or removing endpoints');
 });
 
-test('only signed OAuth callbacks and bounded tracking routes are public', () => {
+test('only signed OAuth callbacks, signed delivery webhooks and bounded tracking routes are public', () => {
   const publicAdmin = admin.filter((route) => route.config?.auth === false);
   const publicContent = content.filter((route) => route.config?.auth === false);
   assert.deepEqual(publicAdmin.map((r) => r.path).sort(), [
@@ -64,6 +66,8 @@ test('only signed OAuth callbacks and bounded tracking routes are public', () =>
   assert.deepEqual(publicContent.map((r) => r.path).sort(), [
     '/track/click/:emailId/:linkHash/:recipientHash',
     '/track/open/:emailId/:recipientHash',
+    '/webhooks/mailgun/:accountId',
+    '/webhooks/sendgrid/:accountId',
   ]);
   for (const route of [...admin, ...content]) {
     if (route.config?.auth === false) continue;
@@ -139,8 +143,11 @@ test('admin routes require the matching least-privilege capability', () => {
 
 test('server and admin register read, manage and test-send grants separately from overview access', () => {
   const registered = [];
+  const mounted = [];
   require('../server/src/register')({
     strapi: {
+      server: { use: (middleware) => mounted.push(middleware) },
+      config: { get: (key, fallback) => fallback },
       admin: {
         services: {
           permission: {

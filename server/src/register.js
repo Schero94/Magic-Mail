@@ -1,6 +1,15 @@
 'use strict';
 
+const { getRestPrefix } = require('./services/analytics');
+const { createWebhookRawBodyMiddleware } = require('./utils/webhook-raw-body');
+
 module.exports = ({ strapi }) => {
+  // Delivery webhooks are verified over the exact request bytes. This runs
+  // before the global strapi::body parser, which is registered at bootstrap.
+  strapi.server.use(
+    createWebhookRawBodyMiddleware({ pathPrefix: `${getRestPrefix(strapi)}/magic-mail/webhooks/` })
+  );
+
   strapi.admin.services.permission.actionProvider.registerMany([
     {
       section: 'plugins',

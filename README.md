@@ -31,6 +31,7 @@ MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or
 - [Routing rules and quotas](#routing-rules-and-quotas)
 - [Templates and the visual editor](#templates-and-the-visual-editor)
 - [Tracking, privacy and retention](#tracking-privacy-and-retention)
+- [Bounces and complaints](#bounces-and-complaints)
 - [Content API](#content-api)
 - [Admin API](#admin-api)
 - [Permissions](#permissions)
@@ -528,6 +529,37 @@ Open tracking adds a 1×1 pixel; click tracking rewrites `<a href>` links to a r
 **Signing.** Tracking hashes are signed with `MAGIC_MAIL_TRACKING_SECRET`, falling back to `MAGIC_MAIL_ENCRYPTION_KEY`. To rotate, keep the old values in `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS` (comma-separated) while old emails matter.
 
 Mention open and click tracking in your privacy notice.
+
+---
+
+## Bounces and complaints
+
+SendGrid and Mailgun can tell MagicMail when a message bounced or a recipient marked it as spam. The webhooks are off until you save a verification key on the account.
+
+**SendGrid**
+
+1. In SendGrid open **Settings → Mail Settings → Event Webhook**, enable **Signed Event Webhook** and copy the verification key.
+2. Edit the SendGrid account in MagicMail, paste the key into **Signed Event Webhook verification key** and save.
+3. Copy the **Webhook URL** shown in the wizard (`https://<your-strapi>/api/magic-mail/webhooks/sendgrid/<accountId>`) into the SendGrid Event Webhook and select **Bounced**, **Dropped** and **Spam Reports**.
+
+**Mailgun**
+
+1. In Mailgun copy the **HTTP webhook signing key** (**Settings → API Security**).
+2. Edit the Mailgun account in MagicMail, paste it into **HTTP webhook signing key** and save.
+3. Add the **Webhook URL** (`https://<your-strapi>/api/magic-mail/webhooks/mailgun/<accountId>`) in Mailgun for **Permanent Failure** and **Spam Complaints**.
+
+**What happens.** Every request is verified with the provider signature (SendGrid ECDSA over the raw body, Mailgun HMAC-SHA256) and a one-hour timestamp window; replays are ignored. A bounce sets the email log to **Bounced** with a reason code such as `MAILGUN_BOUNCE_550`, a complaint to **Complaint**. Provider messages and addresses are not stored. Temporary failures are ignored because the provider keeps retrying.
+
+**For other plugins.** MagicMail emits `magic-mail.delivery.bounced` and `magic-mail.delivery.complained` on `strapi.eventHub` with `{ provider, messageId, reasonCode }`; `messageId` is the id `send()` returned. You can also ask:
+
+```js
+const events = await strapi
+  .plugin('magic-mail')
+  .service('delivery-webhooks')
+  .getDeliveryEvents([messageId]); // [{ messageId, bounced, complained, reasonCode }]
+```
+
+The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook.
 
 ---
 

@@ -1,3 +1,16 @@
+## [Unreleased]
+
+### Added
+
+* **delivery:** signed bounce and complaint webhooks for SendGrid and Mailgun accounts: `POST /api/magic-mail/webhooks/sendgrid/:accountId` (Signed Event Webhook, ECDSA over the raw body) and `POST /api/magic-mail/webhooks/mailgun/:accountId` (HMAC-SHA256 with the HTTP webhook signing key). Off until the verification key or signing key is saved on the account (stored in the encrypted account config; the Mailgun key is masked like other secrets). Requests are checked against a one-hour timestamp window, Mailgun tokens and provider event ids are de-duplicated, the routes are rate limited (600 per minute and IP) and bodies above 512 KB are refused. Responses carry no detail: an unknown account, a missing key and a bad signature all return 401.
+* **delivery:** bounces (SendGrid bounce/blocked/dropped, Mailgun permanent failures) set `bounced` and a reason code such as `MAILGUN_BOUNCE_550` on the email log; spam complaints set the new `complained`/`complainedAt` fields. Each event is also stored as an email event. Provider texts and addresses are never stored.
+* **delivery:** other plugins can react through `strapi.eventHub` events `magic-mail.delivery.bounced` and `magic-mail.delivery.complained` (`{ provider, messageId, reasonCode }`, no personal data) or ask `strapi.plugin('magic-mail').service('delivery-webhooks').getDeliveryEvents(messageIds)`.
+* **admin:** the analytics delivery badge shows "Bounced" and "Complaint". The SendGrid and Mailgun account wizard has an optional webhook section with the key field and the webhook URL to register (shown once the account is saved).
+
+### Fixed
+
+* **delivery:** the email log now stores the real provider message id (`providerMessageId`). SendGrid, Mailgun and Microsoft Graph sends no longer return made-up ids such as `sendgrid-<time>` when the provider gives none; `messageId` is then `null`. Microsoft Graph never returns an id, so it is always `null` there.
+
 # [4.1.0](https://github.com/Schero94/Magic-Mail/compare/v4.0.0...v4.1.0) (2026-11-07)
 
 
@@ -10,7 +23,7 @@
 
 * **admin:** use the Magic Link table design for every list ([3bbbc3c](https://github.com/Schero94/Magic-Mail/commit/3bbbc3ccf91912c31c6d0ddd23a2644083858789))
 
-## [Unreleased]
+## 4.1.0 details (written as "Unreleased" before the 4.1.0 release)
 
 ### Changed
 

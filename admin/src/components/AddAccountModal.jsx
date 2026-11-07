@@ -475,6 +475,7 @@ const AddAccountModal = ({
             isStarting={oauth.isStarting}
             onConnect={startOAuth}
             serverRedirectUris={oauth.serverRedirectUris}
+            accountId={accountId}
           />
         )}
         {currentStep === 4 && <SettingsStep form={formData} onChange={handleChange} />}

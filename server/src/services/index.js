@@ -6,6 +6,7 @@ const oauth = require('./oauth');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
+const deliveryWebhooks = require('./delivery-webhooks');
 
 module.exports = {
   'email-router': emailRouter,
@@ -14,4 +15,5 @@ module.exports = {
   'email-designer': emailDesigner,
   analytics,
   'plugin-settings': pluginSettings,
+  'delivery-webhooks': deliveryWebhooks,
 };

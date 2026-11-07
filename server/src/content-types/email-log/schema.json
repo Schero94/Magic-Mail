@@ -63,6 +63,10 @@
     "deliveredAt": {
       "type": "datetime"
     },
+    "providerMessageId": {
+      "type": "string",
+      "maxLength": 255
+    },
     "firstOpenedAt": {
       "type": "datetime"
     },
@@ -83,6 +87,13 @@
     },
     "bounceReason": {
       "type": "text"
+    },
+    "complained": {
+      "type": "boolean",
+      "default": false
+    },
+    "complainedAt": {
+      "type": "datetime"
     },
     "unsubscribed": {
       "type": "boolean",

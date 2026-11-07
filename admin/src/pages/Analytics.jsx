@@ -61,10 +61,14 @@ import {
  *
  * @param {'pending'|'sent'|'failed'|null|undefined} deliveryStatus
  * @param {string|null|undefined} deliveredAt Provider acceptance time for legacy log rows.
+ * @param {{bounced?: boolean, complained?: boolean}} [feedback] Signed provider webhook results.
+ *   A bounce or complaint arrives after acceptance and wins over "Sent".
  * @returns {{label: string, tone: 'danger'|'warning'|'success'|null}}
  *   `tone` is an accent colour (readable in light and dark mode); null = neutral text.
  */
-const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt) => {
+const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt, feedback = {}) => {
+  if (feedback.bounced === true) return { label: 'Bounced', tone: 'danger' };
+  if (feedback.complained === true) return { label: 'Complaint', tone: 'danger' };
   if (deliveryStatus === 'failed') return { label: 'Failed', tone: 'danger' };
   if (deliveryStatus === 'pending') return { label: 'Pending', tone: 'warning' };
   if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', tone: null };
@@ -72,6 +76,8 @@ const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt) => {
 };
 
 const DELIVERY_LABEL_KEYS = {
+  Bounced: 'analytics.delivery.bounced',
+  Complaint: 'analytics.delivery.complained',
   Failed: 'analytics.delivery.failed',
   Pending: 'analytics.delivery.pending',
   Unverified: 'analytics.delivery.unverified',
@@ -651,7 +657,10 @@ const Analytics = () => {
   );
 
   const renderDelivery = (log) => {
-    const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt);
+    const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt, {
+      bounced: log.bounced,
+      complained: log.complained,
+    });
     return (
       <StatusBadge $tone={delivery.tone ?? 'neutral'}>
         {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}

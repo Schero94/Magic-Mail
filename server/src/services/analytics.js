@@ -1369,6 +1369,7 @@ module.exports = ({ strapi }) => ({
 });
 
 module.exports.TRACKING_ID_PATTERN = TRACKING_ID_PATTERN;
+module.exports.getRestPrefix = getRestPrefix;
 module.exports.__test__ = {
   anonymizeIp,
   normalizeRecipient,
