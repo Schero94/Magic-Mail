@@ -15,18 +15,16 @@ const affectedFiles = [
     ],
   },
   {
-    relativePath: 'admin/src/components/AddAccountModal.jsx',
-    expectedChecked: [
-      'formData.secure',
-      'formData.isActive',
-      'formData.isPrimary',
-    ],
+    relativePath: 'admin/src/components/AccountWizard/CredentialsStep.jsx',
+    expectedChecked: ['form.secure'],
   },
   {
-    relativePath: 'admin/src/pages/RoutingRules.jsx',
-    expectedChecked: [
-      'formData.isActive',
-    ],
+    relativePath: 'admin/src/components/AccountWizard/SettingsStep.jsx',
+    expectedChecked: ['form.isActive', 'form.isPrimary'],
+  },
+  {
+    relativePath: 'admin/src/pages/Routing/RuleModal.jsx',
+    expectedChecked: ['formData.isActive'],
   },
   {
     relativePath: 'admin/src/pages/EmailDesigner/EditorPage.jsx',
@@ -40,8 +38,7 @@ const affectedFiles = [
 function importsFromDesignSystem(source, componentName) {
   return scanStaticImportDeclarations(source).some(
     ({ moduleName, importedIdentifiers }) =>
-      moduleName === '@strapi/design-system' &&
-      importedIdentifiers.includes(componentName)
+      moduleName === '@strapi/design-system' && importedIdentifiers.includes(componentName)
   );
 }
 
@@ -160,12 +157,7 @@ function readStaticImportDeclaration(source, start) {
       }
 
       importedIdentifiers.push(identifier.name);
-    } else if (
-      character === ';' ||
-      character === "'" ||
-      character === '"' ||
-      character === '`'
-    ) {
+    } else if (character === ';' || character === "'" || character === '"' || character === '`') {
       return null;
     } else {
       index += 1;
@@ -496,9 +488,7 @@ function scanJsxChildren(source, start, parentName, switches) {
     if (source.startsWith('</', index)) {
       const closingTag = readJsxClosingTag(source, index);
       if (closingTag.name !== parentName) {
-        throw new Error(
-          `Mismatched JSX closing tag "${closingTag.name}" for "${parentName}"`
-        );
+        throw new Error(`Mismatched JSX closing tag "${closingTag.name}" for "${parentName}"`);
       }
       return closingTag.end;
     }
@@ -595,17 +585,22 @@ function assertNonEmptyStringAttribute(tag, attributeName, relativePath, control
     1,
     `${relativePath} ${control} must have exactly one direct ${attributeName} attribute`
   );
-  assert.equal(
-    attributes[0].kind,
-    'string',
-    `${relativePath} ${control} ${attributeName} must be a non-empty string literal`
+  // A translated label is accepted when it is a t('key', 'English default') call
+  // with a non-empty default message (i18n, UI-03).
+  const translated =
+    attributes[0].kind === 'expression' ? TRANSLATED_LABEL.exec(attributes[0].value) : null;
+  assert.ok(
+    attributes[0].kind === 'string' || translated,
+    `${relativePath} ${control} ${attributeName} must be a non-empty string literal or t('key', 'Default')`
   );
   assert.notEqual(
-    attributes[0].value.trim(),
+    (translated ? translated[1] : attributes[0].value).trim(),
     '',
     `${relativePath} ${control} ${attributeName} must not be empty`
   );
 }
+
+const TRANSLATED_LABEL = /^t\(\s*'[\w.]+'\s*,\s*'([^']*)'\s*(?:,[\s\S]*)?\)$/;
 
 function assertHiddenLabels(tag, relativePath, control) {
   const visibleLabels = directAttributes(tag, 'visibleLabels');
@@ -678,7 +673,7 @@ test('design-system import scanner rejects import-looking non-code text', () => 
     },
     {
       context: 'ordinary string',
-      source: "const example = \"import { Toggle } from '@strapi/design-system';\";",
+      source: 'const example = "import { Toggle } from \'@strapi/design-system\';";',
     },
     {
       context: 'template literal',
@@ -711,9 +706,7 @@ test('Switch extractor preserves the intended real-file control distribution', (
   for (const { relativePath, source, expectedChecked } of affectedFiles) {
     const simulatedMigration = source.replace(/<Toggle\b/g, '<Switch');
     const switches = extractSwitchOpeningTags(simulatedMigration);
-    const actualChecked = switches.map((tag, index) =>
-      checkedExpression(tag, relativePath, index)
-    );
+    const actualChecked = switches.map((tag, index) => checkedExpression(tag, relativePath, index));
 
     assert.equal(
       switches.length,
@@ -735,11 +728,7 @@ test('affected admin files stop importing and rendering Toggle', () => {
       false,
       `${relativePath} must not import Toggle from @strapi/design-system`
     );
-    assert.doesNotMatch(
-      source,
-      /<Toggle\b/,
-      `${relativePath} must not render a Toggle control`
-    );
+    assert.doesNotMatch(source, /<Toggle\b/, `${relativePath} must not render a Toggle control`);
   }
 });
 
@@ -763,9 +752,7 @@ for (const { relativePath, source, expectedChecked } of affectedFiles) {
       `${relativePath} must render exactly ${expectedChecked.length} Switch controls; found ${switches.length}`
     );
 
-    const actualChecked = switches.map((tag, index) =>
-      checkedExpression(tag, relativePath, index)
-    );
+    const actualChecked = switches.map((tag, index) => checkedExpression(tag, relativePath, index));
 
     for (const expectedExpression of expectedChecked) {
       const occurrenceCount = actualChecked.filter(

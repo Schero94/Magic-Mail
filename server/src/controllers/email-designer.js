@@ -5,7 +5,9 @@
 
 'use strict';
 
+const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
+const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
 
 /**
  * True when the service threw a plain "not found" Error (i.e. not a
@@ -16,6 +18,35 @@ const { validate, handleControllerError } = require('../validation');
 function isNotFoundMessage(err) {
   return err && typeof err.message === 'string' && err.message.includes('not found');
 }
+
+const UNLAYER_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+
+/**
+ * Normalises the `designer` plugin config for the admin editor.
+ * `systemMergeTags` is true because the router fills {{system.date}},
+ * {{system.year}} and {{system.unsubscribe}} for every templated email.
+ *
+ * @param {{projectId?: unknown, scriptUrl?: unknown, version?: unknown}} config
+ * @returns {{projectId: number|null, scriptUrl: string|null, version: string|null, systemMergeTags: boolean}}
+ */
+const editorConfigFrom = (config) => {
+  const projectId =
+    Number.isSafeInteger(config.projectId) && config.projectId > 0 ? config.projectId : null;
+  let scriptUrl = null;
+  if (typeof config.scriptUrl === 'string') {
+    try {
+      const url = new URL(config.scriptUrl);
+      if (url.protocol === 'https:' && !url.username && !url.password) scriptUrl = url.href;
+    } catch {
+      scriptUrl = null;
+    }
+  }
+  const version =
+    typeof config.version === 'string' && UNLAYER_VERSION_PATTERN.test(config.version)
+      ? config.version
+      : null;
+  return { projectId, scriptUrl, version, systemMergeTags: true };
+};
 
 module.exports = ({ strapi }) => ({
   /**
@@ -43,10 +74,7 @@ module.exports = ({ strapi }) => ({
   async findOne(ctx) {
     try {
       const { id } = ctx.params;
-      const template = await strapi
-        .plugin('magic-mail')
-        .service('email-designer')
-        .findOne(id);
+      const template = await strapi.plugin('magic-mail').service('email-designer').findOne(id);
 
       if (!template) {
         return ctx.notFound('Template not found');
@@ -136,10 +164,7 @@ module.exports = ({ strapi }) => ({
   async getVersions(ctx) {
     try {
       const { id } = ctx.params;
-      const versions = await strapi
-        .plugin('magic-mail')
-        .service('email-designer')
-        .getVersions(id);
+      const versions = await strapi.plugin('magic-mail').service('email-designer').getVersions(id);
 
       return ctx.send({
         success: true,
@@ -195,11 +220,7 @@ module.exports = ({ strapi }) => ({
       if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
-      if (
-        error &&
-        typeof error.message === 'string' &&
-        error.message.includes('does not belong')
-      ) {
+      if (error && typeof error.message === 'string' && error.message.includes('does not belong')) {
         return ctx.badRequest(error.message);
       }
       handleControllerError(ctx, error, '[magic-mail] Error deleting version');
@@ -270,11 +291,7 @@ module.exports = ({ strapi }) => ({
         data: templates,
       });
     } catch (error) {
-      if (
-        error &&
-        typeof error.message === 'string' &&
-        error.message.includes('requires')
-      ) {
+      if (error && typeof error.message === 'string' && error.message.includes('requires')) {
         return ctx.forbidden(error.message);
       }
       handleControllerError(ctx, error, '[magic-mail] Error exporting templates');
@@ -302,15 +319,21 @@ module.exports = ({ strapi }) => ({
         data: results,
       });
     } catch (error) {
-      if (
-        error &&
-        typeof error.message === 'string' &&
-        error.message.includes('requires')
-      ) {
+      if (error && typeof error.message === 'string' && error.message.includes('requires')) {
         return ctx.forbidden(error.message);
       }
       handleControllerError(ctx, error, '[magic-mail] Error importing templates');
     }
+  },
+
+  /**
+   * Visual editor (Unlayer) settings from the plugin config `designer` block.
+   * Only well-formed values are returned; the admin falls back to its pinned
+   * defaults for anything missing.
+   */
+  async getEditorConfig(ctx) {
+    const config = strapi.config.get('plugin::magic-mail.designer') || {};
+    return ctx.send({ success: true, data: editorConfigFrom(config) });
   },
 
   /**
@@ -358,7 +381,10 @@ module.exports = ({ strapi }) => ({
       const template = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .updateCoreTemplate(coreEmailType, validate('emailDesigner.updateCoreTemplate', ctx.request.body));
+        .updateCoreTemplate(
+          coreEmailType,
+          validate('emailDesigner.updateCoreTemplate', ctx.request.body)
+        );
 
       return ctx.send({
         success: true,
@@ -377,10 +403,7 @@ module.exports = ({ strapi }) => ({
       const { id } = ctx.params;
       const { type = 'json' } = ctx.query;
 
-      const template = await strapi
-        .plugin('magic-mail')
-        .service('email-designer')
-        .findOne(id);
+      const template = await strapi.plugin('magic-mail').service('email-designer').findOne(id);
 
       if (!template) {
         return ctx.notFound('Template not found');
@@ -388,15 +411,22 @@ module.exports = ({ strapi }) => ({
 
       let fileContent;
       let fileName;
+      // Never put the raw path parameter into a header.
+      const safeId = String(
+        template.templateReferenceId || template.documentId || 'export'
+      ).replace(/[^A-Za-z0-9_-]/g, '');
 
       if (type === 'json') {
         fileContent = JSON.stringify(template.design, null, 2);
-        fileName = `template-${id}.json`;
+        fileName = `template-${safeId}.json`;
         ctx.set('Content-Type', 'application/json');
       } else if (type === 'html') {
         fileContent = template.bodyHtml;
-        fileName = `template-${id}.html`;
-        ctx.set('Content-Type', 'text/html');
+        fileName = `template-${safeId}.html`;
+        // Served as a download only; never rendered in the admin origin.
+        ctx.set('Content-Type', 'text/html; charset=utf-8');
+        ctx.set('Content-Security-Policy', "default-src 'none'; sandbox");
+        ctx.set('X-Content-Type-Options', 'nosniff');
       } else {
         return ctx.badRequest('Invalid type, must be either "json" or "html".');
       }
@@ -415,10 +445,7 @@ module.exports = ({ strapi }) => ({
     try {
       const { id } = ctx.params;
 
-      const duplicated = await strapi
-        .plugin('magic-mail')
-        .service('email-designer')
-        .duplicate(id);
+      const duplicated = await strapi.plugin('magic-mail').service('email-designer').duplicate(id);
 
       return ctx.send({
         success: true,
@@ -433,21 +460,21 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Send test email for template
+   * Renders a saved template and sends it through the router to a test recipient.
+   *
+   * @param {import('koa').Context} ctx - Admin request context
+   * @returns {Promise<void>}
    */
   async testSend(ctx) {
     try {
       const { id } = ctx.params;
-      const { to, accountName } = validate('emailDesigner.testSend', ctx.request.body);
+      const { to, accountName, cc } = validate('emailDesigner.testSend', ctx.request.body);
 
       if (!to) {
         return ctx.badRequest('Recipient email (to) is required');
       }
 
-      const template = await strapi
-        .plugin('magic-mail')
-        .service('email-designer')
-        .findOne(id);
+      const template = await strapi.plugin('magic-mail').service('email-designer').findOne(id);
 
       if (!template) {
         return ctx.notFound('Template not found');
@@ -469,6 +496,7 @@ module.exports = ({ strapi }) => ({
       // for logging/analytics only.
       const sendOptions = {
         to,
+        cc: cc || undefined,
         subject: rendered.subject || template.subject,
         html: rendered.html,
         text: rendered.text,
@@ -479,7 +507,17 @@ module.exports = ({ strapi }) => ({
         sendOptions.accountName = accountName;
       }
 
-      const result = await emailRouterService.send(sendOptions);
+      let result;
+      try {
+        result = await emailRouterService.send(sendOptions);
+      } catch (sendError) {
+        if (sendError?.name === 'ValidationError') throw sendError;
+        // Raw transport errors (internal hosts, SMTP replies) stay in the log.
+        strapi.log.warn(
+          `[magic-mail] Template test send failed: ${describeErrorForLog(sendError)}`
+        );
+        throw new errors.ApplicationError(toClientSendMessage(sendError));
+      }
 
       return ctx.send({
         success: true,
@@ -487,7 +525,7 @@ module.exports = ({ strapi }) => ({
         data: {
           recipient: to,
           template: template.name,
-          result,
+          success: result?.success !== false,
         },
       });
     } catch (error) {
@@ -495,3 +533,5 @@ module.exports = ({ strapi }) => ({
     }
   },
 });
+
+module.exports.editorConfigFrom = editorConfigFrom;

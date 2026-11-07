@@ -1,236 +1,255 @@
 'use strict';
 
+const { errors } = require('@strapi/utils');
 const { createState, verifyAndConsumeState } = require('../utils/oauth-state');
 const { renderOAuthCallback } = require('../utils/oauth-callback-response');
 const { toAccountListDTO } = require('../utils/account-dto');
+const { decryptCredentials } = require('../utils/encryption');
+const { validate, handleControllerError } = require('../validation');
 
 /**
  * OAuth Controller
- * Handles OAuth authentication flows for Gmail, Microsoft and Yahoo.
+ * Handles OAuth flows for Gmail, Microsoft and Yahoo.
  *
- * SECURITY: The three public OAuth callback routes never interpolate the
- * request-supplied code, state, or provider error into their HTML. They
- * delegate to renderOAuthCallback, which serves a static, nonce-CSP page that
- * reads those values client-side from window.location.search.
+ * SECURITY:
+ * - The three public callback routes never interpolate the request-supplied
+ *   code, state or provider error into their HTML (renderOAuthCallback).
+ * - The signed state is bound to the client id, the initiating admin user
+ *   and, for a reconnect, the account. The PKCE verifier stays server-side.
+ * - Provider error details never reach the client; the admin gets a fixed
+ *   message and the server log only the error class.
  */
 
-module.exports = {
-  /**
-   * Initiates the Gmail OAuth flow. Generates a signed, one-time state and a
-   * PKCE challenge, then returns the upstream authorize URL.
-   *
-   * @route GET /magic-mail/oauth/gmail/auth
-   */
-  async gmailAuth(ctx) {
-    try {
-      const { clientId } = ctx.query;
+const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 
-      if (!clientId) {
-        return ctx.badRequest('Client ID is required');
-      }
+/**
+ * Returns the authenticated admin user id (bound into the OAuth state).
+ *
+ * @param {import('koa').Context} ctx
+ * @returns {string|number|null}
+ */
+const adminUserId = (ctx) => ctx.state?.user?.id ?? null;
 
-      const oauthService = strapi.plugin('magic-mail').service('oauth');
-      const { state, codeChallenge, codeChallengeMethod } = await createState(strapi, {
-        clientId,
-        provider: 'gmail',
-        usePKCE: true,
-      });
+/**
+ * Loads an OAuth account and its decrypted app credentials.
+ *
+ * @param {string} accountId - documentId
+ * @param {string} provider - 'gmail' | 'microsoft' | 'yahoo'
+ * @returns {Promise<{account: object, config: object}>}
+ * @throws {errors.NotFoundError|errors.ValidationError}
+ */
+async function loadOAuthAccount(accountId, provider) {
+  const account = await strapi
+    .documents(EMAIL_ACCOUNT_UID)
+    .findOne({ documentId: String(accountId) });
+  if (!account) {
+    throw new errors.NotFoundError('Email account not found');
+  }
+  if (account.provider !== `${provider}-oauth`) {
+    throw new errors.ValidationError('This account does not use this OAuth provider');
+  }
+  let config;
+  try {
+    config = decryptCredentials(account.config) || {};
+  } catch {
+    throw new errors.ValidationError(
+      'The stored OAuth app credentials can not be decrypted. Re-enter the client secret in the account settings first.'
+    );
+  }
+  if (!config.clientId || !config.clientSecret) {
+    throw new errors.ValidationError('The account has no OAuth client ID and secret');
+  }
+  return { account, config };
+}
 
-      const authUrl = oauthService.getGmailAuthUrl(clientId, state, { codeChallenge, codeChallengeMethod });
+/**
+ * Starts an OAuth flow: signs a one-time state with PKCE and returns the
+ * provider authorize URL plus the redirect URI to register with the
+ * provider (the UI shows exactly this value).
+ *
+ * Query: `clientId` (and `tenantId` for Microsoft) for a new account, or
+ * `accountId` to reconnect an existing account with its stored app
+ * credentials.
+ *
+ * @param {import('koa').Context} ctx
+ * @param {'gmail'|'microsoft'|'yahoo'} provider
+ * @returns {Promise<void>}
+ */
+async function startFlow(ctx, provider) {
+  try {
+    const query = validate('oauth.auth', ctx.query || {});
+    let { clientId, tenantId } = query;
+    let accountId = null;
 
-      ctx.body = {
-        authUrl,
-        message: 'Redirect user to this URL to authorize',
-      };
-    } catch (err) {
-      strapi.log.error('[magic-mail] Gmail OAuth init failed:', err?.name || 'Error');
-      ctx.throw(500, err.message);
+    if (query.accountId) {
+      const { account, config } = await loadOAuthAccount(query.accountId, provider);
+      accountId = account.documentId;
+      clientId = config.clientId;
+      tenantId = config.tenantId;
     }
+
+    if (!clientId) {
+      return ctx.badRequest('Client ID is required');
+    }
+    if (provider === 'microsoft' && !tenantId) {
+      return ctx.badRequest('Tenant ID is required');
+    }
+
+    const oauthService = strapi.plugin('magic-mail').service('oauth');
+    const { state, codeChallenge, codeChallengeMethod } = await createState(strapi, {
+      clientId,
+      provider,
+      userId: adminUserId(ctx),
+      accountId,
+      usePKCE: true,
+    });
+
+    const pkce = { codeChallenge, codeChallengeMethod };
+    let authUrl;
+    if (provider === 'gmail') authUrl = oauthService.getGmailAuthUrl(clientId, state, pkce);
+    else if (provider === 'microsoft')
+      authUrl = oauthService.getMicrosoftAuthUrl(clientId, tenantId, state, pkce);
+    else authUrl = oauthService.getYahooAuthUrl(clientId, state, pkce);
+
+    ctx.body = {
+      authUrl,
+      redirectUri: oauthService.getRedirectUri(provider),
+      message: 'Redirect user to this URL to authorize',
+    };
+  } catch (err) {
+    // Configuration problems the admin can fix (fixed, server-authored texts).
+    if (
+      err?.message === 'Invalid Microsoft tenant ID' ||
+      /^OAuth needs a public https URL/.test(err?.message || '')
+    ) {
+      return ctx.badRequest(err.message);
+    }
+    handleControllerError(
+      ctx,
+      err,
+      `[magic-mail] ${provider} OAuth init failed`,
+      'Could not start the OAuth flow'
+    );
+  }
+}
+
+/**
+ * Verifies and consumes the state for a token exchange.
+ *
+ * @param {import('koa').Context} ctx
+ * @param {object} params
+ * @returns {Promise<{payload: object, codeVerifier: string|null}>}
+ * @throws {errors.ValidationError} On any verification failure
+ */
+async function consumeState(ctx, { state, provider, clientId, accountId }) {
+  let verification;
+  try {
+    verification = await verifyAndConsumeState(strapi, state, {
+      clientId,
+      userId: adminUserId(ctx),
+      accountId: accountId || null,
+    });
+  } catch {
+    strapi.log.warn('[magic-mail] OAuth state verification failed');
+    throw new errors.ValidationError(
+      'Invalid or expired OAuth state. Please restart the authorization flow.'
+    );
+  }
+  if (verification.payload.provider !== provider) {
+    strapi.log.warn('[magic-mail] OAuth state/provider mismatch');
+    throw new errors.ValidationError('OAuth state provider mismatch');
+  }
+  return verification;
+}
+
+/**
+ * Exchanges the code; maps every upstream failure to one fixed message.
+ *
+ * @returns {Promise<object>} token data with email
+ * @throws {errors.ApplicationError}
+ */
+async function exchange(provider, code, config, codeVerifier) {
+  let tokenData;
+  try {
+    tokenData = await strapi
+      .plugin('magic-mail')
+      .service('oauth')
+      .exchangeCode(provider, code, config, codeVerifier);
+  } catch (err) {
+    strapi.log.error(
+      `[magic-mail] ${provider} OAuth token exchange failed: ${err?.name || 'Error'}`
+    );
+    throw new errors.ApplicationError(
+      'The OAuth provider rejected the authorization. Check the client ID, client secret and redirect URI, then try again.'
+    );
+  }
+  if (!tokenData?.email) {
+    throw new errors.ApplicationError(`The ${provider} account did not provide an email address`);
+  }
+  return tokenData;
+}
+
+module.exports = {
+  /** @route GET /magic-mail/oauth/gmail/auth */
+  async gmailAuth(ctx) {
+    return startFlow(ctx, 'gmail');
   },
 
-  /**
-   * Handles the Gmail OAuth callback. The response is a small HTML page that
-   * forwards the code + state back to the parent admin tab via postMessage.
-   * State/PKCE are verified later during token exchange.
-   *
-   * @route GET /magic-mail/oauth/gmail/callback
-   */
+  /** @route GET /magic-mail/oauth/gmail/callback (public, state-protected) */
   async gmailCallback(ctx) {
     renderOAuthCallback(ctx, 'gmail');
   },
 
-  /**
-   * Initiate Microsoft OAuth flow
-   */
+  /** @route GET /magic-mail/oauth/microsoft/auth */
   async microsoftAuth(ctx) {
-    try {
-      const { clientId, tenantId } = ctx.query;
-      
-      if (!clientId) {
-        return ctx.badRequest('Client ID is required');
-      }
-      
-      if (!tenantId) {
-        return ctx.badRequest('Tenant ID is required');
-      }
-
-      const oauthService = strapi.plugin('magic-mail').service('oauth');
-      const { state, codeChallenge, codeChallengeMethod } = await createState(strapi, {
-        clientId,
-        provider: 'microsoft',
-        usePKCE: true,
-      });
-
-      const authUrl = oauthService.getMicrosoftAuthUrl(clientId, tenantId, state, { codeChallenge, codeChallengeMethod });
-
-      ctx.body = {
-        authUrl,
-        message: 'Redirect user to this URL to authorize',
-      };
-    } catch (err) {
-      strapi.log.error('[magic-mail] Microsoft OAuth init failed:', err?.name || 'Error');
-      ctx.throw(500, err.message);
-    }
+    return startFlow(ctx, 'microsoft');
   },
 
-  /**
-   * Handles the Microsoft OAuth callback.
-   * @route GET /magic-mail/oauth/microsoft/callback
-   */
+  /** @route GET /magic-mail/oauth/microsoft/callback (public, state-protected) */
   async microsoftCallback(ctx) {
     renderOAuthCallback(ctx, 'microsoft');
   },
 
-  /**
-   * Initiate Yahoo OAuth flow
-   */
+  /** @route GET /magic-mail/oauth/yahoo/auth */
   async yahooAuth(ctx) {
-    try {
-      const { clientId } = ctx.query;
-      
-      if (!clientId) {
-        return ctx.badRequest('Client ID is required');
-      }
-
-      const oauthService = strapi.plugin('magic-mail').service('oauth');
-      const { state, codeChallenge, codeChallengeMethod } = await createState(strapi, {
-        clientId,
-        provider: 'yahoo',
-        usePKCE: true,
-      });
-
-      const authUrl = oauthService.getYahooAuthUrl(clientId, state, { codeChallenge, codeChallengeMethod });
-
-      ctx.body = {
-        authUrl,
-        message: 'Redirect user to this URL to authorize',
-      };
-    } catch (err) {
-      strapi.log.error('[magic-mail] Yahoo OAuth init failed:', err?.name || 'Error');
-      ctx.throw(500, err.message);
-    }
+    return startFlow(ctx, 'yahoo');
   },
 
-  /**
-   * Handles the Yahoo OAuth callback.
-   * @route GET /magic-mail/oauth/yahoo/callback
-   */
+  /** @route GET /magic-mail/oauth/yahoo/callback (public, state-protected) */
   async yahooCallback(ctx) {
     renderOAuthCallback(ctx, 'yahoo');
   },
 
   /**
-   * Creates an email account from a completed OAuth flow.
+   * Creates an email account from a completed OAuth flow. The state must
+   * have been issued to the same admin user for the same client id.
    *
-   * Verifies the signed state parameter (CSRF + TTL + one-time-use), retrieves
-   * the PKCE verifier, then exchanges the code for tokens.
-   *
-   * @route POST /magic-mail/oauth/account
-   * @throws {ValidationError} When state verification fails or inputs are missing
+   * @route POST /magic-mail/oauth/create-account
    */
   async createOAuthAccount(ctx) {
     try {
-      const { validate } = require('../validation');
-      const { provider, code, state, accountDetails } = validate('oauth.createOAuthAccount', ctx.request.body);
-
-      strapi.log.info('[magic-mail] Creating OAuth account...');
-      strapi.log.info('[magic-mail] Provider:', provider);
-
-      if (!code) {
-        return ctx.badRequest('OAuth code is required');
-      }
-
-      if (!accountDetails.config?.clientId || !accountDetails.config?.clientSecret) {
-        return ctx.badRequest('Client ID and Secret are required');
-      }
-
-      let stateVerification;
-      try {
-        stateVerification = await verifyAndConsumeState(strapi, state, accountDetails.config.clientId);
-      } catch (stateErr) {
-        strapi.log.warn('[magic-mail] OAuth state verification failed');
-        return ctx.badRequest('Invalid or expired OAuth state. Please restart the authorization flow.');
-      }
-
-      if (stateVerification.payload.provider && stateVerification.payload.provider !== provider) {
-        strapi.log.warn('[magic-mail] OAuth state/provider mismatch');
-        return ctx.badRequest('OAuth state provider mismatch');
-      }
-
-      const codeVerifier = stateVerification.codeVerifier;
-
-      const oauthService = strapi.plugin('magic-mail').service('oauth');
-
-      let tokenData;
-      if (provider === 'gmail') {
-        strapi.log.info('[magic-mail] Calling exchangeGoogleCode...');
-        tokenData = await oauthService.exchangeGoogleCode(
-          code,
-          accountDetails.config.clientId,
-          accountDetails.config.clientSecret,
-          { codeVerifier }
-        );
-      } else if (provider === 'microsoft') {
-        strapi.log.info('[magic-mail] Calling exchangeMicrosoftCode...');
-
-        if (!accountDetails.config.tenantId) {
-          throw new Error('Tenant ID is required for Microsoft OAuth');
-        }
-
-        tokenData = await oauthService.exchangeMicrosoftCode(
-          code,
-          accountDetails.config.clientId,
-          accountDetails.config.clientSecret,
-          accountDetails.config.tenantId,
-          { codeVerifier }
-        );
-      } else if (provider === 'yahoo') {
-        strapi.log.info('[magic-mail] Calling exchangeYahooCode...');
-        tokenData = await oauthService.exchangeYahooCode(
-          code,
-          accountDetails.config.clientId,
-          accountDetails.config.clientSecret,
-          { codeVerifier }
-        );
-      }
-      
-      strapi.log.info('[magic-mail] OAuth token exchange completed');
-
-      if (!tokenData.email) {
-        strapi.log.error('[magic-mail] No email in tokenData!');
-        throw new Error(`Failed to get email from ${provider} OAuth`);
-      }
-      
-      // Store account
-      strapi.log.info('[magic-mail] Calling storeOAuthAccount...');
-      const account = await oauthService.storeOAuthAccount(
-        provider, 
-        tokenData, 
-        accountDetails,
-        accountDetails.config // contains clientId and clientSecret
+      const { provider, code, state, accountDetails } = validate(
+        'oauth.createOAuthAccount',
+        ctx.request.body
       );
+      const config = accountDetails.config;
 
-      strapi.log.info('[magic-mail] [SUCCESS] OAuth account created successfully');
+      if (provider === 'microsoft' && !config.tenantId) {
+        throw new errors.ValidationError('Tenant ID is required for Microsoft OAuth');
+      }
+
+      const { codeVerifier } = await consumeState(ctx, {
+        state,
+        provider,
+        clientId: config.clientId,
+        accountId: null,
+      });
+      const tokenData = await exchange(provider, code, config, codeVerifier);
+
+      const account = await strapi
+        .plugin('magic-mail')
+        .service('oauth')
+        .storeOAuthAccount(provider, tokenData, accountDetails, config);
 
       ctx.body = {
         success: true,
@@ -238,9 +257,64 @@ module.exports = {
         message: 'OAuth account created successfully',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Create OAuth account failed:', err?.name || 'Error');
-      ctx.throw(500, err.message);
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Create OAuth account failed',
+        'Could not create the OAuth account'
+      );
+    }
+  },
+
+  /**
+   * Re-authorizes an existing OAuth account (revoked consent, expired or
+   * rotated-away refresh token). Uses the stored app credentials; the flow
+   * must have been started with `?accountId=<documentId>` by the same admin,
+   * and the provider must return the account's own mailbox.
+   *
+   * @route POST /magic-mail/oauth/reconnect/:accountId
+   */
+  async reconnectOAuthAccount(ctx) {
+    try {
+      const { accountId } = ctx.params;
+      const { provider, code, state } = validate('oauth.reconnect', ctx.request.body);
+      const { account, config } = await loadOAuthAccount(accountId, provider);
+
+      const { codeVerifier } = await consumeState(ctx, {
+        state,
+        provider,
+        clientId: config.clientId,
+        accountId: account.documentId,
+      });
+      const tokenData = await exchange(provider, code, config, codeVerifier);
+
+      let updated;
+      try {
+        updated = await strapi
+          .plugin('magic-mail')
+          .service('oauth')
+          .updateOAuthTokens(account, tokenData);
+      } catch (err) {
+        if (err?.code === 'MAILBOX_MISMATCH') {
+          throw new errors.ValidationError(
+            'You authorized a different mailbox. Sign in with the address this account sends from.'
+          );
+        }
+        throw err;
+      }
+
+      ctx.body = {
+        success: true,
+        data: toAccountListDTO(updated),
+        message: 'OAuth account reconnected',
+      };
+    } catch (err) {
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Reconnect OAuth account failed',
+        'Could not reconnect the OAuth account'
+      );
     }
   },
 };
-

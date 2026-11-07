@@ -4,10 +4,97 @@ const { encryptCredentials } = require('../utils/encryption');
 
 /**
  * OAuth Service
- * Handles OAuth flows for Gmail, Microsoft, etc.
+ * Handles OAuth flows for Gmail, Microsoft and Yahoo.
  */
 
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0']);
+/**
+ * Microsoft tenant: GUID, verified domain, or common/organizations/consumers.
+ * Only host-label characters are allowed, so the value can not change the
+ * path or query of the login.microsoftonline.com URL.
+ */
+const TENANT_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
+
+/**
+ * Validates and URL-encodes a Microsoft tenant id.
+ *
+ * @param {unknown} tenant
+ * @returns {string} encoded tenant path segment
+ * @throws {Error} When the tenant id is missing or malformed
+ */
+function tenantSegment(tenant) {
+  if (typeof tenant !== 'string' || !TENANT_PATTERN.test(tenant)) {
+    throw new Error('Invalid Microsoft tenant ID');
+  }
+  return encodeURIComponent(tenant);
+}
+
+/**
+ * Builds the public base URL for OAuth redirect URIs.
+ *
+ * Order: the legacy `URL` env var (kept so existing app registrations keep
+ * working), then Strapi's `server.absoluteUrl` (derived from `server.url`).
+ * In production the URL must be https and must not point at a loopback host;
+ * there is no `http://localhost:1337` fallback there.
+ *
+ * @param {object} strapi
+ * @returns {string} Base URL without trailing slash
+ * @throws {Error} When no usable public URL is configured in production
+ */
+function getPublicBaseUrl(strapi) {
+  const candidates = [process.env.URL, strapi?.config?.get?.('server.absoluteUrl')].filter(
+    (value) => typeof value === 'string' && value.trim()
+  );
+
+  const production = process.env.NODE_ENV === 'production';
+  for (const candidate of candidates) {
+    let parsed;
+    try {
+      parsed = new URL(candidate.trim());
+    } catch {
+      continue;
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+    if (
+      production &&
+      (parsed.protocol !== 'https:' || LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase()))
+    )
+      continue;
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+  }
+
+  if (production) {
+    throw new Error(
+      'OAuth needs a public https URL: set server.url (or URL) to the public address of this Strapi server.'
+    );
+  }
+  return 'http://localhost:1337';
+}
+
+/**
+ * Computes the token expiry date from an OAuth token response.
+ *
+ * @param {object} tokens
+ * @returns {Date}
+ */
+const expiryFrom = (tokens) => new Date(Date.now() + (Number(tokens?.expires_in) || 3600) * 1000);
+
 module.exports = ({ strapi }) => ({
+  /**
+   * Returns the redirect URI registered with the OAuth provider. The admin
+   * UI shows this exact value (it is returned by the /oauth/<provider>/auth
+   * endpoints), so the UI and the token exchange always agree.
+   *
+   * @param {'gmail'|'microsoft'|'yahoo'} provider
+   * @returns {string}
+   */
+  getRedirectUri(provider) {
+    if (!['gmail', 'microsoft', 'yahoo'].includes(provider)) {
+      throw new Error('Unknown OAuth provider');
+    }
+    return `${getPublicBaseUrl(strapi)}/magic-mail/oauth/${provider}/callback`;
+  },
+
   /**
    * Builds the Gmail OAuth2 authorize URL.
    *
@@ -19,7 +106,7 @@ module.exports = ({ strapi }) => ({
    * @returns {string}
    */
   getGmailAuthUrl(clientId, state, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/gmail/callback`;
+    const redirectUri = this.getRedirectUri('gmail');
 
     if (!clientId) {
       throw new Error('Client ID is required for OAuth');
@@ -31,7 +118,8 @@ module.exports = ({ strapi }) => ({
       'openid',
     ].join(' ');
 
-    let authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+    let authUrl =
+      'https://accounts.google.com/o/oauth2/v2/auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -60,7 +148,7 @@ module.exports = ({ strapi }) => ({
    * @throws {Error} When the token exchange fails or userinfo is missing
    */
   async exchangeGoogleCode(code, clientId, clientSecret, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/gmail/callback`;
+    const redirectUri = this.getRedirectUri('gmail');
 
     strapi.log.info('[magic-mail] Exchanging OAuth code for tokens...');
 
@@ -105,7 +193,9 @@ module.exports = ({ strapi }) => ({
     }
 
     const userInfo = await userInfoResponse.json();
-    strapi.log.info(`[magic-mail] [SUCCESS] Google profile returned an email: ${Boolean(userInfo.email)}`);
+    strapi.log.info(
+      `[magic-mail] [SUCCESS] Google profile returned an email: ${Boolean(userInfo.email)}`
+    );
 
     if (!userInfo.email) {
       strapi.log.error('[magic-mail] Google profile did not contain an email address');
@@ -116,7 +206,7 @@ module.exports = ({ strapi }) => ({
       email: userInfo.email,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
+      expiresAt: expiryFrom(tokens),
     };
   },
 
@@ -127,7 +217,6 @@ module.exports = ({ strapi }) => ({
    * @param {string} clientSecret - OAuth Client Secret (from DB!)
    */
   async refreshGmailTokens(refreshToken, clientId, clientSecret) {
-
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -140,15 +229,10 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      throw new Error('Failed to refresh Gmail tokens');
+      throw new Error(`Failed to refresh Gmail tokens: ${response.status}`);
     }
 
-    const tokens = await response.json();
-
-    return {
-      accessToken: tokens.access_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
-    };
+    return this._refreshResult(await response.json(), 'Google');
   },
 
   /**
@@ -169,7 +253,7 @@ module.exports = ({ strapi }) => ({
    * @returns {string}
    */
   getMicrosoftAuthUrl(clientId, tenantId, state, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/microsoft/callback`;
+    const redirectUri = this.getRedirectUri('microsoft');
 
     if (!clientId) {
       throw new Error('Client ID is required for Microsoft OAuth');
@@ -187,7 +271,8 @@ module.exports = ({ strapi }) => ({
       'email',
     ].join(' ');
 
-    let authUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?` +
+    let authUrl =
+      `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/authorize?` +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -218,7 +303,7 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<object>}
    */
   async exchangeMicrosoftCode(code, clientId, clientSecret, tenantId, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/microsoft/callback`;
+    const redirectUri = this.getRedirectUri('microsoft');
 
     if (!tenantId) {
       throw new Error('Tenant ID is required for Microsoft OAuth token exchange');
@@ -226,7 +311,7 @@ module.exports = ({ strapi }) => ({
 
     strapi.log.info('[magic-mail] Exchanging Microsoft OAuth code for tokens...');
 
-    const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+    const tokenEndpoint = `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/token`;
 
     const bodyParams = {
       code,
@@ -234,7 +319,8 @@ module.exports = ({ strapi }) => ({
       client_secret: clientSecret,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
-      scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+      scope:
+        'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
     };
     if (options.codeVerifier) {
       bodyParams.code_verifier = options.codeVerifier;
@@ -269,8 +355,10 @@ module.exports = ({ strapi }) => ({
         const payloadBase64 = tokens.id_token.split('.')[1];
         const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
         email = payload.email || payload.preferred_username || payload.upn;
-        strapi.log.info(`[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`);
-      } catch (jwtErr) {
+        strapi.log.info(
+          `[magic-mail] [SUCCESS] Microsoft ID token included an email: ${Boolean(email)}`
+        );
+      } catch {
         strapi.log.warn('[magic-mail] Could not decode Microsoft ID token');
       }
     }
@@ -279,24 +367,33 @@ module.exports = ({ strapi }) => ({
     if (!email) {
       strapi.log.info('[magic-mail] Fetching user info from Microsoft Graph API /me endpoint...');
       const userInfoResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
-        headers: { 
-          'Authorization': `Bearer ${tokens.access_token}`,
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!userInfoResponse.ok) {
-        strapi.log.error('[magic-mail] Microsoft Graph user-info request failed:', userInfoResponse.status);
-        throw new Error(`Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`);
+        strapi.log.error(
+          '[magic-mail] Microsoft Graph user-info request failed:',
+          userInfoResponse.status
+        );
+        throw new Error(
+          `Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`
+        );
       }
 
       const userInfo = await userInfoResponse.json();
       email = userInfo.mail || userInfo.userPrincipalName;
-      strapi.log.info(`[magic-mail] [SUCCESS] Microsoft Graph profile returned an email: ${Boolean(email)}`);
+      strapi.log.info(
+        `[magic-mail] [SUCCESS] Microsoft Graph profile returned an email: ${Boolean(email)}`
+      );
     }
 
     if (!email) {
-      strapi.log.error('[magic-mail] Microsoft did not provide email - ID token and Graph API both failed');
+      strapi.log.error(
+        '[magic-mail] Microsoft did not provide email - ID token and Graph API both failed'
+      );
       throw new Error('Microsoft did not provide email address');
     }
 
@@ -304,7 +401,7 @@ module.exports = ({ strapi }) => ({
       email,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
+      expiresAt: expiryFrom(tokens),
     };
   },
 
@@ -323,7 +420,7 @@ module.exports = ({ strapi }) => ({
     strapi.log.info('[magic-mail] Refreshing Microsoft OAuth tokens...');
 
     // Tenant-specific token endpoint
-    const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+    const tokenEndpoint = `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/token`;
 
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
@@ -333,7 +430,8 @@ module.exports = ({ strapi }) => ({
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: 'refresh_token',
-        scope: 'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+        scope:
+          'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
       }),
     });
 
@@ -342,13 +440,9 @@ module.exports = ({ strapi }) => ({
       throw new Error(`Failed to refresh Microsoft tokens: ${response.status}`);
     }
 
-    const tokens = await response.json();
+    const result = this._refreshResult(await response.json(), 'Microsoft');
     strapi.log.info('[magic-mail] [SUCCESS] Microsoft tokens refreshed successfully');
-
-    return {
-      accessToken: tokens.access_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
-    };
+    return result;
   },
 
   /**
@@ -362,7 +456,7 @@ module.exports = ({ strapi }) => ({
    * @returns {string}
    */
   getYahooAuthUrl(clientId, state, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/yahoo/callback`;
+    const redirectUri = this.getRedirectUri('yahoo');
 
     if (!clientId) {
       throw new Error('Client ID is required for Yahoo OAuth');
@@ -372,13 +466,10 @@ module.exports = ({ strapi }) => ({
     // resolves the account address; `mail-w` grants mail send access. The old
     // `sdps-r` (social directory) scope is not valid for Mail apps and caused
     // `invalid_scope` / missing-email failures.
-    const scopes = [
-      'openid',
-      'email',
-      'mail-w',
-    ].join(' ');
+    const scopes = ['openid', 'email', 'mail-w'].join(' ');
 
-    let authUrl = 'https://api.login.yahoo.com/oauth2/request_auth?' +
+    let authUrl =
+      'https://api.login.yahoo.com/oauth2/request_auth?' +
       `client_id=${encodeURIComponent(clientId)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
@@ -404,7 +495,7 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<object>}
    */
   async exchangeYahooCode(code, clientId, clientSecret, options = {}) {
-    const redirectUri = `${process.env.URL || 'http://localhost:1337'}/magic-mail/oauth/yahoo/callback`;
+    const redirectUri = this.getRedirectUri('yahoo');
 
     strapi.log.info('[magic-mail] Exchanging Yahoo OAuth code for tokens...');
 
@@ -423,7 +514,7 @@ module.exports = ({ strapi }) => ({
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
       },
       body: new URLSearchParams(bodyParams),
     });
@@ -463,7 +554,7 @@ module.exports = ({ strapi }) => ({
       email,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
+      expiresAt: expiryFrom(tokens),
     };
   },
 
@@ -478,9 +569,9 @@ module.exports = ({ strapi }) => ({
 
     const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
       },
       body: new URLSearchParams({
         refresh_token: refreshToken,
@@ -489,70 +580,123 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      throw new Error('Failed to refresh Yahoo tokens');
+      throw new Error(`Failed to refresh Yahoo tokens: ${response.status}`);
     }
 
-    const tokens = await response.json();
-
-    return {
-      accessToken: tokens.access_token,
-      expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
-    };
+    return this._refreshResult(await response.json(), 'Yahoo');
   },
 
   /**
-   * Store OAuth account
+   * Normalises a refresh_token grant response. Microsoft and Yahoo rotate
+   * refresh tokens: a new one is returned as `refreshToken` and callers must
+   * persist it (keeping the old one when none is returned).
+   *
+   * @param {object} tokens - Provider token response
+   * @param {string} label - Provider name for the error message
+   * @returns {{accessToken: string, refreshToken?: string, expiresAt: Date}}
+   * @throws {Error} When no access token was returned
+   */
+  _refreshResult(tokens, label) {
+    if (!tokens || typeof tokens.access_token !== 'string' || !tokens.access_token) {
+      throw new Error(`No access token received from ${label}`);
+    }
+    const result = { accessToken: tokens.access_token, expiresAt: expiryFrom(tokens) };
+    if (typeof tokens.refresh_token === 'string' && tokens.refresh_token) {
+      result.refreshToken = tokens.refresh_token;
+    }
+    return result;
+  },
+
+  /**
+   * Builds the encrypted `oauth` column value. A missing new refresh token
+   * keeps the previous one.
+   *
+   * @param {object|null} previous - Decrypted previous oauth blob
+   * @param {{email?: string, accessToken: string, refreshToken?: string, expiresAt: Date|string}} tokens
+   * @returns {{encrypted: string}}
+   */
+  buildOAuthBlob(previous, tokens) {
+    return encryptCredentials({
+      ...(previous || {}),
+      ...(tokens.email ? { email: tokens.email } : {}),
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken || previous?.refreshToken,
+      expiresAt: tokens.expiresAt,
+    });
+  },
+
+  /**
+   * Exchanges an authorization code with the provider of the flow.
+   *
+   * @param {'gmail'|'microsoft'|'yahoo'} provider
+   * @param {string} code
+   * @param {{clientId: string, clientSecret: string, tenantId?: string}} config
+   * @param {string|null} codeVerifier - PKCE verifier
+   * @returns {Promise<{email: string, accessToken: string, refreshToken?: string, expiresAt: Date}>}
+   */
+  async exchangeCode(provider, code, config, codeVerifier) {
+    const options = { codeVerifier: codeVerifier || undefined };
+    if (provider === 'gmail') {
+      return this.exchangeGoogleCode(code, config.clientId, config.clientSecret, options);
+    }
+    if (provider === 'microsoft') {
+      return this.exchangeMicrosoftCode(
+        code,
+        config.clientId,
+        config.clientSecret,
+        config.tenantId,
+        options
+      );
+    }
+    if (provider === 'yahoo') {
+      return this.exchangeYahooCode(code, config.clientId, config.clientSecret, options);
+    }
+    throw new Error('Unknown OAuth provider');
+  },
+
+  /**
+   * Stores a new OAuth account (app credentials in `config`, tokens in
+   * `oauth`, both encrypted).
+   *
+   * @param {'gmail'|'microsoft'|'yahoo'} provider
+   * @param {{email: string, accessToken: string, refreshToken?: string, expiresAt: Date}} tokenData
+   * @param {object} accountDetails - Validated account form values
+   * @param {{clientId: string, clientSecret: string, tenantId?: string}} oauthCredentials
+   * @returns {Promise<object>} Created account record
    */
   async storeOAuthAccount(provider, tokenData, accountDetails, oauthCredentials) {
-    // Separate config (OAuth app credentials) and oauth (tokens)
-    // Store ALL config fields (including tenantId for Microsoft)
     const configToStore = {
       clientId: oauthCredentials.clientId,
       clientSecret: oauthCredentials.clientSecret,
     };
-    
-    // Add tenantId for Microsoft OAuth
     if (oauthCredentials.tenantId) {
       configToStore.tenantId = oauthCredentials.tenantId;
     }
-    
-    // Add domain for Mailgun
-    if (oauthCredentials.domain) {
-      configToStore.domain = oauthCredentials.domain;
-    }
-    
-    const encryptedConfig = encryptCredentials(configToStore);
 
-    const encryptedOAuth = encryptCredentials({
-      email: tokenData.email,
-      accessToken: tokenData.accessToken,
-      refreshToken: tokenData.refreshToken,
-      expiresAt: tokenData.expiresAt,
-    });
-
+    const email = String(tokenData.email || '')
+      .trim()
+      .toLowerCase();
     const isPrimary = accountDetails.isPrimary || false;
-    // Keep the single-primary invariant: clear any existing primary before
-    // creating a new primary OAuth account (the OAuth path previously skipped
-    // this, allowing multiple primary accounts).
+    // Keep the single-primary invariant.
     if (isPrimary) {
       await strapi.plugin('magic-mail').service('account-manager').unsetAllPrimary();
     }
 
     const account = await strapi.documents('plugin::magic-mail.email-account').create({
       data: {
-        name: accountDetails.name,
-        description: accountDetails.description || '',
+        name: accountDetails.name || email,
+        description: accountDetails.description ?? null,
         provider: `${provider}-oauth`,
-        config: encryptedConfig,      // OAuth app credentials
-        oauth: encryptedOAuth,         // OAuth tokens
-        fromEmail: tokenData.email ? tokenData.email.trim().toLowerCase() : tokenData.email,
-        fromName: accountDetails.fromName || tokenData.email.split('@')[0],
-        replyTo: (accountDetails.replyTo || tokenData.email || '').trim().toLowerCase(),
+        config: encryptCredentials(configToStore),
+        oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
+        fromEmail: email,
+        fromName: accountDetails.fromName || email.split('@')[0],
+        replyTo: (accountDetails.replyTo || email).trim().toLowerCase(),
         isActive: accountDetails.isActive !== undefined ? accountDetails.isActive : true,
         isPrimary,
-        priority: accountDetails.priority || 1,
-        dailyLimit: accountDetails.dailyLimit || 0,
-        hourlyLimit: accountDetails.hourlyLimit || 0,
+        priority: accountDetails.priority ?? 1,
+        dailyLimit: accountDetails.dailyLimit ?? 0,
+        hourlyLimit: accountDetails.hourlyLimit ?? 0,
         emailsSentToday: 0,
         emailsSentThisHour: 0,
         totalEmailsSent: 0,
@@ -563,5 +707,43 @@ module.exports = ({ strapi }) => ({
 
     return account;
   },
-});
 
+  /**
+   * Replaces the OAuth tokens of an existing account after a new consent
+   * (revoked consent, expired refresh token). Only the mailbox the account
+   * was created for may be re-authorized, so a reconnect can not silently
+   * switch the sending address.
+   *
+   * @param {object} account - Raw email-account record
+   * @param {{email: string, accessToken: string, refreshToken?: string, expiresAt: Date}} tokenData
+   * @returns {Promise<object>} Updated record
+   * @throws {Error & {code: string}} MAILBOX_MISMATCH when another mailbox authorized
+   */
+  async updateOAuthTokens(account, tokenData) {
+    const email = String(tokenData.email || '')
+      .trim()
+      .toLowerCase();
+    if (
+      !email ||
+      email !==
+        String(account.fromEmail || '')
+          .trim()
+          .toLowerCase()
+    ) {
+      const error = new Error('The authorized mailbox does not match this account');
+      error.code = 'MAILBOX_MISMATCH';
+      throw error;
+    }
+
+    const updated = await strapi.documents('plugin::magic-mail.email-account').update({
+      documentId: account.documentId,
+      data: {
+        // A reconnect starts from a fresh token set; old tokens are dropped.
+        oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
+      },
+    });
+
+    strapi.log.info('[magic-mail] [SUCCESS] OAuth account reconnected');
+    return updated;
+  },
+});

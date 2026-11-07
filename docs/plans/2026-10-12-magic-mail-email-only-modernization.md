@@ -13,6 +13,7 @@
 ### Task 1: Lock the email-only ownership boundary with failing tests
 
 **Files:**
+
 - Modify: `tests/route-inventory.test.js`
 - Create: `tests/email-only-boundary.test.js`
 - Modify: `tests/providers.test.js`
@@ -22,6 +23,7 @@
 ### Task 2: Remove transport ownership and preserve email behavior
 
 **Files:**
+
 - Modify: `server/src/routes/admin.js`, `server/src/routes/content-api.js`
 - Modify: `server/src/controllers/index.js`, `server/src/services/index.js`
 - Delete: `server/src/controllers/whatsapp.js`, `server/src/services/whatsapp.js`
@@ -34,13 +36,17 @@
 ### Task 3: Update published behavior and compatible packages
 
 **Files:**
+
 - Modify: `package.json`, `package-lock.json`, `README.md`
 
 **Steps:** Remove obsolete WhatsApp metadata and dependencies, refresh remaining direct packages to the newest compatible releases, regenerate the lockfile, and document removed endpoints/services plus retained local settings. Run tests after dependency installation.
 
+**Deviation resolved (4.0):** the first implementation kept the two legacy routing-rule attributes (hidden with unicode escapes) and a test required them. 4.0 removes them from the schema; Strapi drops the columns `whatsapp_fallback` and `whatsapp_phone_field` of `magic_mail_routing_rules` on first start (see CHANGELOG, Unreleased). The boundary test now parses every schema and translation file and fails on any residue.
+
 ### Task 4: Verify the checkout and record evidence
 
 **Files:**
+
 - Modify: root `gates/magic-mail.md` only
 
 **Steps:** Run tests, lint if available, verify, runtime verification, build, fake-only integration checks, package and boundary checks, and local Strapi admin acceptance when available. Inspect the final diff for scope, data retention, authorization, and secret leakage. Record each result and any unavailable check in the root gate without changing other root files. Do not commit or push.

@@ -13,13 +13,32 @@ const PROVIDER_LABELS = {
 };
 
 /**
+ * Origin of the Strapi admin panel (from `admin.absoluteUrl`), which may
+ * differ from the API origin when the admin is served from its own host.
+ * Returns null when it can not be determined; the page then posts to its
+ * own origin.
+ *
+ * @returns {string|null}
+ */
+function getAdminOrigin() {
+  try {
+    const configured =
+      typeof strapi !== 'undefined' ? strapi?.config?.get?.('admin.absoluteUrl') : null;
+    if (typeof configured !== 'string' || !/^https?:\/\//i.test(configured)) return null;
+    return new URL(configured).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Renders a hardened OAuth callback HTML page.
  *
  * SECURITY: No request-derived value (`code`, `state`, provider `error`) is
  * ever interpolated into the HTML or the inline script on the server. The
  * script reads `code`/`state`/`error` from `window.location.search` at runtime
- * and forwards them to the opener via `postMessage` with a same-origin
- * `targetOrigin`. Only the server-trusted provider key — validated against a
+ * and forwards them to the opener via `postMessage`, targeted at the admin
+ * panel origin (`admin.absoluteUrl`, falling back to the page's own origin). Only the server-trusted provider key — validated against a
  * fixed allowlist — is embedded. This removes the reflected-XSS vector that
  * existed when the raw `code`/`state` were interpolated into a script literal.
  *
@@ -66,6 +85,9 @@ function renderOAuthCallback(ctx, provider) {
   // Only the fixed provider key (allowlisted) is embedded. code/state/error are
   // read client-side from location.search and are never serialized server-side.
   const providerLiteral = JSON.stringify(providerKey);
+  // Server configuration only (never request data); JSON-encoded and with
+  // '<' escaped so it can not close the script element.
+  const adminOriginLiteral = JSON.stringify(getAdminOrigin()).replace(/</g, '\\u003c');
 
   ctx.type = 'html';
   ctx.body = `<!DOCTYPE html>
@@ -85,6 +107,7 @@ function renderOAuthCallback(ctx, provider) {
   <script nonce="${nonce}">
     (function () {
       var PROVIDER = ${providerLiteral};
+      var ADMIN_ORIGIN = ${adminOriginLiteral};
       var params = new URLSearchParams(window.location.search);
       var code = params.get('code');
       var state = params.get('state');
@@ -100,15 +123,17 @@ function renderOAuthCallback(ctx, provider) {
       }
 
       if (window.opener) {
+        // Only the admin panel origin may receive the code.
         window.opener.postMessage(
           { type: PROVIDER + '-oauth-success', code: code, state: state },
-          window.location.origin
+          ADMIN_ORIGIN || window.location.origin
         );
         setTimeout(function () { window.close(); }, 1200);
       } else {
-        var target = '/admin/plugins/magic-mail?oauth_code=' +
-          encodeURIComponent(code) + '&oauth_state=' + encodeURIComponent(state || '');
-        setTimeout(function () { window.location.href = target; }, 1500);
+        // Without the opening admin tab the code can not be used. It is never
+        // put into another URL (history, logs, Referer).
+        statusEl.textContent = 'Authorization could not be completed';
+        detailEl.textContent = 'Close this window and start the connection again from the Magic Mail admin page.';
       }
     })();
   </script>

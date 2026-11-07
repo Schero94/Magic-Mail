@@ -13,8 +13,13 @@ const quietLog = {
 test('account validation accepts every provider implemented by the router', () => {
   const { validate } = require('../server/src/validation');
   const providers = [
-    'smtp', 'nodemailer', 'gmail-oauth', 'microsoft-oauth',
-    'yahoo-oauth', 'sendgrid', 'mailgun',
+    'smtp',
+    'nodemailer',
+    'gmail-oauth',
+    'microsoft-oauth',
+    'yahoo-oauth',
+    'sendgrid',
+    'mailgun',
   ];
 
   for (const provider of providers) {
@@ -27,12 +32,29 @@ test('account validation accepts every provider implemented by the router', () =
     assert.equal(result.provider, provider);
   }
 
-  assert.throws(() => validate('accounts.create', {
-    name: 'unsupported',
-    provider: 'postmark',
+  assert.throws(() =>
+    validate('accounts.create', {
+      name: 'unsupported',
+      provider: 'postmark',
+      config: {},
+      fromEmail: 'sender@example.com',
+    })
+  );
+});
+
+test('optional account reply-to accepts the blank value sent by the admin form', () => {
+  const { validate } = require('../server/src/validation');
+  const account = {
+    name: 'Local test account',
+    provider: 'smtp',
     config: {},
-    fromEmail: 'sender@example.com',
-  }));
+    fromEmail: 'sender@example.invalid',
+    replyTo: '',
+  };
+
+  assert.equal(validate('accounts.create', account).replyTo, undefined);
+  // On update '' means "clear the stored Reply-To" (FUN-16).
+  assert.equal(validate('accounts.update', { replyTo: '' }).replyTo, null);
 });
 
 test('Zod 4 records work and security-sensitive URLs reject active schemes', () => {
@@ -43,16 +65,22 @@ test('Zod 4 records work and security-sensitive URLs reject active schemes', () 
   });
   assert.deepEqual(rendered.data, { firstName: 'Ada' });
 
-  assert.throws(() => validate('pluginSettings.update', {
-    trackingFallbackUrl: 'javascript:alert(1)',
-  }));
-  assert.throws(() => validate('pluginSettings.update', {
-    trackingBaseUrl: 'data:text/html,boom',
-  }));
-  assert.throws(() => validate('content.send', {
-    to: 'user@example.com',
-    from: 'sender@example.com\r\nBcc: victim@example.com',
-  }));
+  assert.throws(() =>
+    validate('pluginSettings.update', {
+      trackingFallbackUrl: 'javascript:alert(1)',
+    })
+  );
+  assert.throws(() =>
+    validate('pluginSettings.update', {
+      trackingBaseUrl: 'data:text/html,boom',
+    })
+  );
+  assert.throws(() =>
+    validate('content.send', {
+      to: 'user@example.com',
+      from: 'sender@example.com\r\nBcc: victim@example.com',
+    })
+  );
 });
 
 test('credential encryption round-trips and rejects weak or malformed input', () => {
@@ -74,7 +102,8 @@ test('credential encryption round-trips and rejects weak or malformed input', ()
   } finally {
     if (previous.NODE_ENV === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previous.NODE_ENV;
-    if (previous.MAGIC_MAIL_ENCRYPTION_KEY === undefined) delete process.env.MAGIC_MAIL_ENCRYPTION_KEY;
+    if (previous.MAGIC_MAIL_ENCRYPTION_KEY === undefined)
+      delete process.env.MAGIC_MAIL_ENCRYPTION_KEY;
     else process.env.MAGIC_MAIL_ENCRYPTION_KEY = previous.MAGIC_MAIL_ENCRYPTION_KEY;
   }
 });
@@ -99,11 +128,18 @@ test('OAuth state enforces PKCE and one-time consumption', async () => {
     const consumed = await verifyAndConsumeState(strapi, created.state, 'client');
     assert.equal(consumed.payload.provider, 'gmail');
     assert.ok(consumed.codeVerifier);
-    await assert.rejects(() => verifyAndConsumeState(strapi, created.state, 'client'), /already used/);
+    await assert.rejects(
+      () => verifyAndConsumeState(strapi, created.state, 'client'),
+      /already used/
+    );
 
     const failingStore = {
       log: quietLog,
-      store: () => ({ set: async () => { throw new Error('storage down'); } }),
+      store: () => ({
+        set: async () => {
+          throw new Error('storage down');
+        },
+      }),
     };
     await assert.rejects(
       () => createState(failingStore, { clientId: 'client', provider: 'gmail' }),
@@ -129,7 +165,9 @@ test('invalid click recipient hash cannot resolve or increment a link', async ()
         linkLookupCount += 1;
         return { documentId: 'link-doc', originalUrl: 'https://example.com', clickCount: 0 };
       },
-      update: async () => { linkUpdateCount += 1; },
+      update: async () => {
+        linkUpdateCount += 1;
+      },
     }),
   };
   const analytics = require('../server/src/services/analytics')({ strapi });
@@ -167,8 +205,12 @@ test('tracking pixel bypasses JSON serialization and writes raw GIF bytes', asyn
     params: { emailId: 'email', recipientHash: 'hash' },
     request: { headers: {} },
     res: {
-      setHeader: (name, value) => { headers[name] = value; },
-      end: (value) => { responseBody = value; },
+      setHeader: (name, value) => {
+        headers[name] = value;
+      },
+      end: (value) => {
+        responseBody = value;
+      },
     },
   };
 
@@ -184,10 +226,12 @@ test('all declared routes resolve to controller functions and admin routes are p
   const controllers = require('../server/src/controllers');
   const adminRoutes = require('../server/src/routes/admin').routes;
   const contentRoutes = require('../server/src/routes/content-api').routes;
-  const instances = Object.fromEntries(Object.entries(controllers).map(([name, controller]) => [
-    name,
-    typeof controller === 'function' ? controller({ strapi: {} }) : controller,
-  ]));
+  const instances = Object.fromEntries(
+    Object.entries(controllers).map(([name, controller]) => [
+      name,
+      typeof controller === 'function' ? controller({ strapi: {} }) : controller,
+    ])
+  );
 
   for (const route of [...adminRoutes, ...contentRoutes]) {
     const [controller, method] = route.handler.split('.');
@@ -202,7 +246,10 @@ test('all declared routes resolve to controller functions and admin routes are p
     }
     const policies = route.config.policies || [];
     assert.ok(policies.includes('admin::isAuthenticatedAdmin'), route.path);
-    assert.ok(policies.some((policy) => policy?.name === 'admin::hasPermissions'), route.path);
+    assert.ok(
+      policies.some((policy) => policy?.name === 'admin::hasPermissions'),
+      route.path
+    );
   }
 });
 
@@ -238,21 +285,24 @@ test('SMTP transport blocks file/URL reads and protected header overrides', asyn
     delete require.cache[require.resolve('../server/src/services/email-router')];
     const { encryptCredentials } = require('../server/src/utils/encryption');
     const router = require('../server/src/services/email-router')({ strapi: { log: quietLog } });
-    await router.sendViaSMTP({
-      fromEmail: 'sender@example.com',
-      fromName: 'Sender',
-      config: encryptCredentials({
-        host: 'smtp.example.com',
-        port: 587,
-        user: 'sender@example.com',
-        pass: 'secret',
-      }),
-    }, {
-      to: 'user@example.com',
-      subject: 'Hello',
-      text: 'Test',
-      headers: { Subject: 'override', 'X-Custom': 'allowed' },
-    });
+    await router.sendViaSMTP(
+      {
+        fromEmail: 'sender@example.com',
+        fromName: 'Sender',
+        config: encryptCredentials({
+          host: 'smtp.example.com',
+          port: 587,
+          user: 'sender@example.com',
+          pass: 'secret',
+        }),
+      },
+      {
+        to: 'user@example.com',
+        subject: 'Hello',
+        text: 'Test',
+        headers: { Subject: 'override', 'X-Custom': 'allowed' },
+      }
+    );
 
     assert.equal(transportConfig.disableFileAccess, true);
     assert.equal(transportConfig.disableUrlAccess, true);

@@ -1,1252 +1,839 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
-import { useAuthRefresh } from '../hooks/useAuthRefresh';
-import styled, { keyframes, css } from 'styled-components';
-import { theme } from '../utils/theme';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
+import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
+import { useFormatters } from '../hooks/useFormatters';
 import {
-  Box,
-  Button,
-  Flex,
-  Typography,
-  Loader,
   Badge,
+  Box,
+  Flex,
+  Loader,
   SingleSelect,
   SingleSelectOption,
-  Modal,
-  Field,
-  TextInput,
+  Typography,
 } from '@strapi/design-system';
-import { Table, Thead, Tbody, Tr, Th, Td } from '@strapi/design-system';
+import { Tbody, Td, Th, Thead, Tr } from '@strapi/design-system';
 import {
-  CheckIcon,
   EnvelopeIcon,
-  ServerIcon,
-  SparklesIcon,
-  TrashIcon,
+  ExclamationTriangleIcon,
+  PencilIcon,
   PlayIcon,
   PlusIcon,
-  MagnifyingGlassIcon,
-  PencilIcon,
+  ServerIcon,
+  SparklesIcon,
+  StarIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import AddAccountModal from '../components/AddAccountModal';
-import { 
-  GradientButton, 
-  SecondaryButton, 
-  TertiaryButton,
-  IconButton, 
-  IconButtonDanger, 
-  IconButtonPrimary,
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { SectionHeading } from '../components/shared/Headings';
+import { SearchField } from '../components/shared/SearchField';
+import {
   CTAButton,
+  GradientButton,
+  IconButton,
+  IconButtonDanger,
+  IconButtonPrimary,
+  TertiaryButton,
 } from '../components/StyledButtons';
+import { theme } from '../utils/theme';
+import { TestEmailModal } from './Accounts/TestEmailModal';
+import {
+  AccountCard,
+  AccountCardList,
+  AccountCardStats,
+  AccountsContainer,
+  Container,
+  EmptyIconCircle,
+  EmptyState,
+  FilterBar,
+  FilterSelectBox,
+  FloatingIcon,
+  Header,
+  HeaderContent,
+  OnlineBadge,
+  SectionHeaderRow,
+  StatCard,
+  StatIcon,
+  StatLabel,
+  StatValue,
+  StatsGrid,
+  StyledTable,
+  Subtitle,
+  TableScroller,
+  Title,
+  UsageFill,
+  UsageTrack,
+} from './Accounts/styles';
+import {
+  countRulesForAccount,
+  filterAccounts,
+  getAccountKey,
+  getUsagePercent,
+  uniqueProviders,
+} from './Accounts/accountHelpers';
 
-// ================ ANIMATIONS ================
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
+const PROVIDER_NAMES = {
+  smtp: 'SMTP',
+  nodemailer: 'Nodemailer',
+  'gmail-oauth': 'Gmail OAuth',
+  'microsoft-oauth': 'Microsoft OAuth',
+  'yahoo-oauth': 'Yahoo Mail OAuth',
+  sendgrid: 'SendGrid',
+  mailgun: 'Mailgun',
+};
+const providerName = (value) => PROVIDER_NAMES[value] ?? value;
 
-const shimmer = keyframes`
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-`;
+/** Centered loader in the page area (keeps the current look). */
+const PageLoader = ({ label }) => (
+  <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
+    <Loader>{label}</Loader>
+  </Flex>
+);
 
-const float = keyframes`
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
-`;
-
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-`;
-
-const FloatingEmoji = styled.div`
-  position: absolute;
-  bottom: 40px;
-  right: 40px;
-  font-size: 72px;
-  opacity: 0.08;
-  ${css`animation: ${float} 4s ease-in-out infinite;`}
-`;
-
-// ================ RESPONSIVE BREAKPOINTS ================
-const breakpoints = {
-  mobile: '768px',
-  tablet: '1024px',
+/**
+ * The DS table cell prevents the default of every key when it holds several
+ * buttons (its grid navigation), which blocks native Enter/Space activation
+ * and Tab. Those keys stay with the buttons; arrow keys still move the grid.
+ */
+const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
+const keepNativeButtonKeys = (event) => {
+  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
 };
 
-// ================ STYLED COMPONENTS ================
-const Container = styled(Box)`
-  ${css`animation: ${fadeIn} ${theme.transitions.slow};`}
-  min-height: 100vh;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: ${theme.spacing.xl} ${theme.spacing.lg} 0;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: 16px 12px 0;
-  }
-`;
+/** Focus target after the dialog of a deleted row closes. */
+const getFocusFallback = () => document.querySelector('[data-mm-focus-fallback]');
 
-const Header = styled(Box)`
-  background: linear-gradient(135deg, 
-    ${'var(--colors-primary600, #0284C7)'} 0%, 
-    var(--colors-secondary600, #7C3AED) 100%
-  );
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
-  margin-bottom: ${theme.spacing.xl};
-  position: relative;
-  overflow: hidden;
-  box-shadow: ${theme.shadows.xl};
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: 24px 20px;
-    border-radius: 12px;
-  }
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 200%;
-    height: 100%;
-    background: linear-gradient(
-      90deg, 
-      transparent, 
-      rgba(255, 255, 255, 0.15), 
-      transparent
+/** Strips an OAuth code that the callback fallback left in the admin URL. */
+const useStripOAuthCallbackParams = () => {
+  const { toggleNotification } = useNotification();
+  const { t } = useMagicMailIntl();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('oauth_code') && !params.has('oauth_state')) return;
+    params.delete('oauth_code');
+    params.delete('oauth_state');
+    const query = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      document.title,
+      `${window.location.pathname}${query ? `?${query}` : ''}`
     );
-    ${css`animation: ${shimmer} 3s infinite;`}
-  }
-  
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    background-image: radial-gradient(circle at 20% 80%, transparent 50%, rgba(255, 255, 255, 0.1) 50%);
-    background-size: 15px 15px;
-    opacity: 0.3;
-  }
-`;
-
-const HeaderContent = styled(Flex)`
-  position: relative;
-  z-index: 1;
-`;
-
-const Title = styled(Typography)`
-  color: white;
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  
-  svg {
-    width: 28px;
-    height: 28px;
-    ${css`animation: ${float} 3s ease-in-out infinite;`}
-  }
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    font-size: 1.5rem;
-    
-    svg {
-      width: 22px;
-      height: 22px;
-    }
-  }
-`;
-
-const Subtitle = styled(Typography)`
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 0.95rem;
-  font-weight: 400;
-  margin-top: ${theme.spacing.xs};
-  letter-spacing: 0.01em;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    font-size: 0.85rem;
-  }
-`;
-
-const StatsGrid = styled.div`
-  margin-bottom: ${theme.spacing.xl};
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: ${theme.spacing.lg};
-  justify-content: center;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-bottom: 24px;
-  }
-`;
-
-const StatCard = styled(Box)`
-  background: ${(p) => p.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.lg};
-  padding: 28px ${theme.spacing.lg};
-  position: relative;
-  overflow: hidden;
-  transition: all ${theme.transitions.normal};
-  ${css`animation: ${fadeIn} ${theme.transitions.slow} backwards;`}
-  animation-delay: ${props => props.$delay || '0s'};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  min-width: 200px;
-  flex: 1;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    min-width: unset;
-    padding: 20px 12px;
-    
-    &:hover {
-      transform: none;
-    }
-  }
-  
-  &:hover {
-    transform: translateY(-6px);
-    box-shadow: ${theme.shadows.xl};
-    border-color: ${props => props.$color || 'var(--colors-primary600, #0EA5E9)'};
-    
-    .stat-icon {
-      transform: scale(1.15) rotate(5deg);
-    }
-    
-    .stat-value {
-      transform: scale(1.08);
-      color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
-    }
-  }
-`;
-
-const StatIcon = styled(Box)`
-  width: 68px;
-  height: 68px;
-  border-radius: ${theme.borderRadius.lg};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.$bg || 'rgba(2, 132, 199, 0.12)'};
-  transition: all ${theme.transitions.normal};
-  margin: 0 auto 20px;
-  box-shadow: ${theme.shadows.sm};
-  
-  svg {
-    width: 34px;
-    height: 34px;
-    color: ${props => props.$color || 'var(--colors-primary600, #0284C7)'};
-  }
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 12px;
-    
-    svg {
-      width: 24px;
-      height: 24px;
-    }
-  }
-`;
-
-const StatValue = styled(Typography)`
-  font-size: 2.75rem;
-  font-weight: 700;
-  color: var(--colors-neutral800);
-  line-height: 1;
-  margin-bottom: 10px;
-  transition: all ${theme.transitions.normal};
-  text-align: center;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    font-size: 2rem;
-    margin-bottom: 6px;
-  }
-`;
-
-const StatLabel = styled(Typography)`
-  font-size: 0.95rem;
-  color: var(--colors-neutral600);
-  font-weight: 500;
-  letter-spacing: 0.025em;
-  text-align: center;
-  
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    font-size: 0.8rem;
-  }
-`;
-
-const AccountsContainer = styled(Box)`
-  margin-top: ${theme.spacing.xl};
-`;
-
-const EmptyState = styled(Box)`
-  background: ${(p) => p.theme.colors.neutral0};
-  border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed rgba(128, 128, 128, 0.3);
-  padding: 80px 32px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  /* Background Gradient */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'} 0%, rgba(168, 85, 247, 0.06) 100%);
-    opacity: 0.3;
-    z-index: 0;
-  }
-`;
-
-const OnlineBadge = styled.div`
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: ${props => props.$active ? 'var(--colors-success600, #22C55E)' : 'rgba(128, 128, 128, 0.4)'};
-  display: inline-block;
-  margin-right: 8px;
-  ${css`animation: ${props => props.$active ? pulse : 'none'} 2s ease-in-out infinite;`}
-`;
-
-const StyledTable = styled(Table)`
-  thead {
-    background: var(--colors-neutral100);
-    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
-    
-    th {
-      font-weight: 600;
-      color: var(--colors-neutral800);
-      font-size: 0.875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
-    }
-  }
-  
-  tbody tr {
-    transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-    
-    &:last-child {
-      border-bottom: none;
-    }
-    
-    &:hover {
-      background: rgba(2, 132, 199, 0.12);
-    }
-    
-    td {
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
-      color: var(--colors-neutral800);
-      vertical-align: middle;
-    }
-  }
-`;
-
-const FilterBar = styled(Flex)`
-  background: ${(p) => p.theme.colors.neutral0};
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  margin-bottom: ${theme.spacing.lg};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  gap: ${theme.spacing.md};
-  align-items: center;
-`;
-
-const SearchInputWrapper = styled.div`
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-`;
-
-const SearchIcon = styled(MagnifyingGlassIcon)`
-  position: absolute;
-  left: 12px;
-  width: 16px;
-  height: 16px;
-  color: var(--colors-neutral600);
-  pointer-events: none;
-`;
-
-const StyledSearchInput = styled.input`
-  width: 100%;
-  padding: 10px 12px 10px 40px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: ${theme.borderRadius.md};
-  font-size: 0.875rem;
-  transition: all ${theme.transitions.fast};
-  background: ${(p) => p.theme.colors.neutral0};
-  color: var(--colors-neutral800);
-  
-  &:focus {
-    outline: none;
-    border-color: ${'var(--colors-primary600, #0EA5E9)'};
-    box-shadow: 0 0 0 2px ${'rgba(2, 132, 199, 0.12)'};
-  }
-  
-  &::placeholder {
-    color: var(--colors-neutral500);
-  }
-`;
-
-// ================ MODAL STYLED COMPONENTS ================
-const StyledModalContent = styled(Modal.Content)`
-  && {
-    border-radius: 16px;
-    overflow: hidden;
-    max-width: 560px;
-    width: 90vw;
-  }
-`;
-
-const StyledModalHeader = styled(Modal.Header)`
-  && {
-    background: linear-gradient(135deg, ${'var(--colors-primary600, #0EA5E9)'} 0%, var(--colors-secondary600, #A855F7) 100%);
-    padding: 24px 28px;
-    border-bottom: none;
-    
-    h2 {
-      color: white;
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-    
-    button {
-      color: white !important;
-      opacity: 0.9;
-      background: rgba(255, 255, 255, 0.15) !important;
-      border-radius: 8px;
-      
-      &:hover {
-        opacity: 1;
-        background: rgba(255, 255, 255, 0.25) !important;
-      }
-      
-      svg {
-        fill: white !important;
-        color: white !important;
-        path { fill: white !important; }
-      }
-    }
-  }
-`;
-
-const StyledModalBody = styled(Modal.Body)`
-  && {
-    padding: 24px 28px;
-    background: ${(p) => p.theme.colors.neutral0};
-    width: 100%;
-    box-sizing: border-box;
-  }
-`;
-
-const StyledModalFooter = styled(Modal.Footer)`
-  && {
-    padding: 20px 28px;
-    border-top: 1px solid rgba(128, 128, 128, 0.2);
-    background: var(--colors-neutral100);
-  }
-`;
-
-const AccountInfoCard = styled(Box)`
-  background: linear-gradient(135deg, ${'rgba(2, 132, 199, 0.06)'} 0%, rgba(168, 85, 247, 0.06) 100%);
-  border: 1px solid ${'rgba(2, 132, 199, 0.2)'};
-  border-radius: 12px;
-  padding: 16px 20px;
-  text-align: center;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-`;
-
-const TestOptionCard = styled(Box)`
-  padding: 16px 20px;
-  border: 2px solid ${props => props.$selected ? 'var(--colors-primary600, #0EA5E9)' : 'rgba(128, 128, 128, 0.2)'};
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all ${theme.transitions.fast};
-  background: ${props => props.$selected ? 'rgba(2, 132, 199, 0.06)' : '${(p) => p.theme.colors.neutral0}'};
-  
-  &:hover {
-    border-color: ${'rgba(2, 132, 199, 0.4)'};
-    background: ${'rgba(2, 132, 199, 0.06)'};
-  }
-`;
-
-const ModalFieldLabel = styled(Typography)`
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--colors-neutral700);
-  margin-bottom: 8px;
-  display: block;
-`;
-
-const ModalHint = styled(Typography)`
-  font-size: 12px;
-  color: var(--colors-neutral500);
-  margin-top: 6px;
-`;
-
-const StyledModalSelect = styled.select`
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: 8px;
-  font-size: 14px;
-  background: ${(p) => p.theme.colors.neutral0};
-  color: var(--colors-neutral800);
-  cursor: pointer;
-  transition: all ${theme.transitions.fast};
-  box-sizing: border-box;
-  
-  &:focus {
-    outline: none;
-    border-color: ${'var(--colors-primary600, #0EA5E9)'};
-    box-shadow: 0 0 0 3px ${'rgba(2, 132, 199, 0.12)'};
-  }
-`;
-
-const StyledModalInput = styled.input`
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: 8px;
-  font-size: 14px;
-  background: ${(p) => p.theme.colors.neutral0};
-  color: var(--colors-neutral800);
-  transition: all ${theme.transitions.fast};
-  box-sizing: border-box;
-  
-  &:focus {
-    outline: none;
-    border-color: ${'var(--colors-primary600, #0EA5E9)'};
-    box-shadow: 0 0 0 3px ${'rgba(2, 132, 199, 0.12)'};
-  }
-  
-  &::placeholder {
-    color: rgba(128, 128, 128, 0.4);
-  }
-`;
+    toggleNotification({
+      type: 'warning',
+      message: t(
+        'accounts.oauth.fallback',
+        'The authorization result could not be passed back to the account wizard. Close this window and start the connection again from the original tab.'
+      ),
+    });
+  }, [t, toggleNotification]);
+};
 
 const HomePage = () => {
-  useAuthRefresh(); // Initialize token auto-refresh
+  const {
+    canManage,
+    canTestSend,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+  } = useMagicMailRBAC();
   const { get, post, del } = useFetchClient();
   const { toggleNotification } = useNotification();
+  const { t } = useMagicMailIntl();
+  const { formatDateTime, formatNumber } = useFormatters();
+
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [rules, setRules] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [testingAccount, setTestingAccount] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterProvider, setFilterProvider] = useState('all');
 
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
+  useStripOAuthCallbackParams();
 
-  const fetchAccounts = async () => {
-    setLoading(true);
-    try {
-      const { data } = await get('/magic-mail/accounts');
-      setAccounts(data.data || []);
-    } catch (err) {
-      console.error('[magic-mail] Error fetching accounts:', err);
-      toggleNotification({
-        type: 'danger',
-        message: 'Failed to load email accounts',
-      });
-    } finally {
-      setLoading(false);
+  // After a delete the focused row disappears with the reload; move focus to
+  // the add button (or the empty state's call to action) instead of <body>.
+  const refocusAfterDeleteRef = useRef(false);
+  useEffect(() => {
+    if (loading || !refocusAfterDeleteRef.current) return;
+    refocusAfterDeleteRef.current = false;
+    if (!document.activeElement || document.activeElement === document.body) {
+      getFocusFallback()?.focus();
     }
+  }, [loading, accounts]);
+
+  // Loads accounts and rules on mount and after every fetchAccounts(); state is
+  // only set once both requests settled, and `ignore` drops stale answers.
+  const [accountsReloadKey, setAccountsReloadKey] = useState(0);
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      // Rules are only used for the rename/delete warnings; a failure there
+      // must not hide the accounts.
+      const [accountsResult, rulesResult] = await Promise.allSettled([
+        get('/magic-mail/accounts'),
+        get('/magic-mail/routing-rules'),
+      ]);
+      if (ignore) return;
+
+      if (accountsResult.status === 'fulfilled') {
+        const list = accountsResult.value?.data?.data;
+        setAccounts(Array.isArray(list) ? list : []);
+      } else {
+        console.error('[magic-mail] Failed to fetch email accounts');
+        setLoadError(true);
+      }
+      setRules(
+        rulesResult.status === 'fulfilled' && Array.isArray(rulesResult.value?.data?.data)
+          ? rulesResult.value.data.data
+          : null
+      );
+      setLoading(false);
+    };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [get, accountsReloadKey]);
+
+  /** Reloads accounts and rules (Retry, after add, edit, delete or test). */
+  const fetchAccounts = () => {
+    setLoading(true);
+    setLoadError(false);
+    setAccountsReloadKey((key) => key + 1);
   };
 
-  const testAccount = async (accountId, accountName, testEmail, testOptions = {}) => {
-    toggleNotification({
-      type: 'info',
-      message: `Testing ${accountName}...`,
-    });
-
+  /**
+   * Sends a test message through exactly this account and forwards optional CC recipients.
+   * @returns {Promise<boolean>} true when the server reports success
+   */
+  const testAccount = async (account, testEmail, testOptions = {}) => {
     try {
-      const { data } = await post(`/magic-mail/accounts/${accountId}/test`, {
-        testEmail: testEmail,
+      const { data } = await post(`/magic-mail/accounts/${getAccountKey(account)}/test`, {
+        testEmail,
+        cc: testOptions.cc || undefined,
         priority: testOptions.priority || 'normal',
         type: testOptions.type || 'transactional',
         unsubscribeUrl: testOptions.unsubscribeUrl || null,
       });
-      
-      toggleNotification({
-        type: data.success ? 'success' : 'danger',
-        message: data.message,
-      });
-    } catch (err) {
+
+      if (data?.success) {
+        toggleNotification({
+          type: 'success',
+          message: t('accounts.test.directSuccess', 'Test email sent to {email} via {name}.', {
+            email: testEmail,
+            name: account.name,
+          }),
+        });
+        return true;
+      }
       toggleNotification({
         type: 'danger',
-        message: 'Test email failed',
+        message: data?.message
+          ? t('accounts.test.failedReason', 'The test email failed: {reason}', {
+              reason: data.message,
+            })
+          : t('accounts.test.failed', 'The test email failed.'),
       });
+      return false;
+    } catch (err) {
+      const reason = err?.response?.data?.error?.message;
+      toggleNotification({
+        type: 'danger',
+        message: reason
+          ? t('accounts.test.failedReason', 'The test email failed: {reason}', { reason })
+          : t('accounts.test.failed', 'The test email failed.'),
+      });
+      return false;
     }
   };
 
-  const deleteAccount = async (accountId, accountName) => {
-    if (!confirm(`Delete "${accountName}"?`)) return;
-
+  const deleteAccount = async (account) => {
+    if (!canManage) return;
     try {
-      await del(`/magic-mail/accounts/${accountId}`);
+      await del(`/magic-mail/accounts/${getAccountKey(account)}`);
       toggleNotification({
         type: 'success',
-        message: 'Account deleted successfully',
+        message: t('accounts.delete.success', '{name} was deleted.', { name: account.name }),
       });
+      refocusAfterDeleteRef.current = true;
+      setPendingDelete(null);
       fetchAccounts();
-    } catch (err) {
+    } catch {
       toggleNotification({
         type: 'danger',
-        message: 'Failed to delete account',
+        message: t('accounts.delete.failed', 'The account could not be deleted.'),
       });
     }
   };
 
-  if (loading) {
+  if (permissionsLoading || (loading && accounts.length === 0 && !loadError)) {
+    // Inside Container so the panel keeps its full height and background.
     return (
-      <Flex justifyContent="center" alignItems="center" style={{ minHeight: '400px' }}>
-        <Loader>Loading MagicMail...</Loader>
-      </Flex>
+      <Container>
+        <PageLoader label={t('accounts.loading', 'Loading email accounts...')} />
+      </Container>
     );
   }
 
+  const hasRowActions = canManage || canTestSend;
   const totalSentToday = accounts.reduce((sum, acc) => sum + (acc.emailsSentToday || 0), 0);
   const totalSent = accounts.reduce((sum, acc) => sum + (acc.totalEmailsSent || 0), 0);
-  const activeAccounts = accounts.filter(a => a.isActive).length;
-
-  // Filter and search logic
-  const filteredAccounts = accounts.filter(account => {
-    const matchesSearch = 
-      account.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      account.fromEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (account.provider || '').toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = 
-      filterStatus === 'all' || 
-      (filterStatus === 'active' && account.isActive) ||
-      (filterStatus === 'inactive' && !account.isActive) ||
-      (filterStatus === 'primary' && account.isPrimary);
-    
-    const matchesProvider = 
-      filterProvider === 'all' || 
-      account.provider === filterProvider;
-    
-    return matchesSearch && matchesStatus && matchesProvider;
+  const activeAccounts = accounts.filter((a) => a.isActive).length;
+  const filteredAccounts = filterAccounts(accounts, {
+    query: searchQuery,
+    status: filterStatus,
+    provider: filterProvider,
   });
+  const providers = uniqueProviders(accounts);
+  const filtersActive =
+    searchQuery.trim() !== '' || filterStatus !== 'all' || filterProvider !== 'all';
+  const pendingDeleteRuleCount = pendingDelete
+    ? countRulesForAccount(rules, pendingDelete.name)
+    : null;
 
-  const uniqueProviders = [...new Set(accounts.map(a => a.provider))].filter(Boolean);
+  const resetFilters = () => {
+    setSearchQuery('');
+    setFilterStatus('all');
+    setFilterProvider('all');
+  };
+
+  // Row parts shared by the table (desktop) and the card list (mobile).
+  const renderStatus = (account) => (
+    <Flex alignItems="center" gap={2}>
+      <OnlineBadge $active={account.isActive} aria-hidden="true" />
+      <Badge variant={account.isActive ? 'success' : 'neutral'} size="S">
+        {account.isActive
+          ? t('accounts.status.active', 'Active')
+          : t('accounts.status.inactive', 'Inactive')}
+      </Badge>
+    </Flex>
+  );
+
+  const renderName = (account, tag) => (
+    <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
+      <Flex alignItems="center" gap={2} wrap="wrap">
+        <Typography fontWeight="semiBold" tag={tag}>
+          {account.name}
+        </Typography>
+        {account.isPrimary && (
+          <Badge variant="warning" size="S">
+            <Flex tag="span" alignItems="center" gap={1}>
+              <StarIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
+              {t('accounts.status.primary', 'Primary')}
+            </Flex>
+          </Badge>
+        )}
+      </Flex>
+      <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
+        {account.fromEmail}
+      </Typography>
+    </Flex>
+  );
+
+  const renderProvider = (account) => (
+    <Badge size="S">
+      <Flex tag="span" alignItems="center" gap={1}>
+        <ServerIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
+        {providerName(account.provider)}
+      </Flex>
+    </Badge>
+  );
+
+  const renderPriority = (account) => (
+    <Badge size="S" variant="secondary">
+      {t('accounts.table.priorityValue', '{priority}/10', {
+        priority: account.priority ?? 1,
+      })}
+    </Badge>
+  );
+
+  const renderUsage = (account) => {
+    const usagePercent = getUsagePercent(account);
+    return (
+      <Flex direction="column" alignItems="flex-start" gap={1}>
+        <Typography fontWeight="semiBold">
+          {formatNumber(account.emailsSentToday || 0)}
+          {account.dailyLimit > 0 ? (
+            <Typography variant="pi" textColor="neutral600" tag="span">
+              {' '}
+              / {formatNumber(account.dailyLimit)}
+            </Typography>
+          ) : (
+            <Typography variant="pi" textColor="neutral600" tag="span">
+              {' '}
+              ({t('accounts.table.unlimited', 'unlimited')})
+            </Typography>
+          )}
+        </Typography>
+        {account.dailyLimit > 0 && (
+          <UsageTrack
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(usagePercent, 100)}
+            aria-label={t('accounts.table.usageLabel', 'Daily limit used: {percent}%', {
+              percent: usagePercent,
+            })}
+          >
+            <UsageFill
+              $danger={usagePercent > 80}
+              style={{ width: `${Math.min(usagePercent, 100)}%` }}
+            />
+          </UsageTrack>
+        )}
+      </Flex>
+    );
+  };
+
+  const renderTotalSent = (account) => (
+    <Typography fontWeight="semiBold">{formatNumber(account.totalEmailsSent || 0)}</Typography>
+  );
+
+  const renderLastUsed = (account) => (
+    <Typography variant="pi" textColor="neutral600">
+      {formatDateTime(account.lastUsed, undefined, t('accounts.table.never', 'Never'))}
+    </Typography>
+  );
+
+  const renderActions = (account) => (
+    <>
+      {canManage && (
+        <IconButton
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingAccount(account);
+          }}
+          aria-label={t('accounts.actions.edit', 'Edit account {name}', { name: account.name })}
+        >
+          <PencilIcon aria-hidden="true" />
+        </IconButton>
+      )}
+      {canTestSend && (
+        <IconButtonPrimary
+          onClick={(e) => {
+            e.stopPropagation();
+            setTestingAccount(account);
+          }}
+          aria-label={t('accounts.actions.test', 'Test account {name}', { name: account.name })}
+        >
+          <PlayIcon aria-hidden="true" />
+        </IconButtonPrimary>
+      )}
+      {canManage && (
+        <IconButtonDanger
+          onClick={(e) => {
+            e.stopPropagation();
+            setPendingDelete(account);
+          }}
+          aria-label={t('accounts.actions.delete', 'Delete account {name}', {
+            name: account.name,
+          })}
+        >
+          <TrashIcon aria-hidden="true" />
+        </IconButtonDanger>
+      )}
+    </>
+  );
+
+  const renderContent = () => {
+    if (loadError) {
+      return (
+        <EmptyState role="alert">
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
+            <EmptyIconCircle $danger>
+              <ExclamationTriangleIcon aria-hidden="true" />
+            </EmptyIconCircle>
+            <SectionHeading
+              tag="h2"
+              textColor="neutral800"
+              style={{ fontSize: '2rem', fontWeight: 700 }}
+            >
+              {t('accounts.error.title', 'Email accounts could not be loaded')}
+            </SectionHeading>
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ maxWidth: '500px', lineHeight: '1.6' }}
+            >
+              {t(
+                'accounts.error.body',
+                'Check your connection and try again. If the problem persists, check the server logs.'
+              )}
+            </Typography>
+            <GradientButton onClick={fetchAccounts} loading={loading}>
+              {t('accounts.error.retry', 'Try again')}
+            </GradientButton>
+          </Flex>
+        </EmptyState>
+      );
+    }
+
+    if (accounts.length === 0) {
+      return (
+        <EmptyState>
+          <FloatingIcon aria-hidden="true">
+            <EnvelopeIcon />
+          </FloatingIcon>
+
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={6}
+            style={{ position: 'relative', zIndex: 1 }}
+          >
+            <EmptyIconCircle>
+              <EnvelopeIcon aria-hidden="true" />
+            </EmptyIconCircle>
+
+            <SectionHeading
+              tag="h2"
+              textColor="neutral800"
+              style={{ fontSize: '2rem', fontWeight: 700 }}
+            >
+              {t('accounts.empty.title', 'No email accounts yet')}
+            </SectionHeading>
+
+            <Typography
+              variant="omega"
+              textColor="neutral600"
+              style={{ maxWidth: '500px', lineHeight: '1.6' }}
+            >
+              {canManage
+                ? t(
+                    'accounts.empty.body',
+                    'Add your first email account to start sending emails through MagicMail’s multi-account routing.'
+                  )
+                : t(
+                    'accounts.empty.readOnly',
+                    'No email accounts have been set up yet. Ask an administrator with manage permission to add one.'
+                  )}
+            </Typography>
+
+            {canManage && (
+              <CTAButton
+                data-mm-focus-fallback
+                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+                onClick={() => setShowAddModal(true)}
+              >
+                {t('accounts.empty.cta', 'Add first account')}
+              </CTAButton>
+            )}
+          </Flex>
+        </EmptyState>
+      );
+    }
+
+    return (
+      <AccountsContainer>
+        <Box style={{ marginBottom: theme.spacing.md }}>
+          <SectionHeaderRow justifyContent="space-between" alignItems="center" marginBottom={4}>
+            <SectionHeading>{t('accounts.section.title', 'Email accounts')}</SectionHeading>
+            {canManage && (
+              <GradientButton
+                data-mm-focus-fallback
+                startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+                onClick={() => setShowAddModal(true)}
+              >
+                {t('accounts.add', 'Add account')}
+              </GradientButton>
+            )}
+          </SectionHeaderRow>
+        </Box>
+
+        <FilterBar>
+          <SearchField
+            label={t('accounts.search.label', 'Search accounts')}
+            placeholder={t('accounts.search.placeholder', 'Search by name, email or provider...')}
+            value={searchQuery}
+            onChange={setSearchQuery}
+          />
+
+          <FilterSelectBox>
+            <SingleSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              aria-label={t('accounts.filters.status', 'Filter by status')}
+              placeholder={t('accounts.filters.statusPlaceholder', 'Status')}
+              size="M"
+            >
+              <SingleSelectOption value="all">
+                {t('accounts.filters.allAccounts', 'All accounts')}
+              </SingleSelectOption>
+              <SingleSelectOption value="active">
+                {t('accounts.status.active', 'Active')}
+              </SingleSelectOption>
+              <SingleSelectOption value="inactive">
+                {t('accounts.status.inactive', 'Inactive')}
+              </SingleSelectOption>
+              <SingleSelectOption value="primary">
+                {t('accounts.status.primary', 'Primary')}
+              </SingleSelectOption>
+            </SingleSelect>
+          </FilterSelectBox>
+
+          <FilterSelectBox>
+            <SingleSelect
+              value={filterProvider}
+              onChange={setFilterProvider}
+              aria-label={t('accounts.filters.provider', 'Filter by provider')}
+              placeholder={t('accounts.filters.providerPlaceholder', 'Provider')}
+              size="M"
+            >
+              <SingleSelectOption value="all">
+                {t('accounts.filters.allProviders', 'All providers')}
+              </SingleSelectOption>
+              {providers.map((provider) => (
+                <SingleSelectOption key={provider} value={provider}>
+                  {providerName(provider)}
+                </SingleSelectOption>
+              ))}
+            </SingleSelect>
+          </FilterSelectBox>
+        </FilterBar>
+
+        {filteredAccounts.length > 0 ? (
+          <>
+            <TableScroller>
+              <StyledTable colCount={hasRowActions ? 8 : 7} rowCount={filteredAccounts.length + 1}>
+                <Thead>
+                  <Tr>
+                    <Th>{t('accounts.table.status', 'Status')}</Th>
+                    <Th>{t('accounts.table.account', 'Account')}</Th>
+                    <Th>{t('accounts.table.provider', 'Provider')}</Th>
+                    <Th>
+                      <span
+                        title={t(
+                          'accounts.table.priorityHint',
+                          'Routing priority (higher = preferred)'
+                        )}
+                      >
+                        {t('accounts.table.priority', 'Priority')}
+                      </span>
+                    </Th>
+                    <Th>{t('accounts.table.usageToday', 'Usage today')}</Th>
+                    <Th>{t('accounts.table.totalSent', 'Total sent')}</Th>
+                    <Th>{t('accounts.table.lastUsed', 'Last used')}</Th>
+                    {hasRowActions && (
+                      <Th className="actions-cell">{t('accounts.table.actions', 'Actions')}</Th>
+                    )}
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {filteredAccounts.map((account) => (
+                    <Tr key={getAccountKey(account)}>
+                      <Td>{renderStatus(account)}</Td>
+                      <Td className="account-cell">{renderName(account)}</Td>
+                      <Td>{renderProvider(account)}</Td>
+                      <Td>{renderPriority(account)}</Td>
+                      <Td>{renderUsage(account)}</Td>
+                      <Td>{renderTotalSent(account)}</Td>
+                      <Td>{renderLastUsed(account)}</Td>
+                      {hasRowActions && (
+                        <Td className="actions-cell">
+                          <Flex gap={2} onKeyDown={keepNativeButtonKeys}>
+                            {renderActions(account)}
+                          </Flex>
+                        </Td>
+                      )}
+                    </Tr>
+                  ))}
+                </Tbody>
+              </StyledTable>
+            </TableScroller>
+
+            {/* Phones and small tablets: one card per account instead of an
+                eight-column table that needs sideways scrolling. */}
+            <AccountCardList aria-label={t('accounts.section.title', 'Email accounts')}>
+              {filteredAccounts.map((account) => (
+                <AccountCard key={getAccountKey(account)}>
+                  <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
+                    {renderName(account, 'h3')}
+                    {renderStatus(account)}
+                  </Flex>
+                  <Flex gap={2} wrap="wrap" alignItems="stretch">
+                    {renderProvider(account)}
+                    {renderPriority(account)}
+                  </Flex>
+                  <AccountCardStats>
+                    <div>
+                      <dt>{t('accounts.table.usageToday', 'Usage today')}</dt>
+                      <dd>{renderUsage(account)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('accounts.table.totalSent', 'Total sent')}</dt>
+                      <dd>{renderTotalSent(account)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t('accounts.table.lastUsed', 'Last used')}</dt>
+                      <dd>{renderLastUsed(account)}</dd>
+                    </div>
+                  </AccountCardStats>
+                  {hasRowActions && (
+                    <Flex gap={2} justifyContent="flex-end">
+                      {renderActions(account)}
+                    </Flex>
+                  )}
+                </AccountCard>
+              ))}
+            </AccountCardList>
+          </>
+        ) : (
+          <Flex
+            direction="column"
+            alignItems="center"
+            gap={4}
+            padding={8}
+            style={{ textAlign: 'center' }}
+          >
+            <Typography variant="beta" tag="p" textColor="neutral600">
+              {t('accounts.filters.noResults', 'No accounts match your filters')}
+            </Typography>
+            {filtersActive && (
+              <TertiaryButton onClick={resetFilters}>
+                {t('accounts.filters.reset', 'Reset filters')}
+              </TertiaryButton>
+            )}
+          </Flex>
+        )}
+      </AccountsContainer>
+    );
+  };
 
   return (
     <Container>
-      {/* Hero Header */}
       <Header>
         <HeaderContent justifyContent="space-between" alignItems="center">
           <Flex direction="column" alignItems="flex-start" gap={2}>
-            <Title>
-              <EnvelopeIcon />
-              MagicMail - Email Business Suite
+            <Title tag="h1" id="main-content-title">
+              <EnvelopeIcon aria-hidden="true" />
+              {t('accounts.hero.title', 'MagicMail - Email Business Suite')}
             </Title>
-            <Subtitle>
-              Multi-account email management with smart routing and OAuth support
+            <Subtitle tag="p">
+              {t(
+                'accounts.hero.subtitle',
+                'Multi-account email management with smart routing and OAuth support'
+              )}
             </Subtitle>
           </Flex>
         </HeaderContent>
       </Header>
 
-      {/* Quick Stats */}
-      <StatsGrid>
-        <StatCard $delay="0.1s" $color={'var(--colors-primary600, #0284C7)'}>
-          <StatIcon className="stat-icon" $bg={'rgba(2, 132, 199, 0.12)'} $color={'var(--colors-primary600, #0284C7)'}>
-            <EnvelopeIcon />
-          </StatIcon>
-          <StatValue className="stat-value">{totalSentToday}</StatValue>
-          <StatLabel>Emails Today</StatLabel>
-        </StatCard>
+      {permissionsError ? (
+        <Box marginBottom={6}>
+          <Typography variant="omega" textColor="danger600" role="alert">
+            {t(
+              'common.permissions.loadError',
+              'Your permissions could not be loaded. Reload the page to try again.'
+            )}
+          </Typography>
+        </Box>
+      ) : null}
 
-        <StatCard $delay="0.2s" $color={'var(--colors-success600, #16A34A)'}>
-          <StatIcon className="stat-icon" $bg={'rgba(22, 163, 74, 0.12)'} $color={'var(--colors-success600, #16A34A)'}>
-            <ServerIcon />
-          </StatIcon>
-          <StatValue className="stat-value">{totalSent}</StatValue>
-          <StatLabel>Total Sent</StatLabel>
-        </StatCard>
+      {!loadError && (
+        <StatsGrid>
+          <StatCard $delay="0.1s" $tone="primary">
+            <StatIcon className="stat-icon" $bg="rgba(2, 132, 199, 0.12)" $tone="primary">
+              <EnvelopeIcon aria-hidden="true" />
+            </StatIcon>
+            <StatValue className="stat-value" tag="p">
+              {formatNumber(totalSentToday)}
+            </StatValue>
+            <StatLabel tag="p">{t('accounts.stats.today', 'Emails today')}</StatLabel>
+          </StatCard>
 
-        <StatCard $delay="0.3s" $color={'var(--colors-warning600, #D97706)'}>
-          <StatIcon className="stat-icon" $bg={'rgba(234, 179, 8, 0.12)'} $color={'var(--colors-warning600, #D97706)'}>
-            <SparklesIcon />
-          </StatIcon>
-          <StatValue className="stat-value">{activeAccounts} / {accounts.length}</StatValue>
-          <StatLabel>Active Accounts</StatLabel>
-        </StatCard>
-      </StatsGrid>
+          <StatCard $delay="0.2s" $tone="success">
+            <StatIcon className="stat-icon" $bg="rgba(22, 163, 74, 0.12)" $tone="success">
+              <ServerIcon aria-hidden="true" />
+            </StatIcon>
+            <StatValue className="stat-value" tag="p">
+              {formatNumber(totalSent)}
+            </StatValue>
+            <StatLabel tag="p">{t('accounts.stats.totalSent', 'Total sent')}</StatLabel>
+          </StatCard>
 
-      {/* Account List or Empty State */}
-      {accounts.length === 0 ? (
-        <EmptyState>
-          {/* Floating Emoji */}
-          <FloatingEmoji>
-            ✉️
-          </FloatingEmoji>
-          
-          <Flex direction="column" alignItems="center" gap={6} style={{ position: 'relative', zIndex: 1 }}>
-            <Box
-              style={{
-                width: '120px',
-                height: '120px',
-                borderRadius: '50%',
-                background: `linear-gradient(135deg, ${'rgba(2, 132, 199, 0.12)'} 0%, rgba(168, 85, 247, 0.12) 100%)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: theme.shadows.xl,
-              }}
-            >
-              <EnvelopeIcon style={{ width: '60px', height: '60px', color: 'var(--colors-primary600, #0284C7)' }} />
-            </Box>
-            
-            <Typography 
-              variant="alpha" 
-              textColor="neutral800"
-              style={{ 
-                fontSize: '1.75rem',
-                fontWeight: '700',
-                marginBottom: '8px',
-              }}
-            >
-              No Email Accounts Yet
-            </Typography>
-            
-            <Typography 
-              variant="omega" 
-              textColor="neutral600"
-              style={{
-                fontSize: '1rem',
-                maxWidth: '500px',
-                lineHeight: '1.6',
-              }}
-            >
-              Add your first email account to start sending emails through MagicMail's multi-account routing system
-            </Typography>
-            
-            <CTAButton 
-              startIcon={<PlusIcon style={{ width: 20, height: 20 }} />} 
-              onClick={() => setShowAddModal(true)}
-            >
-              Add First Account
-            </CTAButton>
-          </Flex>
-        </EmptyState>
-      ) : (
-        <AccountsContainer>
-          <Box style={{ marginBottom: theme.spacing.md }}>
-            <Flex justifyContent="space-between" alignItems="center" marginBottom={4}>
-              <Typography variant="delta" textColor="neutral700" style={{ fontSize: '1.5rem', fontWeight: 600 }}>
-                📧 Email Accounts
-              </Typography>
-              <GradientButton startIcon={<PlusIcon style={{ width: 16, height: 16 }} />} onClick={() => setShowAddModal(true)}>
-                Add Account
-              </GradientButton>
-            </Flex>
-          </Box>
-
-          {/* Filter Bar */}
-          <FilterBar>
-            {/* Search Input */}
-            <SearchInputWrapper>
-              <SearchIcon />
-              <StyledSearchInput
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, email, or provider..."
-                type="text"
-              />
-            </SearchInputWrapper>
-            
-            {/* Status Filter */}
-            <Box style={{ minWidth: '160px' }}>
-              <SingleSelect
-                value={filterStatus}
-                onChange={setFilterStatus}
-                placeholder="Status"
-                size="S"
-              >
-                <SingleSelectOption value="all">All Accounts</SingleSelectOption>
-                <SingleSelectOption value="active">✅ Active</SingleSelectOption>
-                <SingleSelectOption value="inactive">❌ Inactive</SingleSelectOption>
-                <SingleSelectOption value="primary">⭐ Primary</SingleSelectOption>
-              </SingleSelect>
-            </Box>
-
-            {/* Provider Filter */}
-            <Box style={{ minWidth: '160px' }}>
-              <SingleSelect
-                value={filterProvider}
-                onChange={setFilterProvider}
-                placeholder="Provider"
-                size="S"
-              >
-                <SingleSelectOption value="all">All Providers</SingleSelectOption>
-                {uniqueProviders.map(provider => (
-                  <SingleSelectOption key={provider} value={provider}>
-                    {provider}
-                  </SingleSelectOption>
-                ))}
-              </SingleSelect>
-            </Box>
-          </FilterBar>
-
-          {/* Accounts Table */}
-          {filteredAccounts.length > 0 ? (
-            <Box>
-              <StyledTable>
-                <Thead>
-                  <Tr>
-                    <Th>Status</Th>
-                    <Th>Account</Th>
-                    <Th>Provider</Th>
-                    <Th title="Routing Priority (higher = preferred)">Priority</Th>
-                    <Th>Usage Today</Th>
-                    <Th>Total Sent</Th>
-                    <Th>Last Used</Th>
-                    <Th>Actions</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {filteredAccounts.map((account) => {
-                    const usagePercent = account.dailyLimit > 0 
-                      ? Math.round((account.emailsSentToday / account.dailyLimit) * 100)
-                      : 0;
-                    const isNearLimit = usagePercent > 80;
-
-                    return (
-                      <Tr key={account.id}>
-                        {/* Status */}
-                        <Td>
-                          <Flex alignItems="center" gap={2}>
-                            <OnlineBadge $active={account.isActive} />
-                            {account.isActive ? (
-                              <Badge backgroundColor="success600" textColor="neutral0" size="S">
-                                Active
-                              </Badge>
-                            ) : (
-                              <Badge backgroundColor="neutral600" textColor="neutral0" size="S">
-                                Inactive
-                              </Badge>
-                            )}
-                          </Flex>
-                        </Td>
-
-                        {/* Account */}
-                        <Td>
-                          <Flex direction="column" alignItems="flex-start" gap={1}>
-                            <Flex alignItems="center" gap={2}>
-                              <Typography fontWeight="semiBold">
-                                {account.name}
-                              </Typography>
-                              {account.isPrimary && (
-                                <Badge backgroundColor="warning600" textColor="neutral0" size="S">
-                                  ⭐ Primary
-                                </Badge>
-                              )}
-                            </Flex>
-                            <Typography variant="pi" textColor="neutral600">
-                              {account.fromEmail}
-                            </Typography>
-                          </Flex>
-                        </Td>
-
-                        {/* Provider */}
-                        <Td>
-                          <Badge size="S">
-                            <ServerIcon style={{ width: 12, height: 12, marginRight: 4 }} />
-                            {account.provider}
-                          </Badge>
-                        </Td>
-
-                        {/* Priority */}
-                        <Td>
-                          <Badge size="S" variant="secondary">
-                            {account.priority}/10
-                          </Badge>
-                        </Td>
-
-                        {/* Usage Today */}
-                        <Td>
-                          <Flex direction="column" alignItems="flex-start" gap={1}>
-                            <Typography fontWeight="semiBold">
-                              {account.emailsSentToday || 0}
-                              {account.dailyLimit > 0 && (
-                                <Typography variant="pi" textColor="neutral500" as="span">
-                                  {' '}/ {account.dailyLimit}
-                                </Typography>
-                              )}
-                            </Typography>
-                            {account.dailyLimit > 0 && (
-                              <Box style={{ width: '100%', minWidth: '80px' }}>
-                                <Box
-                                  background="neutral100"
-                                  style={{
-                                    width: '100%',
-                                    height: '6px',
-                                    borderRadius: '999px',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  <Box
-                                    style={{
-                                      width: `${Math.min(usagePercent, 100)}%`,
-                                      height: '100%',
-                                      background: isNearLimit 
-                                        ? 'var(--colors-danger600, #DC2626)'
-                                        : 'var(--colors-success600, #16A34A)',
-                                      borderRadius: '999px',
-                                    }}
-                                  />
-                                </Box>
-                              </Box>
-                            )}
-                          </Flex>
-                        </Td>
-
-                        {/* Total Sent */}
-                        <Td>
-                          <Typography fontWeight="semiBold">
-                            {(account.totalEmailsSent || 0).toLocaleString()}
-                          </Typography>
-                        </Td>
-
-                        {/* Last Used */}
-                        <Td>
-                          {account.lastUsed ? (
-                            <Typography variant="pi" textColor="neutral600">
-                              {new Date(account.lastUsed).toLocaleString('de-DE', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </Typography>
-                          ) : (
-                            <Typography variant="pi" textColor="neutral500">
-                              Never
-                            </Typography>
-                          )}
-                        </Td>
-
-                        {/* Actions */}
-                        <Td>
-                          <Flex gap={2}>
-                            <IconButton
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingAccount(account);
-                              }}
-                              aria-label="Edit Account"
-                            >
-                              <PencilIcon />
-                            </IconButton>
-                            <IconButtonPrimary
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTestingAccount(account);
-                              }}
-                              aria-label="Test Account"
-                            >
-                              <PlayIcon />
-                            </IconButtonPrimary>
-                            <IconButtonDanger
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteAccount(account.id, account.name);
-                              }}
-                              aria-label="Delete Account"
-                            >
-                              <TrashIcon />
-                            </IconButtonDanger>
-                          </Flex>
-                        </Td>
-                      </Tr>
-                    );
-                  })}
-                </Tbody>
-              </StyledTable>
-            </Box>
-          ) : (
-            <Box padding={8} style={{ textAlign: 'center' }}>
-              <Typography variant="beta" textColor="neutral600">
-                No accounts found matching your filters
-              </Typography>
-            </Box>
-          )}
-        </AccountsContainer>
+          <StatCard $delay="0.3s" $tone="warning">
+            <StatIcon className="stat-icon" $bg="rgba(234, 179, 8, 0.12)" $tone="warning">
+              <SparklesIcon aria-hidden="true" />
+            </StatIcon>
+            <StatValue className="stat-value" tag="p">
+              {t('accounts.stats.activeValue', '{active} / {total}', {
+                active: formatNumber(activeAccounts),
+                total: formatNumber(accounts.length),
+              })}
+            </StatValue>
+            <StatLabel tag="p">{t('accounts.stats.active', 'Active accounts')}</StatLabel>
+          </StatCard>
+        </StatsGrid>
       )}
 
-      {/* Add Account Modal */}
-      <AddAccountModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAccountAdded={fetchAccounts}
-      />
+      {renderContent()}
 
-      {/* Edit Account Modal */}
-      <AddAccountModal
-        isOpen={!!editingAccount}
-        onClose={() => setEditingAccount(null)}
-        onAccountAdded={() => {
-          fetchAccounts();
-          setEditingAccount(null);
-        }}
-        editAccount={editingAccount}
-      />
+      {canManage && (
+        <AddAccountModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onAccountAdded={fetchAccounts}
+        />
+      )}
 
-      {/* Test Email Modal */}
-      {testingAccount && (
+      {canManage && (
+        <AddAccountModal
+          isOpen={!!editingAccount}
+          onClose={() => setEditingAccount(null)}
+          onAccountAdded={() => {
+            fetchAccounts();
+            setEditingAccount(null);
+          }}
+          editAccount={editingAccount}
+          referencingRuleCount={
+            editingAccount ? countRulesForAccount(rules, editingAccount.name) : null
+          }
+        />
+      )}
+
+      {canTestSend && testingAccount && (
         <TestEmailModal
           account={testingAccount}
           onClose={() => setTestingAccount(null)}
-          onTest={(email, testOptions) => {
-            testAccount(testingAccount.id, testingAccount.name, email, testOptions);
-            setTestingAccount(null);
-          }}
+          onTest={(email, testOptions) => testAccount(testingAccount, email, testOptions)}
         />
       )}
-    </Container>
-  );
-};
 
-// Test Email Modal Component
-const TestEmailModal = ({ account, onClose, onTest }) => {
-  const { post } = useFetchClient();
-  const { toggleNotification } = useNotification();
-  const [testEmail, setTestEmail] = useState('');
-  const [priority, setPriority] = useState('normal');
-  const [emailType, setEmailType] = useState('transactional');
-  const [unsubscribeUrl, setUnsubscribeUrl] = useState('');
-  const [testingStrapiService, setTestingStrapiService] = useState(false);
-
-  const testStrapiService = async () => {
-    setTestingStrapiService(true);
-    try {
-      const { data } = await post('/magic-mail/test-strapi-service', {
-        testEmail,
-        accountName: account.name, // Force this specific account!
-      });
-
-      if (data.success) {
-        toggleNotification({
-          type: 'success',
-          message: `✅ Strapi Email Service Test: Email sent via ${account.name}!`,
-        });
-        onClose();
-      } else {
-        toggleNotification({
-          type: 'warning',
-          message: data.message || 'Test completed with warnings',
-        });
-      }
-    } catch (err) {
-      toggleNotification({
-        type: 'danger',
-        message: 'Strapi Email Service test failed',
-      });
-    } finally {
-      setTestingStrapiService(false);
-    }
-  };
-
-  // Prevent event bubbling to avoid triggering dashboard search
-  const handleInputChange = (e) => {
-    e.stopPropagation();
-    setTestEmail(e.target.value);
-  };
-
-  const handleKeyDown = (e) => {
-    e.stopPropagation();
-  };
-
-  const [testMode, setTestMode] = useState('strapi'); // 'direct' or 'strapi'
-
-  return (
-    <Modal.Root open={true} onOpenChange={onClose}>
-      <StyledModalContent>
-        <StyledModalHeader>
-          <Modal.Title>Test Email Account</Modal.Title>
-        </StyledModalHeader>
-
-        <StyledModalBody>
-          {/* Account Info Card */}
-          <AccountInfoCard>
-            <Typography variant="pi" style={{ color: 'var(--colors-primary600, #0284C7)', fontWeight: 500 }}>
-              Testing Account
-            </Typography>
-            <Typography variant="beta" textColor="neutral800" style={{ fontSize: '1.125rem', fontWeight: 700, marginTop: '4px' }}>
-              {account.name}
-            </Typography>
-            <Typography variant="pi" textColor="neutral600" style={{ marginTop: '2px' }}>
-              {account.fromEmail}
-            </Typography>
-          </AccountInfoCard>
-
-          {/* Recipient Email */}
-          <Box style={{ marginTop: '20px' }}>
-            <ModalFieldLabel>Recipient Email *</ModalFieldLabel>
-            <StyledModalInput
-              placeholder="test@example.com"
-              value={testEmail}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              type="email"
-              autoFocus
-            />
-          </Box>
-
-          {/* Test Mode Selection */}
-          <Box style={{ marginTop: '20px' }}>
-            <ModalFieldLabel>Test Mode</ModalFieldLabel>
-            <TestOptionCard 
-              $selected={testMode === 'direct'}
-              onClick={() => setTestMode('direct')}
-              style={{ marginBottom: '10px' }}
-            >
-              <Flex alignItems="center" gap={3}>
-                <PlayIcon style={{ width: 20, height: 20, color: testMode === 'direct' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
-                <Box style={{ flex: 1 }}>
-                  <Typography tag="div" fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'direct' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
-                    Direct Test
-                  </Typography>
-                  <Typography tag="div" variant="pi" textColor="neutral500" style={{ fontSize: '12px', marginTop: '2px' }}>
-                    Send directly through this account
-                  </Typography>
-                </Box>
-              </Flex>
-            </TestOptionCard>
-
-            <TestOptionCard 
-              $selected={testMode === 'strapi'}
-              onClick={() => setTestMode('strapi')}
-            >
-              <Flex alignItems="center" gap={3}>
-                <SparklesIcon style={{ width: 20, height: 20, color: testMode === 'strapi' ? 'var(--colors-primary600, #0284C7)' : 'var(--colors-neutral600)', flexShrink: 0 }} />
-                <Box style={{ flex: 1 }}>
-                  <Typography tag="div" fontWeight="semiBold" style={{ fontSize: '14px', color: testMode === 'strapi' ? 'var(--colors-primary600, #075985)' : 'var(--colors-neutral800)' }}>
-                    Strapi Service Test
-                  </Typography>
-                  <Typography tag="div" variant="pi" textColor="neutral500" style={{ fontSize: '12px', marginTop: '2px' }}>
-                    Verify MagicMail intercepts Strapi's email service
-                  </Typography>
-                </Box>
-              </Flex>
-            </TestOptionCard>
-          </Box>
-
-          {/* Advanced Options (only for Direct Test) */}
-          {testMode === 'direct' && (
-            <Box style={{ marginTop: '20px', padding: '16px', background: 'var(--colors-neutral100, #F9FAFB)', borderRadius: '12px' }}>
-              <ModalFieldLabel style={{ marginBottom: '16px', fontSize: '14px' }}>Advanced Options</ModalFieldLabel>
-              
-              <Box style={{ marginBottom: '12px' }}>
-                <ModalFieldLabel>Priority</ModalFieldLabel>
-                <StyledModalSelect
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                >
-                  <option value="normal">Normal</option>
-                  <option value="high">High Priority</option>
-                </StyledModalSelect>
-              </Box>
-
-              <Box style={{ marginBottom: emailType === 'marketing' ? '12px' : '0' }}>
-                <ModalFieldLabel>Email Type</ModalFieldLabel>
-                <StyledModalSelect
-                  value={emailType}
-                  onChange={(e) => setEmailType(e.target.value)}
-                >
-                  <option value="transactional">Transactional</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="notification">Notification</option>
-                </StyledModalSelect>
-              </Box>
-
-              {emailType === 'marketing' && (
-                <Box>
-                  <ModalFieldLabel>Unsubscribe URL *</ModalFieldLabel>
-                  <StyledModalInput
-                    placeholder="https://yoursite.com/unsubscribe"
-                    value={unsubscribeUrl}
-                    onChange={(e) => setUnsubscribeUrl(e.target.value)}
-                  />
-                  <ModalHint>Required for GDPR/CAN-SPAM compliance</ModalHint>
-                </Box>
-              )}
-            </Box>
-          )}
-        </StyledModalBody>
-
-        <StyledModalFooter>
-          <Flex justifyContent="space-between" style={{ width: '100%' }}>
-            <TertiaryButton onClick={onClose}>
-              Cancel
-            </TertiaryButton>
-            {testMode === 'direct' ? (
-              <GradientButton
-                onClick={() => onTest(testEmail, { priority, type: emailType, unsubscribeUrl })}
-                disabled={!testEmail || !testEmail.includes('@') || (emailType === 'marketing' && !unsubscribeUrl)}
-                startIcon={<PlayIcon style={{ width: 16, height: 16 }} />}
-              >
-                Send Test Email
-              </GradientButton>
-            ) : (
-              <GradientButton
-                onClick={testStrapiService}
-                disabled={!testEmail || !testEmail.includes('@')}
-                loading={testingStrapiService}
-                startIcon={<SparklesIcon style={{ width: 16, height: 16 }} />}
-              >
-                Test Strapi Service
-              </GradientButton>
+      <ConfirmDialog
+        isOpen={canManage && pendingDelete !== null}
+        title={t('accounts.delete.title', 'Delete email account?')}
+        description={t('accounts.delete.body', 'Delete "{name}"? This cannot be undone.', {
+          name: pendingDelete?.name ?? '',
+        })}
+        confirmLabel={t('common.delete', 'Delete')}
+        confirmIcon={<TrashIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+        onConfirm={() => deleteAccount(pendingDelete)}
+        onClose={() => setPendingDelete(null)}
+        getReturnFocusFallback={getFocusFallback}
+      >
+        {pendingDeleteRuleCount > 0
+          ? t(
+              'accounts.delete.rulesCount',
+              '{count, plural, one {# routing rule uses this account} other {# routing rules use this account}}. Update the rules, otherwise routing falls back to the default account.',
+              { count: pendingDeleteRuleCount }
+            )
+          : t(
+              'accounts.delete.rulesHint',
+              'Routing rules that use this account fall back to the default account.'
             )}
-          </Flex>
-        </StyledModalFooter>
-      </StyledModalContent>
-    </Modal.Root>
+      </ConfirmDialog>
+    </Container>
   );
 };
 

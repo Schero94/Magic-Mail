@@ -10,14 +10,20 @@ test('createAccount persists description and honours an explicit isActive:false'
   const strapi = {
     log: quietLog,
     documents: () => ({
-      create: async ({ data }) => { created = data; return { documentId: 'd1', ...data }; },
+      create: async ({ data }) => {
+        created = data;
+        return { documentId: 'd1', ...data };
+      },
     }),
   };
   const svc = require('../server/src/services/account-manager')({ strapi });
 
   await svc.createAccount({
-    name: 'Disabled SMTP', provider: 'smtp', fromEmail: 'a@example.com',
-    description: 'Backup account', isActive: false,
+    name: 'Disabled SMTP',
+    provider: 'smtp',
+    fromEmail: 'a@example.com',
+    description: 'Backup account',
+    isActive: false,
   });
 
   assert.equal(created.description, 'Backup account');
@@ -30,7 +36,10 @@ test('settings partial update never nulls unrelated fields', async () => {
     log: quietLog,
     documents: () => ({
       findFirst: async () => ({ documentId: 's1', trackingBaseUrl: 'https://track.example.com' }),
-      update: async ({ data }) => { updated = data; return { documentId: 's1', ...data }; },
+      update: async ({ data }) => {
+        updated = data;
+        return { documentId: 's1', ...data };
+      },
     }),
   };
   const svc = require('../server/src/services/plugin-settings')({ strapi });
@@ -38,14 +47,22 @@ test('settings partial update never nulls unrelated fields', async () => {
   await svc.updateSettings({ enableOpenTracking: false });
 
   assert.equal(updated.enableOpenTracking, false);
-  assert.equal('trackingBaseUrl' in updated, false, 'omitted field must not be written (and thus not nulled)');
+  assert.equal(
+    'trackingBaseUrl' in updated,
+    false,
+    'omitted field must not be written (and thus not nulled)'
+  );
 });
 
 test('template rendering does not HTML-escape subject or plain text', async () => {
   const svc = require('../server/src/services/email-designer')({ strapi: { log: quietLog } });
   svc.findByReferenceId = async () => ({
-    isActive: true, name: 'T', category: 'marketing',
-    bodyHtml: '<p>{{name}}</p>', bodyText: 'Hi {{name}} & friends', subject: 'Hello {{name}} & co',
+    isActive: true,
+    name: 'T',
+    category: 'marketing',
+    bodyHtml: '<p>{{name}}</p>',
+    bodyText: 'Hi {{name}} & friends',
+    subject: 'Hello {{name}} & co',
   });
 
   const rendered = await svc.renderTemplate(1, { name: 'Tom & Jerry' });
@@ -58,5 +75,8 @@ test('template rendering does not HTML-escape subject or plain text', async () =
 test('import normalization leaves a missing reference id for safe generation', () => {
   const svc = require('../server/src/services/email-designer')({ strapi: { log: quietLog } });
   assert.equal(svc.normalizeImportData({ name: 'x' }).templateReferenceId, null);
-  assert.equal(svc.normalizeImportData({ name: 'x', templateReferenceId: 5 }).templateReferenceId, 5);
+  assert.equal(
+    svc.normalizeImportData({ name: 'x', templateReferenceId: 5 }).templateReferenceId,
+    5
+  );
 });

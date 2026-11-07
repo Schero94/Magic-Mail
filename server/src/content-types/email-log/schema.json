@@ -56,6 +56,10 @@
       "type": "datetime",
       "required": true
     },
+    "deliveryStatus": {
+      "type": "enumeration",
+      "enum": ["pending", "sent", "failed"]
+    },
     "deliveredAt": {
       "type": "datetime"
     },

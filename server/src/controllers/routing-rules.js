@@ -1,8 +1,11 @@
 'use strict';
 
+const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
+const { routingRuleEvaluationSort } = require('../utils/routing-order');
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
+const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 
 /**
  * The fields we let the admin UI write to a routing-rule row.
@@ -43,21 +46,56 @@ function sanitizeRuleData(body) {
   return data;
 }
 
+/**
+ * Rejects rules that reference accounts which do not exist. Rules store the
+ * account NAME (matched case-insensitively by the router); a typo or a
+ * deleted account would otherwise make the rule silently fall through to the
+ * primary account.
+ *
+ * @param {{accountName?: string, fallbackAccountName?: string|null}} data
+ * @returns {Promise<void>}
+ * @throws {errors.ValidationError}
+ */
+async function assertAccountsExist(data) {
+  const details = {};
+  for (const field of ['accountName', 'fallbackAccountName']) {
+    const name = typeof data[field] === 'string' ? data[field].trim() : '';
+    if (!name) continue;
+    const matches = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
+      filters: { name: { $eqi: name } },
+      fields: ['name'],
+      limit: 1,
+    });
+    if (!matches || matches.length === 0) {
+      details[field] = [`No email account named "${name.slice(0, 80)}" exists`];
+    }
+  }
+  if (Object.keys(details).length > 0) {
+    throw new errors.ValidationError('Routing rule references an unknown email account', details);
+  }
+}
+
 module.exports = {
   /**
-   * Get all routing rules
+   * Lists routing rules in evaluation order: highest priority first (the
+   * router checks rules by priority descending, first match wins).
    */
   async getAll(ctx) {
     try {
       const rules = await strapi.documents(ROUTING_RULE_UID).findMany({
-        sort: [{ priority: 'asc' }],
+        sort: routingRuleEvaluationSort(),
       });
 
       ctx.body = {
         data: rules,
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting routing rules', 'Error fetching routing rules');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting routing rules',
+        'Error fetching routing rules'
+      );
     }
   },
 
@@ -79,7 +117,12 @@ module.exports = {
         data: rule,
       };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error getting routing rule', 'Error fetching routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error getting routing rule',
+        'Error fetching routing rule'
+      );
     }
   },
 
@@ -89,6 +132,7 @@ module.exports = {
   async create(ctx) {
     try {
       const data = validate('routingRules.create', sanitizeRuleData(ctx.request.body));
+      await assertAccountsExist(data);
       const rule = await strapi.documents(ROUTING_RULE_UID).create({ data });
 
       ctx.body = {
@@ -98,7 +142,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule created: ${rule.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error creating routing rule', 'Error creating routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error creating routing rule',
+        'Error creating routing rule'
+      );
     }
   },
 
@@ -108,13 +157,14 @@ module.exports = {
   async update(ctx) {
     try {
       const { ruleId } = ctx.params;
-      
+
       const existing = await strapi.documents(ROUTING_RULE_UID).findOne({ documentId: ruleId });
       if (!existing) {
         return ctx.notFound('Routing rule not found');
       }
 
       const data = validate('routingRules.update', sanitizeRuleData(ctx.request.body));
+      await assertAccountsExist(data);
       const rule = await strapi.documents(ROUTING_RULE_UID).update({
         documentId: ruleId,
         data,
@@ -127,7 +177,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] [SUCCESS] Routing rule updated: ${rule.name}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error updating routing rule', 'Error updating routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error updating routing rule',
+        'Error updating routing rule'
+      );
     }
   },
 
@@ -153,7 +208,12 @@ module.exports = {
 
       strapi.log.info(`[magic-mail] Routing rule deleted: ${ruleId}`);
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error deleting routing rule', 'Error deleting routing rule');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error deleting routing rule',
+        'Error deleting routing rule'
+      );
     }
   },
 };

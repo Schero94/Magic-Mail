@@ -14,15 +14,24 @@ function makeCallbackCtx(query) {
     status: 200,
     type: null,
     body: null,
-    set(name, value) { headers[name] = value; },
-    badRequest(message) { this.status = 400; this.body = message; },
-    throw(status, message) { const err = new Error(message); err.status = status; throw err; },
+    set(name, value) {
+      headers[name] = value;
+    },
+    badRequest(message) {
+      this.status = 400;
+      this.body = message;
+    },
+    throw(status, message) {
+      const err = new Error(message);
+      err.status = status;
+      throw err;
+    },
   };
 }
 
 test('OAuth callback never reflects request query into the response', async () => {
   const oauth = require('../server/src/controllers/oauth');
-  const payload = "</script><script>window.__xss=1</script>";
+  const payload = '</script><script>window.__xss=1</script>';
   const ctx = makeCallbackCtx({ code: payload, state: payload, error: payload });
 
   await oauth.gmailCallback(ctx);
@@ -48,7 +57,10 @@ test('OAuth callback uses a nonce CSP without unsafe-inline and disables caching
 
   const match = csp.match(/nonce-([A-Za-z0-9+/=]+)/);
   assert.ok(match, 'nonce present in CSP');
-  assert.ok(String(ctx.body).includes(`nonce="${match[1]}"`), 'inline script must carry the CSP nonce');
+  assert.ok(
+    String(ctx.body).includes(`nonce="${match[1]}"`),
+    'inline script must carry the CSP nonce'
+  );
 });
 
 test('OAuth callback rejects an unknown provider without emitting HTML', async () => {
@@ -67,9 +79,18 @@ test('OAuth state can be consumed by exactly one of many concurrent callers', as
   const strapi = {
     log: quietLog,
     store: () => ({
-      get: async ({ key }) => { await tick(); return values.get(key); },
-      set: async ({ key, value }) => { await tick(); values.set(key, value); },
-      delete: async ({ key }) => { await tick(); values.delete(key); },
+      get: async ({ key }) => {
+        await tick();
+        return values.get(key);
+      },
+      set: async ({ key, value }) => {
+        await tick();
+        values.set(key, value);
+      },
+      delete: async ({ key }) => {
+        await tick();
+        values.delete(key);
+      },
     }),
   };
   const { createState, verifyAndConsumeState } = require('../server/src/utils/oauth-state');

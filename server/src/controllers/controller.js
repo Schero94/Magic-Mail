@@ -2,38 +2,111 @@
 
 const { validate, handleControllerError } = require('../validation');
 
+const USER_UID = 'plugin::users-permissions.user';
+
 /**
- * Strips file-path attachments from API requests.
- *
- * Internal service calls can still use `attachment.path` because they
- * originate from trusted code that has already vetted the path. Public
- * Content-API callers must never be able to make the server read from
- * arbitrary disk locations (would be a direct LFI → file exfiltration).
+ * Loads a Strapi error class, with a plain Error fallback for unit tests.
+ * @param {string} name - e.g. 'ForbiddenError'
+ * @param {string} message
+ * @returns {Error}
  */
-function stripAttachmentPaths(body) {
-  if (body && Array.isArray(body.attachments)) {
-    body.attachments = body.attachments.map(({ path, ...safe }) => safe);
+function strapiError(name, message) {
+  try {
+    const { errors } = require('@strapi/utils');
+    return new errors[name](message);
+  } catch {
+    const error = new Error(message);
+    error.name = name;
+    return error;
   }
-  return body;
 }
 
 /**
- * Main Controller
- * Handles email sending requests.
- *
- * Every public endpoint validates its payload with Zod BEFORE any service
- * call. Attachments are bounded both in count (20) and per-entry size
- * (25 MB) to protect against OOM from large base64 payloads.
+ * Returns true when users-permissions roles may call the send routes. By
+ * default only API tokens may send (`contentApi.allowUserRoles: false`).
+ * @returns {boolean}
  */
+function userRolesAllowed() {
+  try {
+    return strapi.config.get('plugin::magic-mail.contentApi.allowUserRoles', false) === true;
+  } catch {
+    return false;
+  }
+}
 
+/**
+ * Enforces the send-route authentication policy and resolves the user the
+ * email log is attributed to.
+ *
+ * - API token: allowed. A `userId` in the body must reference an existing
+ *   users-permissions user.
+ * - users-permissions user: rejected unless `contentApi.allowUserRoles` is
+ *   true; then the log is always attributed to the authenticated user and a
+ *   body `userId` is ignored.
+ * - Anything else: rejected.
+ *
+ * @param {import('koa').Context} ctx
+ * @param {object} body - Validated payload (mutated: userId)
+ * @returns {Promise<void>}
+ * @throws {Error} ForbiddenError / ValidationError
+ */
+async function authorizeSender(ctx, body) {
+  const strategy = ctx.state?.auth?.strategy?.name;
+
+  if (strategy === 'api-token') {
+    if (body.userId !== undefined) {
+      body.userId = await resolveExistingUserId(body.userId);
+    }
+    return;
+  }
+
+  if (strategy === 'users-permissions' && userRolesAllowed()) {
+    const ownId = ctx.state?.user?.id;
+    if (ownId) body.userId = ownId;
+    else delete body.userId;
+    return;
+  }
+
+  throw strapiError(
+    'ForbiddenError',
+    'MagicMail send routes accept API tokens only. Set contentApi.allowUserRoles to allow user roles.'
+  );
+}
+
+/**
+ * Verifies that a users-permissions user exists and returns its numeric id.
+ * @param {string|number} userId - Numeric id or documentId
+ * @returns {Promise<number>}
+ * @throws {Error} ValidationError when the user does not exist
+ */
+async function resolveExistingUserId(userId) {
+  const raw = String(userId);
+  const where = /^\d+$/.test(raw) ? { id: Number(raw) } : { documentId: raw };
+  let user;
+  try {
+    user = await strapi.db.query(USER_UID).findOne({ where, select: ['id'] });
+  } catch {
+    user = null;
+  }
+  if (!user) throw strapiError('ValidationError', 'userId does not reference an existing user');
+  return user.id;
+}
+
+/**
+ * Main Controller - Content-API send routes.
+ *
+ * Every endpoint validates its payload with Zod BEFORE any service call.
+ * Attachments are bounded in count (20) and size (25 MB each); file-path and
+ * URL attachments are rejected by the strict schema.
+ */
 module.exports = {
   async send(ctx) {
     try {
-      const raw = stripAttachmentPaths({ ...ctx.request.body });
-      const body = validate('content.send', raw);
+      const body = validate('content.send', { ...ctx.request.body });
+      await authorizeSender(ctx, body);
 
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.send(body);
+      const result = await emailRouter.send(body, { source: 'content-api' });
 
       ctx.body = { success: true, ...result };
     } catch (err) {
@@ -43,16 +116,21 @@ module.exports = {
 
   async sendMessage(ctx) {
     try {
-      const raw = stripAttachmentPaths({ ...ctx.request.body });
-      const body = validate('content.sendMessage', raw);
+      const body = validate('content.sendMessage', { ...ctx.request.body });
+      await authorizeSender(ctx, body);
+      delete body.userId;
 
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendMessage(body);
+      const result = await emailRouter.sendMessage(body, { source: 'content-api' });
 
       ctx.body = { success: true, ...result };
     } catch (err) {
-      handleControllerError(ctx, err, '[magic-mail] Error sending message', 'Failed to send message');
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error sending message',
+        'Failed to send message'
+      );
     }
   },
-
 };

@@ -12,8 +12,14 @@ test('Magic-Mail registers only email, OAuth, analytics, settings, and tracking 
   const contentRoutes = require('../server/src/routes/content-api').routes;
   const routes = [...adminRoutes, ...contentRoutes];
 
-  assert.equal(routes.some(({ path: routePath }) => /whatsapp/i.test(routePath)), false);
-  assert.equal(routes.some(({ handler }) => /whatsapp/i.test(handler)), false);
+  assert.equal(
+    routes.some(({ path: routePath }) => /whatsapp/i.test(routePath)),
+    false
+  );
+  assert.equal(
+    routes.some(({ handler }) => /whatsapp/i.test(handler)),
+    false
+  );
   assert.deepEqual(
     contentRoutes.map(({ method, path: routePath }) => `${method} ${routePath}`).sort(),
     [
@@ -30,7 +36,10 @@ test('WhatsApp transport is absent from package and Strapi registries', () => {
   const services = require('../server/src/services');
   const controllers = require('../server/src/controllers');
 
-  assert.equal(Object.keys(manifest.dependencies).some((name) => /baileys|pino|qrcode/i.test(name)), false);
+  assert.equal(
+    Object.keys(manifest.dependencies).some((name) => /baileys|pino|qrcode/i.test(name)),
+    false
+  );
   assert.equal(Object.hasOwn(services, 'whatsapp'), false);
   assert.equal(Object.hasOwn(controllers, 'whatsapp'), false);
   assert.equal(fs.existsSync(path.join(root, 'server/src/services/whatsapp.js')), false);
@@ -53,17 +62,65 @@ test('admin navigation and email routing UI expose no messaging transport contro
   assert.doesNotMatch(routingRules, /whatsapp/i);
 });
 
-test('existing routing metadata columns remain in the Strapi schema but are not accepted by rule updates', () => {
+test('legacy messaging columns are gone from the routing-rule schema and rejected by rule updates', () => {
   const schema = require('../server/src/content-types/routing-rule/schema.json');
   const { validate } = require('../server/src/validation');
 
-  assert.equal(Object.hasOwn(schema.attributes, 'whatsappFallback'), true);
-  assert.equal(Object.hasOwn(schema.attributes, 'whatsappPhoneField'), true);
+  assert.deepEqual(
+    Object.keys(schema.attributes).filter((key) => /whatsapp|phone/i.test(key)),
+    []
+  );
   assert.throws(() => validate('routingRules.update', { whatsappFallback: true }));
   assert.throws(() => validate('routingRules.update', { whatsappPhoneField: 'phone' }));
 });
 
-test('email send-message keeps its email path and rejects transport selection', async () => {
+/** Recursively lists files below `dir` (relative to the repo root). */
+function listFiles(dir) {
+  const absolute = path.join(root, dir);
+  if (!fs.existsSync(absolute)) return [];
+  return fs.readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
+    const relative = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listFiles(relative);
+    return [relative];
+  });
+}
+
+const FORBIDDEN = /whats\s*app|baileys/i;
+
+test('no messaging-transport residue in decoded schemas, translations, sources, docs or dev tooling', () => {
+  // JSON is checked after parsing, so \uXXXX escapes can not hide a key.
+  const jsonFiles = [
+    ...listFiles('server/src/content-types').filter((file) => file.endsWith('.json')),
+    ...listFiles('admin/src/translations').filter((file) => file.endsWith('.json')),
+  ];
+  assert.ok(jsonFiles.length > 5);
+  for (const file of jsonFiles) {
+    const raw = fs.readFileSync(path.join(root, file), 'utf8');
+    const decoded = JSON.stringify(JSON.parse(raw));
+    assert.doesNotMatch(decoded, FORBIDDEN, file);
+    if (file.startsWith('server/src/content-types')) {
+      assert.doesNotMatch(raw, /\\u00[0-9a-f]{2}/i, `${file} must not use unicode escapes`);
+    }
+  }
+
+  const textFiles = [
+    ...listFiles('server/src'),
+    ...listFiles('admin/src'),
+    ...listFiles('.dev'),
+    ...listFiles('.agents'),
+    ...listFiles('docs/site'),
+    'README.md',
+  ].filter((file) => /\.(js|jsx|mjs|ts|tsx|json|md|html)$/.test(file));
+  for (const file of textFiles) {
+    const text = fs.readFileSync(path.join(root, file), 'utf8');
+    assert.doesNotMatch(text, FORBIDDEN, file);
+    if (file.startsWith('server/src') || file.startsWith('admin/src')) {
+      assert.doesNotMatch(text, /phone ?number/i, file);
+    }
+  }
+});
+
+test('email send-message keeps its email path and has no channel parameter', async () => {
   const emailRouter = require('../server/src/services/email-router')({
     strapi: { log: { debug() {}, info() {}, warn() {}, error() {} } },
   });
@@ -74,52 +131,77 @@ test('email send-message keeps its email path and rejects transport selection', 
   };
 
   const result = await emailRouter.sendMessage({
-    channel: 'email',
     to: 'recipient@example.test',
+    cc: ['copy-one@example.test', 'copy-two@example.test'],
+    bcc: 'hidden@example.test',
     subject: 'Status',
     message: 'Delivered through the email path',
   });
 
   assert.deepEqual(captured, {
     to: 'recipient@example.test',
+    cc: ['copy-one@example.test', 'copy-two@example.test'],
+    bcc: 'hidden@example.test',
     subject: 'Status',
     text: 'Delivered through the email path',
     html: undefined,
     templateId: undefined,
     templateData: undefined,
   });
-  assert.deepEqual(result, { success: true, emailId: 'fake-email-1', channel: 'email' });
-  await assert.rejects(
-    emailRouter.sendMessage({ channel: 'whatsapp', phoneNumber: '+491234567890', message: 'fake' }),
-    /email delivery only/i
+  assert.deepEqual(
+    result,
+    { success: true, emailId: 'fake-email-1' },
+    'the response carries no channel field'
   );
   await assert.rejects(
-    emailRouter.sendMessage({ channel: 'auto', phoneNumber: '+491234567890', message: 'fake' }),
+    emailRouter.sendMessage({ phoneNumber: '+491234567890', message: 'fake' }),
     /email address/i
   );
 });
 
-test('send-message validation accepts email and rejects removed transport fields', () => {
+test('send-message validation accepts email and rejects channel and removed transport fields', () => {
   const { validate } = require('../server/src/validation');
 
   assert.deepEqual(
     validate('content.sendMessage', {
-      channel: 'email',
       to: 'recipient@example.test',
+      cc: 'copy@example.test,second-copy@example.test',
+      bcc: 'hidden@example.test',
       subject: 'Status',
       message: 'Hello',
     }),
     {
-      channel: 'email',
       to: 'recipient@example.test',
+      cc: 'copy@example.test,second-copy@example.test',
+      bcc: 'hidden@example.test',
       subject: 'Status',
       message: 'Hello',
     }
   );
-  assert.throws(() => validate('content.sendMessage', {
-    channel: 'whatsapp', phoneNumber: '+491234567890', message: 'fake',
-  }));
-  assert.throws(() => validate('content.sendMessage', {
-    channel: 'email', to: 'recipient@example.test', phoneNumber: '+491234567890',
-  }));
+  assert.throws(
+    () =>
+      validate('content.sendMessage', {
+        to: 'recipient@example.test',
+        cc: 'copy@example.test,invalid',
+      }),
+    (error) => error.name === 'ValidationError' && Boolean(error.details?.cc)
+  );
+  assert.throws(() =>
+    validate('content.sendMessage', {
+      channel: 'email',
+      to: 'recipient@example.test',
+      message: 'channel was removed in 4.0',
+    })
+  );
+  assert.throws(
+    () => validate('content.sendMessage', { to: 'not-an-email', message: 'fake' }),
+    (error) => error.name === 'ValidationError' && Boolean(error.details?.to)
+  );
+  assert.throws(() => validate('content.sendMessage', { message: 'missing recipient' }));
+  assert.throws(() =>
+    validate('content.sendMessage', {
+      to: 'recipient@example.test',
+      phoneNumber: '+491234567890',
+    })
+  );
 });

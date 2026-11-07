@@ -5,7 +5,6 @@
     "react-router-dom",
     "react-intl",
     "styled-components",
-    "yup",
     "@strapi/strapi",
     "@strapi/utils",
     "@strapi/design-system",

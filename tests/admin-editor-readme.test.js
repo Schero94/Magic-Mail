@@ -13,19 +13,23 @@ const editorSource = fs.readFileSync(
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
 test('template editor back button uses a theme-aware icon color', () => {
-  const backButtonStyles = editorSource.match(
-    /const BackButton = styled\.button`([\s\S]*?)`;/u
+  const editorStyles = fs.readFileSync(
+    path.join(root, 'admin/src/pages/EmailDesigner/editorStyles.js'),
+    'utf8'
+  );
+  const backButtonStyles = editorStyles.match(
+    /export const BackButton = styled\.button`([\s\S]*?)`;/u
   );
 
-  assert.ok(backButtonStyles, 'EditorPage must define BackButton styles');
+  assert.ok(backButtonStyles, 'the editor must define BackButton styles');
   assert.match(
     backButtonStyles[1],
-    /color:\s*\$\{\(p\)\s*=>\s*p\.theme\.colors\.neutral800\}/u,
+    /color:\s*\$\{color\('neutral800'\)\}/u,
     'BackButton must use neutral800 so the icon is light in dark mode and dark in light mode'
   );
   assert.match(
     editorSource,
-    /<BackButton\b[^>]*\baria-label="Back to email templates"/u,
+    /<BackButton\b[^>]*\baria-label=\{t\('editor\.back', 'Back to email templates'\)\}/u,
     'BackButton must have an accessible name'
   );
 });

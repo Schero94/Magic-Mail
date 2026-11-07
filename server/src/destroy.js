@@ -29,21 +29,20 @@ module.exports = async ({ strapi }) => {
   // Legacy global registry cleanup (pre-3.0 installs).
   if (global.magicMailIntervals) {
     for (const key of Object.keys(global.magicMailIntervals)) {
-      try { clearInterval(global.magicMailIntervals[key]); } catch { /* ignore */ }
+      try {
+        clearInterval(global.magicMailIntervals[key]);
+      } catch {
+        /* ignore */
+      }
     }
     global.magicMailIntervals = undefined;
   }
 
-  // 2. Restore the native email service if we replaced it, so a re-bootstrap
-  //    does not wrap our own wrapper.
-  const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
-  if (registry.emailService && registry.originalEmailSend
-      && registry.emailService.send && registry.emailService.send[WRAPPED]) {
-    registry.emailService.send = registry.originalEmailSend;
-    registry.emailService = null;
-    registry.originalEmailSend = null;
-    log.info('[magic-mail] Restored native email service');
-  }
+  // 2. Restore the native email provider/service functions we replaced, so a
+  //    re-bootstrap does not wrap our own wrapper.
+  const { uninstallEmailInterception } = require('./bootstrap');
+  uninstallEmailInterception(strapi);
+  log.info('[magic-mail] Restored native email service');
 
   log.info('[magic-mail] Plugin destroyed gracefully');
 };

@@ -1,29 +1,62 @@
 'use strict';
 
 /**
- * Debug Logger Utility for magic-mail
- * Only logs messages when debug: true in plugin config
- * ALL logs (including errors/warnings) are hidden unless debug mode is enabled
+ * Logger utility for magic-mail.
+ *
+ * `info` and `debug` are only written when `debug: true` is set in the plugin
+ * config. `warn` and `error` are ALWAYS forwarded to strapi.log so failures
+ * (for example a failed email-service override at bootstrap) are visible in
+ * every environment.
+ *
+ * Error objects are reduced to their name and code, never their message or
+ * stack, because provider errors can contain recipient addresses.
  */
 
 const PLUGIN_NAME = 'magic-mail';
 const PREFIX = '[magic-mail]';
 
 /**
- * Format message with prefix - returns a formatted string
+ * Renders one log argument without leaking error details.
+ * @param {*} arg
+ * @returns {string}
  */
-function formatMessage(prefix, args) {
-  if (args.length === 0) return prefix;
-  const parts = args.map(arg => 
-    typeof arg === 'string' ? arg : JSON.stringify(arg)
-  );
-  return `${prefix} ${parts.join(' ')}`;
+function formatArg(arg) {
+  if (typeof arg === 'string') return arg;
+  // Error instances, errors from another realm and error-shaped objects
+  // (`{ message, response, ... }` from HTTP clients) are reduced the same way;
+  // serialising them would put messages and response bodies into the log.
+  const errorLike =
+    arg instanceof Error ||
+    (arg &&
+      typeof arg === 'object' &&
+      !Array.isArray(arg) &&
+      (typeof arg.message === 'string' || typeof arg.stack === 'string'));
+  if (errorLike) {
+    const name = typeof arg.name === 'string' && arg.name ? arg.name : 'Error';
+    const code = typeof arg.code === 'string' || typeof arg.code === 'number' ? arg.code : null;
+    return code !== null ? `${name} (${code})` : name;
+  }
+  try {
+    return JSON.stringify(arg);
+  } catch {
+    return String(arg);
+  }
 }
 
 /**
- * Creates a logger instance that respects debug config
+ * Format message with prefix - returns a formatted string.
+ * Avoids a doubled prefix when the message already starts with it.
+ */
+function formatMessage(prefix, args) {
+  if (args.length === 0) return prefix;
+  const text = args.map(formatArg).join(' ');
+  return text.startsWith(prefix) ? text : `${prefix} ${text}`;
+}
+
+/**
+ * Creates a logger instance that respects the debug config.
  * @param {object} strapi - Strapi instance
- * @returns {object} Logger with info, debug, warn, error methods
+ * @returns {{info: Function, debug: Function, warn: Function, error: Function, forceError: Function}}
  */
 function createLogger(strapi) {
   const getDebugMode = () => {
@@ -36,49 +69,31 @@ function createLogger(strapi) {
   };
 
   return {
-    /**
-     * Log info - only when debug: true
-     */
+    /** Info - only when debug: true */
     info: (...args) => {
-      if (getDebugMode()) {
-        strapi.log.info(formatMessage(PREFIX, args));
-      }
+      if (getDebugMode()) strapi.log.info(formatMessage(PREFIX, args));
     },
 
-    /**
-     * Log debug - only when debug: true
-     */
+    /** Debug - only when debug: true */
     debug: (...args) => {
-      if (getDebugMode()) {
-        strapi.log.debug(formatMessage(PREFIX, args));
-      }
+      if (getDebugMode()) strapi.log.debug(formatMessage(PREFIX, args));
     },
 
-    /**
-     * Log warning - only when debug: true
-     */
+    /** Warning - always logged */
     warn: (...args) => {
-      if (getDebugMode()) {
-        strapi.log.warn(formatMessage(PREFIX, args));
-      }
+      strapi.log.warn(formatMessage(PREFIX, args));
     },
 
-    /**
-     * Log error - only when debug: true
-     */
+    /** Error - always logged */
     error: (...args) => {
-      if (getDebugMode()) {
-        strapi.log.error(formatMessage(PREFIX, args));
-      }
+      strapi.log.error(formatMessage(PREFIX, args));
     },
 
-    /**
-     * Force log - always logged (for critical errors only)
-     */
+    /** Alias kept for existing callers - always logged */
     forceError: (...args) => {
       strapi.log.error(formatMessage(PREFIX, args));
     },
   };
 }
 
-module.exports = { createLogger };
+module.exports = { createLogger, formatMessage };

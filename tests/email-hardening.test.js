@@ -9,24 +9,38 @@ test('attachment metadata rejects CR/LF and invalid MIME/encoding', () => {
   const { validate } = require('../server/src/validation');
   const base = { to: 'user@example.com', subject: 'Hi', text: 'body' };
 
-  assert.throws(() => validate('content.send', {
-    ...base,
-    attachments: [{ filename: 'a\r\nContent-Type: text/html', content: 'x' }],
-  }), 'CR/LF in filename must be rejected');
+  assert.throws(
+    () =>
+      validate('content.send', {
+        ...base,
+        attachments: [{ filename: 'a\r\nContent-Type: text/html', content: 'x' }],
+      }),
+    'CR/LF in filename must be rejected'
+  );
 
-  assert.throws(() => validate('content.send', {
-    ...base,
-    attachments: [{ contentType: 'text/html\r\nX-Injected: 1', content: 'x' }],
-  }), 'CR/LF in contentType must be rejected');
+  assert.throws(
+    () =>
+      validate('content.send', {
+        ...base,
+        attachments: [{ contentType: 'text/html\r\nX-Injected: 1', content: 'x' }],
+      }),
+    'CR/LF in contentType must be rejected'
+  );
 
-  assert.throws(() => validate('content.send', {
-    ...base,
-    attachments: [{ encoding: 'weird-encoding', content: 'x' }],
-  }), 'unknown encoding must be rejected');
+  assert.throws(
+    () =>
+      validate('content.send', {
+        ...base,
+        attachments: [{ encoding: 'weird-encoding', content: 'x' }],
+      }),
+    'unknown encoding must be rejected'
+  );
 
   const ok = validate('content.send', {
     ...base,
-    attachments: [{ filename: 'report.pdf', contentType: 'application/pdf', encoding: 'base64', content: 'x' }],
+    attachments: [
+      { filename: 'report.pdf', contentType: 'application/pdf', encoding: 'base64', content: 'x' },
+    ],
   });
   assert.equal(ok.attachments[0].filename, 'report.pdf');
 });

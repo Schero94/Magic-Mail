@@ -27,23 +27,40 @@ test('SendGrid maps array/CSV recipients and uses reply_to + custom_args', async
   let captured;
   global.fetch = async (url, opts) => {
     captured = { url, opts };
-    return { ok: true, status: 202, headers: { get: () => 'msg-1' }, json: async () => ({}), text: async () => '' };
+    return {
+      ok: true,
+      status: 202,
+      headers: { get: () => 'msg-1' },
+      json: async () => ({}),
+      text: async () => '',
+    };
   };
 
   try {
     const account = {
-      name: 'sg', provider: 'sendgrid', fromEmail: 'from@example.com', fromName: 'From',
+      name: 'sg',
+      provider: 'sendgrid',
+      fromEmail: 'from@example.com',
+      fromName: 'From',
       config: encryptCredentials({ apiKey: 'SG.test' }),
     };
     await router.sendViaSendGrid(account, {
       to: ['a@example.com', 'b@example.com'],
       cc: 'c@example.com, d@example.com',
-      subject: 'Hi', text: 'body', replyTo: 'reply@example.com',
+      subject: 'Hi',
+      text: 'body',
+      replyTo: 'reply@example.com',
     });
 
     const body = JSON.parse(captured.opts.body);
-    assert.deepEqual(body.personalizations[0].to, [{ email: 'a@example.com' }, { email: 'b@example.com' }]);
-    assert.deepEqual(body.personalizations[0].cc, [{ email: 'c@example.com' }, { email: 'd@example.com' }]);
+    assert.deepEqual(body.personalizations[0].to, [
+      { email: 'a@example.com' },
+      { email: 'b@example.com' },
+    ]);
+    assert.deepEqual(body.personalizations[0].cc, [
+      { email: 'c@example.com' },
+      { email: 'd@example.com' },
+    ]);
     assert.equal(body.reply_to.email, 'reply@example.com');
     assert.ok(body.custom_args, 'custom_args must be present (snake_case)');
     assert.equal(body.replyTo, undefined, 'camelCase replyTo must not be sent');
@@ -67,11 +84,16 @@ test('Mailgun sends a native FormData body without a manual content-type', async
 
   try {
     const account = {
-      name: 'mg', provider: 'mailgun', fromEmail: 'from@example.com', fromName: 'From',
+      name: 'mg',
+      provider: 'mailgun',
+      fromEmail: 'from@example.com',
+      fromName: 'From',
       config: encryptCredentials({ apiKey: 'key-test', domain: 'mg.example.com' }),
     };
     await router.sendViaMailgun(account, {
-      to: ['a@example.com', 'b@example.com'], subject: 'Hi', text: 'body',
+      to: ['a@example.com', 'b@example.com'],
+      subject: 'Hi',
+      text: 'body',
     });
 
     assert.ok(captured.opts.body instanceof FormData, 'body must be a WHATWG FormData');
@@ -99,10 +121,14 @@ test('Gmail raw MIME includes To, Cc, Bcc, Reply-To and a text/plain body', asyn
 
   try {
     const account = {
-      name: 'gm', provider: 'gmail-oauth', documentId: 'acc-1',
-      fromEmail: 'from@example.com', fromName: 'From',
+      name: 'gm',
+      provider: 'gmail-oauth',
+      documentId: 'acc-1',
+      fromEmail: 'from@example.com',
+      fromName: 'From',
       oauth: encryptCredentials({
-        email: 'from@example.com', accessToken: 'tok',
+        email: 'from@example.com',
+        accessToken: 'tok',
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
       }),
       config: encryptCredentials({ clientId: 'cid', clientSecret: 'secret' }),
@@ -126,7 +152,10 @@ test('Gmail raw MIME includes To, Cc, Bcc, Reply-To and a text/plain body', asyn
     );
     assert.match(raw, /Reply-To:\s*reply@example\.com/i, 'Reply-To header present');
     assert.match(raw, /text\/plain/i, 'text-only body is text/plain');
-    assert.ok(!/Content-Type:\s*text\/html/i.test(raw), 'text-only body must not be labelled text/html');
+    assert.ok(
+      !/Content-Type:\s*text\/html/i.test(raw),
+      'text-only body must not be labelled text/html'
+    );
   } finally {
     global.fetch = originalFetch;
     restoreKey();

@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react';
 import pluginId from '../pluginId';
 
 /**
- * Initializer component that marks the plugin as ready.
+ * Marks the plugin as ready once the admin has mounted it.
+ * @param {{setPlugin?: (id: string) => void}} props
  */
 const Initializer = ({ setPlugin }) => {
   const ref = useRef(setPlugin);
 
   useEffect(() => {
-    ref.current(pluginId);
+    if (typeof ref.current === 'function') ref.current(pluginId);
   }, []);
 
   return null;

@@ -12,6 +12,29 @@ const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 
+/** emailId, linkHash and recipientHash are always 32 lower-case hex characters. */
+const TRACKING_ID = /^[a-f0-9]{32}$/;
+const isTrackingId = (value) => typeof value === 'string' && TRACKING_ID.test(value);
+
+const PIXEL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+
+/**
+ * Writes the 1x1 GIF directly to Node's response. Strapi's Content API
+ * response transformer serializes Buffers and even Readable streams as JSON,
+ * so this binary endpoint bypasses it.
+ *
+ * @param {import('koa').Context} ctx
+ */
+const sendPixel = (ctx) => {
+  ctx.status = 200;
+  ctx.respond = false;
+  ctx.res.statusCode = 200;
+  ctx.res.setHeader('Content-Type', 'image/gif');
+  ctx.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  ctx.res.setHeader('Content-Length', String(PIXEL_GIF.length));
+  ctx.res.end(PIXEL_GIF);
+};
+
 /**
  * HTML-escape a string so we can safely drop it into the fallback page
  * without opening an XSS vector. We only ever echo server-side values
@@ -22,12 +45,13 @@ const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
  * @param {string} value
  * @returns {string}
  */
-const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const normalizeHttpUrl = (value) => {
   try {
@@ -59,9 +83,7 @@ const normalizeHttpUrl = (value) => {
 const renderTrackingFallbackHtml = (reason, fallbackUrl) => {
   const safeReason = escapeHtml(reason);
   const safeUrl = fallbackUrl ? escapeHtml(fallbackUrl) : '';
-  const refreshMeta = fallbackUrl
-    ? `<meta http-equiv="refresh" content="3;url=${safeUrl}">`
-    : '';
+  const refreshMeta = fallbackUrl ? `<meta http-equiv="refresh" content="3;url=${safeUrl}">` : '';
   const manualLink = fallbackUrl
     ? `<p style="margin-top:24px;font-size:14px;color:#6b7280;">
          You will be redirected in a few seconds. If nothing happens,
@@ -108,11 +130,17 @@ const respondWithTrackingFallback = async (ctx, reason) => {
   try {
     const settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
     fallbackUrl = normalizeHttpUrl(settings?.trackingFallbackUrl) || null;
-  } catch (err) {
+  } catch {
     strapi.log.debug('[magic-mail] Could not load tracking fallback setting');
   }
   ctx.status = 410;
   ctx.type = 'text/html; charset=utf-8';
+  ctx.set('Cache-Control', 'no-store');
+  ctx.set('Referrer-Policy', 'no-referrer');
+  ctx.set(
+    'Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+  );
   ctx.body = renderTrackingFallbackHtml(reason, fallbackUrl);
 };
 
@@ -122,30 +150,20 @@ module.exports = ({ strapi }) => ({
    * GET /magic-mail/track/open/:emailId/:recipientHash
    */
   async trackOpen(ctx) {
-    const { emailId, recipientHash } = ctx.params;
-
-    try {
-      await strapi.plugin('magic-mail').service('analytics').recordOpen(emailId, recipientHash, ctx.request);
-    } catch (err) {
-      strapi.log.error('[magic-mail] Error recording open event:', err?.name || 'Error');
+    const { emailId, recipientHash } = ctx.params || {};
+    // Malformed ids and rate-limited requests (ctx.state.magicMailRateLimited)
+    // still get the pixel; they are just not recorded.
+    if (isTrackingId(emailId) && isTrackingId(recipientHash) && !ctx.state?.magicMailRateLimited) {
+      try {
+        await strapi
+          .plugin('magic-mail')
+          .service('analytics')
+          .recordOpen(emailId, recipientHash, ctx.request);
+      } catch (err) {
+        strapi.log.error('[magic-mail] Error recording open event:', err?.name || 'Error');
+      }
     }
-
-    // Always return tracking pixel regardless of errors
-    const pixel = Buffer.from(
-      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-      'base64'
-    );
-
-    // Strapi's Content API response transformer serializes Buffers and even
-    // Readable streams as JSON. Bypass it for this binary endpoint and write
-    // the 1x1 GIF directly to Node's response object.
-    ctx.status = 200;
-    ctx.respond = false;
-    ctx.res.statusCode = 200;
-    ctx.res.setHeader('Content-Type', 'image/gif');
-    ctx.res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    ctx.res.setHeader('Content-Length', String(pixel.length));
-    ctx.res.end(pixel);
+    sendPixel(ctx);
   },
 
   /**
@@ -164,21 +182,25 @@ module.exports = ({ strapi }) => ({
    * GET /magic-mail/track/click/:emailId/:linkHash/:recipientHash
    */
   async trackClick(ctx) {
-    const { emailId, linkHash, recipientHash } = ctx.params;
+    const { emailId, linkHash, recipientHash } = ctx.params || {};
+    // Over the tracking rate limit the recipient is still redirected; only
+    // the click is not counted.
+    const record = !ctx.state?.magicMailRateLimited;
 
-    let url;
+    let url = null;
     try {
-      const analyticsService = strapi.plugin('magic-mail').service('analytics');
-      url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash);
+      if (isTrackingId(emailId) && isTrackingId(linkHash) && isTrackingId(recipientHash)) {
+        const analyticsService = strapi.plugin('magic-mail').service('analytics');
+        url = await analyticsService.getOriginalUrlFromHash(emailId, linkHash, recipientHash, {
+          count: record,
+        });
+      }
     } catch (err) {
       strapi.log.error('[magic-mail] Error getting original URL:', err?.name || 'Error');
     }
 
     if (!url) {
-      return respondWithTrackingFallback(
-        ctx,
-        'The page behind this link is no longer tracked. It may have been removed by our retention policy.'
-      );
+      return respondWithTrackingFallback(ctx, 'This link has expired or is no longer available.');
     }
 
     // Validate URL protocol — only http(s) redirects are allowed.
@@ -192,23 +214,23 @@ module.exports = ({ strapi }) => ({
         );
       }
     } catch {
-      return respondWithTrackingFallback(
-        ctx,
-        'This link is no longer valid.'
-      );
+      return respondWithTrackingFallback(ctx, 'This link is no longer valid.');
     }
 
-    try {
-      await strapi
-        .plugin('magic-mail')
-        .service('analytics')
-        .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
-    } catch (err) {
-      // Log and keep going — we don't want to penalise the user just
-      // because our analytics write failed. They still reach their page.
-      strapi.log.error('[magic-mail] Error recording click event:', err?.name || 'Error');
+    if (record) {
+      try {
+        await strapi
+          .plugin('magic-mail')
+          .service('analytics')
+          .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
+      } catch (err) {
+        // The recipient still reaches the page when the analytics write fails.
+        strapi.log.error('[magic-mail] Error recording click event:', err?.name || 'Error');
+      }
     }
 
+    ctx.set('Cache-Control', 'no-store');
+    ctx.set('Referrer-Policy', 'no-referrer');
     ctx.redirect(url);
   },
 
@@ -229,7 +251,7 @@ module.exports = ({ strapi }) => ({
       };
 
       // Remove null values
-      Object.keys(filters).forEach(key => filters[key] === null && delete filters[key]);
+      Object.keys(filters).forEach((key) => filters[key] === null && delete filters[key]);
 
       const stats = await strapi.plugin('magic-mail').service('analytics').getStats(filters);
 
@@ -238,7 +260,12 @@ module.exports = ({ strapi }) => ({
         data: stats,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting analytics stats', 'Error fetching analytics stats');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting analytics stats',
+        'Error fetching analytics stats'
+      );
     }
   },
 
@@ -254,6 +281,7 @@ module.exports = ({ strapi }) => ({
         userId: query.userId || null,
         templateId: query.templateId || null,
         search: query.search || null,
+        deliveryStatus: query.deliveryStatus || null,
       };
 
       const pagination = {
@@ -262,7 +290,7 @@ module.exports = ({ strapi }) => ({
       };
 
       // Remove null values
-      Object.keys(filters).forEach(key => filters[key] === null && delete filters[key]);
+      Object.keys(filters).forEach((key) => filters[key] === null && delete filters[key]);
 
       const result = await strapi
         .plugin('magic-mail')
@@ -274,7 +302,12 @@ module.exports = ({ strapi }) => ({
         ...result,
       });
     } catch (error) {
-      handleControllerError(ctx, error, '[magic-mail] Error getting email logs', 'Error fetching email logs');
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting email logs',
+        'Error fetching email logs'
+      );
     }
   },
 
@@ -285,6 +318,9 @@ module.exports = ({ strapi }) => ({
   async getEmailDetails(ctx) {
     try {
       const { emailId } = ctx.params;
+      if (!isTrackingId(emailId)) {
+        return ctx.notFound('Email log not found');
+      }
 
       const emailLog = await strapi
         .plugin('magic-mail')
@@ -300,7 +336,12 @@ module.exports = ({ strapi }) => ({
         data: emailLog,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting email log',
+        'Error fetching email log'
+      );
     }
   },
 
@@ -324,7 +365,12 @@ module.exports = ({ strapi }) => ({
         data: activity,
       });
     } catch (error) {
-      ctx.throw(500, error.message);
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting user activity',
+        'Error fetching user activity'
+      );
     }
   },
 
@@ -375,14 +421,19 @@ module.exports = ({ strapi }) => ({
       if (emailLogs.length > 0) {
         const testLog = emailLogs[0];
         const testHash = analyticsService.generateRecipientHash(testLog.emailId, testLog.recipient);
-        
-        const baseUrl = strapi.config.get('server.url') || 'http://localhost:1337';
-        sampleTrackingUrls = {
-          trackingPixel: `${baseUrl}/api/magic-mail/track/open/${testLog.emailId}/${testHash}`,
-          clickTracking: `${baseUrl}/api/magic-mail/track/click/${testLog.emailId}/test/${testHash}?url=https://example.com`,
-          emailId: testLog.emailId,
-          recipient: testLog.recipient,
-        };
+        let settings = {};
+        try {
+          settings = await strapi.plugin('magic-mail').service('plugin-settings').getSettings();
+        } catch {
+          settings = {};
+        }
+        const endpoint = analyticsService.getTrackingEndpoint(settings);
+        sampleTrackingUrls = endpoint
+          ? {
+              trackingPixel: `${endpoint}/open/${testLog.emailId}/${testHash}`,
+              emailId: testLog.emailId,
+            }
+          : { trackingPixel: null, note: 'No public tracking URL configured' };
       }
 
       return ctx.send({
@@ -393,7 +444,7 @@ module.exports = ({ strapi }) => ({
           emailLogsCount: emailLogs.length,
           emailEventsCount: emailEvents.length,
           activeAccountsCount: accounts.length,
-          recentEmailLogs: emailLogs.map(log => ({
+          recentEmailLogs: emailLogs.map((log) => ({
             emailId: log.emailId,
             recipient: log.recipient,
             subject: log.subject,
@@ -404,12 +455,12 @@ module.exports = ({ strapi }) => ({
             accountName: log.accountName,
             templateName: log.templateName,
           })),
-          recentEvents: emailEvents.map(event => ({
+          recentEvents: emailEvents.map((event) => ({
             type: event.type,
             timestamp: event.timestamp,
             emailId: event.emailLog?.emailId,
             ipAddress: event.ipAddress,
-            linkUrl: event.linkUrl,
+            hasLinkUrl: Boolean(event.linkUrl),
           })),
           accounts,
           sampleTrackingUrls,
@@ -422,8 +473,12 @@ module.exports = ({ strapi }) => ({
         },
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Analytics debug failed:', error?.name || 'Error');
-      ctx.throw(500, error.message);
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Analytics debug failed',
+        'Analytics debug failed'
+      );
     }
   },
 
@@ -434,109 +489,87 @@ module.exports = ({ strapi }) => ({
   async deleteEmailLog(ctx) {
     try {
       const { emailId } = ctx.params;
+      if (!isTrackingId(emailId)) {
+        return ctx.notFound('Email log not found');
+      }
 
-      // Find email log using Document Service
-      const emailLog = await strapi.documents(EMAIL_LOG_UID).findFirst({
-        filters: { emailId },
+      const emailLog = await strapi.db.query(EMAIL_LOG_UID).findOne({
+        select: ['id'],
+        where: { emailId },
       });
 
       if (!emailLog) {
         return ctx.notFound('Email log not found');
       }
 
-      // Delete associated events - filter relation with documentId object (Strapi v5)
-      const events = await strapi.documents(EMAIL_EVENT_UID).findMany({
-        filters: { emailLog: { documentId: emailLog.documentId } },
-      });
+      // Removes the log together with its events and stored link mappings.
+      await strapi.plugin('magic-mail').service('analytics').deleteEmailLogsByIds([emailLog.id]);
 
-      for (const event of events) {
-        await strapi.documents(EMAIL_EVENT_UID).delete({ documentId: event.documentId });
-      }
-
-      // Delete email log
-      await strapi.documents(EMAIL_LOG_UID).delete({ documentId: emailLog.documentId });
-
-      strapi.log.info(`[magic-mail] [DELETE]  Deleted email log: ${emailId}`);
+      strapi.log.info('[magic-mail] [DELETE] Deleted one email log');
 
       return ctx.send({
         success: true,
         message: 'Email log deleted successfully',
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error deleting email log:', error?.name || 'Error');
-      ctx.throw(500, error.message);
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error deleting email log',
+        'Error deleting email log'
+      );
     }
   },
 
   /**
-   * Clears email logs in bounded batches so a huge backlog cannot block the
-   * event loop or OOM the heap. Each invocation deletes up to MAX_TOTAL
-   * entries; the caller can re-invoke the endpoint until `deletedCount: 0`
-   * is reported to drain the backlog.
+   * Clears email logs (with their events and link mappings) oldest first, at
+   * most 10,000 per request. `hasMore: true` means logs remain and the
+   * caller should call again.
    *
    * DELETE /magic-mail/analytics/emails[?olderThan=YYYY-MM-DD]
+   * Response: { success, message, deletedCount, hasMore }
    */
   async clearAllEmailLogs(ctx) {
-    const PAGE_SIZE = 200;
     const MAX_TOTAL = 10_000;
 
     try {
-      const { olderThan } = ctx.query;
+      const { olderThan } = ctx.query || {};
 
-      const filters = {};
-      if (olderThan) {
-        const boundary = new Date(olderThan);
-        if (Number.isNaN(boundary.getTime())) {
+      const where = {};
+      if (olderThan !== undefined && olderThan !== '') {
+        const boundary =
+          typeof olderThan === 'string' && olderThan.length <= 64 ? new Date(olderThan) : null;
+        if (!boundary || Number.isNaN(boundary.getTime())) {
           return ctx.badRequest('Invalid olderThan date');
         }
-        filters.sentAt = { $lt: boundary };
+        where.sentAt = { $lt: boundary };
       }
 
-      let totalDeleted = 0;
+      const { deletedCount, hasMore } = await strapi
+        .plugin('magic-mail')
+        .service('analytics')
+        .deleteEmailLogs(where, { max: MAX_TOTAL });
 
-      while (totalDeleted < MAX_TOTAL) {
-        const emailLogs = await strapi.documents(EMAIL_LOG_UID).findMany({
-          filters,
-          fields: ['id', 'documentId'],
-          sort: [{ sentAt: 'asc' }],
-          limit: PAGE_SIZE,
-        });
-
-        if (!emailLogs || emailLogs.length === 0) break;
-
-        for (const log of emailLogs) {
-          const events = await strapi.documents(EMAIL_EVENT_UID).findMany({
-            filters: { emailLog: { documentId: log.documentId } },
-          });
-
-          for (const event of events) {
-            await strapi.documents(EMAIL_EVENT_UID).delete({ documentId: event.documentId });
-          }
-
-          await strapi.documents(EMAIL_LOG_UID).delete({ documentId: log.documentId });
-          totalDeleted++;
-          if (totalDeleted >= MAX_TOTAL) break;
-        }
-
-        if (emailLogs.length < PAGE_SIZE) break;
-      }
-
-      if (totalDeleted > 0) {
-        strapi.log.info(`[magic-mail] [DELETE] Cleared ${totalDeleted} email logs this run`);
+      if (deletedCount > 0) {
+        strapi.log.info(`[magic-mail] [DELETE] Cleared ${deletedCount} email logs this run`);
       }
 
       return ctx.send({
         success: true,
         message:
-          totalDeleted === 0
+          deletedCount === 0
             ? 'No email logs to delete'
-            : `Deleted ${totalDeleted} email log(s)${totalDeleted >= MAX_TOTAL ? ' (more remain, re-run to continue)' : ''}`,
-        deletedCount: totalDeleted,
-        hasMore: totalDeleted >= MAX_TOTAL,
+            : `Deleted ${deletedCount} email log(s)${hasMore ? ' (more remain, re-run to continue)' : ''}`,
+        deletedCount,
+        hasMore,
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] Error clearing email logs:', error?.name || 'Error');
-      ctx.throw(500, error.message);
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error clearing email logs',
+        'Error clearing email logs'
+      );
     }
   },
 });

@@ -20,7 +20,10 @@ const expectedKeys = {
   services: 'object',
 };
 
-for (const [label, plugin] of [['cjs', cjsPlugin], ['esm', esmPlugin]]) {
+for (const [label, plugin] of [
+  ['cjs', cjsPlugin],
+  ['esm', esmPlugin],
+]) {
   if (!plugin || typeof plugin !== 'object') {
     throw new Error(`${label} server bundle did not export a plugin object`);
   }
@@ -29,7 +32,9 @@ for (const [label, plugin] of [['cjs', cjsPlugin], ['esm', esmPlugin]]) {
   for (const [key, expectedType] of Object.entries(expectedKeys)) {
     const value = plugin[key];
     if (value === undefined || value === null || typeof value !== expectedType) {
-      problems.push(`${key} is ${value === null ? 'null' : typeof value} (expected ${expectedType})`);
+      problems.push(
+        `${key} is ${value === null ? 'null' : typeof value} (expected ${expectedType})`
+      );
     }
   }
 
@@ -39,3 +44,17 @@ for (const [label, plugin] of [['cjs', cjsPlugin], ['esm', esmPlugin]]) {
 }
 
 console.log('Server bundle runtime check passed');
+
+// STR-07: `strapi-plugin watch` writes an unbundled server entry whose relative
+// requires do not exist in dist. Only the esbuild bundle may be published.
+const { readFileSync } = await import('node:fs');
+const { BUNDLE_MARKER } = await import('./build-server-bundle.mjs');
+for (const file of ['dist/server/index.js', 'dist/server/index.mjs']) {
+  const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  if (!source.startsWith(BUNDLE_MARKER)) {
+    throw new Error(`${file} is not the esbuild server bundle; run npm run build`);
+  }
+  if (/require\(["']\.\.?\//.test(source)) {
+    throw new Error(`${file} still contains relative requires`);
+  }
+}

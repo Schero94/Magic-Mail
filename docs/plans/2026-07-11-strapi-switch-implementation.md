@@ -18,6 +18,7 @@ runner.
 ### Task 1: Add a regression test for compact boolean controls
 
 **Files:**
+
 - Create: `tests/admin-switches.test.js`
 
 **Step 1: Write the failing test**
@@ -40,6 +41,7 @@ Expected: FAIL because the four files still import and render `Toggle`.
 ### Task 2: Convert plugin settings controls
 
 **Files:**
+
 - Modify: `admin/src/pages/PluginSettings.jsx:1-15,301-413`
 
 **Step 1: Replace the component**
@@ -63,6 +65,7 @@ Expected: FAIL because the four files still import and render `Toggle`.
 ### Task 3: Convert account setup controls
 
 **Files:**
+
 - Modify: `admin/src/components/AddAccountModal.jsx:1-40,1295-1335,1949-2030`
 
 **Step 1: Replace SSL, active, and primary controls**
@@ -77,6 +80,7 @@ Expected: FAIL because the four files still import and render `Toggle`.
 ### Task 4: Convert routing rule controls
 
 **Files:**
+
 - Modify: `admin/src/pages/RoutingRules.jsx:1-40,1068-1163`
 
 **Step 1: Replace fallback and active controls**
@@ -89,6 +93,7 @@ Expected: FAIL because the four files still import and render `Toggle`.
 ### Task 5: Convert template editor control and delete Toggle CSS overrides
 
 **Files:**
+
 - Modify: `admin/src/pages/EmailDesigner/EditorPage.jsx:1-40,168-199,1119-1132`
 
 **Step 1: Simplify the wrapper**

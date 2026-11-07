@@ -53,14 +53,6 @@
     },
     "fallbackAccountName": {
       "type": "string"
-    },
-    "whats\u0061ppFallback": {
-      "type": "boolean",
-      "default": false
-    },
-    "whats\u0061ppPhoneField": {
-      "type": "string"
     }
   }
 }
-

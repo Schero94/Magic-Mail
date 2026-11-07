@@ -29,7 +29,15 @@
     },
     "provider": {
       "type": "enumeration",
-      "enum": ["smtp", "gmail-oauth", "microsoft-oauth", "yahoo-oauth", "sendgrid", "mailgun", "ses", "nodemailer"],
+      "enum": [
+        "smtp",
+        "gmail-oauth",
+        "microsoft-oauth",
+        "yahoo-oauth",
+        "sendgrid",
+        "mailgun",
+        "nodemailer"
+      ],
       "required": true,
       "default": "smtp"
     },
@@ -89,6 +97,14 @@
     },
     "lastUsed": {
       "type": "datetime"
+    },
+    "quotaHourKey": {
+      "type": "string",
+      "private": true
+    },
+    "quotaDayKey": {
+      "type": "string",
+      "private": true
     }
   }
 }

@@ -5,19 +5,17 @@
  *
  * SECURITY MODEL
  * --------------
- * Every admin route is gated by the two-step policy chain returned from
- * `adminPolicy()`:
+ * Every protected admin route is gated by the two-step policy chain returned
+ * from `adminPolicy(capability)`:
  *
  *   1. `admin::isAuthenticatedAdmin`
  *        Requires a valid admin JWT (blocks anonymous callers and
  *        end-user Content-API tokens).
  *
- *   2. `admin::hasPermissions` with `plugin::magic-mail.access`
- *        Requires the caller to actually hold the plugin-access
- *        permission. Super-Admin gets it automatically; other admin
- *        roles only gain access if a Super-Admin explicitly grants the
- *        permission in Settings → Administration Panel → Roles →
- *        Plugins → Magic Mail.
+ *   2. `admin::hasPermissions` with one route-specific capability:
+ *        `read` for data retrieval, rendering and export; `manage` for
+ *        configuration or content changes; `test-send` for test delivery.
+ *        The `access` action is reserved for menu and page visibility.
  *
  * Exception: the 3 OAuth callback endpoints must stay public because
  * the upstream OAuth provider (Google / Microsoft / Yahoo) performs a
@@ -26,22 +24,45 @@
  * callback verifies server-side — no admin JWT needed.
  */
 
-const PLUGIN_ACCESS_ACTION = 'plugin::magic-mail.access';
+const PLUGIN_ID = 'magic-mail';
 
 /**
  * Fresh array per call because Strapi mutates policy arrays during
  * boot, and sharing one instance across routes would leak config
  * between them.
  *
+ * @param {'read'|'manage'|'test-send'} capability
  * @returns {Array<string|object>}
  */
-const adminPolicy = () => [
+const adminPolicy = (capability, extraActions = []) => [
   'admin::isAuthenticatedAdmin',
   {
     name: 'admin::hasPermissions',
-    config: { actions: [PLUGIN_ACCESS_ACTION] },
+    config: { actions: [`plugin::${PLUGIN_ID}.${capability}`, ...extraActions] },
   },
 ];
+
+/**
+ * Test sends reach arbitrary external addresses through company accounts.
+ * One budget per admin user across all test-send routes (SEC-15).
+ *
+ * @returns {Array<object>}
+ */
+const testSendRateLimit = () => [
+  {
+    name: `plugin::${PLUGIN_ID}.rate-limit`,
+    config: { bucket: 'admin-test-send', max: 10, window: 60_000 },
+  },
+];
+
+/**
+ * The users-permissions email templates (password reset, confirmation) are
+ * Strapi data guarded by their own permissions. Editing them through Magic
+ * Mail additionally requires those permissions (SEC-M01): `admin::hasPermissions`
+ * requires every listed action.
+ */
+const USERS_PERMISSIONS_TEMPLATE_READ = 'plugin::users-permissions.email-templates.read';
+const USERS_PERMISSIONS_TEMPLATE_UPDATE = 'plugin::users-permissions.email-templates.update';
 
 module.exports = {
   type: 'admin',
@@ -52,7 +73,7 @@ module.exports = {
       path: '/accounts',
       handler: 'accounts.getAll',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get all email accounts',
       },
     },
@@ -61,8 +82,8 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.getOne',
       config: {
-        policies: adminPolicy(),
-        description: 'Get single email account with decrypted config',
+        policies: adminPolicy('read'),
+        description: 'Get single email account (secrets replaced by a placeholder)',
       },
     },
     {
@@ -70,7 +91,7 @@ module.exports = {
       path: '/accounts',
       handler: 'accounts.create',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Create email account',
       },
     },
@@ -79,7 +100,7 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.update',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Update email account',
       },
     },
@@ -88,7 +109,8 @@ module.exports = {
       path: '/accounts/:accountId/test',
       handler: 'accounts.test',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Test email account',
       },
     },
@@ -97,7 +119,8 @@ module.exports = {
       path: '/test-strapi-service',
       handler: 'accounts.testStrapiService',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Test Strapi Email Service integration (MagicMail intercept)',
       },
     },
@@ -106,7 +129,7 @@ module.exports = {
       path: '/accounts/:accountId',
       handler: 'accounts.delete',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete email account',
       },
     },
@@ -117,7 +140,7 @@ module.exports = {
       path: '/routing-rules',
       handler: 'routingRules.getAll',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get all routing rules',
       },
     },
@@ -126,7 +149,7 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.getOne',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get single routing rule',
       },
     },
@@ -135,7 +158,7 @@ module.exports = {
       path: '/routing-rules',
       handler: 'routingRules.create',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Create routing rule',
       },
     },
@@ -144,7 +167,7 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.update',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Update routing rule',
       },
     },
@@ -153,7 +176,7 @@ module.exports = {
       path: '/routing-rules/:ruleId',
       handler: 'routingRules.delete',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete routing rule',
       },
     },
@@ -168,7 +191,7 @@ module.exports = {
       path: '/oauth/gmail/auth',
       handler: 'oauth.gmailAuth',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Initiate Gmail OAuth flow',
       },
     },
@@ -188,7 +211,7 @@ module.exports = {
       path: '/oauth/microsoft/auth',
       handler: 'oauth.microsoftAuth',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Initiate Microsoft OAuth flow',
       },
     },
@@ -208,7 +231,7 @@ module.exports = {
       path: '/oauth/yahoo/auth',
       handler: 'oauth.yahooAuth',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Initiate Yahoo OAuth flow',
       },
     },
@@ -228,8 +251,17 @@ module.exports = {
       path: '/oauth/create-account',
       handler: 'oauth.createOAuthAccount',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Create account from OAuth',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/oauth/reconnect/:accountId',
+      handler: 'oauth.reconnectOAuthAccount',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Re-authorize an existing OAuth account',
       },
     },
 
@@ -239,7 +271,7 @@ module.exports = {
       path: '/designer/templates',
       handler: 'emailDesigner.findAll',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get all email templates',
       },
     },
@@ -248,7 +280,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.findOne',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get email template by ID',
       },
     },
@@ -257,7 +289,7 @@ module.exports = {
       path: '/designer/templates',
       handler: 'emailDesigner.create',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Create email template',
       },
     },
@@ -266,7 +298,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.update',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Update email template',
       },
     },
@@ -275,7 +307,7 @@ module.exports = {
       path: '/designer/templates/:id',
       handler: 'emailDesigner.delete',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete email template',
       },
     },
@@ -284,7 +316,7 @@ module.exports = {
       path: '/designer/templates/:id/versions',
       handler: 'emailDesigner.getVersions',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get template versions',
       },
     },
@@ -293,7 +325,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/:versionId/restore',
       handler: 'emailDesigner.restoreVersion',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Restore template from version',
       },
     },
@@ -302,7 +334,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/:versionId/delete',
       handler: 'emailDesigner.deleteVersion',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete a single version',
       },
     },
@@ -311,7 +343,7 @@ module.exports = {
       path: '/designer/templates/:id/versions/delete-all',
       handler: 'emailDesigner.deleteAllVersions',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete all versions for a template',
       },
     },
@@ -320,7 +352,7 @@ module.exports = {
       path: '/designer/render/:templateReferenceId',
       handler: 'emailDesigner.renderTemplate',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Render template with data',
       },
     },
@@ -329,7 +361,7 @@ module.exports = {
       path: '/designer/export',
       handler: 'emailDesigner.exportTemplates',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Export templates (ADVANCED+)',
       },
     },
@@ -338,8 +370,17 @@ module.exports = {
       path: '/designer/import',
       handler: 'emailDesigner.importTemplates',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Import templates (ADVANCED+)',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/designer/editor-config',
+      handler: 'emailDesigner.getEditorConfig',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Get the hardened visual editor (Unlayer) settings',
       },
     },
     {
@@ -347,7 +388,7 @@ module.exports = {
       path: '/designer/stats',
       handler: 'emailDesigner.getStats',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get template statistics',
       },
     },
@@ -356,7 +397,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.getCoreTemplate',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read', [USERS_PERMISSIONS_TEMPLATE_READ]),
         description: 'Get core email template',
       },
     },
@@ -365,7 +406,7 @@ module.exports = {
       path: '/designer/core/:coreEmailType',
       handler: 'emailDesigner.updateCoreTemplate',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage', [USERS_PERMISSIONS_TEMPLATE_UPDATE]),
         description: 'Update core email template',
       },
     },
@@ -374,7 +415,7 @@ module.exports = {
       path: '/designer/templates/:id/download',
       handler: 'emailDesigner.download',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Download template as HTML or JSON',
       },
     },
@@ -383,7 +424,7 @@ module.exports = {
       path: '/designer/templates/:id/duplicate',
       handler: 'emailDesigner.duplicate',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Duplicate template',
       },
     },
@@ -392,7 +433,8 @@ module.exports = {
       path: '/designer/templates/:id/test-send',
       handler: 'emailDesigner.testSend',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
         description: 'Send test email for template',
       },
     },
@@ -403,7 +445,7 @@ module.exports = {
       path: '/analytics/stats',
       handler: 'analytics.getStats',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get analytics statistics',
       },
     },
@@ -412,7 +454,7 @@ module.exports = {
       path: '/analytics/emails',
       handler: 'analytics.getEmailLogs',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get email logs',
       },
     },
@@ -421,7 +463,7 @@ module.exports = {
       path: '/analytics/emails/:emailId',
       handler: 'analytics.getEmailDetails',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get email details',
       },
     },
@@ -430,7 +472,7 @@ module.exports = {
       path: '/analytics/users/:userId',
       handler: 'analytics.getUserActivity',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get user email activity',
       },
     },
@@ -439,7 +481,7 @@ module.exports = {
       path: '/analytics/debug',
       handler: 'analytics.debug',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Debug analytics state',
       },
     },
@@ -448,7 +490,7 @@ module.exports = {
       path: '/analytics/emails/:emailId',
       handler: 'analytics.deleteEmailLog',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Delete single email log',
       },
     },
@@ -457,7 +499,7 @@ module.exports = {
       path: '/analytics/emails',
       handler: 'analytics.clearAllEmailLogs',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Clear all email logs',
       },
     },
@@ -468,7 +510,7 @@ module.exports = {
       path: '/settings',
       handler: 'pluginSettings.getSettings',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('read'),
         description: 'Get plugin settings',
       },
     },
@@ -477,7 +519,7 @@ module.exports = {
       path: '/settings',
       handler: 'pluginSettings.updateSettings',
       config: {
-        policies: adminPolicy(),
+        policies: adminPolicy('manage'),
         description: 'Update plugin settings',
       },
     },
