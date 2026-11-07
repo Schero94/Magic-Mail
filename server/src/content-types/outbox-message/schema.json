@@ -1,0 +1,151 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_outbox",
+  "info": {
+    "singularName": "outbox-message",
+    "pluralName": "outbox-messages",
+    "displayName": "Outbox Message",
+    "description": "Send queue: messages waiting for a retry, failed for good or with an uncertain outcome"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "indexes": [
+    {
+      "name": "magic_mail_outbox_due_idx",
+      "columns": ["status", "next_attempt_at"]
+    },
+    {
+      "name": "magic_mail_outbox_lease_idx",
+      "columns": ["status", "lease_until"]
+    },
+    {
+      "name": "magic_mail_outbox_idem_uq",
+      "columns": ["idempotency_key_hash"],
+      "type": "unique"
+    },
+    {
+      "name": "magic_mail_outbox_recipient_idx",
+      "columns": ["recipient_hash"]
+    }
+  ],
+  "attributes": {
+    "status": {
+      "type": "enumeration",
+      "enum": ["pending", "sending", "sent", "failed", "uncertain", "discarded"],
+      "default": "pending",
+      "required": true
+    },
+    "phase": {
+      "type": "enumeration",
+      "enum": ["queued", "claimed", "dispatching"],
+      "default": "queued"
+    },
+    "attempts": {
+      "type": "integer",
+      "default": 0
+    },
+    "maxAttempts": {
+      "type": "integer",
+      "default": 3
+    },
+    "nextAttemptAt": {
+      "type": "biginteger"
+    },
+    "notAfter": {
+      "type": "biginteger"
+    },
+    "leaseToken": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "leaseUntil": {
+      "type": "biginteger"
+    },
+    "claimedBy": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "lastErrorCode": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "lastErrorClass": {
+      "type": "enumeration",
+      "enum": ["transient", "permanent", "ambiguous", "capacity", "expired"]
+    },
+    "lastErrorAt": {
+      "type": "datetime"
+    },
+    "errorHistory": {
+      "type": "json"
+    },
+    "accountUsed": {
+      "type": "string"
+    },
+    "lastAccountDocumentId": {
+      "type": "string"
+    },
+    "providerMessageId": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "emailLogDocumentId": {
+      "type": "string"
+    },
+    "emailId": {
+      "type": "string"
+    },
+    "idempotencyKeyHash": {
+      "type": "string",
+      "maxLength": 64,
+      "required": true
+    },
+    "recipientHash": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "createdVia": {
+      "type": "enumeration",
+      "enum": ["queue-option", "capture-on-failure"]
+    },
+    "createdByUser": {
+      "type": "integer"
+    },
+    "priorityRank": {
+      "type": "integer",
+      "default": 1
+    },
+    "messageIdLocal": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "payload": {
+      "type": "text"
+    },
+    "payloadBytes": {
+      "type": "integer"
+    },
+    "sentAt": {
+      "type": "datetime"
+    },
+    "resolvedAt": {
+      "type": "datetime"
+    },
+    "resolvedBy": {
+      "type": "integer"
+    }
+  }
+}

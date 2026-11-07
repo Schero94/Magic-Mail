@@ -8,6 +8,13 @@ const ROUTE_CAPABILITIES = [
 ];
 
 /**
+ * Outbox grants are checked in their own useRBAC call: useRBAC names each
+ * capability after the last dot-separated segment of the action, so
+ * `queue.read` would collide with `read` (`canRead`).
+ */
+const QUEUE_CAPABILITIES = [...pluginPermissions.queueRead, ...pluginPermissions.queueManage];
+
+/**
  * Single source of truth for MagicMail UI gating.
  *
  * The API routes remain authoritative; this hook only keeps unavailable
@@ -16,7 +23,7 @@ const ROUTE_CAPABILITIES = [
  * flash in. Views should render a loading state while `isLoading` and an
  * error state when `error` is set, instead of treating both as "no rights".
  *
- *   const { canRead, canManage, canTestSend, isLoading, error } = useMagicMailRBAC();
+ *   const { canRead, canManage, canTestSend, canReadQueue, canManageQueue } = useMagicMailRBAC();
  *
  * Route-level protection keeps using `<Page.Protect permissions={permissions.read}>`
  * with the `permissions` object returned here.
@@ -25,6 +32,9 @@ const ROUTE_CAPABILITIES = [
  *   canRead: boolean,
  *   canManage: boolean,
  *   canTestSend: boolean,
+ *   canReadQueue: boolean,
+ *   canManageQueue: boolean,
+ *   isQueueLoading: boolean,
  *   isReadOnly: boolean,
  *   isLoading: boolean,
  *   error?: unknown,
@@ -33,8 +43,11 @@ const ROUTE_CAPABILITIES = [
  */
 export const useMagicMailRBAC = () => {
   const { allowedActions = {}, isLoading = false, error } = useRBAC(ROUTE_CAPABILITIES) ?? {};
+  const queueRbac = useRBAC(QUEUE_CAPABILITIES) ?? {};
   const settled = !isLoading && !error;
   const allowed = (key) => settled && allowedActions?.[key] === true;
+  const queueSettled = !queueRbac.isLoading && !queueRbac.error;
+  const queueAllowed = (key) => queueSettled && queueRbac.allowedActions?.[key] === true;
 
   const canRead = allowed('canRead');
   const canManage = allowed('canManage');
@@ -43,6 +56,9 @@ export const useMagicMailRBAC = () => {
     canRead,
     canManage,
     canTestSend: allowed('canTestSend'),
+    canReadQueue: queueAllowed('canRead'),
+    canManageQueue: queueAllowed('canManage'),
+    isQueueLoading: Boolean(queueRbac.isLoading),
     isReadOnly: canRead && !canManage,
     isLoading: Boolean(isLoading),
     error,

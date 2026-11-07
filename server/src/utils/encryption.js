@@ -252,6 +252,79 @@ function decryptCredentials(encryptedData) {
 }
 
 /**
+ * Keyed one-way hash under a purpose subkey of the current key material
+ * (e.g. recipient lookups without storing the address).
+ *
+ * @param {string} purpose - Short label such as 'outbox-recipient'
+ * @param {string} value
+ * @returns {string} 64 hex characters
+ */
+function purposeHmac(purpose, value) {
+  return crypto
+    .createHmac('sha256', derivePurposeKey(getKeyMaterial(), purpose))
+    .update(String(value))
+    .digest('hex');
+}
+
+const PAYLOAD_PREFIX = 'o1';
+const PAYLOAD_INFO = 'magic-mail:outbox:v1';
+
+/**
+ * Encrypts an outbox payload (the prepared message) with AES-256-GCM under
+ * its own HKDF purpose key. Base64 keeps attachments compact. The additional
+ * authenticated data binds the ciphertext to its row, so a ciphertext copied
+ * into another row fails to decrypt.
+ *
+ * @param {object} data - JSON-serialisable payload
+ * @param {string} aad - Row binding (the idempotency key hash)
+ * @returns {string} `o1:<iv b64>:<tag b64>:<ciphertext b64>`
+ * @throws {Error} When no key is available
+ */
+function encryptPayload(data, aad) {
+  const key = deriveKey(getKeyMaterial(), PAYLOAD_INFO);
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  cipher.setAAD(Buffer.from(String(aad || ''), 'utf8'));
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final()]);
+  return `${PAYLOAD_PREFIX}:${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${encrypted.toString('base64')}`;
+}
+
+/**
+ * Decrypts an outbox payload. Tries the current key, then the previous one.
+ *
+ * @param {string} value
+ * @param {string} aad - Must equal the value used at encryption
+ * @returns {object}
+ * @throws {Error} When the value is malformed, tampered with or no key fits
+ */
+function decryptPayload(value, aad) {
+  if (typeof value !== 'string') throw new Error('[magic-mail] outbox payload missing');
+  const parts = value.split(':');
+  if (parts.length !== 4 || parts[0] !== PAYLOAD_PREFIX) {
+    throw new Error('[magic-mail] outbox payload malformed');
+  }
+  const iv = Buffer.from(parts[1], 'base64');
+  const tag = Buffer.from(parts[2], 'base64');
+  const ciphertext = Buffer.from(parts[3], 'base64');
+  if (iv.length !== IV_LENGTH || tag.length !== 16) {
+    throw new Error('[magic-mail] outbox payload malformed');
+  }
+  const materials = [getKeyMaterial(), getPreviousKeyMaterial()].filter(Boolean);
+  for (const material of materials) {
+    try {
+      const decipher = crypto.createDecipheriv(ALGORITHM, deriveKey(material, PAYLOAD_INFO), iv);
+      decipher.setAAD(Buffer.from(String(aad || ''), 'utf8'));
+      decipher.setAuthTag(tag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      return JSON.parse(plaintext.toString('utf8'));
+    } catch {
+      // try the next key
+    }
+  }
+  throw new Error('[magic-mail] outbox payload could not be decrypted');
+}
+
+/**
  * True when a stored blob uses the pre-4.0 format.
  *
  * @param {string|{encrypted: string}|null|undefined} encryptedData
@@ -268,4 +341,7 @@ module.exports = {
   decryptCredentials,
   derivePurposeKey,
   isLegacyCiphertext,
+  encryptPayload,
+  decryptPayload,
+  purposeHmac,
 };

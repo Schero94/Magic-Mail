@@ -200,6 +200,20 @@ const configRecord = z.record(
   ])
 );
 
+/** Caller-chosen send queue de-duplication key. */
+const idempotencyKey = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+
+const OUTBOX_STATUSES = ['pending', 'sending', 'sent', 'failed', 'uncertain', 'discarded'];
+
+const isoDate = z
+  .string()
+  .max(40)
+  .refine((value) => !Number.isNaN(Date.parse(value)), { message: 'Invalid date' });
+
 /** @type {Record<string, z.ZodSchema>} */
 const schemas = {
   'accounts.create': z
@@ -465,6 +479,9 @@ const schemas = {
     // resolvable (e.g. retention cleanup removed the row). If empty the
     // tracker renders a static HTML fallback page instead.
     trackingFallbackUrl: httpUrl.optional().or(z.literal('')),
+    // Send queue: capture failed sends and retry them (opt-in).
+    queueFailedSends: z.boolean().optional(),
+    queueMaxAttempts: z.number().int().min(1).max(10).optional(),
   }),
 
   // ── Content-API send payloads ───────────────────────────────────────────
@@ -522,6 +539,9 @@ const schemas = {
         )
         .max(20)
         .optional(),
+      // Send queue (additive): deliver through the outbox, deduplicated by key.
+      queue: z.boolean().optional(),
+      idempotencyKey: idempotencyKey.optional(),
       // Allowed names (X-*, List-Id, Precedence, Auto-Submitted,
       // In-Reply-To, References) are enforced again by the router.
       headers: z
@@ -551,6 +571,48 @@ const schemas = {
       html: safeText.optional(),
       templateId: z.union([z.string().max(128), z.number().int().min(0)]).optional(),
       templateData: z.record(z.string(), z.unknown()).optional(),
+      // Send queue (additive): deliver through the outbox, deduplicated by key.
+      queue: z.boolean().optional(),
+      idempotencyKey: idempotencyKey.optional(),
+    })
+    .strict(),
+
+  // ── Outbox (send queue) admin routes ───────────────────────────────────
+  'outbox.listQuery': z
+    .object({
+      // 'retrying' = pending after at least one failed try.
+      status: z.enum([...OUTBOX_STATUSES, 'retrying']).optional(),
+      lastErrorClass: z
+        .enum(['transient', 'permanent', 'ambiguous', 'capacity', 'expired'])
+        .optional(),
+      source: z
+        .string()
+        .regex(/^[a-z0-9-]{1,32}$/)
+        .optional(),
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+      pageSize: z.coerce.number().int().min(1).max(100).optional(),
+    })
+    .strict(),
+
+  // Route param `:documentId`, validated as `outboxId` (validate() strips
+  // Strapi system keys such as `documentId` from its input).
+  'outbox.documentId': z
+    .object({
+      outboxId: z.string().regex(/^[A-Za-z0-9]{1,64}$/),
+    })
+    .strict(),
+
+  'outbox.retryBody': z
+    .object({
+      confirmDuplicateRisk: z.boolean().optional(),
+    })
+    .strict(),
+
+  'outbox.deleteQuery': z
+    .object({
+      olderThan: isoDate,
     })
     .strict(),
 };

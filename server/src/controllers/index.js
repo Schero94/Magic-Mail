@@ -8,6 +8,7 @@ const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
 const deliveryWebhooks = require('./delivery-webhooks');
+const outbox = require('./outbox');
 
 module.exports = {
   controller,
@@ -18,4 +19,5 @@ module.exports = {
   analytics,
   pluginSettings,
   deliveryWebhooks,
+  outbox,
 };

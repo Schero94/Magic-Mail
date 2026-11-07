@@ -36,6 +36,7 @@ MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or
 - [Admin API](#admin-api)
 - [Permissions](#permissions)
 - [Configuration reference](#configuration-reference)
+- [Retries and the outbox](#retries-and-the-outbox)
 - [Running several instances (Railway replicas, pm2 cluster)](#running-several-instances-railway-replicas-pm2-cluster)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading to 4.0.0](#upgrading-to-400)
@@ -762,20 +763,24 @@ GET /magic-mail/analytics/emails?search=order&deliveryStatus=sent&page=1&pageSiz
 
 ## Permissions
 
-MagicMail registers four admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
+MagicMail registers six admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
 
-| Action                         | Grants                                                                                                          |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `plugin::magic-mail.access`    | The MagicMail menu entry and page. No API access by itself                                                      |
-| `plugin::magic-mail.read`      | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link |
-| `plugin::magic-mail.manage`    | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                            |
-| `plugin::magic-mail.test-send` | Send test emails (account test, Strapi-service test, template test); 10 per minute per admin                    |
+| Action                            | Grants                                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `plugin::magic-mail.access`       | The MagicMail menu entry and page. No API access by itself                                                      |
+| `plugin::magic-mail.read`         | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link |
+| `plugin::magic-mail.manage`       | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                            |
+| `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template test); 10 per minute per admin                    |
+| `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                           |
+| `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                            |
 
 Typical roles:
 
 - **Read-only:** `access` + `read`
 - **Editor:** `access` + `read` + `manage`
 - **Tester:** `access` + `read` + `test-send`
+
+When upgrading to 4.4, every role that already had `read` gets `queue.read` and every role with `manage` gets `queue.manage`, once at startup. Super admins always have both.
 
 Editing the Users & Permissions templates also needs the users-permissions email-template permissions; uploading images in the visual editor needs _Media Library → Create (upload)_. Details: [docs/permission-migration.md](./docs/permission-migration.md).
 
@@ -832,6 +837,9 @@ module.exports = () => ({
         // redis: new Redis(process.env.REDIS_URL), // ioredis or node-redis v4+ client, store: 'redis'
         redisPrefix: 'magic-mail:rl:',
       },
+      queue: {
+        worker: true, // see "Retries and the outbox" for every key
+      },
     },
   },
 });
@@ -843,15 +851,17 @@ module.exports = () => ({
 
 **Settings → MagicMail → Plugin Settings**, stored in the database (`GET`/`PUT /magic-mail/settings`):
 
-| Setting                       | Default | Effect                                                                      |
-| ----------------------------- | ------- | --------------------------------------------------------------------------- |
-| Link tracking / Open tracking | on      | Rewrite links / add the open pixel                                          |
-| Tracking base URL             | empty   | Public base for tracking URLs (else `server.url`)                           |
-| Default from name             | empty   | Display name when neither the account nor the caller sets one               |
-| Default from email            | empty   | Reference only; emails always go out from the selected account's address    |
-| Unsubscribe header            | on      | Send `List-Unsubscribe` for every email type and use the plugin-wide URL    |
-| Unsubscribe URL               | empty   | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient          |
-| `trackingFallbackUrl` (API)   | empty   | Where expired or unknown tracking links redirect; empty shows a static page |
+| Setting                       | Default | Effect                                                                                     |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| Link tracking / Open tracking | on      | Rewrite links / add the open pixel                                                         |
+| Tracking base URL             | empty   | Public base for tracking URLs (else `server.url`)                                          |
+| Default from name             | empty   | Display name when neither the account nor the caller sets one                              |
+| Default from email            | empty   | Reference only; emails always go out from the selected account's address                   |
+| Unsubscribe header            | on      | Send `List-Unsubscribe` for every email type and use the plugin-wide URL                   |
+| Unsubscribe URL               | empty   | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient                         |
+| `trackingFallbackUrl` (API)   | empty   | Where expired or unknown tracking links redirect; empty shows a static page                |
+| Queue failed sends            | off     | Store sends that failed after failover and retry them ([details](#retries-and-the-outbox)) |
+| Retries per mail              | 3       | Retries after the first try, 1 to 10                                                       |
 
 ### Account fields
 
@@ -875,6 +885,122 @@ const designer = strapi.plugin('magic-mail').service('email-designer');
 const rendered = await designer.renderTemplate(100, { user: { firstName: 'Ada' } });
 const stats = await designer.getStats(); // { total, active, inactive, byCategory, ... }
 ```
+
+---
+
+## Retries and the outbox
+
+MagicMail can retry mails that were not sent: up to 3 retries per mail (after 1, 5 and 15 minutes), kept in a database outbox that is safe with several replicas and pm2 workers. It is **off by default**. Without one of the two switches below, `send()` behaves exactly as before: same code path, same result, same errors.
+
+### Turning it on
+
+- **Per send:** pass `queue: true`. The mail is prepared (template, sanitizing, tracking, delivery log) and stored; a worker sends it within about a second.
+
+  ```javascript
+  const result = await strapi
+    .plugin('magic-mail')
+    .service('email-router')
+    .send(
+      { to: 'user@example.com', subject: 'Welcome', templateReferenceId: 'welcome' },
+      {
+        queue: true,
+        idempotencyKey: 'signup-42:welcome', // optional: the same key is queued once
+        notAfter: new Date(Date.now() + 60 * 60 * 1000), // optional: never send later than this
+      }
+    );
+  // { success: true, queued: true, status: 'pending', outboxId, emailId, accountUsed: null, messageId: null }
+  ```
+
+  The Content API accepts the same optional fields: `POST /api/magic-mail/send` with `"queue": true` and `"idempotencyKey": "..."` (letters, digits, `. _ : -`, up to 128 characters). A repeated key returns the first row with `duplicate: true`. Keys are scoped by caller: each API token (and, with `contentApi.allowUserRoles`, each user) has its own key space, so one integration can never suppress or read another's mail with a guessed key. Server code shares one key space per `source` (default `service`); pass `idempotencyScope` to separate callers there too.
+
+- **For failed sends (owner setting):** _Settings → MagicMail → Plugin Settings → Retries and outbox → Queue failed sends_. A send still runs inline with failover as before. When it fails, the error is classified:
+
+| Outcome                                                                                                       | What happens                                                                 | The caller sees                                                     |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| No provider accepted the mail (SMTP 4xx, refused connection, auth, HTTP 401/403/408/429/503)                  | Stored as `pending`, retried after 1, 5, 15 minutes                          | `{ success: true, queued: true, status: 'pending', outboxId, ... }` |
+| No account free (none active, every account over quota)                                                       | Stored as `pending`, retried at the next quota hour without using up a retry | same                                                                |
+| The provider **may** have accepted it (connection lost after the message was sent, HTTP 500/502/504, timeout) | Stored as `uncertain`, **never re-sent automatically**                       | the original error, unchanged, with `error.magicMailOutboxId`       |
+| Permanent refusal (SMTP 5xx, HTTP 400/404/413/422, invalid input)                                             | Not stored                                                                   | the original error, unchanged                                       |
+
+Sends to an explicit account (`accountName`, admin account test) and test sends are never captured. Native Strapi emails (password reset, confirmation) follow the same rules; when no MagicMail account can take them they still go to the original Strapi provider first, as before. If that provider fails too, the mail is captured only when every MagicMail account is over its quota (a later quota hour can deliver it). With no active MagicMail account at all the worker could never send it, so the provider's error reaches Strapi unchanged, as in 4.3. `queue: false` turns capture off for one call.
+
+**"Retries per mail"** (1 to 10, default 3) is the number of retries after the first try. A `queue: true` mail gets the first try plus that many retries.
+
+> **Magic Link and other callers with their own fallback.** With _Queue failed sends_ on, a temporary failure resolves as queued instead of throwing, so a caller's own fallback (for example Magic Link's fallback to another provider) no longer runs, and the mail can arrive minutes later. Login links and codes expire. Call `send(..., { queue: false })` for such mails, or pass `notAfter` set to the token expiry: MagicMail never sends a queued mail after `notAfter` (it ends as `failed` / `EXPIRED`).
+
+### What "uncertain" means
+
+A message can be lost in the gap between "the provider has it" and "we were told so". SMTP connections that drop after the message was transmitted, and HTTP APIs that answer 500, 502 or 504 or time out after the request was sent (503 means the request was not handled, RFC 9110 15.6.4, and is retried), may or may not have delivered it. None of the supported providers offers an idempotency key (SendGrid v3 Mail Send, Mailgun messages, Microsoft Graph sendMail, Gmail users.messages.send), so a retry could send a duplicate. MagicMail therefore records these as `uncertain` and leaves the decision to a person. Every queued attempt uses the same `Message-ID` and an `X-MagicMail-Outbox` header, which helps to find the mail in the provider's log and lets some mail clients collapse an accidental duplicate (a mitigation, not a guarantee).
+
+For SMTP the stage is known exactly: a private logger watches nodemailer's transaction log for the server's `354` reply to `DATA` (it keeps a yes/no flag only, never the text). A drop before `354` is safe to retry; a drop after it is uncertain, whatever system code (`ECONNRESET`, `EHOSTUNREACH`, ...) the socket reported. For HTTP providers a network error counts as "not accepted" only when it proves the connect phase (refused connection, failed DNS lookup, connect timeout, or an unreachable host raised by `connect()`); any other network error is uncertain.
+
+Recording the result is just as careful. If the database write that marks a mail `sent` fails after the provider accepted it, MagicMail retries the write a few times and otherwise leaves the claim to expire, so the mail ends as `uncertain`, never as `pending`. Any error after a provider was contacted that did not come from the provider itself (database, bookkeeping) is treated as uncertain.
+
+### The Outbox tab
+
+**MagicMail → Outbox** lists pending, retrying, failed, uncertain, sent and discarded mails with recipient, subject, attempts, next try or last error code. Per row:
+
+- **Details:** the error history (time, account, error code, class). The provider's error text and the mail content are never stored or shown.
+- **Retry now:** sends it again within seconds. A pending mail keeps its remaining automatic retries; a failed or uncertain mail gets one more attempt. For an uncertain mail the dialog states the duplicate risk.
+- **Mark as sent:** for an uncertain mail after checking the provider's log. Nothing is sent.
+- **Discard:** the mail is not sent and its content is deleted.
+
+Reading needs `plugin::magic-mail.queue.read`, the actions need `plugin::magic-mail.queue.manage` (see [Permissions](#permissions)). `GET /magic-mail/analytics/queue-stats` returns counts per status, the age of the oldest pending mail, retries and failures for 24 hours and 7 days, an attempts histogram, the top error codes and the average queue latency.
+
+### Events
+
+`strapi.eventHub` emits `magic-mail.queue.enqueued`, `.retry-scheduled`, `.sent`, `.failed`, `.uncertain`, `.discarded` and `.resolved` after each write, with `{ outboxId, emailId, status, attempts, maxAttempts, code, errorClass, accountName, source }`. No addresses, subjects or content. A failing listener never changes the outbox.
+
+### Storage, privacy and retention
+
+- Table `magic_mail_outbox` (content type `plugin::magic-mail.outbox-message`, hidden in the Content Manager). The prepared mail is stored **encrypted** (AES-256-GCM, own subkey of `MAGIC_MAIL_ENCRYPTION_KEY`, bound to its row); `MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS` keeps queued mails readable during a key rotation.
+- The content is deleted when the mail is sent or discarded. Failed and uncertain mails keep it for 14 days (so they can still be retried), then the row stays without content until it is 30 days old. Sent and discarded rows are removed after 7 days.
+- Mails larger than `queue.maxPayloadBytes` (default 10 MiB of prepared JSON, at most 20 MiB) are not queued: `queue: true` fails with a validation error, a failed send is not captured and throws as before.
+- `strapi.plugin('magic-mail').service('queue').forgetRecipient(address)` deletes the queued mails of one recipient (GDPR erasure).
+
+### Configuration
+
+```javascript
+// config/plugins.js
+module.exports = () => ({
+  'magic-mail': {
+    config: {
+      queue: {
+        worker: true, // false: this process never sends queued mail (e.g. web-only replicas)
+        pollIntervalMs: 10_000, // plus up to 50 % jitter
+        batchSize: 5, // mails claimed per poll
+        concurrency: 2, // parallel queued sends per process
+        leaseMs: 180_000, // claim timeout; above the bounded send time (30 s connect + 60 s socket, 30 s OAuth token refresh)
+        backoffMs: [60_000, 300_000, 900_000], // wait before retry 1, 2, 3 (+/- jitterRatio)
+        jitterRatio: 0.2,
+        maxAgeHours: 24, // default notAfter
+        maxPayloadBytes: 10 * 1024 * 1024,
+        maxDispatchPerMinute: 120, // queued sends per minute across ALL processes
+        retention: { sentDays: 7, unresolvedDays: 14, rowDays: 30 },
+      },
+    },
+  },
+});
+```
+
+### Several instances (Railway, pm2)
+
+The outbox needs nothing beyond the [multi-instance setup](#running-several-instances-railway-replicas-pm2-cluster): one database and identical secrets (`MAGIC_MAIL_ENCRYPTION_KEY` must be the same everywhere, or a worker can not read a mail queued on another replica).
+
+- **Every process runs a worker.** With 2 replicas x `pm2 -i 4` that is 8 workers. They claim mails with `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL (MySQL 8 the same inside a transaction; SQLite and older MySQL/MariaDB a conditional update per row), so no mail is claimed twice. Every later write is fenced by the claim token.
+- **Load:** idle, each process runs one indexed query every 10 to 15 seconds (about 40 per minute for 8 processes). At 20 to 30 mails per minute the default `batchSize`/`concurrency` leaves ample headroom; `maxDispatchPerMinute` keeps a backlog after an outage from eating the hourly account quota live traffic needs.
+- **Crashes and deploys:** a process killed after claiming but before sending gives the mail back after `leaseMs`; one killed while a provider had the mail turns it `uncertain` (no automatic re-send). Rolling deploys therefore never lose or double-send a queued mail, but can leave an uncertain one to check.
+- **Optional split:** set `queue.worker: false` through an environment-based config on replicas that should only serve HTTP. At least one process must keep the worker on.
+- **Connection pool:** the worker uses the same Strapi pool; the `processes x pool.max` rule above still applies.
+- **MySQL:** statements with `SKIP LOCKED` are unsafe for statement-based replication; use row-based replication (`binlog_format=ROW`, the MySQL 8 default). `max_allowed_packet` must exceed about 1.4x `maxPayloadBytes`.
+
+### Limits
+
+- Retries are evaluated against the routing rules at retry time, prefer another account than the one that failed last (the same one if it is the only one), and never replace an explicitly requested account.
+- The worker does not use the original Strapi email provider as a fallback. That is why a native Strapi mail is not captured when no MagicMail account exists at all.
+- Queued OAuth sends (Gmail, Microsoft, Yahoo) bound the token refresh to 30 seconds and re-check the claim after it, right before the provider request. A process that lost its claim during a slow refresh does not send.
+- The existing immediate failover between accounts is unchanged. It still moves on after `ECONNECTION`/`ECONNRESET` and HTTP 500/502/503, which in rare cases (connection lost after the message was sent) can deliver twice; queued sends use the stricter rules above.
+- Outbox indexes are declared through Strapi's content-type `indexes` key, which Strapi 5.61 supports but does not document; a test pins it.
 
 ---
 
@@ -982,7 +1108,7 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 
 ### Testing it
 
-`npm run test:multi-instance` starts 8 processes against one SQLite file and checks the invariants above (one claim winner, no lost updates, shared rate-limit counts, each OAuth flow consumed once, compare-and-set store writes, atomic counters, quota limits). Set `MAGIC_MAIL_TEST_PG_URL=postgres://user@host:5432/throwaway_db` to run the same suite against PostgreSQL.
+`npm run test:multi-instance` starts 8 processes against one SQLite file and checks the invariants above (one claim winner, no lost updates, shared rate-limit counts, each OAuth flow consumed once, compare-and-set store writes, atomic counters, quota limits). Set `MAGIC_MAIL_TEST_PG_URL=postgres://user@host:5432/throwaway_db` to run the same suite against PostgreSQL. The same command runs the outbox proof: 8 processes, 500 queued mails against a local scripted SMTP server, each accepted exactly once, retries bounded, uncertain mails never re-sent, one row per idempotency key, racing admin actions and `SIGKILL` during claim and dispatch.
 
 ---
 

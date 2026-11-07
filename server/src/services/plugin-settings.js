@@ -22,6 +22,9 @@ const DEFAULT_SETTINGS = Object.freeze({
   unsubscribeUrl: null,
   enableUnsubscribeHeader: true,
   trackingFallbackUrl: null,
+  // Send queue (outbox): capture sends that failed after failover, off by default.
+  queueFailedSends: false,
+  queueMaxAttempts: 3,
 });
 
 /**

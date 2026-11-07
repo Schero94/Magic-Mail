@@ -39,5 +39,19 @@ module.exports = ({ strapi }) => {
       subCategory: 'General',
       pluginName: 'magic-mail',
     },
+    {
+      section: 'plugins',
+      displayName: 'Read the outbox (queued, failed and uncertain mails)',
+      uid: 'queue.read',
+      subCategory: 'Outbox',
+      pluginName: 'magic-mail',
+    },
+    {
+      section: 'plugins',
+      displayName: 'Retry, discard or resolve outbox mails',
+      uid: 'queue.manage',
+      subCategory: 'Outbox',
+      pluginName: 'magic-mail',
+    },
   ]);
 };

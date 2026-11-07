@@ -25,6 +25,7 @@ async function withKey(fn) {
 function harness({ refreshImpl } = {}) {
   const updates = [];
   const refreshCalls = [];
+  const refreshArgs = [];
   const oauthService = require('../server/src/services/oauth')({
     strapi: { log: quietLog, config: { get: () => undefined } },
   });
@@ -36,8 +37,9 @@ function harness({ refreshImpl } = {}) {
         if (name !== 'oauth') throw new Error(`unexpected service ${name}`);
         return {
           buildOAuthBlob: oauthService.buildOAuthBlob.bind(oauthService),
-          refreshGmailTokens: async (refreshToken) => {
+          refreshGmailTokens: async (refreshToken, ...rest) => {
             refreshCalls.push(refreshToken);
+            refreshArgs.push(rest);
             return refreshImpl(refreshToken, refreshCalls.length);
           },
         };
@@ -51,7 +53,7 @@ function harness({ refreshImpl } = {}) {
     }),
   };
   const router = require('../server/src/services/email-router')({ strapi });
-  return { router, updates, refreshCalls };
+  return { router, updates, refreshCalls, refreshArgs };
 }
 
 const gmailAccount = (oauth) => {
@@ -307,4 +309,117 @@ test('the designer config block is validated at boot', () => {
     /scriptUrl/
   );
   assert.throws(() => validator({ designer: { version: '^1.2.0' } }), /version/);
+});
+
+test('queue sends: a lost claim after the token step stops the provider request', async () => {
+  await withKey(async () => {
+    const { classifyDeliveryError } = require('../server/src/utils/delivery-outcome');
+    const { router } = harness();
+    const fresh = {
+      accessToken: 'still-good',
+      refreshToken: 'r',
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    };
+    let sends = 0;
+    const send = async () => {
+      sends += 1;
+      return { messageId: 'm' };
+    };
+
+    const lost = Object.assign(new Error('lost'), { code: 'MAGIC_MAIL_LEASE_LOST' });
+    await assert.rejects(
+      router.withOAuthRetry({ documentId: 'a' }, { ...fresh }, async () => ({}), send, {
+        bounded: true,
+        confirmClaim: async () => {
+          throw lost;
+        },
+      }),
+      { code: 'MAGIC_MAIL_LEASE_LOST' }
+    );
+    assert.equal(sends, 0, 'never sent without the claim');
+
+    const dbDown = Object.assign(new Error('db'), { code: 'ECONNRESET' });
+    await assert.rejects(
+      router.withOAuthRetry({ documentId: 'a' }, { ...fresh }, async () => ({}), send, {
+        bounded: true,
+        confirmClaim: async () => {
+          throw dbDown;
+        },
+      }),
+      (error) => classifyDeliveryError(error) === 'transient'
+    );
+    assert.equal(sends, 0);
+
+    let confirmed = 0;
+    await router.withOAuthRetry({ documentId: 'a' }, { ...fresh }, async () => ({}), send, {
+      bounded: true,
+      confirmClaim: async () => {
+        confirmed += 1;
+      },
+    });
+    assert.equal(confirmed, 1);
+    assert.equal(sends, 1);
+  });
+});
+
+test('queue sends: the Gmail token refresh is time-limited and the claim is re-checked', async () => {
+  await withKey(async () => {
+    const { router, refreshArgs } = harness({
+      refreshImpl: async () => ({
+        accessToken: 'access-2',
+        expiresAt: new Date(Date.now() + 3600_000),
+      }),
+    });
+    const account = gmailAccount({
+      email: 'sender@example.test',
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      expiresAt: new Date(Date.now() - 1_000).toISOString(),
+    });
+    const previousFetch = global.fetch;
+    const order = [];
+    global.fetch = async () => {
+      order.push('provider');
+      return { ok: true, status: 200, json: async () => ({ id: 'gmail-1' }) };
+    };
+    try {
+      await router.sendViaGmailOAuth(account, {
+        ...emailData,
+        __dispatch: {
+          bounded: true,
+          trackOutcome: true,
+          confirmClaim: async () => {
+            order.push('claim');
+          },
+        },
+      });
+    } finally {
+      global.fetch = previousFetch;
+    }
+    assert.equal(refreshArgs.length, 1);
+    assert.ok(refreshArgs[0][2]?.signal instanceof AbortSignal, 'refresh has an abort signal');
+    assert.deepEqual(order, ['claim', 'provider']);
+  });
+});
+
+test('OAuth refresh requests forward the abort signal to fetch', async () => {
+  await withKey(async () => {
+    const oauth = require('../server/src/services/oauth')({ strapi: { log: quietLog } });
+    const previousFetch = global.fetch;
+    const signals = [];
+    global.fetch = async (_url, options) => {
+      signals.push(options.signal);
+      return { ok: true, status: 200, json: async () => ({ access_token: 'synthetic-at' }) };
+    };
+    try {
+      const signal = AbortSignal.timeout(30_000);
+      await oauth.refreshGmailTokens('rt', 'c', 's', { signal });
+      await oauth.refreshMicrosoftTokens('rt', 'c', 's', 'common', { signal });
+      await oauth.refreshYahooTokens('rt', 'c', 's', { signal });
+      await oauth.refreshGmailTokens('rt', 'c', 's');
+      assert.deepEqual(signals, [signal, signal, signal, undefined]);
+    } finally {
+      global.fetch = previousFetch;
+    }
+  });
 });

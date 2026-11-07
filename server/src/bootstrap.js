@@ -126,6 +126,24 @@ module.exports = async ({ strapi }) => {
   registerTimer(setTimeout(runTrackingMaintenance, 60 * 1000 + jitter(30 * 1000)));
   registerTimer(setInterval(runTrackingMaintenance, TRACKING_MAINTENANCE_INTERVAL_MS));
 
+  // Send queue: worker timer in every process (unless queue.worker is false),
+  // reaper and retention under database leases. Idle unless mail is queued.
+  try {
+    strapi.plugin('magic-mail').service('queue').start(registerTimer);
+  } catch (err) {
+    log.error('[BOOTSTRAP] Send queue worker could not start:', err?.name || 'Error');
+  }
+
+  // Roles that could read or manage Magic Mail before the outbox existed get
+  // the matching outbox permission once (super admins get it from Strapi).
+  try {
+    await coordination.runSingleton(strapi, 'queue-permission-migration', 10 * 60 * 1000, () =>
+      migrateQueuePermissions(strapi, log)
+    );
+  } catch (err) {
+    log.warn('[BOOTSTRAP] Outbox permission migration did not complete:', err?.name || 'Error');
+  }
+
   log.info('[SUCCESS] Bootstrap complete');
 };
 
@@ -291,6 +309,63 @@ async function purgeSensitiveLinkMappings(strapi, log) {
   }
 }
 
+const QUEUE_PERMISSION_MAP = Object.freeze({
+  'plugin::magic-mail.read': 'plugin::magic-mail.queue.read',
+  'plugin::magic-mail.manage': 'plugin::magic-mail.queue.manage',
+});
+
+/**
+ * One-time migration for 4.4: every role that holds `read` gets
+ * `queue.read` and every role that holds `manage` gets `queue.manage`, so
+ * existing Magic Mail editors keep seeing and handling failed mails. Runs
+ * once (store flag); later changes in the role editor are respected.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @returns {Promise<number>} permissions created
+ * @sideeffect Creates admin::permission rows; sets a store flag
+ */
+async function migrateQueuePermissions(strapi, log) {
+  const store = strapi.store({ type: 'plugin', name: 'magic-mail' });
+  if (await store.get({ key: 'queuePermissionsV1' })) return 0;
+  const permissionService = strapi.admin?.services?.permission;
+  const query = strapi.db?.query?.('admin::permission');
+  if (!permissionService || typeof permissionService.createMany !== 'function' || !query) return 0;
+
+  const existing = await query.findMany({
+    where: {
+      action: {
+        $in: [...Object.keys(QUEUE_PERMISSION_MAP), ...Object.values(QUEUE_PERMISSION_MAP)],
+      },
+    },
+    populate: ['role'],
+  });
+  const has = new Set(existing.map((row) => `${row.role?.id}:${row.action}`));
+  const toCreate = [];
+  for (const row of existing) {
+    const target = QUEUE_PERMISSION_MAP[row.action];
+    const roleId = row.role?.id;
+    if (!target || !roleId || has.has(`${roleId}:${target}`)) continue;
+    has.add(`${roleId}:${target}`);
+    toCreate.push({
+      action: target,
+      actionParameters: {},
+      subject: null,
+      properties: {},
+      conditions: [],
+      role: roleId,
+    });
+  }
+  if (toCreate.length > 0) await permissionService.createMany(toCreate);
+  await coordination.updateStoreValue(
+    strapi,
+    { type: 'plugin', name: 'magic-mail', key: 'queuePermissionsV1' },
+    () => ({ done: true, created: toCreate.length, at: new Date().toISOString() })
+  );
+  if (toCreate.length > 0) log.info(`[RBAC] Granted ${toCreate.length} outbox permission(s)`);
+  return toCreate.length;
+}
+
 /**
  * Logs short, one-way fingerprints of the secrets that must be identical on
  * every replica and pm2 worker (encryption key, tracking secret, OAuth state
@@ -335,3 +410,4 @@ module.exports.uninstallEmailInterception = uninstallEmailInterception;
 module.exports.purgeSensitiveLinkMappings = purgeSensitiveLinkMappings;
 module.exports.WRAPPED = WRAPPED;
 module.exports.logSecretFingerprints = logSecretFingerprints;
+module.exports.migrateQueuePermissions = migrateQueuePermissions;

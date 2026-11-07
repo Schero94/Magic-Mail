@@ -94,6 +94,40 @@ async function resolveExistingUserId(userId) {
 }
 
 /**
+ * Send queue options from a validated body (additive, optional fields).
+ * @param {boolean|undefined} queue
+ * @param {string|undefined} idempotencyKey
+ * @param {import('koa').Context} ctx - Authenticated request (scopes the key)
+ * @returns {{queue?: boolean, idempotencyKey?: string, idempotencyScope?: string}}
+ */
+function queueOptions(queue, idempotencyKey, ctx) {
+  const scope = idempotencyKey ? callerScope(ctx) : null;
+  return {
+    ...(typeof queue === 'boolean' ? { queue } : {}),
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+    ...(scope ? { idempotencyScope: scope } : {}),
+  };
+}
+
+/**
+ * Stable identity of the authenticated Content-API caller, used to scope
+ * idempotency keys so two callers never share one key space. Strapi stores
+ * the strategy result in `ctx.state.auth.credentials` (the API token entity
+ * for `content-api-token`, the user for `users-permissions`).
+ *
+ * @param {import('koa').Context} ctx
+ * @returns {string|null} e.g. `token:12` or `user:7`
+ */
+function callerScope(ctx) {
+  if (isContentApiToken(ctx)) {
+    const id = ctx.state?.auth?.credentials?.id;
+    return id !== undefined && id !== null ? `token:${id}` : null;
+  }
+  const userId = ctx.state?.user?.id;
+  return userId !== undefined && userId !== null ? `user:${userId}` : null;
+}
+
+/**
  * Main Controller - Content-API send routes.
  *
  * Every endpoint validates its payload with Zod BEFORE any service call.
@@ -106,8 +140,12 @@ module.exports = {
       const body = validate('content.send', { ...ctx.request.body });
       await authorizeSender(ctx, body);
 
+      const { queue, idempotencyKey, ...message } = body;
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.send(body, { source: 'content-api' });
+      const result = await emailRouter.send(message, {
+        source: 'content-api',
+        ...queueOptions(queue, idempotencyKey, ctx),
+      });
 
       ctx.body = { success: true, ...result };
     } catch (err) {
@@ -121,8 +159,12 @@ module.exports = {
       await authorizeSender(ctx, body);
       delete body.userId;
 
+      const { queue, idempotencyKey, ...message } = body;
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendMessage(body, { source: 'content-api' });
+      const result = await emailRouter.sendMessage(message, {
+        source: 'content-api',
+        ...queueOptions(queue, idempotencyKey, ctx),
+      });
 
       ctx.body = { success: true, ...result };
     } catch (err) {

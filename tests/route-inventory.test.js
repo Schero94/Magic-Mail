@@ -14,6 +14,7 @@ const expected = {
   designer: 19,
   analytics: 7,
   settings: 2,
+  outbox: 7,
   'content-send': 2,
   tracking: 2,
   webhooks: 2,
@@ -31,6 +32,7 @@ const category = (scope, route) => {
   if (route.path.startsWith('/routing-rules')) return 'routing-rules';
   if (route.path.startsWith('/oauth')) return 'oauth';
   if (route.path.startsWith('/designer')) return 'designer';
+  if (route.path.startsWith('/outbox') || route.path === '/analytics/queue-stats') return 'outbox';
   if (route.path.startsWith('/analytics')) return 'analytics';
   if (route.path === '/settings') return 'settings';
   return 'unaccounted';
@@ -107,6 +109,10 @@ test('admin routes require the matching least-privilege capability', () => {
     )
       return 'manage';
 
+    // The outbox has its own grants (queue.read / queue.manage).
+    if (route.path.startsWith('/outbox') || route.path === '/analytics/queue-stats')
+      return route.method === 'GET' ? 'queue.read' : 'queue.manage';
+
     // Rendering/exporting a template reads plugin data but does not mutate it.
     if (route.path === '/designer/render/:templateReferenceId' || route.path === '/designer/export')
       return 'read';
@@ -163,6 +169,8 @@ test('server and admin register read, manage and test-send grants separately fro
   assert.deepEqual(registered.map(({ uid }) => uid).sort(), [
     'access',
     'manage',
+    'queue.manage',
+    'queue.read',
     'read',
     'test-send',
   ]);
@@ -181,6 +189,8 @@ test('server and admin register read, manage and test-send grants separately fro
     ['read', 'read'],
     ['manage', 'manage'],
     ['testSend', 'test-send'],
+    ['queueRead', 'queue\\.read'],
+    ['queueManage', 'queue\\.manage'],
   ]) {
     assert.match(
       permissionSource,

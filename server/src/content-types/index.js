@@ -8,6 +8,7 @@ const emailLink = require('./email-link/schema.json');
 const emailTemplate = require('./email-template/schema.json');
 const emailTemplateVersion = require('./email-template-version/schema.json');
 const pluginSettings = require('./plugin-settings/schema.json');
+const outboxMessage = require('./outbox-message/schema.json');
 
 module.exports = {
   'email-account': {
@@ -33,5 +34,8 @@ module.exports = {
   },
   'plugin-settings': {
     schema: pluginSettings,
+  },
+  'outbox-message': {
+    schema: outboxMessage,
   },
 };
