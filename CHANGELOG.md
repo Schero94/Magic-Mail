@@ -1,3 +1,28 @@
+## [Unreleased]
+
+### Added
+
+* **multi-instance:** MagicMail is correct with several Node processes on one database (for example 2 Railway replicas with `pm2 -i 4`), without sticky sessions or Redis. Three plugin tables are created at startup with plain `CREATE TABLE` (PostgreSQL, MySQL, SQLite): `magic_mail_claims` (leases and de-duplication claims), `magic_mail_rate_limits` (shared rate-limit windows) and `magic_mail_oauth_pending` (one row per OAuth flow). Expired rows are removed every five minutes.
+* **rate-limit:** limits are counted across all processes. New `rateLimit` plugin config: `store: 'database'` (default), `'redis'` (pass an ioredis or node-redis v4+ client as `rateLimit.redis`; falls back to the database on errors) or `'memory'` (previous per-process limiter).
+* **ops:** every process logs short one-way fingerprints of the encryption, tracking and OAuth state secrets at startup, so replicas with different secrets are easy to spot.
+* **docs:** README section "Running several instances (Railway replicas, pm2 cluster)" with the required configuration.
+
+### Fixed
+
+* **oauth:** concurrent OAuth flows on different instances no longer overwrite each other, a consumed state can not become valid again, and a duplicated callback is accepted only once (atomic consume of the flow row). Pending flows from the previous `oauth:pending` store entry are moved once.
+* **oauth:** token refreshes run once per account across all processes; others use the stored token, and a rotated refresh token is never overwritten by an older one or by a refresh that started before a reconnect.
+* **delivery:** a SendGrid or Mailgun retry that reaches another instance while the first one is still processing is acknowledged without work, so bounce/complaint listeners run once per event.
+* **tracking:** open and click counters (email log and link) are incremented with one atomic UPDATE, so parallel opens and link scans are no longer lost.
+* **templates:** version numbers, template reference ids, the primary account and account/rule name checks are serialised across processes with a database lease.
+* **templates:** saving the Users & Permissions reset-password and confirmation templates at the same time keeps both changes (compare-and-set on the core-store row, duplicate rows removed). The plugin's one-time flags use the same write.
+* **jobs:** the quota refresh, the tracking privacy migration, the retention purge and the sensitive-link purge run in one process per interval (database lease) instead of in every process.
+* **quota:** hourly and daily windows only move forward, so a replica whose clock lags slightly can no longer reset a window another replica already opened.
+* **settings:** a settings change made on one instance applies on every instance within about a second (cache revalidated against the row's `updated_at`); the default settings row is created once across processes.
+
+### Migration
+
+No action is needed for a single instance. For several instances, read "Running several instances" in the README: one database, identical `APP_KEYS`, `MAGIC_MAIL_ENCRYPTION_KEY`, `MAGIC_MAIL_TRACKING_SECRET` and `MAGIC_MAIL_OAUTH_STATE_SECRET` on every process, and `server.proxy.koa: true` behind a proxy. The database user needs the `CREATE TABLE` right Strapi already uses. OAuth flows started on a previous version during the deploy may have to be started again.
+
 # [4.2.0](https://github.com/Schero94/Magic-Mail/compare/v4.1.0...v4.2.0) (2026-11-07)
 
 
