@@ -30,26 +30,29 @@
 
 ## [Unreleased]
 
-### Added
-
-* **queue:** opt-in send queue (outbox) with up to 3 retries (1, 5, 15 minutes, +/-20 % jitter), safe with several replicas and pm2 workers on one database. `send(input, { queue: true, idempotencyKey?, notAfter? })` stores the prepared mail and resolves `{ success: true, queued: true, status, outboxId, emailId, accountUsed: null, messageId: null }` (additive keys); the Content API send routes accept optional `queue` and `idempotencyKey`. New owner setting _Queue failed sends_ (default off) captures sends that failed after failover: proven non-acceptance or no capacity resolve as queued, ambiguous outcomes are kept as `uncertain` (never re-sent automatically) and the original error is thrown with `error.magicMailOutboxId`, permanent errors are thrown unchanged. See README "Retries and the outbox".
-* **queue:** new content type `plugin::magic-mail.outbox-message` (table `magic_mail_outbox`, hidden) with encrypted payloads, `config.queue` options, admin routes `/magic-mail/outbox` and `/magic-mail/analytics/queue-stats`, events `magic-mail.queue.*`, and retention.
-* **admin:** Outbox tab (filter, details with the error history, Retry now, Mark as sent, Discard) and a "Retries and outbox" settings section, in all five languages.
-* **rbac:** new actions `plugin::magic-mail.queue.read` and `plugin::magic-mail.queue.manage`.
-
 ### Fixed
 
 * **failover:** inline sends move on to the next account only when the error proves the provider did not accept the message, with the same classifier as the outbox (`utils/delivery-outcome.js`). A connection lost or timed out after the SMTP `354` reply, HTTP 500/502/504 and network errors after the request was sent no longer fail over; they reach the caller (and become `uncertain` outbox rows when _Queue failed sends_ is on). Before, these could deliver a mail twice through two accounts. SMTP `4xx` replies after DATA (for example `451`) and HTTP 408 now fail over; HTTP 401/403/429/503, SMTP 421, refused connections and authentication failures still do.
+* **admin:** below 768 px the MagicMail tab bar keeps every section reachable without hidden off-screen tabs: it scrolls in its own region with "Show previous sections" / "Show more sections" edge buttons while tabs are out of view, keeps the active tab centred (also after the Outbox tab appears once its permission is checked) and scrolls a tab reached with the arrow keys into view. From 768 px it is the unchanged Design System tab bar, like native Strapi tabbed screens.
+* **admin:** the Outbox tab has the same page gutters and spacing below the tabs as the other tabs (it touched the screen edges).
 
 ### Changed
 
 * **package:** installs without plugin warnings in a fresh `create-strapi-app@5.61` project with yarn 1, npm 11 and pnpm. `@strapi/utils` (used by the server code) is now a dependency instead of a peer an app only has transitively. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers (`peerDependenciesMeta`) instead of bundled dependencies, so the plugin always uses the admin's own copies; Strapi 5.61 aliases and dedupes the Design System in the admin build. The `react`/`react-dom` peers accept `^18.0.0` like the Strapi 5 plugin template. The minimum Strapi stays 5.57.0, the first release whose admin ships Design System 2.2.4.
 * **package:** npm metadata: plain description, homepage `https://schero94.github.io/Magic-Mail/`, `git+https` repository URL, issue tracker and search keywords.
 
-### Fixed (admin)
+### Migration notes
 
-* **admin:** below 768 px the MagicMail tab bar keeps every section reachable without hidden off-screen tabs: it scrolls in its own region with "Show previous sections" / "Show more sections" edge buttons while tabs are out of view, keeps the active tab centred (also after the Outbox tab appears once its permission is checked) and scrolls a tab reached with the arrow keys into view. From 768 px it is the unchanged Design System tab bar, like native Strapi tabbed screens.
-* **admin:** the Outbox tab has the same page gutters and spacing below the tabs as the other tabs (it touched the screen edges).
+* Failover is stricter (see Fixed). A send whose first account returns HTTP 500/502/504, or whose SMTP connection drops after the message was transmitted, now throws instead of trying the next account. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
+
+## 4.4.0 details (written as "Unreleased" before the 4.4.0 release)
+
+### Added
+
+* **queue:** opt-in send queue (outbox) with up to 3 retries (1, 5, 15 minutes, +/-20 % jitter), safe with several replicas and pm2 workers on one database. `send(input, { queue: true, idempotencyKey?, notAfter? })` stores the prepared mail and resolves `{ success: true, queued: true, status, outboxId, emailId, accountUsed: null, messageId: null }` (additive keys); the Content API send routes accept optional `queue` and `idempotencyKey`. New owner setting _Queue failed sends_ (default off) captures sends that failed after failover: proven non-acceptance or no capacity resolve as queued, ambiguous outcomes are kept as `uncertain` (never re-sent automatically) and the original error is thrown with `error.magicMailOutboxId`, permanent errors are thrown unchanged. See README "Retries and the outbox".
+* **queue:** new content type `plugin::magic-mail.outbox-message` (table `magic_mail_outbox`, hidden) with encrypted payloads, `config.queue` options, admin routes `/magic-mail/outbox` and `/magic-mail/analytics/queue-stats`, events `magic-mail.queue.*`, and retention.
+* **admin:** Outbox tab (filter, details with the error history, Retry now, Mark as sent, Discard) and a "Retries and outbox" settings section, in all five languages.
+* **rbac:** new actions `plugin::magic-mail.queue.read` and `plugin::magic-mail.queue.manage`.
 
 ### Fixed (send queue, before release)
 
@@ -62,8 +65,7 @@
 
 ### Migration notes
 
-* Failover is stricter (see Fixed). A send whose first account returns HTTP 500/502/504, or whose SMTP connection drops after the message was transmitted, now throws instead of trying the next account. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
-* The queue itself changes nothing until `queue: true` is passed or _Queue failed sends_ is switched on.
+* Nothing changes until `queue: true` is passed or _Queue failed sends_ is switched on.
 * Roles that had `read` get `queue.read`, roles that had `manage` get `queue.manage`, once at startup. Remove them in the role editor if a role should not see failed mails.
 * **Magic Link (and other callers with their own fallback):** with _Queue failed sends_ on, a temporary failure no longer throws, so the caller's fallback does not run and the login mail may arrive minutes later. Magic Link should call `send(..., { queue: false })`, or pass `notAfter` set to the token expiry. This needs a change in strapi-plugin-magic-link.
 * All instances need the same `MAGIC_MAIL_ENCRYPTION_KEY` to send mails queued by another instance.
