@@ -1,5 +1,67 @@
 'use strict';
 
+const MAX_PAYLOAD_CEILING = 20 * 1024 * 1024;
+
+/**
+ * Validates `config.queue` (send queue). Unknown keys are ignored like the
+ * rest of the plugin config.
+ *
+ * @param {*} queue
+ * @throws {Error} On an invalid value
+ */
+function validateQueueConfig(queue) {
+  if (typeof queue !== 'object' || queue === null || Array.isArray(queue)) {
+    throw new Error('[magic-mail] config.queue must be an object');
+  }
+  if (queue.worker !== undefined && typeof queue.worker !== 'boolean') {
+    throw new Error('[magic-mail] config.queue.worker must be a boolean');
+  }
+  const ranges = {
+    pollIntervalMs: [1_000, 3_600_000],
+    batchSize: [1, 100],
+    concurrency: [1, 20],
+    leaseMs: [30_000, 3_600_000],
+    maxAgeHours: [1, 24 * 30],
+    maxPayloadBytes: [1024, MAX_PAYLOAD_CEILING],
+    maxDispatchPerMinute: [1, 100_000],
+  };
+  for (const [key, [min, max]] of Object.entries(ranges)) {
+    const value = queue[key];
+    if (value !== undefined && (!Number.isInteger(value) || value < min || value > max)) {
+      throw new Error(`[magic-mail] config.queue.${key} must be an integer from ${min} to ${max}`);
+    }
+  }
+  if (
+    queue.backoffMs !== undefined &&
+    (!Array.isArray(queue.backoffMs) ||
+      queue.backoffMs.length === 0 ||
+      queue.backoffMs.length > 10 ||
+      queue.backoffMs.some((v) => !Number.isInteger(v) || v < 1_000 || v > 86_400_000))
+  ) {
+    throw new Error(
+      '[magic-mail] config.queue.backoffMs must be 1-10 integers from 1000 to 86400000'
+    );
+  }
+  if (
+    queue.jitterRatio !== undefined &&
+    (typeof queue.jitterRatio !== 'number' || queue.jitterRatio < 0 || queue.jitterRatio > 0.9)
+  ) {
+    throw new Error('[magic-mail] config.queue.jitterRatio must be a number from 0 to 0.9');
+  }
+  if (queue.retention !== undefined) {
+    const retention = queue.retention;
+    if (typeof retention !== 'object' || retention === null || Array.isArray(retention)) {
+      throw new Error('[magic-mail] config.queue.retention must be an object');
+    }
+    for (const key of ['sentDays', 'unresolvedDays', 'rowDays']) {
+      const value = retention[key];
+      if (value !== undefined && (!Number.isInteger(value) || value < 1 || value > 3650)) {
+        throw new Error(`[magic-mail] config.queue.retention.${key} must be 1-3650 days`);
+      }
+    }
+  }
+}
+
 module.exports = {
   default: {
     // Enable debug logging (set to true to see info/debug plugin logs;
@@ -54,6 +116,35 @@ module.exports = {
       allowedLinkHosts: [],
       // Store open/click IPs truncated to /24 (IPv4) or /48 (IPv6).
       anonymizeIp: true,
+    },
+    // Send queue (outbox). Off unless a send passes `queue: true` or the
+    // "Queue failed sends" setting is on. See README "Retries and the outbox".
+    queue: {
+      // false: this process never dispatches queued mail (e.g. web-only replicas).
+      worker: true,
+      // Poll interval plus random jitter of up to half of it.
+      pollIntervalMs: 10_000,
+      // Rows claimed per poll and parallel sends per process.
+      batchSize: 5,
+      concurrency: 2,
+      // Visibility timeout of a claim; must exceed the bounded send time.
+      leaseMs: 180_000,
+      // Delay before retry 1, 2, 3 (+/- jitterRatio).
+      backoffMs: [60_000, 300_000, 900_000],
+      jitterRatio: 0.2,
+      // Queued mail older than this is never sent (status failed, EXPIRED).
+      maxAgeHours: 24,
+      // Largest prepared message (JSON, before encryption) that is queued.
+      maxPayloadBytes: 10 * 1024 * 1024,
+      // Queue dispatches per minute across every process.
+      maxDispatchPerMinute: 120,
+      retention: {
+        // Days sent rows are kept, days failed/uncertain rows keep their
+        // message (so they can still be retried), days any row is kept.
+        sentDays: 7,
+        unresolvedDays: 14,
+        rowDays: 30,
+      },
     },
   },
   validator(config) {
@@ -157,6 +248,7 @@ module.exports = {
         throw new Error('[magic-mail] config.rateLimit.redisPrefix must be a string');
       }
     }
+    if (config?.queue !== undefined) validateQueueConfig(config.queue);
     if (config?.quotaTimezone !== undefined) {
       try {
         new Intl.DateTimeFormat('en-US', { timeZone: config.quotaTimezone });

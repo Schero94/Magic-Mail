@@ -14,6 +14,13 @@ module.exports = async ({ strapi }) => {
   const log = createLogger(strapi);
   const registry = strapi.magicMail || {};
 
+  // Stop the send queue worker from scheduling new ticks.
+  try {
+    strapi.plugin('magic-mail')?.service('queue')?.stop();
+  } catch {
+    // ignore
+  }
+
   // 1. Clear all plugin-scoped timers (counter resets, purge, etc.).
   const timers = Array.isArray(registry.timers) ? registry.timers : [];
   for (const handle of timers) {

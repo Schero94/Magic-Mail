@@ -31,7 +31,7 @@ const PLUGIN_ID = 'magic-mail';
  * boot, and sharing one instance across routes would leak config
  * between them.
  *
- * @param {'read'|'manage'|'test-send'} capability
+ * @param {'read'|'manage'|'test-send'|'queue.read'|'queue.manage'} capability
  * @returns {Array<string|object>}
  */
 const adminPolicy = (capability, extraActions = []) => [
@@ -501,6 +501,71 @@ module.exports = {
       config: {
         policies: adminPolicy('manage'),
         description: 'Clear all email logs',
+      },
+    },
+
+    // ─────────────────────── Outbox (send queue) ───────────────────────
+    {
+      method: 'GET',
+      path: '/analytics/queue-stats',
+      handler: 'outbox.stats',
+      config: {
+        policies: adminPolicy('queue.read'),
+        description: 'Send queue metrics (counts and error codes only)',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/outbox',
+      handler: 'outbox.list',
+      config: {
+        policies: adminPolicy('queue.read'),
+        description: 'List queued, failed and uncertain mails (no content)',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/outbox/:documentId',
+      handler: 'outbox.findOne',
+      config: {
+        policies: adminPolicy('queue.read'),
+        description: 'Outbox row with sanitized error history',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/outbox/:documentId/retry',
+      handler: 'outbox.retry',
+      config: {
+        policies: adminPolicy('queue.manage'),
+        description: 'Retry an outbox mail now',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/outbox/:documentId/discard',
+      handler: 'outbox.discard',
+      config: {
+        policies: adminPolicy('queue.manage'),
+        description: 'Discard an outbox mail',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/outbox/:documentId/mark-sent',
+      handler: 'outbox.markSent',
+      config: {
+        policies: adminPolicy('queue.manage'),
+        description: 'Mark an uncertain outbox mail as sent',
+      },
+    },
+    {
+      method: 'DELETE',
+      path: '/outbox',
+      handler: 'outbox.deleteFinal',
+      config: {
+        policies: adminPolicy('queue.manage'),
+        description: 'Delete sent, failed and discarded outbox rows older than a date',
       },
     },
 

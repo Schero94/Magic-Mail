@@ -53,6 +53,18 @@
     "trackingFallbackUrl": {
       "type": "string",
       "configurable": false
+    },
+    "queueFailedSends": {
+      "type": "boolean",
+      "default": false,
+      "configurable": false
+    },
+    "queueMaxAttempts": {
+      "type": "integer",
+      "default": 3,
+      "min": 1,
+      "max": 10,
+      "configurable": false
     }
   }
 }

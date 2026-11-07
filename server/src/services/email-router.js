@@ -7,6 +7,13 @@ const { normalizeMessageId } = require('../utils/message-id');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
 const coordination = require('../utils/coordination');
+const {
+  classifyDeliveryError,
+  combineOutcome,
+  createSmtpProbe,
+  tagSmtpStage,
+  tagPreDispatch,
+} = require('../utils/delivery-outcome');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -209,7 +216,29 @@ const RESERVED_X_HEADERS = new Set([
   'x-priority',
   'x-entity-ref-id',
   'x-content-type-options',
+  'x-magicmail-outbox',
 ]);
+
+/** Bounded timeouts for queue (worker) sends; the lease must exceed their sum. */
+const BOUNDED_SMTP_TIMEOUTS = Object.freeze({
+  connectionTimeout: 30_000,
+  greetingTimeout: 30_000,
+  socketTimeout: 60_000,
+});
+const BOUNDED_FETCH_TIMEOUT_MS = 60_000;
+
+/**
+ * fetch options for a provider request: an abort signal for bounded (queue)
+ * sends, nothing otherwise (4.3 behaviour).
+ *
+ * @param {object} emailData
+ * @returns {{signal?: AbortSignal}}
+ */
+function fetchBounds(emailData) {
+  return emailData?.__dispatch?.bounded
+    ? { signal: AbortSignal.timeout(BOUNDED_FETCH_TIMEOUT_MS) }
+    : {};
+}
 
 /**
  * Strips CR/LF from a string to prevent SMTP header injection.
@@ -229,7 +258,7 @@ function stripHeaderInjection(value) {
  * @param {string} message - Client-safe message without personal data
  * @returns {Error}
  */
-function validationError(message) {
+function validationError(message, reason) {
   let error;
   try {
     const { errors } = require('@strapi/utils');
@@ -239,6 +268,17 @@ function validationError(message) {
     error.name = 'ValidationError';
   }
   error.code = 'MAGIC_MAIL_VALIDATION';
+  if (reason) error.details = { reason };
+  return error;
+}
+
+/**
+ * Error for `queue: true` when the outbox table is missing.
+ * @returns {Error}
+ */
+function queueUnavailableError() {
+  const error = new Error('The send queue is not available');
+  error.code = 'MAGIC_MAIL_QUEUE_UNAVAILABLE';
   return error;
 }
 
@@ -712,6 +752,13 @@ function buildOutboundHeaders(emailData) {
   const unsubscribe = unsubscribeHeaders(emailData);
   Object.assign(headers, unsubscribe);
   if (type === 'marketing' && unsubscribe['List-Unsubscribe']) headers.Precedence = 'bulk';
+  // Queue sends carry their outbox id (diagnostics, duplicate detection).
+  if (
+    typeof emailData.__outboxId === 'string' &&
+    /^[A-Za-z0-9]{1,64}$/.test(emailData.__outboxId)
+  ) {
+    headers['X-MagicMail-Outbox'] = emailData.__outboxId;
+  }
 
   return mergeHeaders(headers, emailData.headers);
 }
@@ -728,9 +775,19 @@ function senderFor(account, emailData) {
   return resolveSender(account, emailData.from).sender;
 }
 
-/** @returns {string} Message-ID for the account's domain */
-function createMessageId(account) {
+/**
+ * Message-ID for the account's domain. Queue sends pass a stable local part,
+ * so every attempt of one queued message uses the same Message-ID.
+ *
+ * @param {object} account
+ * @param {string} [localPart]
+ * @returns {string}
+ */
+function createMessageId(account, localPart) {
   const domain = String(account.fromEmail || '').split('@')[1] || 'localhost';
+  if (typeof localPart === 'string' && /^[a-z0-9]{8,64}$/.test(localPart)) {
+    return `<${localPart}@${domain}>`;
+  }
   return `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
 }
 
@@ -861,7 +918,7 @@ function buildRawMimeMessage(account, emailData) {
     html: emailData.html || undefined,
     headers: buildOutboundHeaders(emailData),
     attachments: attachments.length ? attachments : undefined,
-    messageId: createMessageId(account),
+    messageId: createMessageId(account, emailData.__messageIdLocal),
     date: new Date(),
     disableFileAccess: true,
     disableUrlAccess: true,
@@ -901,6 +958,10 @@ function cloneEmailData(input) {
     if (Array.isArray(copy[key])) copy[key] = [...copy[key]];
   }
   if (copy.headers && typeof copy.headers === 'object') copy.headers = { ...copy.headers };
+  // Internal markers are set by MagicMail only, never by callers.
+  for (const key of Object.keys(copy)) {
+    if (key.startsWith('__')) delete copy[key];
+  }
   return copy;
 }
 
@@ -920,7 +981,15 @@ module.exports = ({ strapi }) => ({
    * @param {boolean} [options.allowInactive] - With accountDocumentId: allow an inactive account (account test)
    * @param {Function} [options.fallbackSend] - Called when no MagicMail account can take the message (native interception)
    * @param {string} [options.source] - Caller identifier ('strapi-email', 'content-api', ...)
+   * @param {boolean|'auto'} [options.queue] - true: deliver through the outbox (returns
+   *   `{ success, queued: true, status, outboxId, emailId }` without sending inline);
+   *   false: never queue; 'auto'/omitted: capture failed sends when the owner setting
+   *   `queueFailedSends` is on
+   * @param {string} [options.idempotencyKey] - De-duplicates queued sends per source
+   * @param {Date} [options.notAfter] - A queued message is never sent after this time
    * @returns {Promise<Object>} Send result
+   * @throws {Error} The provider error (unchanged), with `magicMailOutboxId` when an
+   *   ambiguous failure was recorded as uncertain in the outbox
    */
   async send(input, options = {}) {
     const data = cloneEmailData(input);
@@ -1004,6 +1073,28 @@ module.exports = ({ strapi }) => ({
     data.attachments = normalizeAttachments(data.attachments);
     this.validateEmailSecurity(data);
 
+    // Send queue: `queue: true` stores the prepared message for the worker;
+    // 'auto' (default) captures failed sends when the owner enabled it.
+    const queueMode = options.queue === true ? 'queue' : options.queue === false ? 'off' : 'auto';
+    const explicitAccount = Boolean(options.accountDocumentId || data.accountName);
+    const queueService = queueMode === 'off' ? null : this.queueService();
+    if (queueMode === 'queue') {
+      if (!queueService) throw queueUnavailableError();
+      if (options.allowInactive || source === 'admin-test') {
+        throw validationError('Test sends can not be queued');
+      }
+      const duplicate = await queueService.findDuplicate(source, options.idempotencyKey);
+      if (duplicate) return duplicate;
+      queueService.assertQueueable(data);
+    }
+    const captureEnabled =
+      queueMode === 'auto' &&
+      pluginSettings.queueFailedSends === true &&
+      Boolean(queueService) &&
+      !explicitAccount &&
+      options.allowInactive !== true &&
+      source !== 'admin-test';
+
     // One delivery log per attempt, whether or not tracking is enabled.
     const emailLog = await this.createDeliveryLog(data, renderedTemplate, source);
     const trackingEnabled = data.enableTracking !== false;
@@ -1011,18 +1102,61 @@ module.exports = ({ strapi }) => ({
       data.html = await this.applyTracking(data, emailLog, pluginSettings);
     }
 
+    if (queueMode === 'queue') {
+      return queueService.enqueue(data, {
+        emailLog,
+        source,
+        idempotencyKey: options.idempotencyKey,
+        notAfter: options.notAfter,
+        accountDocumentId: options.accountDocumentId,
+        createdByUser: options.createdByUser,
+      });
+    }
+
     const defaultFromName = pluginSettings.defaultFromName || '';
     const attempted = [];
     const skipped = [];
+    const routingCtx = {
+      ...options,
+      defaultFromName,
+      attempted,
+      skipped,
+      source,
+      ...(captureEnabled ? { trackOutcome: true, attemptOutcomes: [] } : {}),
+    };
+
+    /**
+     * Captures a failed send into the outbox (owner setting). Returns the
+     * row, or null when it was not captured.
+     */
+    const captureFailure = async (error, errorClass) => {
+      if (!captureEnabled) return null;
+      return queueService.capture(data, {
+        emailLog,
+        source,
+        error,
+        errorClass,
+        attempted,
+        lastAccountDocumentId: routingCtx.lastAccountDocumentId,
+        idempotencyKey: options.idempotencyKey,
+        notAfter: options.notAfter,
+      });
+    };
+
+    /** Resolves a captured send as queued (Magic Mail now owns delivery). */
+    const resolveQueued = async (row) => {
+      await this.markLog(
+        emailLog,
+        { deliveryStatus: 'pending' },
+        { attempted, skipped, queue: { outboxId: row.documentId, status: row.status } }
+      );
+      strapi.log.warn('[magic-mail] [QUEUE] Send failed; queued for a retry');
+      queueService.nudge();
+      return queueService.queuedResult(row);
+    };
 
     try {
-      const routing = await this.routeAndDispatch(data, {
-        ...options,
-        defaultFromName,
-        attempted,
-        skipped,
-        source,
-      });
+      const routing = await this.routeAndDispatch(data, routingCtx);
 
       await this.markLog(
         emailLog,
@@ -1072,6 +1206,10 @@ module.exports = ({ strapi }) => ({
             messageId: result?.messageId,
           };
         } catch (fallbackError) {
+          if (captureEnabled && classifyDeliveryError(fallbackError) === 'transient') {
+            const row = await captureFailure(fallbackError, 'transient');
+            if (row) return resolveQueued(row);
+          }
           await this.markLog(
             emailLog,
             { deliveryStatus: 'failed' },
@@ -1085,7 +1223,35 @@ module.exports = ({ strapi }) => ({
         }
       }
 
-      await this.markLog(emailLog, { deliveryStatus: 'failed' }, { attempted, skipped });
+      let queueInfo;
+      if (captureEnabled) {
+        const errorClass = combineOutcome(routingCtx.attemptOutcomes, error);
+        if (errorClass === 'transient' || errorClass === 'capacity') {
+          const row = await captureFailure(error, errorClass);
+          if (row) return resolveQueued(row);
+        } else if (errorClass === 'ambiguous') {
+          const row = await captureFailure(error, errorClass);
+          if (row) {
+            queueInfo = { outboxId: row.documentId, status: 'uncertain' };
+            try {
+              Object.defineProperty(error, 'magicMailOutboxId', {
+                value: row.documentId,
+                enumerable: true,
+                configurable: true,
+                writable: true,
+              });
+            } catch {
+              // frozen error: the outbox row still exists
+            }
+          }
+        }
+      }
+
+      await this.markLog(
+        emailLog,
+        { deliveryStatus: 'failed' },
+        { attempted, skipped, ...(queueInfo ? { queue: queueInfo } : {}) }
+      );
       strapi.log.error(
         '[magic-mail] [ERROR] Email send failed:',
         error?.name || 'Error',
@@ -1093,6 +1259,42 @@ module.exports = ({ strapi }) => ({
       );
       throw error;
     }
+  },
+
+  /**
+   * The queue service, or null when the plugin runs without it (unit-test
+   * doubles) or its table is missing.
+   *
+   * @returns {object|null}
+   */
+  queueService() {
+    try {
+      const service = strapi.plugin('magic-mail').service('queue');
+      return service && typeof service.isAvailable === 'function' && service.isAvailable()
+        ? service
+        : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Bare, lower-cased recipient addresses (used by the queue for hashing).
+   * @param {*} value
+   * @returns {string[]}
+   */
+  listRecipientAddresses(value) {
+    return listAddresses(value);
+  },
+
+  /**
+   * Validation error in the router's format (MAGIC_MAIL_VALIDATION).
+   * @param {string} message
+   * @param {string} [reason]
+   * @returns {Error}
+   */
+  createValidationError(message, reason) {
+    return validationError(message, reason);
   },
 
   /**
@@ -1262,6 +1464,7 @@ module.exports = ({ strapi }) => ({
       if (routingInfo.attempted?.length) extra.attemptedAccounts = [...routingInfo.attempted];
       if (routingInfo.skipped?.length) extra.skippedAccounts = [...routingInfo.skipped];
       if (routingInfo.fallback) extra.fallback = routingInfo.fallback;
+      if (routingInfo.queue) extra.queue = { ...(metadata.queue || {}), ...routingInfo.queue };
       await strapi.documents(EMAIL_LOG_UID).update({
         documentId: emailLog.documentId,
         data: Object.keys(extra).length
@@ -1288,12 +1491,31 @@ module.exports = ({ strapi }) => ({
     const excluded = [];
     let lastError = null;
 
+    // Queue retries prefer another account than the one that failed last,
+    // but still use it when it is the only one.
+    let softExclude = explicit
+      ? []
+      : (Array.isArray(ctx.softExclude) ? ctx.softExclude : []).filter(Boolean);
+    const dispatchOptions =
+      ctx.bounded || ctx.trackOutcome
+        ? { bounded: ctx.bounded === true, trackOutcome: ctx.trackOutcome === true }
+        : null;
+
     for (let index = 0; index < MAX_ROUTING_CANDIDATES; index += 1) {
       let account;
       if (explicit) {
         account = index === 0 ? explicitAccount : null;
       } else {
-        account = await this.selectAccount(data.type, data.priority, [...excluded], data);
+        account = await this.selectAccount(
+          data.type,
+          data.priority,
+          [...excluded, ...softExclude],
+          data
+        );
+        if (!account && softExclude.length > 0) {
+          softExclude = [];
+          account = await this.selectAccount(data.type, data.priority, [...excluded], data);
+        }
       }
       if (!account || (account.documentId && excluded.includes(account.documentId))) break;
       excluded.push(account.documentId);
@@ -1312,8 +1534,19 @@ module.exports = ({ strapi }) => ({
         else strapi.log.warn(message);
       }
       const attempt = { ...data, from: sender };
+      if (dispatchOptions) attempt.__dispatch = dispatchOptions;
+
+      if (typeof ctx.onBeforeDispatch === 'function') {
+        try {
+          await ctx.onBeforeDispatch(account);
+        } catch (error) {
+          if (reservation === 'reserved') await this.releaseQuota(account);
+          throw error;
+        }
+      }
 
       ctx.attempted.push(account.name);
+      ctx.lastAccountDocumentId = account.documentId;
       try {
         const result = await this.sendViaAccount(account, attempt);
         try {
@@ -1330,7 +1563,14 @@ module.exports = ({ strapi }) => ({
       } catch (error) {
         if (reservation === 'reserved') await this.releaseQuota(account);
         lastError = error;
-        if (!explicit && isSafeToRetry(error)) {
+        // Queue sends fail over only on proven non-acceptance (strict
+        // classifier); inline sends keep the 4.3 rule (isSafeToRetry).
+        const outcome = ctx.trackOutcome ? classifyDeliveryError(error) : null;
+        const canFailover = ctx.strictFailover ? outcome === 'transient' : isSafeToRetry(error);
+        if (!explicit && canFailover && Array.isArray(ctx.attemptOutcomes)) {
+          ctx.attemptOutcomes.push(outcome);
+        }
+        if (!explicit && canFailover) {
           strapi.log.warn(
             '[magic-mail] [FAILOVER] Account could not send; trying the next account:',
             error?.name || 'Error',
@@ -1574,6 +1814,15 @@ module.exports = ({ strapi }) => ({
       disableFileAccess: true,
       disableUrlAccess: true,
     };
+    const dispatch = emailData.__dispatch || {};
+    if (dispatch.bounded) Object.assign(transportConfig, BOUNDED_SMTP_TIMEOUTS);
+    // Queue sends: a private logger records whether the server answered DATA
+    // (354). It keeps booleans only; the transaction text is never stored.
+    const smtpProbe = dispatch.trackOutcome ? createSmtpProbe() : null;
+    if (smtpProbe) {
+      transportConfig.logger = smtpProbe.logger;
+      transportConfig.transactionLog = true;
+    }
 
     if (config.dkim) {
       transportConfig.dkim = {
@@ -1605,13 +1854,18 @@ module.exports = ({ strapi }) => ({
       disableFileAccess: true,
       disableUrlAccess: true,
       date: new Date(),
-      messageId: createMessageId(account),
+      messageId: createMessageId(account, emailData.__messageIdLocal),
       headers,
       encoding: 'utf-8',
       textEncoding: 'base64',
     };
 
-    return transporter.sendMail(mailOptions);
+    if (!smtpProbe) return transporter.sendMail(mailOptions);
+    try {
+      return await transporter.sendMail(mailOptions);
+    } catch (error) {
+      throw tagSmtpStage(error, smtpProbe.probe);
+    }
   },
 
   /**
@@ -1777,7 +2031,13 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<object>}
    */
   async withOAuthRetry(account, oauth, refresh, send) {
-    const accessToken = await this.currentOAuthToken(account, oauth, refresh);
+    let accessToken;
+    try {
+      accessToken = await this.currentOAuthToken(account, oauth, refresh);
+    } catch (error) {
+      // Token refresh failed: nothing was sent.
+      throw tagPreDispatch(error);
+    }
     try {
       return await send(accessToken);
     } catch (error) {
@@ -1785,7 +2045,12 @@ module.exports = ({ strapi }) => ({
         error?.status === 401 || error?.code === 'EAUTH' || error?.responseCode === 535;
       if (!rejectedToken || !oauth.refreshToken) throw error;
       strapi.log.warn('[magic-mail] OAuth access token rejected; refreshing once and retrying');
-      const renewed = await this.currentOAuthToken(account, oauth, refresh, { force: true });
+      let renewed;
+      try {
+        renewed = await this.currentOAuthToken(account, oauth, refresh, { force: true });
+      } catch (refreshError) {
+        throw tagPreDispatch(refreshError);
+      }
       return send(renewed);
     }
   },
@@ -1816,14 +2081,15 @@ module.exports = ({ strapi }) => ({
 
     const rawMessage = await buildRawMimeMessage(account, emailData);
     return this.withOAuthRetry(account, oauth, refresh, (accessToken) =>
-      this.postGmailMessage(accessToken, rawMessage)
+      this.postGmailMessage(accessToken, rawMessage, fetchBounds(emailData))
     );
   },
 
   /** One Gmail API send request. */
-  async postGmailMessage(accessToken, rawMessage) {
+  async postGmailMessage(accessToken, rawMessage, bounds = {}) {
     try {
       const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        ...bounds,
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -1880,14 +2146,15 @@ module.exports = ({ strapi }) => ({
 
     const rawMessage = await buildRawMimeMessage(account, emailData);
     return this.withOAuthRetry(account, oauth, refresh, (accessToken) =>
-      this.postGraphMessage(accessToken, rawMessage)
+      this.postGraphMessage(accessToken, rawMessage, fetchBounds(emailData))
     );
   },
 
   /** One Microsoft Graph sendMail request. */
-  async postGraphMessage(accessToken, rawMessage) {
+  async postGraphMessage(accessToken, rawMessage, bounds = {}) {
     try {
       const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        ...bounds,
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -1940,6 +2207,8 @@ module.exports = ({ strapi }) => ({
   /** One Yahoo SMTP XOAUTH2 send. */
   async sendYahooMessage(account, oauth, emailData, accessToken) {
     try {
+      const dispatch = emailData.__dispatch || {};
+      const smtpProbe = dispatch.trackOutcome ? createSmtpProbe() : null;
       const transporter = nodemailer.createTransport({
         host: 'smtp.mail.yahoo.com',
         port: 465,
@@ -1947,6 +2216,8 @@ module.exports = ({ strapi }) => ({
         auth: { type: 'OAuth2', user: oauth.email, accessToken },
         disableFileAccess: true,
         disableUrlAccess: true,
+        ...(dispatch.bounded ? BOUNDED_SMTP_TIMEOUTS : {}),
+        ...(smtpProbe ? { logger: smtpProbe.logger, transactionLog: true } : {}),
       });
 
       const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
@@ -1963,11 +2234,16 @@ module.exports = ({ strapi }) => ({
         disableFileAccess: true,
         disableUrlAccess: true,
         headers: buildOutboundHeaders(emailData),
-        messageId: createMessageId(account),
+        messageId: createMessageId(account, emailData.__messageIdLocal),
         date: new Date(),
       };
 
-      const result = await transporter.sendMail(mailOptions);
+      let result;
+      try {
+        result = await transporter.sendMail(mailOptions);
+      } catch (error) {
+        throw smtpProbe ? tagSmtpStage(error, smtpProbe.probe) : error;
+      }
       return { messageId: result.messageId, response: result.response };
     } catch (err) {
       strapi.log.error('[magic-mail] Yahoo OAuth send failed:', err?.name || 'Error');
@@ -2037,6 +2313,7 @@ module.exports = ({ strapi }) => ({
       }
 
       const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        ...fetchBounds(emailData),
         method: 'POST',
         headers: {
           Authorization: `Bearer ${config.apiKey}`,
@@ -2113,6 +2390,7 @@ module.exports = ({ strapi }) => ({
       const response = await fetch(
         `${mailgunApiBaseUrl(region)}/v3/${encodeURIComponent(domain)}/messages`,
         {
+          ...fetchBounds(emailData),
           method: 'POST',
           headers: {
             Authorization: `Basic ${Buffer.from(`api:${config.apiKey}`).toString('base64')}`,
@@ -2440,6 +2718,7 @@ module.exports = ({ strapi }) => ({
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
+  createMessageId,
   buildOutboundHeaders,
   filterCustomHeaders,
   isFromAllowed,

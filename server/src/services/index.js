@@ -7,6 +7,7 @@ const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
 const deliveryWebhooks = require('./delivery-webhooks');
+const queue = require('./queue');
 
 module.exports = {
   'email-router': emailRouter,
@@ -16,4 +17,5 @@ module.exports = {
   analytics,
   'plugin-settings': pluginSettings,
   'delivery-webhooks': deliveryWebhooks,
+  queue,
 };

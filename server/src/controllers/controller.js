@@ -94,6 +94,19 @@ async function resolveExistingUserId(userId) {
 }
 
 /**
+ * Send queue options from a validated body (additive, optional fields).
+ * @param {boolean|undefined} queue
+ * @param {string|undefined} idempotencyKey
+ * @returns {{queue?: boolean, idempotencyKey?: string}}
+ */
+function queueOptions(queue, idempotencyKey) {
+  return {
+    ...(typeof queue === 'boolean' ? { queue } : {}),
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  };
+}
+
+/**
  * Main Controller - Content-API send routes.
  *
  * Every endpoint validates its payload with Zod BEFORE any service call.
@@ -106,8 +119,12 @@ module.exports = {
       const body = validate('content.send', { ...ctx.request.body });
       await authorizeSender(ctx, body);
 
+      const { queue, idempotencyKey, ...message } = body;
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.send(body, { source: 'content-api' });
+      const result = await emailRouter.send(message, {
+        source: 'content-api',
+        ...queueOptions(queue, idempotencyKey),
+      });
 
       ctx.body = { success: true, ...result };
     } catch (err) {
@@ -121,8 +138,12 @@ module.exports = {
       await authorizeSender(ctx, body);
       delete body.userId;
 
+      const { queue, idempotencyKey, ...message } = body;
       const emailRouter = strapi.plugin('magic-mail').service('email-router');
-      const result = await emailRouter.sendMessage(body, { source: 'content-api' });
+      const result = await emailRouter.sendMessage(message, {
+        source: 'content-api',
+        ...queueOptions(queue, idempotencyKey),
+      });
 
       ctx.body = { success: true, ...result };
     } catch (err) {
