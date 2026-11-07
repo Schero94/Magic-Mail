@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
-import { Flex, Loader, Modal, Typography } from '@strapi/design-system';
+import { Box, Flex, Loader, Modal, Typography } from '@strapi/design-system';
 import { ArrowPathIcon, InboxStackIcon } from '@heroicons/react/24/outline';
 import styled from 'styled-components';
 import { TertiaryButton } from '../../components/StyledButtons';
@@ -190,12 +190,14 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
               </FactList>
 
               {detail.status === 'uncertain' && (
-                <Typography variant="omega" textColor="neutral800" tag="p">
-                  {t(
-                    'queue.detail.uncertainHint',
-                    'The connection ended after the provider received the mail, so it may have been delivered. Check the provider before retrying.'
-                  )}
-                </Typography>
+                <Box marginBottom={6}>
+                  <Typography variant="omega" textColor="neutral800" tag="p">
+                    {t(
+                      'queue.detail.uncertainHint',
+                      'The connection ended after the provider received the mail, so it may have been delivered. Check the provider before retrying.'
+                    )}
+                  </Typography>
+                </Box>
               )}
 
               <Typography variant="delta" tag="h3" textColor="neutral800">
