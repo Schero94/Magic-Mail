@@ -462,3 +462,15 @@ test('editor: tabs keep Unlayer mounted, saves export from any tab, guard and di
   assert.match(read('editorStyles.js'), /width: min\(450px, 100vw\)/);
   assert.doesNotMatch(drawer, /en-US/);
 });
+
+test('both template download actions use the Design System Download icon', () => {
+  const source = read('TemplateList.jsx');
+  assert.match(source, /import \{ Download \} from '@strapi\/icons';/);
+  for (const key of ['templates.actions.downloadHtml', 'templates.actions.downloadJson']) {
+    const at = source.indexOf(`'${key}'`);
+    assert.ok(at > 0, key);
+    const button = source.slice(at, source.indexOf('</IconButton>', at));
+    assert.match(button, /<Download aria-hidden="true" \/>/, `${key} uses Download`);
+  }
+  assert.doesNotMatch(source, /CodeBracketIcon|DocumentArrowDownIcon/);
+});

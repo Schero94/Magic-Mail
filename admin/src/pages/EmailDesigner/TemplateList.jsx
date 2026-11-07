@@ -16,12 +16,11 @@ import {
   SparklesIcon,
   CheckCircleIcon,
   BoltIcon,
-  CodeBracketIcon,
   DocumentDuplicateIcon,
-  DocumentArrowDownIcon,
   PaperAirplaneIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import { Download } from '@strapi/icons';
 import {
   GradientButton,
   SecondaryButton,
@@ -554,13 +553,13 @@ const TemplateList = () => {
         onClick={() => handleDownload(template, 'html')}
         aria-label={t('templates.actions.downloadHtml', 'Download as HTML')}
       >
-        <DocumentArrowDownIcon aria-hidden="true" />
+        <Download aria-hidden="true" />
       </IconButton>
       <IconButton
         onClick={() => handleDownload(template, 'json')}
         aria-label={t('templates.actions.downloadJson', 'Download as JSON')}
       >
-        <CodeBracketIcon aria-hidden="true" />
+        <Download aria-hidden="true" />
       </IconButton>
       {canManage && (
         <IconButton
