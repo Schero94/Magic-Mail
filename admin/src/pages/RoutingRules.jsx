@@ -676,7 +676,7 @@ const RoutingRulesPage = () => {
               <FunnelIcon />
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(totalRules)}</StatValue>
-            <StatLabel>{t('routing.stats.total', 'Total Rules')}</StatLabel>
+            <StatLabel>{t('routing.stats.total', 'Total rules')}</StatLabel>
           </StatCard>
 
           <StatCard $delay="0.2s" $tone="success">
@@ -689,7 +689,7 @@ const RoutingRulesPage = () => {
               <CheckIcon />
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(activeRules)}</StatValue>
-            <StatLabel>{t('routing.stats.active', 'Active Rules')}</StatLabel>
+            <StatLabel>{t('routing.stats.active', 'Active rules')}</StatLabel>
           </StatCard>
 
           <StatCard $delay="0.3s" $tone="warning">
@@ -703,7 +703,7 @@ const RoutingRulesPage = () => {
             </StatIcon>
             <StatValue className="stat-value">{formatNumber(highPriorityRules)}</StatValue>
             <StatLabel>
-              {t('routing.stats.highPriority', 'High Priority ({threshold}+)', {
+              {t('routing.stats.highPriority', 'High priority ({threshold}+)', {
                 threshold: HIGH_PRIORITY_THRESHOLD,
               })}
             </StatLabel>

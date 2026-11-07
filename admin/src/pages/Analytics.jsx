@@ -797,7 +797,7 @@ const Analytics = () => {
       bg: 'rgba(2, 132, 199, 0.12)',
       Icon: EnvelopeIcon,
       value: stats?.totalSent,
-      label: t('analytics.stats.totalSent', 'Total Sent'),
+      label: t('analytics.stats.totalSent', 'Total sent'),
     },
     {
       key: 'opened',

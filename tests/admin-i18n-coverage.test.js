@@ -140,3 +140,20 @@ test('German copy uses the formal address', () => {
     .map(([key, value]) => `${key}: ${value}`);
   assert.deepEqual(offenders, []);
 });
+
+test('stat card labels use sentence case in every locale', () => {
+  // German capitalises nouns, so only the non-German locales are checked word
+  // by word; all locales must start with a capital letter.
+  const offenders = [];
+  for (const locale of LOCALES) {
+    for (const [key, value] of Object.entries(locales[locale])) {
+      if (!/^[a-z]+\.stats\.(?!label$|loadError$|activeValue$)/.test(key)) continue;
+      const words = value.split(/\s+/);
+      if (!/^\p{Lu}/u.test(words[0])) offenders.push(`${locale}:${key}`);
+      if (locale !== 'de' && words.slice(1).some((word) => /^\p{Lu}\p{Ll}/u.test(word))) {
+        offenders.push(`${locale}:${key} = ${value}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
