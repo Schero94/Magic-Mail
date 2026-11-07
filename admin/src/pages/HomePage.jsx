@@ -6,22 +6,26 @@ import { useFormatters } from '../hooks/useFormatters';
 import {
   Badge,
   Box,
+  Button,
   Flex,
+  IconButton,
   Loader,
   SingleSelect,
   SingleSelectOption,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
   Typography,
+  VisuallyHidden,
 } from '@strapi/design-system';
-import { Tbody, Td, Th, Thead, Tr } from '@strapi/design-system';
+import { Mail, PaperPlane, Pencil, Server, Star, Trash } from '@strapi/icons';
 import {
   EnvelopeIcon,
-  ExclamationTriangleIcon,
-  PencilIcon,
-  PlayIcon,
   PlusIcon,
   ServerIcon,
   SparklesIcon,
-  StarIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import AddAccountModal from '../components/AddAccountModal';
@@ -29,38 +33,32 @@ import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { SectionHeading } from '../components/shared/Headings';
 import { SearchField } from '../components/shared/SearchField';
 import {
-  CTAButton,
-  GradientButton,
-  IconButton,
-  IconButtonDanger,
-  IconButtonPrimary,
-  TertiaryButton,
-} from '../components/StyledButtons';
-import { theme } from '../utils/theme';
-import { TestEmailModal } from './Accounts/TestEmailModal';
-import {
-  AccountCard,
-  AccountCardList,
-  AccountCardStats,
-  AccountsContainer,
-  Container,
-  EmptyIconCircle,
+  Avatar,
+  DataTable,
   EmptyState,
   FilterBar,
-  FilterSelectBox,
-  FloatingIcon,
+  FilterSearch,
+  FilterSelect,
+  LoadErrorState,
+  StatusBadge,
+  StyledTable,
+  keepNativeButtonKeys,
+} from '../components/shared/table';
+import { GradientButton } from '../components/StyledButtons';
+import { brand, theme } from '../utils/theme';
+import { TestEmailModal } from './Accounts/TestEmailModal';
+import {
+  AccountsContainer,
+  Container,
   Header,
   HeaderContent,
-  OnlineBadge,
   SectionHeaderRow,
   StatCard,
   StatIcon,
   StatLabel,
   StatValue,
   StatsGrid,
-  StyledTable,
   Subtitle,
-  TableScroller,
   Title,
   UsageFill,
   UsageTrack,
@@ -90,16 +88,6 @@ const PageLoader = ({ label }) => (
     <Loader>{label}</Loader>
   </Flex>
 );
-
-/**
- * The DS table cell prevents the default of every key when it holds several
- * buttons (its grid navigation), which blocks native Enter/Space activation
- * and Tab. Those keys stay with the buttons; arrow keys still move the grid.
- */
-const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
-const keepNativeButtonKeys = (event) => {
-  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
-};
 
 /** Focus target after the dialog of a deleted row closes. */
 const getFocusFallback = () => document.querySelector('[data-mm-focus-fallback]');
@@ -303,50 +291,72 @@ const HomePage = () => {
     setFilterProvider('all');
   };
 
-  // Row parts shared by the table (desktop) and the card list (mobile).
+  const columnLabels = {
+    status: t('accounts.table.status', 'Status'),
+    account: t('accounts.table.account', 'Account'),
+    provider: t('accounts.table.provider', 'Provider'),
+    priority: t('accounts.table.priority', 'Priority'),
+    usageToday: t('accounts.table.usageToday', 'Usage today'),
+    totalSent: t('accounts.table.totalSent', 'Total sent'),
+    lastUsed: t('accounts.table.lastUsed', 'Last used'),
+    actions: t('accounts.table.actions', 'Actions'),
+  };
+
   const renderStatus = (account) => (
-    <Flex alignItems="center" gap={2}>
-      <OnlineBadge $active={account.isActive} aria-hidden="true" />
-      <Badge variant={account.isActive ? 'success' : 'neutral'} size="S">
-        {account.isActive
-          ? t('accounts.status.active', 'Active')
-          : t('accounts.status.inactive', 'Inactive')}
-      </Badge>
-    </Flex>
+    <StatusBadge $tone={account.isActive ? 'success' : 'neutral'}>
+      {account.isActive
+        ? t('accounts.status.active', 'Active')
+        : t('accounts.status.inactive', 'Inactive')}
+    </StatusBadge>
   );
 
-  const renderName = (account, tag) => (
-    <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
-      <Flex alignItems="center" gap={2} wrap="wrap">
-        <Typography fontWeight="semiBold" tag={tag}>
-          {account.name}
-        </Typography>
-        {account.isPrimary && (
-          <Badge variant="warning" size="S">
-            <Flex tag="span" alignItems="center" gap={1}>
-              <StarIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
+  const renderName = (account) => (
+    <Flex alignItems="center" gap={2} style={{ minWidth: 0 }}>
+      <Avatar $background={brand.gradient} aria-hidden="true">
+        <Mail />
+      </Avatar>
+      <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0, maxWidth: '100%' }}>
+        <Flex alignItems="center" gap={2} wrap="wrap" style={{ minWidth: 0, maxWidth: '100%' }}>
+          <Typography
+            fontWeight="semiBold"
+            textColor="neutral800"
+            ellipsis
+            title={account.name}
+            style={{ maxWidth: '100%' }}
+          >
+            {account.name}
+          </Typography>
+          {account.isPrimary && (
+            <StatusBadge $tone="warning">
+              <Star aria-hidden="true" />
               {t('accounts.status.primary', 'Primary')}
-            </Flex>
-          </Badge>
-        )}
+            </StatusBadge>
+          )}
+        </Flex>
+        <Typography
+          variant="pi"
+          textColor="neutral600"
+          ellipsis
+          title={account.fromEmail}
+          style={{ maxWidth: '100%' }}
+        >
+          {account.fromEmail}
+        </Typography>
       </Flex>
-      <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
-        {account.fromEmail}
-      </Typography>
     </Flex>
   );
 
   const renderProvider = (account) => (
-    <Badge size="S">
+    <Badge>
       <Flex tag="span" alignItems="center" gap={1}>
-        <ServerIcon aria-hidden="true" style={{ width: 12, height: 12 }} />
+        <Server aria-hidden="true" width="1.2rem" height="1.2rem" />
         {providerName(account.provider)}
       </Flex>
     </Badge>
   );
 
   const renderPriority = (account) => (
-    <Badge size="S" variant="secondary">
+    <Badge>
       {t('accounts.table.priorityValue', '{priority}/10', {
         priority: account.priority ?? 1,
       })}
@@ -357,7 +367,7 @@ const HomePage = () => {
     const usagePercent = getUsagePercent(account);
     return (
       <Flex direction="column" alignItems="flex-start" gap={1}>
-        <Typography fontWeight="semiBold">
+        <Typography variant="omega" fontWeight="semiBold">
           {formatNumber(account.emailsSentToday || 0)}
           {account.dailyLimit > 0 ? (
             <Typography variant="pi" textColor="neutral600" tag="span">
@@ -392,180 +402,192 @@ const HomePage = () => {
   };
 
   const renderTotalSent = (account) => (
-    <Typography fontWeight="semiBold">{formatNumber(account.totalEmailsSent || 0)}</Typography>
+    <Typography variant="omega" fontWeight="semiBold">
+      {formatNumber(account.totalEmailsSent || 0)}
+    </Typography>
   );
 
   const renderLastUsed = (account) => (
-    <Typography variant="pi" textColor="neutral600">
+    <Typography variant="pi" textColor="neutral800">
       {formatDateTime(account.lastUsed, undefined, t('accounts.table.never', 'Never'))}
     </Typography>
   );
 
   const renderActions = (account) => (
-    <>
+    <Flex gap={1} justifyContent="flex-end" onKeyDown={keepNativeButtonKeys}>
       {canManage && (
         <IconButton
-          onClick={(e) => {
-            e.stopPropagation();
-            setEditingAccount(account);
-          }}
-          aria-label={t('accounts.actions.edit', 'Edit account {name}', { name: account.name })}
+          label={t('accounts.actions.edit', 'Edit account {name}', { name: account.name })}
+          variant="ghost"
+          onClick={() => setEditingAccount(account)}
         >
-          <PencilIcon aria-hidden="true" />
+          <Pencil aria-hidden="true" />
         </IconButton>
       )}
       {canTestSend && (
-        <IconButtonPrimary
-          onClick={(e) => {
-            e.stopPropagation();
-            setTestingAccount(account);
-          }}
-          aria-label={t('accounts.actions.test', 'Test account {name}', { name: account.name })}
+        <IconButton
+          label={t('accounts.actions.test', 'Test account {name}', { name: account.name })}
+          variant="ghost"
+          onClick={() => setTestingAccount(account)}
         >
-          <PlayIcon aria-hidden="true" />
-        </IconButtonPrimary>
+          <PaperPlane aria-hidden="true" />
+        </IconButton>
       )}
       {canManage && (
-        <IconButtonDanger
-          onClick={(e) => {
-            e.stopPropagation();
-            setPendingDelete(account);
-          }}
-          aria-label={t('accounts.actions.delete', 'Delete account {name}', {
-            name: account.name,
-          })}
+        <IconButton
+          label={t('accounts.actions.delete', 'Delete account {name}', { name: account.name })}
+          variant="danger-light"
+          onClick={() => setPendingDelete(account)}
         >
-          <TrashIcon aria-hidden="true" />
-        </IconButtonDanger>
+          <Trash aria-hidden="true" />
+        </IconButton>
       )}
-    </>
+    </Flex>
   );
 
-  const renderContent = () => {
+  const addButton = canManage && (
+    <GradientButton
+      data-mm-focus-fallback
+      startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+      onClick={() => setShowAddModal(true)}
+    >
+      {t('accounts.add', 'Add account')}
+    </GradientButton>
+  );
+
+  const renderTableBody = () => {
     if (loadError) {
       return (
-        <EmptyState role="alert">
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={6}
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <EmptyIconCircle $danger>
-              <ExclamationTriangleIcon aria-hidden="true" />
-            </EmptyIconCircle>
-            <SectionHeading
-              tag="h2"
-              textColor="neutral800"
-              style={{ fontSize: '2rem', fontWeight: 700 }}
-            >
-              {t('accounts.error.title', 'Email accounts could not be loaded')}
-            </SectionHeading>
-            <Typography
-              variant="omega"
-              textColor="neutral600"
-              style={{ maxWidth: '500px', lineHeight: '1.6' }}
-            >
-              {t(
-                'accounts.error.body',
-                'Check your connection and try again. If the problem persists, check the server logs.'
-              )}
-            </Typography>
-            <GradientButton onClick={fetchAccounts} loading={loading}>
-              {t('accounts.error.retry', 'Try again')}
-            </GradientButton>
-          </Flex>
-        </EmptyState>
+        <LoadErrorState
+          message={t('accounts.error.title', 'Email accounts could not be loaded')}
+          description={t(
+            'accounts.error.body',
+            'Check your connection and try again. If the problem persists, check the server logs.'
+          )}
+          onRetry={fetchAccounts}
+          isRetrying={loading}
+        />
       );
     }
 
     if (accounts.length === 0) {
       return (
-        <EmptyState>
-          <FloatingIcon aria-hidden="true">
-            <EnvelopeIcon />
-          </FloatingIcon>
-
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={6}
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <EmptyIconCircle>
-              <EnvelopeIcon aria-hidden="true" />
-            </EmptyIconCircle>
-
-            <SectionHeading
-              tag="h2"
-              textColor="neutral800"
-              style={{ fontSize: '2rem', fontWeight: 700 }}
-            >
-              {t('accounts.empty.title', 'No email accounts yet')}
-            </SectionHeading>
-
-            <Typography
-              variant="omega"
-              textColor="neutral600"
-              style={{ maxWidth: '500px', lineHeight: '1.6' }}
-            >
-              {canManage
-                ? t(
-                    'accounts.empty.body',
-                    'Add your first email account to start sending emails through MagicMail’s multi-account routing.'
-                  )
-                : t(
-                    'accounts.empty.readOnly',
-                    'No email accounts have been set up yet. Ask an administrator with manage permission to add one.'
-                  )}
-            </Typography>
-
-            {canManage && (
-              <CTAButton
-                data-mm-focus-fallback
-                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+        <EmptyState
+          icon={Mail}
+          title={t('accounts.empty.title', 'No email accounts yet')}
+          description={
+            canManage
+              ? t(
+                  'accounts.empty.body',
+                  'Add your first email account to start sending emails through MagicMail’s multi-account routing.'
+                )
+              : t(
+                  'accounts.empty.readOnly',
+                  'No email accounts have been set up yet. Ask an administrator with manage permission to add one.'
+                )
+          }
+          actions={
+            canManage ? (
+              <GradientButton
+                startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
                 onClick={() => setShowAddModal(true)}
               >
                 {t('accounts.empty.cta', 'Add first account')}
-              </CTAButton>
-            )}
-          </Flex>
-        </EmptyState>
+              </GradientButton>
+            ) : null
+          }
+        />
+      );
+    }
+
+    if (filteredAccounts.length === 0) {
+      return (
+        <EmptyState
+          icon={Mail}
+          title={t('accounts.filters.noResults', 'No accounts match your filters')}
+          actions={
+            filtersActive ? (
+              <Button variant="secondary" size="L" onClick={resetFilters}>
+                {t('accounts.filters.reset', 'Reset filters')}
+              </Button>
+            ) : null
+          }
+        />
       );
     }
 
     return (
-      <AccountsContainer>
-        <Box style={{ marginBottom: theme.spacing.md }}>
-          <SectionHeaderRow justifyContent="space-between" alignItems="center" marginBottom={4}>
-            <SectionHeading>{t('accounts.section.title', 'Email accounts')}</SectionHeading>
-            {canManage && (
-              <GradientButton
-                data-mm-focus-fallback
-                startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
-                onClick={() => setShowAddModal(true)}
+      <StyledTable colCount={hasRowActions ? 8 : 7} rowCount={filteredAccounts.length + 1}>
+        <Thead>
+          <Tr>
+            <Th>{columnLabels.status}</Th>
+            <Th>{columnLabels.account}</Th>
+            <Th>{columnLabels.provider}</Th>
+            <Th>
+              <span
+                title={t('accounts.table.priorityHint', 'Routing priority (higher = preferred)')}
               >
-                {t('accounts.add', 'Add account')}
-              </GradientButton>
+                {columnLabels.priority}
+              </span>
+            </Th>
+            <Th>{columnLabels.usageToday}</Th>
+            <Th>{columnLabels.totalSent}</Th>
+            <Th>{columnLabels.lastUsed}</Th>
+            {hasRowActions && (
+              <Th>
+                <VisuallyHidden>{columnLabels.actions}</VisuallyHidden>
+              </Th>
             )}
-          </SectionHeaderRow>
-        </Box>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {filteredAccounts.map((account) => (
+            <Tr key={getAccountKey(account)}>
+              <Td data-label={columnLabels.status}>{renderStatus(account)}</Td>
+              <Td className="cell-wrap" data-label={columnLabels.account}>
+                {renderName(account)}
+              </Td>
+              <Td data-label={columnLabels.provider}>{renderProvider(account)}</Td>
+              <Td data-label={columnLabels.priority}>{renderPriority(account)}</Td>
+              <Td data-label={columnLabels.usageToday}>{renderUsage(account)}</Td>
+              <Td data-label={columnLabels.totalSent}>{renderTotalSent(account)}</Td>
+              <Td className="cell-date" data-label={columnLabels.lastUsed}>
+                {renderLastUsed(account)}
+              </Td>
+              {hasRowActions && <Td data-label="">{renderActions(account)}</Td>}
+            </Tr>
+          ))}
+        </Tbody>
+      </StyledTable>
+    );
+  };
 
+  const renderContent = () => (
+    <AccountsContainer>
+      <Box style={{ marginBottom: theme.spacing.md }}>
+        <SectionHeaderRow justifyContent="space-between" alignItems="center" marginBottom={4}>
+          <SectionHeading>{t('accounts.section.title', 'Email accounts')}</SectionHeading>
+          {!loadError && addButton}
+        </SectionHeaderRow>
+      </Box>
+
+      {!loadError && accounts.length > 0 && (
         <FilterBar>
-          <SearchField
-            label={t('accounts.search.label', 'Search accounts')}
-            placeholder={t('accounts.search.placeholder', 'Search by name, email or provider...')}
-            value={searchQuery}
-            onChange={setSearchQuery}
-          />
+          <FilterSearch>
+            <SearchField
+              label={t('accounts.search.label', 'Search accounts')}
+              placeholder={t('accounts.search.placeholder', 'Search by name, email or provider...')}
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+          </FilterSearch>
 
-          <FilterSelectBox>
+          <FilterSelect>
             <SingleSelect
               value={filterStatus}
               onChange={setFilterStatus}
               aria-label={t('accounts.filters.status', 'Filter by status')}
               placeholder={t('accounts.filters.statusPlaceholder', 'Status')}
-              size="M"
             >
               <SingleSelectOption value="all">
                 {t('accounts.filters.allAccounts', 'All accounts')}
@@ -580,15 +602,14 @@ const HomePage = () => {
                 {t('accounts.status.primary', 'Primary')}
               </SingleSelectOption>
             </SingleSelect>
-          </FilterSelectBox>
+          </FilterSelect>
 
-          <FilterSelectBox>
+          <FilterSelect>
             <SingleSelect
               value={filterProvider}
               onChange={setFilterProvider}
               aria-label={t('accounts.filters.provider', 'Filter by provider')}
               placeholder={t('accounts.filters.providerPlaceholder', 'Provider')}
-              size="M"
             >
               <SingleSelectOption value="all">
                 {t('accounts.filters.allProviders', 'All providers')}
@@ -599,116 +620,15 @@ const HomePage = () => {
                 </SingleSelectOption>
               ))}
             </SingleSelect>
-          </FilterSelectBox>
+          </FilterSelect>
         </FilterBar>
+      )}
 
-        {filteredAccounts.length > 0 ? (
-          <>
-            <TableScroller>
-              <StyledTable colCount={hasRowActions ? 8 : 7} rowCount={filteredAccounts.length + 1}>
-                <Thead>
-                  <Tr>
-                    <Th>{t('accounts.table.status', 'Status')}</Th>
-                    <Th>{t('accounts.table.account', 'Account')}</Th>
-                    <Th>{t('accounts.table.provider', 'Provider')}</Th>
-                    <Th>
-                      <span
-                        title={t(
-                          'accounts.table.priorityHint',
-                          'Routing priority (higher = preferred)'
-                        )}
-                      >
-                        {t('accounts.table.priority', 'Priority')}
-                      </span>
-                    </Th>
-                    <Th>{t('accounts.table.usageToday', 'Usage today')}</Th>
-                    <Th>{t('accounts.table.totalSent', 'Total sent')}</Th>
-                    <Th>{t('accounts.table.lastUsed', 'Last used')}</Th>
-                    {hasRowActions && (
-                      <Th className="actions-cell">{t('accounts.table.actions', 'Actions')}</Th>
-                    )}
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {filteredAccounts.map((account) => (
-                    <Tr key={getAccountKey(account)}>
-                      <Td>{renderStatus(account)}</Td>
-                      <Td className="account-cell">{renderName(account)}</Td>
-                      <Td>{renderProvider(account)}</Td>
-                      <Td>{renderPriority(account)}</Td>
-                      <Td>{renderUsage(account)}</Td>
-                      <Td>{renderTotalSent(account)}</Td>
-                      <Td>{renderLastUsed(account)}</Td>
-                      {hasRowActions && (
-                        <Td className="actions-cell">
-                          <Flex gap={2} onKeyDown={keepNativeButtonKeys}>
-                            {renderActions(account)}
-                          </Flex>
-                        </Td>
-                      )}
-                    </Tr>
-                  ))}
-                </Tbody>
-              </StyledTable>
-            </TableScroller>
-
-            {/* Phones and small tablets: one card per account instead of an
-                eight-column table that needs sideways scrolling. */}
-            <AccountCardList aria-label={t('accounts.section.title', 'Email accounts')}>
-              {filteredAccounts.map((account) => (
-                <AccountCard key={getAccountKey(account)}>
-                  <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
-                    {renderName(account, 'h3')}
-                    {renderStatus(account)}
-                  </Flex>
-                  <Flex gap={2} wrap="wrap" alignItems="stretch">
-                    {renderProvider(account)}
-                    {renderPriority(account)}
-                  </Flex>
-                  <AccountCardStats>
-                    <div>
-                      <dt>{t('accounts.table.usageToday', 'Usage today')}</dt>
-                      <dd>{renderUsage(account)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t('accounts.table.totalSent', 'Total sent')}</dt>
-                      <dd>{renderTotalSent(account)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t('accounts.table.lastUsed', 'Last used')}</dt>
-                      <dd>{renderLastUsed(account)}</dd>
-                    </div>
-                  </AccountCardStats>
-                  {hasRowActions && (
-                    <Flex gap={2} justifyContent="flex-end">
-                      {renderActions(account)}
-                    </Flex>
-                  )}
-                </AccountCard>
-              ))}
-            </AccountCardList>
-          </>
-        ) : (
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={4}
-            padding={8}
-            style={{ textAlign: 'center' }}
-          >
-            <Typography variant="beta" tag="p" textColor="neutral600">
-              {t('accounts.filters.noResults', 'No accounts match your filters')}
-            </Typography>
-            {filtersActive && (
-              <TertiaryButton onClick={resetFilters}>
-                {t('accounts.filters.reset', 'Reset filters')}
-              </TertiaryButton>
-            )}
-          </Flex>
-        )}
-      </AccountsContainer>
-    );
-  };
+      <DataTable aria-label={t('accounts.section.title', 'Email accounts')}>
+        {renderTableBody()}
+      </DataTable>
+    </AccountsContainer>
+  );
 
   return (
     <Container>

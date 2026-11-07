@@ -1,22 +1,10 @@
 /**
- * Pure helpers for the template list (search, pagination, test-send input).
+ * Pure helpers for the template list (search, categories, test-send input).
  * Kept free of React so they can be unit tested in node.
  */
 import { isValidEmailAddress } from '../../utils/emailValidation.mjs';
 
-/**
- * The DS table cell (RawCell, DS 2.2.4) prevents the default of every key when
- * it holds several buttons (its grid navigation). That blocks native
- * Enter/Space activation and Tab. Those keys stay with the buttons; arrow keys
- * still move through the grid.
- */
-const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
-
-/** @param {KeyboardEvent} event */
-export const keepNativeButtonKeys = (event) => {
-  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
-};
-
+/** Page sizes of the template list (the shared table layer pages the rows). */
 export const PAGE_SIZE_OPTIONS = Object.freeze([5, 10, 25, 50]);
 
 /**
@@ -39,46 +27,6 @@ export const filterTemplates = (templates, term) => {
     const reference = String(template?.templateReferenceId ?? '');
     return name.includes(needle) || subject.includes(needle) || reference.includes(needle);
   });
-};
-
-/**
- * Number of pages for a list (at least 1, so an empty list has page 1).
- * @param {number} itemCount
- * @param {number} pageSize
- * @returns {number}
- */
-export const countPages = (itemCount, pageSize) => {
-  const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  return Math.max(1, Math.ceil(Math.max(0, Number(itemCount) || 0) / size));
-};
-
-/**
- * Keeps the current page inside 1..totalPages (after deletes, filtering or a
- * page-size change).
- * @param {number} page
- * @param {number} totalPages
- * @returns {number}
- */
-export const clampPage = (page, totalPages) => {
-  const max = Math.max(1, Math.floor(Number(totalPages) || 1));
-  const current = Math.floor(Number(page) || 1);
-  return Math.min(Math.max(1, current), max);
-};
-
-/**
- * Up to `size` page numbers centred on the current page.
- * @param {number} currentPage
- * @param {number} totalPages
- * @param {number} [size=5]
- * @returns {number[]}
- */
-export const getPageWindow = (currentPage, totalPages, size = 5) => {
-  const total = Math.max(1, Math.floor(Number(totalPages) || 1));
-  const count = Math.min(size, total);
-  const current = clampPage(currentPage, total);
-  let start = current - Math.floor(count / 2);
-  start = Math.max(1, Math.min(start, total - count + 1));
-  return Array.from({ length: count }, (_, index) => start + index);
 };
 
 /**
@@ -130,7 +78,8 @@ export const toPositiveTemplateId = (value) => {
 };
 
 /**
- * Category -> DS 2 Badge variant (STR-11: never pass colour names as backgroundColor).
+ * Category -> StatusBadge tone of the shared table layer (Magic Link tints,
+ * >= 4.5:1 in light and dark mode).
  */
 export const CATEGORY_BADGE_VARIANTS = Object.freeze({
   transactional: 'primary',
@@ -145,21 +94,6 @@ export const CATEGORY_BADGE_VARIANTS = Object.freeze({
  */
 export const getCategoryVariant = (category) =>
   CATEGORY_BADGE_VARIANTS[category] ?? CATEGORY_BADGE_VARIANTS.custom;
-
-/**
- * DS Badge props for a category. The DS 2.2.4 dark theme draws the `primary`
- * variant as primary700 (#7b79ff) on primary200 (#4a4a6a), 2.4:1. That badge
- * uses the primary100/primary600 pair instead (>= 4.5:1 in both schemes).
- *
- * @param {string} category
- * @returns {{variant: string}|{backgroundColor: string, textColor: string}}
- */
-export const getCategoryBadgeProps = (category) => {
-  const variant = getCategoryVariant(category);
-  return variant === 'primary'
-    ? { backgroundColor: 'primary100', textColor: 'primary600' }
-    : { variant };
-};
 
 /**
  * Base URL of the Strapi server for copyable cURL examples. Uses the backend

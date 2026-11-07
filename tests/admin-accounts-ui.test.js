@@ -462,18 +462,20 @@ test('accounts page: i18n, labelled controls, confirm dialog, error state and RB
   assert.match(home, /const deleteAccount = async \(account\) => \{\s*if \(!canManage\) return;/);
   assert.match(home, /Promise\.allSettled/);
   assert.match(home, /loadError/);
-  assert.match(home, /accounts\.error\.retry/);
+  assert.match(home, /<LoadErrorState[\s\S]*?onRetry=\{fetchAccounts\}/, 'error state has a retry');
   assert.match(home, /permissionsLoading/);
   assert.match(home, /common\.permissions\.loadError/);
   assert.match(
     home,
-    /\{hasRowActions && \(\s*<Th className="actions-cell">/,
+    /\{hasRowActions && \(\s*<Th>\s*<VisuallyHidden>/,
     'Actions column is hidden when no action is allowed'
   );
   assert.match(home, /<Title tag="h1" id="main-content-title">/, 'h1 labels Page.Main');
   assert.match(home, /useFormatters/);
-  for (const match of home.matchAll(/<IconButton\w*\b[\s\S]*?<\/IconButton\w*>/g)) {
-    assert.match(match[0], /aria-label=\{t\(/, 'icon buttons have translated labels');
+  const iconButtons = [...home.matchAll(/<IconButton\b[\s\S]*?<\/IconButton>/g)];
+  assert.equal(iconButtons.length, 3, 'edit, test and delete row actions');
+  for (const match of iconButtons) {
+    assert.match(match[0], /label=\{t\(/, 'DS icon buttons have translated labels');
   }
 });
 
@@ -583,8 +585,11 @@ test('accounts keyboard and focus: row actions work with Enter/Space, dialogs re
   const hook = source('admin/src/hooks/useReturnFocus.js');
 
   // The DS table cell prevents the default of every key when it holds several buttons.
-  assert.match(home, /NATIVE_BUTTON_KEYS = new Set\(\['Enter', ' ', 'Tab'\]\)/);
-  assert.match(home, /<Flex gap=\{2\} onKeyDown=\{keepNativeButtonKeys\}>/);
+  assert.match(home, /keepNativeButtonKeys,\s*\} from '\.\.\/components\/shared\/table'/);
+  assert.match(
+    home,
+    /<Flex gap=\{1\} justifyContent="flex-end" onKeyDown=\{keepNativeButtonKeys\}>/
+  );
   assert.match(home, /getReturnFocusFallback=\{getFocusFallback\}/, 'focus after a deleted row');
 
   // The alert dialog focuses Dialog.Cancel on open; without it focus stayed behind the overlay.
@@ -606,16 +611,18 @@ test('accounts keyboard and focus: row actions work with Enter/Space, dialogs re
   assert.match(hook, /opener\?\.isConnected/);
 });
 
-test('accounts layout: mobile card list, sticky actions, wizard steps start at the top', () => {
+test('accounts layout: shared table with phone cards, wizard steps start at the top', () => {
   const home = source('admin/src/pages/HomePage.jsx');
   const styles = source('admin/src/pages/Accounts/styles.js');
   const wizard = source('admin/src/components/AddAccountModal.jsx');
   const wizardStyles = source('admin/src/components/AccountWizard/styles.js');
 
-  assert.match(home, /<AccountCardList aria-label=\{t\('accounts\.section\.title'/);
-  assert.match(styles, /export const AccountCardList = styled\.ul`/);
-  assert.match(styles, /td\.actions-cell \{\s*position: sticky;/);
-  assert.match(styles, /td\.account-cell \{\s*white-space: normal;/);
+  // Magic Link table layer: one table that turns into labelled cards below 768px.
+  assert.match(home, /<DataTable aria-label=\{t\('accounts\.section\.title'/);
+  assert.match(home, /<Td className="cell-wrap" data-label=\{columnLabels\.account\}>/);
+  assert.match(home, /\{hasRowActions && <Td data-label="">\{renderActions\(account\)\}<\/Td>\}/);
+  assert.doesNotMatch(home, /AccountCardList|TableScroller/, 'no second mobile-only list');
+  assert.doesNotMatch(styles, /StyledTable|AccountCardList|FilterBar/, 'old table styles removed');
   assert.doesNotMatch(styles, /max-width: 1200px/, 'stat cards align with the page edges');
 
   assert.match(wizard, /<StepTitle tag="h3" ref=\{stepTitleRef\} tabIndex=\{-1\}>/);

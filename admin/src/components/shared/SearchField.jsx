@@ -1,7 +1,8 @@
 import { forwardRef } from 'react';
 import styled from 'styled-components';
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { brand, color, fontSize, theme } from '../../utils/theme';
+import { Search, Cross } from '@strapi/icons';
+import { accent, color, fontSize } from '../../utils/theme';
+import { tableTheme as theme } from './table/tableTheme';
 import { reducedMotion } from './motion';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 
@@ -13,34 +14,43 @@ const Wrapper = styled.div`
   min-width: 0;
 `;
 
-const Icon = styled(MagnifyingGlassIcon)`
+const SearchIcon = styled(Search)`
   position: absolute;
   left: 12px;
   width: 16px;
   height: 16px;
-  color: ${color('neutral600')};
   pointer-events: none;
+
+  path {
+    fill: ${color('neutral600')};
+  }
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 10px 40px 10px 40px;
+  height: ${theme.controlHeight.L};
+  padding: 0 40px;
   border: 1px solid ${color('neutral200')};
   border-radius: ${theme.borderRadius.md};
   font-size: ${fontSize(2)};
-  line-height: 1.43;
-  transition: all ${theme.transitions.fast};
   background: ${color('neutral0')};
   color: ${color('neutral800')};
+  transition:
+    border-color ${theme.transitions.fast},
+    box-shadow ${theme.transitions.fast};
+
+  &:hover {
+    border-color: ${color('neutral300')};
+  }
 
   &:focus {
     outline: none;
-    border-color: ${brand.primary};
-    box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.2);
+    border-color: ${accent.primary};
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25);
   }
 
   &:focus-visible {
-    outline: 2px solid ${brand.primary};
+    outline: 2px solid ${accent.primary};
     outline-offset: 1px;
   }
 
@@ -52,9 +62,8 @@ const Input = styled.input`
     display: none;
   }
 
-  /* Below 768px DS inputs are 48px tall; match them and leave room for the 32px clear button. */
   @media (max-width: 767px) {
-    padding-block: 13px;
+    height: 48px;
     padding-right: 44px;
   }
 
@@ -70,40 +79,46 @@ const ClearButton = styled.button`
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 4px;
+  border-radius: ${theme.borderRadius.sm};
   background: transparent;
-  color: ${color('neutral600')};
   cursor: pointer;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  svg path {
+    fill: ${color('neutral600')};
+  }
 
   &:hover {
     background: ${color('neutral150')};
-    color: ${color('neutral800')};
   }
 
   &:focus-visible {
-    outline: 2px solid ${brand.primary};
+    outline: 2px solid ${accent.primary};
     outline-offset: 1px;
   }
 
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  /* Touch target of at least 32px below 768px (fits the 42px input). */
   @media (max-width: 767px) {
-    right: 4px;
+    right: 8px;
     width: 32px;
     height: 32px;
   }
 `;
 
 /**
- * Accessible search input with the MagicMail filter-bar look.
+ * Mirrors the Magic Link table design; keep in sync (Magic Link
+ * admin/src/components/shared/SearchField.jsx, part of the table filter bar).
+ *
+ * Accessible search input with the Magic Link filter-bar look (search icon
+ * left, 8px radius, neutral border, brand focus ring, 40px tall like DS
+ * size L controls). It has a clear button and clears on Escape.
  *
  *   <SearchField
  *     label={t('accounts.search.label', 'Search accounts')}
- *     placeholder={t('accounts.search.placeholder', 'Search by name, email, or provider...')}
+ *     placeholder={t('accounts.search.placeholder', 'Search by name, email or provider...')}
  *     value={searchQuery}
  *     onChange={setSearchQuery}
  *   />
@@ -122,7 +137,7 @@ export const SearchField = forwardRef(
 
     return (
       <Wrapper role="search">
-        <Icon aria-hidden="true" />
+        <SearchIcon aria-hidden="true" focusable="false" />
         <Input
           ref={ref}
           type="search"
@@ -137,6 +152,7 @@ export const SearchField = forwardRef(
             }
           }}
           autoComplete="off"
+          spellCheck={false}
           {...rest}
         />
         {hasValue ? (
@@ -145,7 +161,7 @@ export const SearchField = forwardRef(
             aria-label={clearLabel ?? t('common.search.clear', 'Clear search')}
             onClick={() => onChange?.('')}
           >
-            <XMarkIcon aria-hidden="true" />
+            <Cross aria-hidden="true" focusable="false" />
           </ClearButton>
         ) : null}
       </Wrapper>

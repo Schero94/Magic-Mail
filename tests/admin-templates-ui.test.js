@@ -25,6 +25,7 @@ const VIEW_FILES = fs
 const COMPONENT_FILES = VIEW_FILES.filter((file) => file.endsWith('.jsx'));
 
 const listUtils = loadAdminModule(`${DIR}/templateListUtils.js`);
+const tableUtils = loadAdminModule('admin/src/components/shared/table/tableUtils.js');
 const snippets = loadAdminModule(`${DIR}/codeSnippets.js`);
 const unlayer = loadAdminModule(`${DIR}/unlayerOptions.js`);
 const editorUtils = loadAdminModule(`${DIR}/editorUtils.js`);
@@ -53,17 +54,19 @@ test('template search tolerates missing fields and matches name, subject and id'
   assert.deepEqual(listUtils.filterTemplates(null, 'x'), []);
 });
 
-test('pagination is clamped after deletes and exposes a centred page window (UI-22)', () => {
-  assert.equal(listUtils.countPages(0, 10), 1);
-  assert.equal(listUtils.countPages(21, 10), 3);
+test('pagination is clamped after deletes and uses the shared table pages (UI-22)', () => {
+  assert.equal(tableUtils.getPageCount(0, 10), 1);
+  assert.equal(tableUtils.getPageCount(21, 10), 3);
   // Last item of page 3 deleted -> 2 pages left, page 3 must clamp to 2.
-  assert.equal(listUtils.clampPage(3, listUtils.countPages(20, 10)), 2);
-  assert.equal(listUtils.clampPage(0, 4), 1);
-  assert.equal(listUtils.clampPage(Number.NaN, 4), 1);
-  assert.deepEqual(listUtils.getPageWindow(1, 3), [1, 2, 3]);
-  assert.deepEqual(listUtils.getPageWindow(5, 10), [3, 4, 5, 6, 7]);
-  assert.deepEqual(listUtils.getPageWindow(10, 10), [6, 7, 8, 9, 10]);
-  assert.deepEqual(listUtils.getPageWindow(1, 10), [1, 2, 3, 4, 5]);
+  assert.equal(tableUtils.clampPage(3, tableUtils.getPageCount(20, 10)), 2);
+  assert.equal(tableUtils.clampPage(0, 4), 1);
+  assert.equal(tableUtils.clampPage(Number.NaN, 4), 1);
+  assert.deepEqual(listUtils.PAGE_SIZE_OPTIONS, [5, 10, 25, 50], 'page sizes are unchanged');
+  const list = read('TemplateList.jsx');
+  assert.match(list, /const page = clampPage\(currentPage, totalPages\);/);
+  assert.match(list, /if \(currentPage !== page\) setCurrentPage\(page\);/);
+  assert.match(list, /<TablePagination[\s\S]*?label=\{t\('templates\.pagination\.label'/);
+  assert.match(list, /<PageSizeSelect[\s\S]*?sizes=\{PAGE_SIZE_OPTIONS\}/);
 });
 
 test('test-send input validates To and every CC address before sending (UI-12)', () => {
@@ -88,7 +91,7 @@ test('row action keys stay with the buttons inside the DS table cell', () => {
   const stopped = [];
   for (const key of ['Enter', ' ', 'Tab', 'ArrowRight']) {
     let isStopped = false;
-    listUtils.keepNativeButtonKeys({ key, stopPropagation: () => (isStopped = true) });
+    tableUtils.keepNativeButtonKeys({ key, stopPropagation: () => (isStopped = true) });
     if (isStopped) stopped.push(key);
   }
   assert.deepEqual(stopped, ['Enter', ' ', 'Tab'], 'arrow keys still reach the grid');
@@ -103,12 +106,8 @@ test('reference ids and categories are normalised', () => {
   }
   assert.equal(listUtils.getCategoryVariant('marketing'), 'success');
   assert.equal(listUtils.getCategoryVariant('unknown'), 'neutral');
-  assert.deepEqual(listUtils.getCategoryBadgeProps('marketing'), { variant: 'success' });
-  assert.deepEqual(
-    listUtils.getCategoryBadgeProps('transactional'),
-    { backgroundColor: 'primary100', textColor: 'primary600' },
-    'the DS primary badge is too low in contrast in dark mode'
-  );
+  assert.equal(listUtils.getCategoryVariant('transactional'), 'primary');
+  assert.equal(listUtils.getCategoryBadgeProps, undefined, 'the DS Badge workaround is gone');
   for (const variant of Object.values(listUtils.CATEGORY_BADGE_VARIANTS)) {
     assert.match(
       variant,
@@ -403,17 +402,17 @@ test('template list: labelled search, error state with retry, confirm dialog and
   assert.match(list, /<SearchField\s+label=\{t\('templates\.search\.label'/);
   assert.match(list, /Promise\.allSettled/, 'one failing request does not hide the other');
   assert.match(list, /setLoadError\(true\)/);
-  assert.match(list, /templates\.retry/);
+  assert.match(list, /<LoadErrorState[\s\S]*?onRetry=\{/, 'the error state offers a retry');
   assert.match(list, /<ConfirmDialog\s+isOpen=\{canManage && pendingDelete !== null\}/);
   assert.match(
     list,
     /const handleDelete = async \(template\) => \{\s*if \(!canManage \|\| !template\) return;/
   );
   assert.match(list, /templates\.actions\.view/, 'read-only users can open a template');
-  assert.match(list, /aria-current=\{page === pageNum \? 'page' : undefined\}/);
+  assert.match(list, /<TablePagination\s+page=\{page\}/, 'DS pagination marks the current page');
   assert.match(list, /input\.value = ''/, 'the import input is reset');
   assert.match(list, /<Title variant="alpha" tag="h1">/);
-  assert.match(list, /<Badge \{\.\.\.getCategoryBadgeProps\(template\.category\)\}>/);
+  assert.match(list, /<StatusBadge \$tone=\{getCategoryVariant\(template\.category\)\}>/);
   assert.doesNotMatch(list, /margin: '0 -32px/, 'no negative-margin divider overflow');
 });
 
@@ -458,14 +457,14 @@ test('editor: tabs keep Unlayer mounted, saves export from any tab, guard and di
   const drawer = read('VersionHistoryDrawer.jsx');
   assert.match(drawer, /<Modal\.Root open=\{isOpen\}/, 'version history is a real dialog (UI-13)');
   assert.match(drawer, /closeLabel=\{t\('editor\.versions\.close'/);
-  assert.match(drawer, /<Modal\.Title>/);
+  assert.match(drawer, /<Modal\.Title[ >]/);
   assert.match(read('editorStyles.js'), /width: min\(450px, 100vw\)/);
   assert.doesNotMatch(drawer, /en-US/);
 });
 
 test('both template download actions use the Design System Download icon', () => {
   const source = read('TemplateList.jsx');
-  assert.match(source, /import \{ Download \} from '@strapi\/icons';/);
+  assert.match(source, /import \{[^}]*\bDownload\b[^}]*\} from '@strapi\/icons';/);
   for (const key of ['templates.actions.downloadHtml', 'templates.actions.downloadJson']) {
     const at = source.indexOf(`'${key}'`);
     assert.ok(at > 0, key);
@@ -473,4 +472,50 @@ test('both template download actions use the Design System Download icon', () =>
     assert.match(button, /<Download aria-hidden="true" \/>/, `${key} uses Download`);
   }
   assert.doesNotMatch(source, /CodeBracketIcon|DocumentArrowDownIcon/);
+});
+
+test('deleting a version moves focus to the next Restore button, or the drawer heading', () => {
+  const { getVersionFocusAfterDelete } = editorUtils;
+  const list = [{ id: 30 }, { id: 20 }, { id: 10 }];
+  assert.equal(getVersionFocusAfterDelete(list, 30), 20, 'next version after the first');
+  assert.equal(getVersionFocusAfterDelete(list, '20'), 10, 'ids compare as strings');
+  assert.equal(getVersionFocusAfterDelete(list, 10), 20, 'previous version after the last');
+  assert.equal(getVersionFocusAfterDelete([{ id: 5 }], 5), null, 'heading when none is left');
+  assert.equal(getVersionFocusAfterDelete(list, 99), null, 'unknown id falls back to heading');
+  assert.equal(getVersionFocusAfterDelete(undefined, 1), null);
+
+  const drawer = read('VersionHistoryDrawer.jsx');
+  assert.match(drawer, /forwardRef\(function VersionHistoryDrawer/);
+  assert.match(drawer, /useImperativeHandle\(/);
+  assert.match(
+    drawer,
+    /<Modal\.Title ref=\{titleRef\} tabIndex=\{-1\}>/,
+    'heading is a focus target'
+  );
+  assert.match(drawer, /restoreRefs\.current\.set\(String\(version\.id\), node\)/);
+
+  const editor = read('EditorPage.jsx');
+  assert.match(
+    editor,
+    /versionFocusIdRef\.current = getVersionFocusAfterDelete\(versions, version\.id\)/
+  );
+  for (const close of ['setPendingVersionDelete(null);', 'setConfirmDeleteAll(false);']) {
+    const at = editor.indexOf(close, editor.indexOf('const handleDeleteVersion'));
+    assert.ok(at > 0, close);
+    assert.match(
+      editor.slice(at, at + 250),
+      /await fetchVersions\(\);\s*versionFocusPendingRef\.current = true;\s*setVersionFocusRequest\(/,
+      `${close} closes the dialog, reloads, then requests focus`
+    );
+  }
+  assert.match(
+    editor,
+    /useEffect\(\(\) => \{\s*if \(!versionFocusRequest \|\| !versionFocusPendingRef\.current \|\| loadingVersions\) return;\s*versionFocusPendingRef\.current = false;\s*getVersionFocusTarget\(\)\?\.focus\(\);/,
+    'focus moves only after the reloaded list is rendered'
+  );
+  assert.equal(
+    (editor.match(/getReturnFocusFallback=\{getVersionFocusTarget\}/g) || []).length,
+    2,
+    'single and bulk deletion both use the version focus target'
+  );
 });

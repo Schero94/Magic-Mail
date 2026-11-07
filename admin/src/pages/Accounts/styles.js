@@ -1,6 +1,6 @@
 import styled, { keyframes, css } from 'styled-components';
-import { Box, Flex, Modal, Table, Typography } from '@strapi/design-system';
-import { accent, brand, byScheme, color, fontSize, theme } from '../../utils/theme';
+import { Box, Flex, Modal, Typography } from '@strapi/design-system';
+import { accent, brand, color, fontSize, theme } from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
 
 // ================ ANIMATIONS ================
@@ -19,11 +19,6 @@ const float = keyframes`
   50% { transform: translateY(-5px); }
 `;
 
-const pulse = keyframes`
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-`;
-
 export const breakpoints = {
   mobile: '768px',
   tablet: '1024px',
@@ -33,22 +28,6 @@ export const breakpoints = {
 const tone = (name) => accent[name] ?? accent.primary;
 
 // ================ PAGE ================
-export const FloatingIcon = styled.div`
-  position: absolute;
-  bottom: 40px;
-  right: 40px;
-  opacity: 0.08;
-  color: ${color('neutral800')};
-  ${motionSafe(css`
-    animation: ${float} 4s ease-in-out infinite;
-  `)}
-
-  svg {
-    width: 72px;
-    height: 72px;
-  }
-`;
-
 export const Container = styled(Box)`
   ${motionSafe(css`
     animation: ${fadeIn} ${theme.transitions.slow};
@@ -309,186 +288,6 @@ export const AccountsContainer = styled(Box)`
   margin-top: ${theme.spacing.xl};
 `;
 
-export const EmptyState = styled(Box)`
-  background: ${color('neutral0')};
-  border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed rgba(128, 128, 128, 0.3);
-  padding: 80px 32px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: 48px 16px;
-    min-height: 320px;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, rgba(168, 85, 247, 0.06) 100%);
-    opacity: 0.3;
-    z-index: 0;
-  }
-`;
-
-export const EmptyIconCircle = styled.div`
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(168, 85, 247, 0.12) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: ${theme.shadows.xl};
-
-  svg {
-    width: 60px;
-    height: 60px;
-    color: ${(p) => (p.$danger ? accent.danger(p) : accent.primary(p))};
-  }
-`;
-
-export const OnlineBadge = styled.span`
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: ${(p) => (p.$active ? brand.success : 'rgba(128, 128, 128, 0.4)')};
-  display: inline-block;
-  flex-shrink: 0;
-  ${(p) =>
-    p.$active &&
-    motionSafe(css`
-      animation: ${pulse} 2s ease-in-out infinite;
-    `)}
-`;
-
-export const TableScroller = styled(Box)`
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    display: none;
-  }
-`;
-
-/** Mobile replacement for the table: one card per account (hidden on wider screens). */
-export const AccountCardList = styled.ul`
-  display: none;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    display: flex;
-    flex-direction: column;
-    gap: ${theme.spacing.sm};
-  }
-`;
-
-export const AccountCard = styled.li`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.md};
-  padding: ${theme.spacing.md};
-  background: ${color('neutral0')};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  border-radius: ${theme.borderRadius.lg};
-  box-shadow: ${theme.shadows.sm};
-  min-width: 0;
-`;
-
-export const AccountCardStats = styled.dl`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: ${theme.spacing.md};
-  margin: 0;
-
-  dt {
-    font-size: ${fontSize(1)};
-    font-weight: 600;
-    letter-spacing: 0.025em;
-    text-transform: uppercase;
-    color: ${color('neutral600')};
-    margin-bottom: ${theme.spacing.xs};
-  }
-
-  dd {
-    margin: 0;
-    color: ${color('neutral800')};
-  }
-`;
-
-export const StyledTable = styled(Table)`
-  /* The row actions stay visible while a narrow table scrolls sideways. */
-  th.actions-cell,
-  td.actions-cell {
-    position: sticky;
-    /* The DS table wrapper has 24px inline padding; stick to its outer edge
-       so scrolled columns do not show through beside the actions. */
-    right: -24px;
-    z-index: 1;
-    background: ${color('neutral0')};
-    box-shadow: -1px 0 0 rgba(128, 128, 128, 0.2);
-  }
-
-  th.actions-cell {
-    background: ${color('neutral100')};
-  }
-
-  thead {
-    background: ${color('neutral100')};
-    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
-
-    th {
-      font-weight: 600;
-      color: ${color('neutral800')};
-      font-size: ${fontSize(1)};
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.md};
-    }
-  }
-
-  tbody tr {
-    transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    &:hover {
-      background: rgba(2, 132, 199, 0.12);
-    }
-
-    &:hover td.actions-cell {
-      background: ${byScheme('#E1F0F8', '#1D2D46')};
-    }
-
-    td {
-      padding: ${theme.spacing.lg} ${theme.spacing.md};
-      color: ${color('neutral800')};
-      vertical-align: middle;
-    }
-
-    /* Long account names and addresses wrap instead of widening the table. */
-    td.account-cell {
-      white-space: normal;
-      min-width: 200px;
-      overflow-wrap: anywhere;
-    }
-
-    ${reducedMotion}
-  }
-`;
-
 export const UsageTrack = styled.div`
   width: 100%;
   min-width: 80px;
@@ -502,39 +301,6 @@ export const UsageFill = styled.div`
   height: 100%;
   border-radius: 999px;
   background: ${(p) => (p.$danger ? brand.danger : brand.success)};
-`;
-
-export const FilterBar = styled(Flex)`
-  background: ${color('neutral0')};
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  margin-bottom: ${theme.spacing.lg};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  gap: ${theme.spacing.md};
-  align-items: center;
-  flex-wrap: wrap;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: 12px;
-    flex-direction: column;
-    align-items: stretch;
-
-    & > * {
-      width: 100%;
-      min-width: 0 !important;
-    }
-  }
-`;
-
-export const FilterSelectBox = styled(Box)`
-  min-width: 160px;
-
-  /* Same height as the shared SearchField next to it (10px padding, 20px line,
-     2px border). Below 768px both follow the 48px DS input height. */
-  [role='combobox'] {
-    min-height: 42px;
-  }
 `;
 
 export const SectionHeaderRow = styled(Flex)`

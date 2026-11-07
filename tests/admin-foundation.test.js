@@ -59,8 +59,17 @@ const FOUNDATION_FILES = [
   'admin/src/permissions.js',
   ...fs.readdirSync(path.join(ROOT, 'admin/src/hooks')).map((file) => `admin/src/hooks/${file}`),
   ...fs
-    .readdirSync(path.join(ROOT, 'admin/src/components/shared'))
-    .map((file) => `admin/src/components/shared/${file}`),
+    .readdirSync(path.join(ROOT, 'admin/src/components/shared'), {
+      recursive: true,
+      withFileTypes: true,
+    })
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      path
+        .relative(ROOT, path.join(entry.parentPath ?? entry.path, entry.name))
+        .split(path.sep)
+        .join('/')
+    ),
 ];
 
 const LOCALES = ['en', 'de', 'fr', 'es', 'pt'];
@@ -165,33 +174,23 @@ test('styled buttons follow the dark theme, use contrast-safe fills and honour r
   assert.match(css, /min-height:36px/, 'text buttons use the shared 36px control height');
 });
 
-test('icon buttons expose their aria-label as a tooltip and drop a duplicate native title', () => {
-  const { html, css } = renderWithTheme(
-    { colorScheme: 'light', colors: {} },
-    (b) =>
-      React.createElement(
-        b.IconButtonDanger,
-        { 'aria-label': 'Delete account', title: 'Delete account' },
-        'x'
-      ),
-    (b) => React.createElement(b.IconButton, { title: 'Edit' }, 'y')
-  );
-
-  assert.match(html, /data-tooltip="Delete account"><button aria-label="Delete account"/);
-  assert.doesNotMatch(html, /title=/, 'no native title tooltip next to the DS tooltip');
-  assert.match(
-    html,
-    /data-tooltip="Edit"><button aria-label="Edit"/,
-    'a lone title becomes the accessible name'
-  );
-  assert.match(css, /height:36px/, 'icon buttons share the 36px control height');
-});
-
 test('unused button variants are removed and the remaining exports are stable', () => {
   const buttons = loadAdminModule('admin/src/components/StyledButtons.jsx', {
     stubs: { '@strapi/design-system': DS_STUB },
   });
-  for (const removed of ['SuccessButton', 'LinkButton', 'WhiteOutlineButton']) {
+  // Row actions moved to the DS IconButton of the shared table layer (the
+  // Magic Link table design), so the tinted icon buttons are gone too.
+  for (const removed of [
+    'SuccessButton',
+    'LinkButton',
+    'WhiteOutlineButton',
+    'IconButton',
+    'IconButtonDanger',
+    'IconButtonPrimary',
+    'IconButtonSuccess',
+    'IconButtonWarning',
+    'IconButtonPurple',
+  ]) {
     assert.equal(buttons[removed], undefined, `${removed} is no longer exported`);
   }
   for (const kept of [
@@ -200,12 +199,6 @@ test('unused button variants are removed and the remaining exports are stable', 
     'TertiaryButton',
     'DangerButton',
     'CTAButton',
-    'IconButton',
-    'IconButtonDanger',
-    'IconButtonPrimary',
-    'IconButtonSuccess',
-    'IconButtonWarning',
-    'IconButtonPurple',
   ]) {
     assert.ok(buttons[kept], `${kept} is exported`);
   }

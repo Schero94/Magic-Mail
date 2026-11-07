@@ -4,13 +4,22 @@ import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
 import { useFormatters } from '../hooks/useFormatters';
 import styled, { keyframes, css } from 'styled-components';
-import { Box, Flex, Typography, Loader } from '@strapi/design-system';
-import { Table, Thead, Tbody, Tr, Th, Td } from '@strapi/design-system';
+import {
+  Box,
+  Button,
+  Flex,
+  Loader,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  Typography,
+} from '@strapi/design-system';
+import { Mail, Trash } from '@strapi/icons';
 import {
   ArrowPathIcon,
   ChartBarIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   EnvelopeIcon,
   EnvelopeOpenIcon,
   CursorArrowRaysIcon,
@@ -19,9 +28,22 @@ import {
   XCircleIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { TertiaryButton, DangerButton } from '../components/StyledButtons';
+import { TertiaryButton } from '../components/StyledButtons';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { SectionHeading } from '../components/shared/Headings';
 import { SearchField } from '../components/shared/SearchField';
+import {
+  Avatar,
+  DataTable,
+  EmptyState,
+  FilterActions,
+  FilterBar,
+  FilterSearch,
+  LoadErrorState,
+  StatusBadge,
+  StyledTable,
+  TablePagination,
+} from '../components/shared/table';
 import { motionSafe, reducedMotion } from '../components/shared/motion';
 import { accent, brand, color, fontSize, theme } from '../utils/theme';
 import {
@@ -78,7 +100,6 @@ const float = keyframes`
 // ================ RESPONSIVE BREAKPOINTS ================
 const breakpoints = {
   mobile: '768px',
-  small: '480px',
 };
 
 /** Accent colour of a stat card or counter (text, icon and hover border). */
@@ -342,266 +363,12 @@ const StatsNotice = styled(Flex)`
   }
 `;
 
-const FilterBar = styled(Box)`
-  background: ${color('neutral0')};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg} ${theme.spacing.xl};
-  margin-bottom: ${theme.spacing.lg};
-  box-shadow: ${theme.shadows.sm};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: ${theme.spacing.md};
-  }
-`;
-
-const FilterRow = styled(Flex)`
-  flex-wrap: wrap;
-  gap: ${theme.spacing.md};
-`;
-
-const FilterControls = styled(Flex)`
-  flex: 1 1 320px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: ${theme.spacing.sm};
-  min-width: 0;
-
-  /* Clear All matches the height of the search field beside it (42px, and
-     48px below 768px where DS inputs grow). */
-  && > button {
-    min-height: 42px;
-  }
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    flex-basis: 100%;
-  }
-
-  /* Same breakpoint as the shared SearchField height change. */
-  @media screen and (max-width: 767px) {
-    && > button {
-      min-height: 48px;
-    }
-  }
-
-  @media screen and (max-width: ${breakpoints.small}) {
-    && > * {
-      flex: 1 1 100%;
-    }
-  }
-`;
-
-const SearchBox = styled.div`
-  flex: 0 1 300px;
-  min-width: 0;
-  display: flex;
-
-  /* Phones and small tablets: the search uses the full row next to Clear All. */
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    flex: 1 1 200px;
-  }
-`;
-
-const StyledTable = styled(Table)`
-  thead {
-    background: ${color('neutral100')};
-    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
-
-    th {
-      font-weight: 600;
-      color: ${color('neutral800')};
-      font-size: ${fontSize(1)};
-      text-transform: uppercase;
-      letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.md};
-    }
-  }
-
-  tbody tr {
-    transition: all ${theme.transitions.fast};
-    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    &:hover {
-      background: rgba(2, 132, 199, 0.12);
-    }
-
-    /* Cells wrap (the DS table sets nowrap), so the table fits without
-       sideways scrolling down to 1024px; status and counters stay on one line. */
-    td {
-      padding: ${theme.spacing.lg} ${theme.spacing.md};
-      color: ${color('neutral800')};
-      vertical-align: middle;
-      white-space: normal;
-    }
-
-    td.wrap-cell {
-      min-width: 160px;
-      overflow-wrap: anywhere;
-    }
-
-    td.nowrap-cell {
-      white-space: nowrap;
-    }
-
-    td.template-cell {
-      min-width: 96px;
-    }
-
-    ${reducedMotion}
-  }
-`;
-
-const TableContainer = styled(Box)`
-  background: ${color('neutral0')};
-  border-radius: ${theme.borderRadius.lg};
-  box-shadow: ${theme.shadows.md};
-  border: 1px solid rgba(128, 128, 128, 0.2);
-  overflow: hidden;
-  margin-bottom: ${theme.spacing.xl};
-  transition: opacity ${theme.transitions.fast};
-
-  &[aria-busy='true'] {
-    opacity: 0.6;
-  }
-
-  ${reducedMotion}
-`;
-
-const TableScroller = styled(Box)`
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    display: none;
-  }
-`;
-
-/** Phones and small tablets: one list entry per email instead of a seven-column table. */
-const LogList = styled.ul`
-  display: none;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    display: block;
-  }
-`;
-
-const LogItem = styled.li`
-  display: flex;
+/** Heading of the email log list (and the permissions notice) above the filter bar. */
+const SectionHeaderRow = styled(Flex)`
   flex-direction: column;
+  align-items: flex-start;
   gap: ${theme.spacing.sm};
-  padding: ${theme.spacing.md};
-  min-width: 0;
-  overflow-wrap: anywhere;
-
-  & + & {
-    border-top: 1px solid rgba(128, 128, 128, 0.15);
-  }
-`;
-
-/** Keeps the delivery status on one line beside a long recipient address. */
-const StatusSlot = styled.span`
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow-wrap: normal;
-`;
-
-const LogFacts = styled.dl`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: ${theme.spacing.sm} ${theme.spacing.md};
-  margin: 0;
-
-  dt {
-    font-size: ${fontSize(1)};
-    font-weight: 600;
-    letter-spacing: 0.025em;
-    text-transform: uppercase;
-    color: ${color('neutral600')};
-    margin-bottom: ${theme.spacing.xs};
-  }
-
-  dd {
-    margin: 0;
-    color: ${color('neutral800')};
-  }
-`;
-
-const PaginationBar = styled.nav`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: ${theme.spacing.sm};
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-top: 1px solid rgba(128, 128, 128, 0.15);
-
-  /* Same 16px inset as the mobile log entries above it. */
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: ${theme.spacing.md};
-  }
-`;
-
-const EmptyState = styled(Box)`
-  background: ${color('neutral0')};
-  border-radius: ${theme.borderRadius.xl};
-  border: 2px dashed rgba(128, 128, 128, 0.3);
-  padding: 80px 32px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  @media screen and (max-width: ${breakpoints.mobile}) {
-    padding: 48px 16px;
-    min-height: 300px;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, rgba(2, 132, 199, 0.06) 100%);
-    opacity: 0.3;
-    z-index: 0;
-  }
-`;
-
-const EmptyContent = styled.div`
-  position: relative;
-  z-index: 1;
-  max-width: 600px;
-  margin: 0 auto;
-`;
-
-const EmptyIcon = styled.div`
-  width: 120px;
-  height: 120px;
-  margin: 0 auto ${theme.spacing.lg};
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(2, 132, 199, 0.12) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: ${theme.shadows.xl};
-
-  svg {
-    width: 60px;
-    height: 60px;
-    color: ${(p) => (p.$danger ? accent.danger(p) : accent.primary(p))};
-  }
+  margin-bottom: ${theme.spacing.md};
 `;
 
 const CountCell = styled(Flex)`
@@ -853,29 +620,42 @@ const Analytics = () => {
   };
 
   const renderRecipient = (log) => (
-    <>
-      <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block' }}>
-        {log.recipient}
-      </Typography>
-      {log.recipientName && (
-        <Typography variant="pi" textColor="neutral600" style={{ display: 'block' }}>
-          {log.recipientName}
+    <Flex alignItems="center" gap={2} style={{ minWidth: 0 }}>
+      <Avatar $background={brand.gradient} aria-hidden="true">
+        <Mail />
+      </Avatar>
+      <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0, maxWidth: '100%' }}>
+        <Typography
+          variant="omega"
+          fontWeight="semiBold"
+          textColor="neutral800"
+          ellipsis
+          title={log.recipient || undefined}
+          style={{ maxWidth: '100%' }}
+        >
+          {log.recipient}
         </Typography>
-      )}
-    </>
+        {log.recipientName && (
+          <Typography
+            variant="pi"
+            textColor="neutral600"
+            ellipsis
+            title={log.recipientName}
+            style={{ maxWidth: '100%' }}
+          >
+            {log.recipientName}
+          </Typography>
+        )}
+      </Flex>
+    </Flex>
   );
 
   const renderDelivery = (log) => {
     const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt);
-    const label = t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label);
-    return delivery.tone ? (
-      <ToneText variant="pi" fontWeight="semiBold" $tone={delivery.tone}>
-        {label}
-      </ToneText>
-    ) : (
-      <Typography variant="pi" fontWeight="semiBold" textColor="neutral600">
-        {label}
-      </Typography>
+    return (
+      <StatusBadge $tone={delivery.tone ?? 'neutral'}>
+        {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}
+      </StatusBadge>
     );
   };
 
@@ -930,231 +710,137 @@ const Analytics = () => {
         </StatsNotice>
       )}
 
-      {/* Filter Bar */}
-      <FilterBar>
-        <FilterRow justifyContent="space-between" alignItems="center">
-          <Typography variant="omega" fontWeight="semiBold" textColor="neutral700" tag="h2">
-            {logsError
-              ? t('analytics.logs.headingUnknown', 'Recent emails')
-              : searchTerm
-                ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', {
-                    count: formatNumber(total, undefined, '0'),
-                  })
-                : t('analytics.logs.heading', 'Recent emails ({count})', {
-                    count: formatNumber(total, undefined, '0'),
-                  })}
-          </Typography>
-          <FilterControls alignItems="center">
-            <SearchBox>
-              <SearchField
-                label={t('analytics.search.label', 'Search email logs')}
-                ref={searchRef}
-                placeholder={t('analytics.search.placeholder', 'Search by recipient or subject...')}
-                value={searchInput}
-                onChange={setSearchInput}
-              />
-            </SearchBox>
-            {canManage && hasAnyLogs && (
-              <DangerButton
-                startIcon={<TrashIcon style={ICON_16} aria-hidden="true" />}
-                onClick={() => setShowClearDialog(true)}
-                disabled={isDeleting}
-              >
-                {t('analytics.clear.button', 'Clear All')}
-              </DangerButton>
-            )}
-          </FilterControls>
-        </FilterRow>
+      {/* Email logs: section heading, filter bar and the shared table layer */}
+      <SectionHeaderRow>
+        <SectionHeading>
+          {logsError
+            ? t('analytics.logs.headingUnknown', 'Recent emails')
+            : searchTerm
+              ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', {
+                  count: formatNumber(total, undefined, '0'),
+                })
+              : t('analytics.logs.heading', 'Recent emails ({count})', {
+                  count: formatNumber(total, undefined, '0'),
+                })}
+        </SectionHeading>
         {rbacError && !rbacLoading && (
-          <Box paddingTop={3}>
-            <Typography variant="pi" textColor="danger600">
-              {t(
-                'common.permissions.loadError',
-                'Your permissions could not be loaded. Reload the page to try again.'
-              )}
-            </Typography>
-          </Box>
+          <Typography variant="pi" textColor="danger600" role="alert">
+            {t(
+              'common.permissions.loadError',
+              'Your permissions could not be loaded. Reload the page to try again.'
+            )}
+          </Typography>
+        )}
+      </SectionHeaderRow>
+
+      <FilterBar>
+        <FilterSearch>
+          <SearchField
+            label={t('analytics.search.label', 'Search email logs')}
+            ref={searchRef}
+            placeholder={t('analytics.search.placeholder', 'Search by recipient or subject...')}
+            value={searchInput}
+            onChange={setSearchInput}
+          />
+        </FilterSearch>
+        {canManage && hasAnyLogs && (
+          <FilterActions>
+            <Button
+              variant="danger-light"
+              size="L"
+              startIcon={<Trash aria-hidden="true" />}
+              onClick={() => setShowClearDialog(true)}
+              disabled={isDeleting}
+            >
+              {t('analytics.clear.button', 'Clear All')}
+            </Button>
+          </FilterActions>
         )}
       </FilterBar>
 
-      {/* Email Logs Table */}
-      {logsError ? (
-        <EmptyState role="alert">
-          <EmptyContent>
-            <EmptyIcon $danger>
-              <ExclamationTriangleIcon aria-hidden="true" />
-            </EmptyIcon>
-            <Typography
-              variant="delta"
-              fontWeight="bold"
-              tag="h2"
-              style={{ marginBottom: '12px', display: 'block' }}
-            >
-              {t('analytics.logs.errorTitle', "Couldn't load email logs")}
-            </Typography>
-            <Typography
-              variant="omega"
-              textColor="neutral600"
-              style={{ lineHeight: '1.6', display: 'block' }}
-            >
-              {logsError}
-            </Typography>
-            <Flex justifyContent="center" paddingTop={5}>
-              <TertiaryButton
-                startIcon={<ArrowPathIcon style={ICON_16} aria-hidden="true" />}
-                onClick={reloadLogs}
-                loading={logsLoading}
-              >
-                {t('analytics.retry', 'Retry')}
-              </TertiaryButton>
-            </Flex>
-          </EmptyContent>
-        </EmptyState>
-      ) : emailLogs.length === 0 ? (
-        <EmptyState aria-busy={logsLoading} aria-live="polite">
-          <EmptyContent>
-            <EmptyIcon>
-              <EnvelopeIcon aria-hidden="true" />
-            </EmptyIcon>
-            <Typography
-              variant="delta"
-              fontWeight="bold"
-              tag="h2"
-              style={{ marginBottom: '12px', display: 'block' }}
-            >
-              {searchTerm
+      <DataTable
+        aria-label={t('analytics.logs.listLabel', 'Email logs')}
+        aria-busy={logsLoading ? 'true' : undefined}
+      >
+        {logsError ? (
+          <LoadErrorState
+            message={t('analytics.logs.errorTitle', "Couldn't load email logs")}
+            description={logsError}
+            onRetry={reloadLogs}
+            isRetrying={logsLoading}
+          />
+        ) : emailLogs.length === 0 ? (
+          <EmptyState
+            icon={Mail}
+            title={
+              searchTerm
                 ? t('analytics.empty.searchTitle', 'No emails found')
-                : t('analytics.empty.title', 'No emails sent yet')}
-            </Typography>
-            <Typography
-              variant="omega"
-              textColor="neutral600"
-              style={{ lineHeight: '1.6', display: 'block' }}
-            >
-              {searchTerm
+                : t('analytics.empty.title', 'No emails sent yet')
+            }
+            description={
+              searchTerm
                 ? t('analytics.empty.searchBody', 'Try adjusting your search terms')
                 : t(
                     'analytics.empty.body',
                     'Send your first email to see analytics and tracking information here.'
-                  )}
-            </Typography>
-          </EmptyContent>
-        </EmptyState>
-      ) : (
-        <TableContainer aria-busy={logsLoading}>
-          <TableScroller>
+                  )
+            }
+          />
+        ) : (
+          <>
             <StyledTable colCount={7} rowCount={emailLogs.length + 1}>
               <Thead>
                 <Tr>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.recipient}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.subject}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.deliveryStatus}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.template}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.attemptedAt}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.opened}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{columnLabels.clicked}</Typography>
-                  </Th>
+                  <Th>{columnLabels.recipient}</Th>
+                  <Th>{columnLabels.subject}</Th>
+                  <Th>{columnLabels.deliveryStatus}</Th>
+                  <Th>{columnLabels.template}</Th>
+                  <Th>{columnLabels.attemptedAt}</Th>
+                  <Th>{columnLabels.opened}</Th>
+                  <Th>{columnLabels.clicked}</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {emailLogs.map((log) => (
                   <Tr key={log.id}>
-                    <Td className="wrap-cell">{renderRecipient(log)}</Td>
-                    <Td className="wrap-cell">
+                    <Td className="cell-wrap" data-label={columnLabels.recipient}>
+                      {renderRecipient(log)}
+                    </Td>
+                    <Td className="cell-wrap" data-label={columnLabels.subject}>
                       <Typography variant="omega">{log.subject || '-'}</Typography>
                     </Td>
-                    <Td className="nowrap-cell">{renderDelivery(log)}</Td>
-                    <Td className="template-cell">
+                    <Td data-label={columnLabels.deliveryStatus}>{renderDelivery(log)}</Td>
+                    <Td className="cell-wrap" data-label={columnLabels.template}>
                       <Typography variant="omega" textColor="neutral600">
                         {log.templateName || '-'}
                       </Typography>
                     </Td>
-                    <Td className="nowrap-cell">
-                      <Typography variant="pi" textColor="neutral600">
+                    <Td className="cell-date" data-label={columnLabels.attemptedAt}>
+                      <Typography variant="pi" textColor="neutral800">
                         {formatDateTime(log.sentAt)}
                       </Typography>
                     </Td>
-                    <Td>{renderCount(log.openCount, 'success')}</Td>
-                    <Td>{renderCount(log.clickCount, 'primary')}</Td>
+                    <Td data-label={columnLabels.opened}>
+                      {renderCount(log.openCount, 'success')}
+                    </Td>
+                    <Td data-label={columnLabels.clicked}>
+                      {renderCount(log.clickCount, 'primary')}
+                    </Td>
                   </Tr>
                 ))}
               </Tbody>
             </StyledTable>
-          </TableScroller>
-          <LogList aria-label={t('analytics.logs.listLabel', 'Email logs')}>
-            {emailLogs.map((log) => (
-              <LogItem key={log.id}>
-                <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
-                  <Box minWidth={0}>{renderRecipient(log)}</Box>
-                  <StatusSlot>{renderDelivery(log)}</StatusSlot>
-                </Flex>
-                <Typography variant="omega">{log.subject || '-'}</Typography>
-                <LogFacts>
-                  <div>
-                    <dt>{columnLabels.template}</dt>
-                    <dd>
-                      <Typography variant="pi">{log.templateName || '-'}</Typography>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{columnLabels.attemptedAt}</dt>
-                    <dd>
-                      <Typography variant="pi">{formatDateTime(log.sentAt)}</Typography>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{columnLabels.opened}</dt>
-                    <dd>{renderCount(log.openCount, 'success')}</dd>
-                  </div>
-                  <div>
-                    <dt>{columnLabels.clicked}</dt>
-                    <dd>{renderCount(log.clickCount, 'primary')}</dd>
-                  </div>
-                </LogFacts>
-              </LogItem>
-            ))}
-          </LogList>
-          {pageCount > 1 && (
-            <PaginationBar aria-label={t('analytics.pagination.label', 'Email log pages')}>
-              <Typography variant="pi" textColor="neutral600" aria-live="polite">
-                {t('analytics.pagination.status', 'Page {page} of {pageCount}', {
-                  page: formatNumber(currentPage, undefined, '1'),
-                  pageCount: formatNumber(pageCount, undefined, '1'),
-                })}
-              </Typography>
-              <Flex gap={2} wrap="wrap">
-                <TertiaryButton
-                  startIcon={<ChevronLeftIcon style={ICON_16} aria-hidden="true" />}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1 || logsLoading}
-                >
-                  {t('analytics.pagination.previous', 'Previous')}
-                </TertiaryButton>
-                <TertiaryButton
-                  endIcon={<ChevronRightIcon style={ICON_16} aria-hidden="true" />}
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  disabled={currentPage >= pageCount || logsLoading}
-                >
-                  {t('analytics.pagination.next', 'Next')}
-                </TertiaryButton>
-              </Flex>
-            </PaginationBar>
-          )}
-        </TableContainer>
-      )}
+            <TablePagination
+              page={currentPage}
+              pageCount={pageCount}
+              total={total}
+              pageSize={LOGS_PAGE_SIZE}
+              onChange={setPage}
+              label={t('analytics.pagination.label', 'Email log pages')}
+            />
+          </>
+        )}
+      </DataTable>
 
       {/* Clear All Confirmation Dialog */}
       <ConfirmDialog

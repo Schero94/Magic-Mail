@@ -63,8 +63,8 @@ test('routing view translates its strings and labels every control', () => {
   assert.match(page, /<SearchField\s+label=\{t\('routing\.search\.label'/);
   assert.match(page, /aria-label=\{t\('routing\.filters\.status'/);
   assert.match(page, /aria-label=\{t\('routing\.filters\.matchType'/);
-  assert.match(page, /aria-label=\{t\('routing\.actions\.edit'/);
-  assert.match(page, /aria-label=\{t\('routing\.actions\.delete'/);
+  assert.match(page, /<IconButton\s+label=\{t\('routing\.actions\.edit'/);
+  assert.match(page, /<IconButton\s+label=\{t\('routing\.actions\.delete'/);
   assert.match(page, /<Title tag="h1">/);
   assert.match(page, /<SectionHeading>/);
   assert.match(modal, /<Modal\.Title>/, 'the rule dialog has an accessible title');
@@ -93,18 +93,20 @@ test('routing view: RBAC, delete confirmation, unsaved-changes guard and error h
   assert.doesNotMatch(modal, /max=\{10\}/);
 });
 
-test('routing styles are responsive and reduced-motion aware', () => {
+test('routing list uses the shared table layer and keeps reduced-motion aware page styles', () => {
   const styles = sources['admin/src/pages/Routing/styles.js'];
-  assert.match(styles, /export const FilterBar[\s\S]*?flex-wrap: wrap;/);
-  // The DS table scrolls sideways itself; the actions column stays visible and
-  // phones get one card per rule instead of the seven-column table.
-  assert.match(styles, /td\.actions-cell \{\s*position: sticky;/);
-  assert.match(styles, /export const TableScroll[\s\S]*?display: none;/);
-  assert.match(styles, /export const RuleCardList = styled\.ol`[\s\S]*?display: flex;/);
-  assert.match(styles, /td\.wrap-cell \{\s*white-space: normal;/);
+  // One table (Magic Link design) that becomes labelled cards below 768px,
+  // instead of a scrolling table plus a second mobile-only list.
+  assert.match(page, /<DataTable aria-label=\{t\('routing\.table\.label'/);
+  assert.match(page, /<Td className="cell-wrap" data-label=\{columnLabels\.matchValue\}>/);
+  assert.match(page, /\{canManage && <Td data-label="">\{renderActions\(rule\)\}<\/Td>\}/);
+  assert.doesNotMatch(page, /RuleCardList|TableScroll/);
+  assert.doesNotMatch(
+    styles,
+    /StyledTable|FilterBar|RuleCardList|TableScroll/,
+    'old styles removed'
+  );
   assert.doesNotMatch(styles, /max-width: 1200px/, 'stat cards align with the page edges');
-  assert.match(styles, /\[role='combobox'\] \{\s*min-height: 42px;/);
-  assert.match(styles, /motionSafe\(css`\s*animation: \$\{pulse\}/);
   assert.match(styles, /motionSafe\(css`\s*animation: \$\{shimmer\}/);
 });
 
@@ -368,8 +370,11 @@ test('dialogs return focus to their opener and row actions keep native keys', ()
   assert.match(modal, /<Modal\.Content size="L" onCloseAutoFocus=\{returnFocus\}>/);
   assert.match(page, /getReturnFocusFallback=\{getFocusFallback\}/);
   assert.match(page, /data-mm-focus-fallback/);
-  assert.match(page, /<Flex gap=\{2\} onKeyDown=\{keepNativeButtonKeys\}>/);
-  assert.match(page, /<RuleCardList\s+aria-label=\{t\(\s*'routing\.table\.label'/);
+  assert.match(
+    page,
+    /<Flex gap=\{1\} justifyContent="flex-end" onKeyDown=\{keepNativeButtonKeys\}>/
+  );
+  assert.match(page, /keepNativeButtonKeys,\s*\} from '\.\.\/components\/shared\/table'/);
 });
 
 test('account names match case-insensitively, like the router and the server check', () => {
