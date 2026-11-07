@@ -44,6 +44,7 @@ function startFakeSmtp({ port = 0, host = '127.0.0.1' } = {}) {
     let inData = false;
     let mode = 'ok';
     let message = [];
+    let acceptedRecipients = 0;
 
     const finishData = () => {
       const text = message.join('\r\n');
@@ -102,8 +103,16 @@ function startFakeSmtp({ port = 0, host = '127.0.0.1' } = {}) {
             socket.write('421 4.7.0 closing\r\n');
             socket.end();
             return;
-          } else socket.write('250 2.1.5 ok\r\n');
+          } else {
+            acceptedRecipients += 1;
+            socket.write('250 2.1.5 ok\r\n');
+          }
         } else if (verb === 'DATA') {
+          // RFC 2920: with every RCPT refused, DATA is refused too.
+          if (acceptedRecipients === 0) {
+            socket.write('554 5.5.1 no valid recipients\r\n');
+            continue;
+          }
           if (mode === 'dropbefore') {
             socket.destroy();
             return;
@@ -113,6 +122,7 @@ function startFakeSmtp({ port = 0, host = '127.0.0.1' } = {}) {
           socket.write('354 end with .\r\n');
         } else if (verb === 'RSET') {
           mode = 'ok';
+          acceptedRecipients = 0;
           socket.write('250 ok\r\n');
         } else if (verb === 'QUIT') {
           socket.end('221 bye\r\n');
