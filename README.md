@@ -1245,7 +1245,7 @@ The full list is in [CHANGELOG.md](./CHANGELOG.md). Upgrade one minor or major a
 
 ### Upgrading to the next release (after 4.4.0)
 
-1. **Stricter failover.** A send whose account fails with HTTP 500/502/504, a timeout, or an SMTP connection lost after the message was transmitted now throws instead of trying the next account, because that provider may already have delivered it. SMTP `4xx` replies (also `451` after DATA) and HTTP 408 now fail over. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
+1. **Stricter failover.** A send whose account fails with HTTP 500/502/504, a network error after the request was sent, or an SMTP connection lost or timed out after the server's `354` reply now throws instead of trying the next account, because that provider may already have delivered it. SMTP `4xx` replies (also `451` after DATA) and HTTP 408 now fail over. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
 2. **Packaging.** `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers instead of dependencies, and `@strapi/utils` is a dependency. Nothing to do in a standard Strapi project; the admin build uses Strapi's own copies.
 
 ### Upgrading to 4.4
