@@ -520,8 +520,7 @@ test('foundation files use DS tokens, readable font sizes and no emoji', () => {
 test('App sets a page title per tab and labels its tab list', () => {
   const app = read('admin/src/pages/App.jsx');
   assert.match(app, /<PluginPageTitle>\{activeLabel\}<\/PluginPageTitle>/);
-  assert.match(app, /const TabsList = styled\(Tabs\.List\)`/);
-  assert.match(app, /<TabsList aria-label=/);
+  assert.match(app, /<SectionTabsList[\s\S]*?label=\{t\('app\.tabs\.label'/);
   assert.match(app, /<Page\.Main aria-label=/, 'main landmark for the skip link');
   assert.match(app, /<Icon aria-hidden="true"/);
 });

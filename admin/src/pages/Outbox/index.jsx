@@ -39,6 +39,7 @@ import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useFormatters } from '../../hooks/useFormatters';
 import { apiErrorMessage } from '../../utils/analyticsLogs';
 import { OutboxDetailDrawer } from './OutboxDetailDrawer';
+import { Container } from '../Accounts/styles';
 import {
   OUTBOX_PAGE_SIZE,
   apiErrorCode,
@@ -90,7 +91,7 @@ const SUMMARY = [
  *
  * @returns {JSX.Element}
  */
-const Outbox = () => {
+const OutboxView = () => {
   const { canReadQueue, canManageQueue, isQueueLoading } = useMagicMailRBAC();
   const { t } = useMagicMailIntl();
   const { formatDateTime, formatNumber } = useFormatters();
@@ -527,5 +528,17 @@ function dialogCopy(t, { type, row }) {
     confirm: t('queue.retry.confirm', 'Retry now'),
   };
 }
+
+/**
+ * Outbox tab: the view inside the same page container (max width, gutters,
+ * space below the tabs) as the other MagicMail tabs.
+ *
+ * @returns {JSX.Element}
+ */
+const Outbox = () => (
+  <Container>
+    <OutboxView />
+  </Container>
+);
 
 export default Outbox;

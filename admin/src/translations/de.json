@@ -818,5 +818,7 @@
   "queue.errorTitle": "Postausgang konnte nicht geladen werden",
   "queue.summary.pending": "{count} wartend",
   "queue.summary.failed": "{count} fehlgeschlagen",
-  "queue.summary.uncertain": "{count} ungewiss"
+  "queue.summary.uncertain": "{count} ungewiss",
+  "app.tabs.scrollPrevious": "Vorherige Bereiche anzeigen",
+  "app.tabs.scrollNext": "Weitere Bereiche anzeigen"
 }

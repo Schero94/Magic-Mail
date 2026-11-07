@@ -818,5 +818,7 @@
   "queue.errorTitle": "No se pudo cargar la bandeja de salida",
   "queue.summary.pending": "{count} pendientes",
   "queue.summary.failed": "{count} fallidos",
-  "queue.summary.uncertain": "{count} inciertos"
+  "queue.summary.uncertain": "{count} inciertos",
+  "app.tabs.scrollPrevious": "Mostrar secciones anteriores",
+  "app.tabs.scrollNext": "Mostrar más secciones"
 }

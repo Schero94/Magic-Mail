@@ -46,6 +46,11 @@
 * **package:** installs without plugin warnings in a fresh `create-strapi-app@5.61` project with yarn 1, npm 11 and pnpm. `@strapi/utils` (used by the server code) is now a dependency instead of a peer an app only has transitively. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers (`peerDependenciesMeta`) instead of bundled dependencies, so the plugin always uses the admin's own copies; Strapi 5.61 aliases and dedupes the Design System in the admin build. The `react`/`react-dom` peers accept `^18.0.0` like the Strapi 5 plugin template. The minimum Strapi stays 5.57.0, the first release whose admin ships Design System 2.2.4.
 * **package:** npm metadata: plain description, homepage `https://schero94.github.io/Magic-Mail/`, `git+https` repository URL, issue tracker and search keywords.
 
+### Fixed (admin)
+
+* **admin:** below 768 px the MagicMail tab bar keeps every section reachable without hidden off-screen tabs: it scrolls in its own region with "Show previous sections" / "Show more sections" edge buttons while tabs are out of view, keeps the active tab centred (also after the Outbox tab appears once its permission is checked) and scrolls a tab reached with the arrow keys into view. From 768 px it is the unchanged Design System tab bar, like native Strapi tabbed screens.
+* **admin:** the Outbox tab has the same page gutters and spacing below the tabs as the other tabs (it touched the screen edges).
+
 ### Fixed (send queue, before release)
 
 * **queue:** a database error while recording `sent` after the provider accepted a mail no longer re-queues it. The `sent` write is retried three times (0.25, 1, 3 s); if it still fails the claim expires and the mail ends as `uncertain`. Errors after a provider was contacted that did not come from the provider adapter are classified as ambiguous.

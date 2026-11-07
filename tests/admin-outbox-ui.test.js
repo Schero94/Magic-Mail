@@ -129,3 +129,9 @@ test('App shows the Outbox tab only with queue.read (direct links show the no-pe
   const view = read('admin/src/pages/Outbox/index.jsx');
   assert.match(view, /if \(!canReadQueue\) \{/);
 });
+
+test('the Outbox tab uses the same page container as the other tabs', () => {
+  const src = read('admin/src/pages/Outbox/index.jsx');
+  assert.match(src, /import \{ Container \} from '\.\.\/Accounts\/styles';/);
+  assert.match(src, /<Container>\s*<OutboxView \/>\s*<\/Container>/);
+});

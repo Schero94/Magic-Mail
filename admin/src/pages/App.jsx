@@ -1,6 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import styled from 'styled-components';
 import { Box, Tabs, Flex } from '@strapi/design-system';
 import { Page } from '@strapi/strapi/admin';
 import {
@@ -19,6 +17,7 @@ import Outbox from './Outbox';
 import pluginId from '../pluginId';
 import pluginPermissions from '../permissions';
 import { PluginPageTitle } from '../components/shared/Headings';
+import { SectionTabsList } from '../components/shared/SectionTabsList';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 
@@ -33,22 +32,6 @@ const TAB_PATHS = {
 };
 
 const iconProps = { width: 16, height: 16 };
-
-/**
- * Below 768px the tabs do not fit: they scroll sideways on one line
- * instead of wrapping their labels or being clipped off-screen.
- */
-const TabsList = styled(Tabs.List)`
-  @media (max-width: 767px) {
-    overflow-x: auto;
-    scrollbar-width: thin;
-
-    [role='tab'] {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-  }
-`;
 
 const App = () => {
   const location = useLocation();
@@ -92,19 +75,6 @@ const App = () => {
   const activeTab = getActiveTab();
   const activeLabel = tabs.find((tab) => tab.value === activeTab)?.label;
 
-  // On narrow screens the tab strip scrolls sideways; keep the active tab in
-  // view (e.g. Analytics, the last tab, after a reload or a deep link).
-  const tabsRef = useRef(null);
-  useLayoutEffect(() => {
-    const list = tabsRef.current?.querySelector('[role="tablist"]');
-    const tab = list?.querySelector('[role="tab"][aria-selected="true"]');
-    if (!list || !tab || list.scrollWidth <= list.clientWidth) return;
-    const listBox = list.getBoundingClientRect();
-    const tabBox = tab.getBoundingClientRect();
-    if (tabBox.left >= listBox.left && tabBox.right <= listBox.right) return;
-    list.scrollLeft += tabBox.left - listBox.left - (listBox.width - tabBox.width) / 2;
-  }, [activeTab, isEditorRoute]);
-
   return (
     <Page.Protect permissions={pluginPermissions.access}>
       <Page.Protect permissions={pluginPermissions.read}>
@@ -115,10 +85,15 @@ const App = () => {
           {isEditorRoute ? (
             <EditorPage />
           ) : (
-            <Box ref={tabsRef}>
+            <Box>
               <PluginPageTitle>{activeLabel}</PluginPageTitle>
               <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
-                <TabsList aria-label={t('app.tabs.label', 'MagicMail sections')}>
+                <SectionTabsList
+                  value={activeTab}
+                  label={t('app.tabs.label', 'MagicMail sections')}
+                  previousLabel={t('app.tabs.scrollPrevious', 'Show previous sections')}
+                  nextLabel={t('app.tabs.scrollNext', 'Show more sections')}
+                >
                   {tabs.map(({ value, Icon, label }) => (
                     <Tabs.Trigger key={value} value={value}>
                       <Flex gap={2} alignItems="center">
@@ -127,7 +102,7 @@ const App = () => {
                       </Flex>
                     </Tabs.Trigger>
                   ))}
-                </TabsList>
+                </SectionTabsList>
 
                 <Tabs.Content value="accounts">
                   <HomePage />

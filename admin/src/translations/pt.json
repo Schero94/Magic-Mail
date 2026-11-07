@@ -818,5 +818,7 @@
   "queue.errorTitle": "Não foi possível carregar a caixa de saída",
   "queue.summary.pending": "{count} pendentes",
   "queue.summary.failed": "{count} falhados",
-  "queue.summary.uncertain": "{count} incertos"
+  "queue.summary.uncertain": "{count} incertos",
+  "app.tabs.scrollPrevious": "Mostrar seções anteriores",
+  "app.tabs.scrollNext": "Mostrar mais seções"
 }
