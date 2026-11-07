@@ -250,9 +250,9 @@
             <article class="card">
               <h3>Analytics</h3>
               <p>
-                Delivery log with server-side search, status filter and paging; opens and clicks per
-                email; delete one log or clear all. Open and click tracking stores truncated IPs
-                only and expires after configurable retention.
+                Delivery log with server-side search and paging (the API also filters by delivery
+                status); opens and clicks per email; delete one log or clear all. Open and click
+                tracking stores truncated IPs only and expires after configurable retention.
               </p>
             </article>
             <article class="card">
@@ -513,7 +513,10 @@
               <p>A major release with breaking changes:</p>
               <ul>
                 <li>API tokens for the Content API, capability-based admin permissions</li>
-                <li>Email only, new tracking privacy defaults, Node.js 22.12+</li>
+                <li>
+                  Email only (3.1.0 already removed the messaging routes), new tracking privacy
+                  defaults, Node.js 22.12+
+                </li>
                 <li>Credential re-encryption: back up the database first</li>
               </ul>
             </article>

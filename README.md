@@ -63,7 +63,7 @@ _Rules in evaluation order. Rules that point to a missing or inactive account ar
 ### Templates
 
 ![Template list with categories, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Templates.png)
-_Templates with Reference ID, category and status; edit, download, code snippet, duplicate, test send and delete._
+_Templates with Reference ID, category and status; edit, download as HTML or JSON, duplicate, code snippets, test send and delete._
 
 ### Template editor
 
@@ -362,9 +362,9 @@ Examples:
 | Marketing campaigns   | Email type `marketing`             | Marketing SendGrid |                    | 50       |
 | VIP customers         | Recipient `@vip-customers.example` | Gmail Support      | Transactional SMTP | 10       |
 
-**Order.** Rules are checked from the highest to the lowest priority (1 to 1,000,000); the first match wins. The admin list and `GET /magic-mail/routing-rules` show them in this order.
+**Order.** Rules are checked from the highest to the lowest priority (1 to 1,000,000); rules with the same priority are checked oldest first. The first match wins. The admin list and `GET /magic-mail/routing-rules` show them in this order.
 
-**Account order for one email.** The matching rule's account, then the rule's fallback account, then the primary account, then the remaining active accounts by account priority (1 to 10, higher first). Accounts over their quota are skipped.
+**Account order for one email.** The account of the first matching rule, then that rule's fallback account, then the accounts (and fallbacks) of the next matching rules, then the primary account, then the remaining active accounts by account priority (1 to 10, higher first). Accounts over their quota are skipped.
 
 **Failover.** Errors that guarantee the provider did not accept the message (connection or authentication failures, missing credentials, HTTP 401/403/429/500/502/503, SMTP envelope rejection) move on to the next account. Ambiguous errors such as timeouts are returned to the caller instead, so an email is never delivered twice.
 
@@ -876,7 +876,7 @@ Breaking changes and what to do:
 
 1. **Node.js 22.12+** and **`@strapi/plugin-users-permissions`** are required. Peer ranges are `^5.57.0`.
 2. **Encryption key everywhere but development/test.** Set `MAGIC_MAIL_ENCRYPTION_KEY` for staging too. The constant fallback key is gone.
-3. **Email only.** The non-email messaging routes and service methods are removed; `/send` no longer accepts `phoneNumber`, `/send-message` no longer accepts `channel` (400 for unknown fields).
+3. **Email only.** The non-email messaging routes and service methods are removed and `/send` no longer accepts `phoneNumber` (both already in 3.1.0); `/send-message` no longer accepts `channel` (400 for unknown fields).
 4. **Content API needs API tokens.** Switch callers to an API token, or set `contentApi.allowUserRoles: true`. `userId` must reference an existing user.
 5. **Admin capabilities.** Grant `read`, `manage` and `test-send` in addition to `access` ([permission guide](./docs/permission-migration.md)).
 6. **Attachments:** replace `path`/`href` with `content`.
