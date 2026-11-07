@@ -291,6 +291,8 @@
   "analytics.logs.errorTitle": "E-Mail-Protokolle konnten nicht geladen werden",
   "analytics.logs.heading": "Neueste E-Mails ({count})",
   "analytics.logs.headingFiltered": "Passende E-Mails ({count})",
+  "analytics.logs.headingUnknown": "Neueste E-Mails",
+  "analytics.logs.listLabel": "E-Mail-Protokolle",
   "analytics.logs.loadError": "E-Mail-Protokolle konnten nicht geladen werden",
   "analytics.pagination.label": "Seiten der E-Mail-Protokolle",
   "analytics.pagination.next": "Weiter",

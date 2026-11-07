@@ -291,6 +291,8 @@
   "analytics.logs.errorTitle": "Couldn't load email logs",
   "analytics.logs.heading": "Recent emails ({count})",
   "analytics.logs.headingFiltered": "Matching emails ({count})",
+  "analytics.logs.headingUnknown": "Recent emails",
+  "analytics.logs.listLabel": "Email logs",
   "analytics.logs.loadError": "Failed to load email logs",
   "analytics.pagination.label": "Email log pages",
   "analytics.pagination.next": "Next",

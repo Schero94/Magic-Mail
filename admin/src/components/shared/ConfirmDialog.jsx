@@ -97,7 +97,9 @@ export const ConfirmDialog = ({
   return (
     <Dialog.Root open={Boolean(isOpen)} onOpenChange={handleOpenChange}>
       <Dialog.Content onCloseAutoFocus={returnFocus}>
-        <Dialog.Header>{title}</Dialog.Header>
+        {/* The DS header centres a one-line title with flexbox; textAlign keeps
+            a wrapped title (narrow screens, long translations) centred too. */}
+        <Dialog.Header textAlign="center">{title}</Dialog.Header>
         <Dialog.Body icon={<WarningIcon aria-hidden="true" $danger={danger} />}>
           <Flex direction="column" gap={2} width="100%" alignItems="stretch">
             {description ? (

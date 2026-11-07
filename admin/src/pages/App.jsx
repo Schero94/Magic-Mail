@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { Box, Tabs, Flex } from '@strapi/design-system';
@@ -77,7 +78,21 @@ const App = () => {
     { value: 'analytics', Icon: ChartBarIcon, label: t('app.tabs.analytics', 'Analytics') },
   ];
 
-  const activeLabel = tabs.find((tab) => tab.value === getActiveTab())?.label;
+  const activeTab = getActiveTab();
+  const activeLabel = tabs.find((tab) => tab.value === activeTab)?.label;
+
+  // On narrow screens the tab strip scrolls sideways; keep the active tab in
+  // view (e.g. Analytics, the last tab, after a reload or a deep link).
+  const tabsRef = useRef(null);
+  useLayoutEffect(() => {
+    const list = tabsRef.current?.querySelector('[role="tablist"]');
+    const tab = list?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!list || !tab || list.scrollWidth <= list.clientWidth) return;
+    const listBox = list.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left >= listBox.left && tabBox.right <= listBox.right) return;
+    list.scrollLeft += tabBox.left - listBox.left - (listBox.width - tabBox.width) / 2;
+  }, [activeTab, isEditorRoute]);
 
   return (
     <Page.Protect permissions={pluginPermissions.access}>
@@ -89,7 +104,7 @@ const App = () => {
           {isEditorRoute ? (
             <EditorPage />
           ) : (
-            <Box>
+            <Box ref={tabsRef}>
               <PluginPageTitle>{activeLabel}</PluginPageTitle>
               <Tabs.Root value={getActiveTab()} onValueChange={handleTabChange}>
                 <TabsList aria-label={t('app.tabs.label', 'MagicMail sections')}>

@@ -290,3 +290,41 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
     'every text input shows its validation error'
   );
 });
+
+test('browser acceptance: Analytics layout fits every width and keeps focus after Clear All', () => {
+  const src = read(ANALYTICS);
+  assert.doesNotMatch(src, /max-width: 1200px/, 'stat cards align with the page edges');
+  assert.match(src, /td\.wrap-cell \{/, 'long recipients and subjects wrap instead of scrolling');
+  assert.match(src, /white-space: normal;/, 'cells override the DS nowrap table');
+  assert.match(src, /<LogList aria-label=/, 'phones get a list instead of a seven-column table');
+  assert.match(src, /<StatusSlot>/, 'the status stays on one line beside long addresses');
+  assert.match(src, /label: 'Pending', tone: 'warning'/, 'pending uses the AA warning accent');
+  assert.match(
+    src,
+    /logsError\s*\?\s*t\('analytics\.logs\.headingUnknown'/,
+    'a failed load does not claim zero emails'
+  );
+  assert.match(src, /refocusAfterClear\.current = true/, 'Clear All hands focus to the search');
+  assert.match(src, /ref=\{searchRef\}/);
+  assert.match(src, /background-color: \$\{brand\.primary\}/, 'hero text has a solid backdrop');
+});
+
+test('browser acceptance: Settings has a main landmark and touch-sized switches', () => {
+  const src = read(SETTINGS);
+  assert.match(src, /<Page\.Main>\s*<PluginSettingsContent \/>/, 'skip link target and landmark');
+  assert.match(
+    src,
+    /@media \(max-width: 767px\)[\s\S]*?button\[role='switch'\][\s\S]*?height: 32px/
+  );
+  assert.match(src, /& > svg \{/, 'the error icon style does not recolour the Retry icon');
+  assert.doesNotMatch(src, /font-size: 1[3-9]px|font-size: 2\dpx/, 'DS font steps only');
+  assert.doesNotMatch(src, /gap: 6px/, 'gaps stay on the 4px scale');
+});
+
+test('browser acceptance: the active plugin tab scrolls into view and dialog titles stay centred', () => {
+  const app = read('admin/src/pages/App.jsx');
+  assert.match(app, /\[role="tab"\]\[aria-selected="true"\]/);
+  assert.match(app, /list\.scrollLeft \+=/);
+  const dialog = read('admin/src/components/shared/ConfirmDialog.jsx');
+  assert.match(dialog, /<Dialog\.Header textAlign="center">/);
+});

@@ -58,7 +58,7 @@ const PageHeader = styled(Flex)`
 `;
 
 const PageTitle = styled(Typography)`
-  font-size: 28px;
+  font-size: ${fontSize(6)};
   font-weight: 700;
   color: ${color('neutral800')};
   display: block;
@@ -66,7 +66,7 @@ const PageTitle = styled(Typography)`
 `;
 
 const PageSubtitle = styled(Typography)`
-  font-size: 14px;
+  font-size: ${fontSize(2)};
   color: ${color('neutral600')};
   display: block;
   margin: 0;
@@ -153,7 +153,7 @@ const SettingInfo = styled(Flex)`
   padding-right: 24px;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
 
   @media screen and (max-width: ${mobile}) {
     padding-right: 12px;
@@ -161,14 +161,14 @@ const SettingInfo = styled(Flex)`
 `;
 
 const SettingLabel = styled(Typography)`
-  font-size: 14px;
+  font-size: ${fontSize(2)};
   font-weight: 600;
   color: ${color('neutral800')};
   display: block;
 `;
 
 const SettingDescription = styled(Typography)`
-  font-size: 13px;
+  font-size: ${fontSize(1)};
   color: ${color('neutral600')};
   line-height: 1.5;
   display: block;
@@ -178,6 +178,21 @@ const SwitchWrapper = styled(Box)`
   flex-shrink: 0;
   display: flex;
   align-items: center;
+
+  /* Touch screens: the DS switch (40x24) grows to a 48x32 target with the
+     same proportions (as in the routing rule modal). */
+  @media (max-width: 767px) {
+    button[role='switch'] {
+      width: 48px;
+      height: 32px;
+      border-radius: 16px;
+    }
+
+    button[role='switch'] > span {
+      width: 24px;
+      height: 24px;
+    }
+  }
 `;
 
 const LoaderContainer = styled(Flex)`
@@ -200,7 +215,8 @@ const ErrorState = styled(Flex)`
   border: 2px dashed rgba(128, 128, 128, 0.3);
   border-radius: 12px;
 
-  svg {
+  /* Only the state icon; the Retry button keeps its neutral icon. */
+  & > svg {
     width: 40px;
     height: 40px;
     color: ${accent.danger};
@@ -753,7 +769,11 @@ const PluginSettingsContent = () => {
 
 const PluginSettingsPage = () => (
   <Page.Protect permissions={pluginPermissions.read}>
-    <PluginSettingsContent />
+    {/* Page.Main renders <main id="main-content">: the landmark and the target
+        of the admin's "Skip to content" link, as on the native settings pages. */}
+    <Page.Main>
+      <PluginSettingsContent />
+    </Page.Main>
   </Page.Protect>
 );
 

@@ -291,6 +291,8 @@
   "analytics.logs.errorTitle": "Impossible de charger les journaux d’e-mails",
   "analytics.logs.heading": "E-mails récents ({count})",
   "analytics.logs.headingFiltered": "E-mails correspondants ({count})",
+  "analytics.logs.headingUnknown": "E-mails récents",
+  "analytics.logs.listLabel": "Journaux des e-mails",
   "analytics.logs.loadError": "Impossible de charger les journaux d’e-mails",
   "analytics.pagination.label": "Pages des journaux d’e-mails",
   "analytics.pagination.next": "Suivant",

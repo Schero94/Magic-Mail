@@ -43,7 +43,7 @@ test('analytics UI labels failed attempts instead of presenting every log as sen
   assert.match(ui, /if \(deliveryStatus === 'failed'\).*label: 'Failed'/);
   assert.match(ui, /if \(deliveryStatus === 'pending'\).*label: 'Pending'/);
   assert.match(ui, /if \(!deliveryStatus && !deliveredAt\).*label: 'Unverified'/);
-  assert.match(ui, /return \{ label: 'Sent', color: 'success600' \}/);
+  assert.match(ui, /return \{ label: 'Sent', tone: 'success' \}/);
 });
 
 test('new analytics logs start pending and legacy rows need acceptance evidence', async () => {

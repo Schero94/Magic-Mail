@@ -291,6 +291,8 @@
   "analytics.logs.errorTitle": "No se pudieron cargar los registros de correo",
   "analytics.logs.heading": "Correos recientes ({count})",
   "analytics.logs.headingFiltered": "Correos coincidentes ({count})",
+  "analytics.logs.headingUnknown": "Correos recientes",
+  "analytics.logs.listLabel": "Registros de correo electrónico",
   "analytics.logs.loadError": "No se pudieron cargar los registros de correo",
   "analytics.pagination.label": "Páginas de registros de correo",
   "analytics.pagination.next": "Siguiente",

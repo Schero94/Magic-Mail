@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -39,13 +39,14 @@ import {
  *
  * @param {'pending'|'sent'|'failed'|null|undefined} deliveryStatus
  * @param {string|null|undefined} deliveredAt Provider acceptance time for legacy log rows.
- * @returns {{label: string, color: string}}
+ * @returns {{label: string, tone: 'danger'|'warning'|'success'|null}}
+ *   `tone` is an accent colour (readable in light and dark mode); null = neutral text.
  */
 const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt) => {
-  if (deliveryStatus === 'failed') return { label: 'Failed', color: 'danger600' };
-  if (deliveryStatus === 'pending') return { label: 'Pending', color: 'warning600' };
-  if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', color: 'neutral600' };
-  return { label: 'Sent', color: 'success600' };
+  if (deliveryStatus === 'failed') return { label: 'Failed', tone: 'danger' };
+  if (deliveryStatus === 'pending') return { label: 'Pending', tone: 'warning' };
+  if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', tone: null };
+  return { label: 'Sent', tone: 'success' };
 };
 
 const DELIVERY_LABEL_KEYS = {
@@ -99,7 +100,9 @@ const Container = styled(Box)`
 `;
 
 const Header = styled(Box)`
-  background: linear-gradient(135deg, ${brand.secondary} 0%, ${brand.primary} 100%);
+  /* Solid fallback under the gradient: white text stays >= 4.5:1 on both stops. */
+  background-color: ${brand.primary};
+  background-image: linear-gradient(135deg, ${brand.secondary} 0%, ${brand.primary} 100%);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl} ${theme.spacing['2xl']};
   margin-bottom: ${theme.spacing.xl};
@@ -191,10 +194,6 @@ const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: ${theme.spacing.lg};
-  justify-content: center;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -206,7 +205,7 @@ const StatsGrid = styled.div`
 const StatCard = styled(Box)`
   background: ${color('neutral0')};
   border-radius: ${theme.borderRadius.lg};
-  padding: 28px ${theme.spacing.lg};
+  padding: ${theme.spacing.lg};
   position: relative;
   overflow: hidden;
   transition: all ${theme.transitions.normal};
@@ -216,7 +215,7 @@ const StatCard = styled(Box)`
   animation-delay: ${(props) => props.$delay || '0s'};
   box-shadow: ${theme.shadows.sm};
   border: 1px solid rgba(128, 128, 128, 0.2);
-  min-width: 200px;
+  min-width: 0;
   flex: 1;
   text-align: center;
   display: flex;
@@ -225,7 +224,6 @@ const StatCard = styled(Box)`
   justify-content: center;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
-    min-width: 0;
     padding: 20px 12px;
 
     &:hover {
@@ -321,8 +319,13 @@ const StatLabel = styled(Typography)`
 `;
 
 const StatsNotice = styled(Flex)`
-  max-width: 1200px;
-  margin: -${theme.spacing.md} auto ${theme.spacing.xl};
+  /* Sits one grid gap (24px, 12px on mobile) below the stat cards. */
+  margin: -${theme.spacing.sm} 0 ${theme.spacing.xl};
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    margin: -12px 0 24px;
+  }
+
   padding: 12px 16px;
   border-radius: ${theme.borderRadius.md};
   border: 1px solid rgba(220, 38, 38, 0.3);
@@ -330,7 +333,8 @@ const StatsNotice = styled(Flex)`
   flex-wrap: wrap;
   gap: ${theme.spacing.sm};
 
-  svg {
+  /* Only the warning icon; the Retry button keeps its neutral icon. */
+  & > div:first-child > svg {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
@@ -363,10 +367,25 @@ const FilterControls = styled(Flex)`
   gap: ${theme.spacing.sm};
   min-width: 0;
 
-  @media screen and (max-width: ${breakpoints.small}) {
-    flex-basis: 100%;
+  /* Clear All matches the height of the search field beside it (42px, and
+     48px below 768px where DS inputs grow). */
+  && > button {
+    min-height: 42px;
+  }
 
-    & > * {
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    flex-basis: 100%;
+  }
+
+  /* Same breakpoint as the shared SearchField height change. */
+  @media screen and (max-width: 767px) {
+    && > button {
+      min-height: 48px;
+    }
+  }
+
+  @media screen and (max-width: ${breakpoints.small}) {
+    && > * {
       flex: 1 1 100%;
     }
   }
@@ -376,6 +395,11 @@ const SearchBox = styled.div`
   flex: 0 1 300px;
   min-width: 0;
   display: flex;
+
+  /* Phones and small tablets: the search uses the full row next to Clear All. */
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    flex: 1 1 200px;
+  }
 `;
 
 const StyledTable = styled(Table)`
@@ -389,7 +413,7 @@ const StyledTable = styled(Table)`
       font-size: ${fontSize(1)};
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
     }
   }
 
@@ -405,10 +429,26 @@ const StyledTable = styled(Table)`
       background: rgba(2, 132, 199, 0.12);
     }
 
+    /* Cells wrap (the DS table sets nowrap), so the table fits without
+       sideways scrolling down to 1024px; status and counters stay on one line. */
     td {
-      padding: ${theme.spacing.lg} ${theme.spacing.lg};
+      padding: ${theme.spacing.lg} ${theme.spacing.md};
       color: ${color('neutral800')};
       vertical-align: middle;
+      white-space: normal;
+    }
+
+    td.wrap-cell {
+      min-width: 160px;
+      overflow-wrap: anywhere;
+    }
+
+    td.nowrap-cell {
+      white-space: nowrap;
+    }
+
+    td.template-cell {
+      min-width: 96px;
     }
 
     ${reducedMotion}
@@ -431,6 +471,68 @@ const TableContainer = styled(Box)`
   ${reducedMotion}
 `;
 
+const TableScroller = styled(Box)`
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: none;
+  }
+`;
+
+/** Phones and small tablets: one list entry per email instead of a seven-column table. */
+const LogList = styled.ul`
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    display: block;
+  }
+`;
+
+const LogItem = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.sm};
+  padding: ${theme.spacing.md};
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  & + & {
+    border-top: 1px solid rgba(128, 128, 128, 0.15);
+  }
+`;
+
+/** Keeps the delivery status on one line beside a long recipient address. */
+const StatusSlot = styled.span`
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow-wrap: normal;
+`;
+
+const LogFacts = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: ${theme.spacing.sm} ${theme.spacing.md};
+  margin: 0;
+
+  dt {
+    font-size: ${fontSize(1)};
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: ${color('neutral600')};
+    margin-bottom: ${theme.spacing.xs};
+  }
+
+  dd {
+    margin: 0;
+    color: ${color('neutral800')};
+  }
+`;
+
 const PaginationBar = styled.nav`
   display: flex;
   align-items: center;
@@ -439,6 +541,11 @@ const PaginationBar = styled.nav`
   gap: ${theme.spacing.sm};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-top: 1px solid rgba(128, 128, 128, 0.15);
+
+  /* Same 16px inset as the mobile log entries above it. */
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    padding: ${theme.spacing.md};
+  }
 `;
 
 const EmptyState = styled(Box)`
@@ -498,6 +605,8 @@ const EmptyIcon = styled.div`
 `;
 
 const CountCell = styled(Flex)`
+  white-space: nowrap;
+
   svg {
     width: 16px;
     height: 16px;
@@ -614,6 +723,17 @@ const Analytics = () => {
     };
   }, [get, page, searchTerm, logsQueryKey, t, toggleNotification]);
 
+  // Clear All removes its own button once the emptied list has loaded; focus
+  // then moves to the search field instead of falling back to <body>.
+  const searchRef = useRef(null);
+  const refocusAfterClear = useRef(false);
+  useEffect(() => {
+    if (!refocusAfterClear.current || logsLoading) return;
+    refocusAfterClear.current = false;
+    const active = document.activeElement;
+    if (!active || active === document.body) searchRef.current?.focus();
+  }, [logsLoading]);
+
   const reloadStats = () => setStatsReloadKey((key) => key + 1);
   const reloadLogs = () => setReloadKey((key) => key + 1);
 
@@ -639,6 +759,7 @@ const Analytics = () => {
                 { count: deletedCount }
               ),
       });
+      refocusAfterClear.current = true;
       setShowClearDialog(false);
     } catch (error) {
       console.error('[MagicMail] Failed to clear email logs');
@@ -713,13 +834,50 @@ const Analytics = () => {
         </ToneText>
       </CountCell>
     ) : (
-      <CountCell alignItems="center" gap={1}>
+      <CountCell alignItems="center" gap={2}>
         <XCircleIcon aria-hidden="true" />
         <Typography variant="pi" textColor="neutral600">
           {t('analytics.table.no', 'No')}
         </Typography>
       </CountCell>
     );
+
+  const columnLabels = {
+    recipient: t('analytics.table.recipient', 'Recipient'),
+    subject: t('analytics.table.subject', 'Subject'),
+    deliveryStatus: t('analytics.table.deliveryStatus', 'Delivery Status'),
+    template: t('analytics.table.template', 'Template'),
+    attemptedAt: t('analytics.table.attemptedAt', 'Attempted At'),
+    opened: t('analytics.table.opened', 'Opened'),
+    clicked: t('analytics.table.clicked', 'Clicked'),
+  };
+
+  const renderRecipient = (log) => (
+    <>
+      <Typography variant="omega" fontWeight="semiBold" style={{ display: 'block' }}>
+        {log.recipient}
+      </Typography>
+      {log.recipientName && (
+        <Typography variant="pi" textColor="neutral600" style={{ display: 'block' }}>
+          {log.recipientName}
+        </Typography>
+      )}
+    </>
+  );
+
+  const renderDelivery = (log) => {
+    const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt);
+    const label = t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label);
+    return delivery.tone ? (
+      <ToneText variant="pi" fontWeight="semiBold" $tone={delivery.tone}>
+        {label}
+      </ToneText>
+    ) : (
+      <Typography variant="pi" fontWeight="semiBold" textColor="neutral600">
+        {label}
+      </Typography>
+    );
+  };
 
   return (
     <Container>
@@ -776,18 +934,21 @@ const Analytics = () => {
       <FilterBar>
         <FilterRow justifyContent="space-between" alignItems="center">
           <Typography variant="omega" fontWeight="semiBold" textColor="neutral700" tag="h2">
-            {searchTerm
-              ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', {
-                  count: formatNumber(total, undefined, '0'),
-                })
-              : t('analytics.logs.heading', 'Recent emails ({count})', {
-                  count: formatNumber(total, undefined, '0'),
-                })}
+            {logsError
+              ? t('analytics.logs.headingUnknown', 'Recent emails')
+              : searchTerm
+                ? t('analytics.logs.headingFiltered', 'Matching emails ({count})', {
+                    count: formatNumber(total, undefined, '0'),
+                  })
+                : t('analytics.logs.heading', 'Recent emails ({count})', {
+                    count: formatNumber(total, undefined, '0'),
+                  })}
           </Typography>
           <FilterControls alignItems="center">
             <SearchBox>
               <SearchField
                 label={t('analytics.search.label', 'Search email logs')}
+                ref={searchRef}
                 placeholder={t('analytics.search.placeholder', 'Search by recipient or subject...')}
                 value={searchInput}
                 onChange={setSearchInput}
@@ -881,98 +1042,91 @@ const Analytics = () => {
         </EmptyState>
       ) : (
         <TableContainer aria-busy={logsLoading}>
-          <Box style={{ overflowX: 'auto' }}>
+          <TableScroller>
             <StyledTable colCount={7} rowCount={emailLogs.length + 1}>
               <Thead>
                 <Tr>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.recipient', 'Recipient')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.recipient}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.subject', 'Subject')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.subject}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.deliveryStatus', 'Delivery Status')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.deliveryStatus}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.template', 'Template')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.template}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.attemptedAt', 'Attempted At')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.attemptedAt}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">{t('analytics.table.opened', 'Opened')}</Typography>
+                    <Typography variant="sigma">{columnLabels.opened}</Typography>
                   </Th>
                   <Th>
-                    <Typography variant="sigma">
-                      {t('analytics.table.clicked', 'Clicked')}
-                    </Typography>
+                    <Typography variant="sigma">{columnLabels.clicked}</Typography>
                   </Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {emailLogs.map((log) => {
-                  const delivery = getDeliveryStatusPresentation(
-                    log.deliveryStatus,
-                    log.deliveredAt
-                  );
-
-                  return (
-                    <Tr key={log.id}>
-                      <Td>
-                        <Typography
-                          variant="omega"
-                          fontWeight="semiBold"
-                          style={{ display: 'block' }}
-                        >
-                          {log.recipient}
-                        </Typography>
-                        {log.recipientName && (
-                          <Typography
-                            variant="pi"
-                            textColor="neutral600"
-                            style={{ display: 'block' }}
-                          >
-                            {log.recipientName}
-                          </Typography>
-                        )}
-                      </Td>
-                      <Td>
-                        <Typography variant="omega">{log.subject || '-'}</Typography>
-                      </Td>
-                      <Td>
-                        <Typography variant="pi" fontWeight="semiBold" textColor={delivery.color}>
-                          {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}
-                        </Typography>
-                      </Td>
-                      <Td>
-                        <Typography variant="omega" textColor="neutral600">
-                          {log.templateName || '-'}
-                        </Typography>
-                      </Td>
-                      <Td>
-                        <Typography variant="pi" textColor="neutral600">
-                          {formatDateTime(log.sentAt)}
-                        </Typography>
-                      </Td>
-                      <Td>{renderCount(log.openCount, 'success')}</Td>
-                      <Td>{renderCount(log.clickCount, 'primary')}</Td>
-                    </Tr>
-                  );
-                })}
+                {emailLogs.map((log) => (
+                  <Tr key={log.id}>
+                    <Td className="wrap-cell">{renderRecipient(log)}</Td>
+                    <Td className="wrap-cell">
+                      <Typography variant="omega">{log.subject || '-'}</Typography>
+                    </Td>
+                    <Td className="nowrap-cell">{renderDelivery(log)}</Td>
+                    <Td className="template-cell">
+                      <Typography variant="omega" textColor="neutral600">
+                        {log.templateName || '-'}
+                      </Typography>
+                    </Td>
+                    <Td className="nowrap-cell">
+                      <Typography variant="pi" textColor="neutral600">
+                        {formatDateTime(log.sentAt)}
+                      </Typography>
+                    </Td>
+                    <Td>{renderCount(log.openCount, 'success')}</Td>
+                    <Td>{renderCount(log.clickCount, 'primary')}</Td>
+                  </Tr>
+                ))}
               </Tbody>
             </StyledTable>
-          </Box>
+          </TableScroller>
+          <LogList aria-label={t('analytics.logs.listLabel', 'Email logs')}>
+            {emailLogs.map((log) => (
+              <LogItem key={log.id}>
+                <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
+                  <Box minWidth={0}>{renderRecipient(log)}</Box>
+                  <StatusSlot>{renderDelivery(log)}</StatusSlot>
+                </Flex>
+                <Typography variant="omega">{log.subject || '-'}</Typography>
+                <LogFacts>
+                  <div>
+                    <dt>{columnLabels.template}</dt>
+                    <dd>
+                      <Typography variant="pi">{log.templateName || '-'}</Typography>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{columnLabels.attemptedAt}</dt>
+                    <dd>
+                      <Typography variant="pi">{formatDateTime(log.sentAt)}</Typography>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{columnLabels.opened}</dt>
+                    <dd>{renderCount(log.openCount, 'success')}</dd>
+                  </div>
+                  <div>
+                    <dt>{columnLabels.clicked}</dt>
+                    <dd>{renderCount(log.clickCount, 'primary')}</dd>
+                  </div>
+                </LogFacts>
+              </LogItem>
+            ))}
+          </LogList>
           {pageCount > 1 && (
             <PaginationBar aria-label={t('analytics.pagination.label', 'Email log pages')}>
               <Typography variant="pi" textColor="neutral600" aria-live="polite">

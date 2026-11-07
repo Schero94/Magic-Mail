@@ -291,6 +291,8 @@
   "analytics.logs.errorTitle": "Não foi possível carregar os registros de e-mail",
   "analytics.logs.heading": "E-mails recentes ({count})",
   "analytics.logs.headingFiltered": "E-mails correspondentes ({count})",
+  "analytics.logs.headingUnknown": "E-mails recentes",
+  "analytics.logs.listLabel": "Registros de e-mail",
   "analytics.logs.loadError": "Não foi possível carregar os registros de e-mail",
   "analytics.pagination.label": "Páginas de registros de e-mail",
   "analytics.pagination.next": "Próxima",
