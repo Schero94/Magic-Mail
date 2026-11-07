@@ -75,7 +75,18 @@ const SecretField = ({ name, label, value, placeholder, hint, onChange, isEditMo
   const masked = isEditMode && isMaskedSecret(value);
   return (
     <FullWidthField>
-      <Field.Root required name={name}>
+      <Field.Root
+        hint={
+          masked
+            ? t(
+                'accountModal.credentials.maskedHint',
+                'A secret is stored. Leave this value unchanged to keep it, or enter a new one to replace it.'
+              )
+            : hint
+        }
+        required
+        name={name}
+      >
         <Field.Label>{label}</Field.Label>
         <TextInput
           type="password"
@@ -84,14 +95,7 @@ const SecretField = ({ name, label, value, placeholder, hint, onChange, isEditMo
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-        <Field.Hint>
-          {masked
-            ? t(
-                'accountModal.credentials.maskedHint',
-                'A secret is stored. Leave this value unchanged to keep it, or enter a new one to replace it.'
-              )
-            : hint}
-        </Field.Hint>
+        <Field.Hint />
       </Field.Root>
     </FullWidthField>
   );
@@ -261,7 +265,18 @@ const ClientIdField = ({ name, label, placeholder, hint, value, onChange, locked
   const { t } = useMagicMailIntl();
   return (
     <FullWidthField>
-      <Field.Root required name={name}>
+      <Field.Root
+        hint={
+          locked
+            ? t(
+                'accountModal.oauth.lockedHint',
+                'Bound to the existing authorization and cannot be changed. Add a new account to use a different app.'
+              )
+            : hint
+        }
+        required
+        name={name}
+      >
         <Field.Label>{label}</Field.Label>
         <TextInput
           placeholder={placeholder}
@@ -270,14 +285,7 @@ const ClientIdField = ({ name, label, placeholder, hint, value, onChange, locked
           autoComplete="off"
           onChange={(e) => onChange(e.target.value)}
         />
-        <Field.Hint>
-          {locked
-            ? t(
-                'accountModal.oauth.lockedHint',
-                'Bound to the existing authorization and cannot be changed. Add a new account to use a different app.'
-              )
-            : hint}
-        </Field.Hint>
+        <Field.Hint />
       </Field.Root>
     </FullWidthField>
   );
@@ -394,7 +402,14 @@ export const CredentialsStep = ({
             </SectionTitle>
 
             <FullWidthField>
-              <Field.Root required name="host">
+              <Field.Root
+                hint={t(
+                  'accountModal.smtp.hostHint',
+                  'The address of your mail server, for example smtp.gmail.com (Gmail), smtp-mail.outlook.com (Outlook) or smtp.sendgrid.net (SendGrid).'
+                )}
+                required
+                name="host"
+              >
                 <Field.Label>{t('accountModal.smtp.host', 'SMTP host')}</Field.Label>
                 <TextInput
                   placeholder="smtp.example.com"
@@ -402,17 +417,16 @@ export const CredentialsStep = ({
                   autoComplete="off"
                   onChange={(e) => onChange('host', e.target.value)}
                 />
-                <Field.Hint>
-                  {t(
-                    'accountModal.smtp.hostHint',
-                    'The address of your mail server, for example smtp.gmail.com (Gmail), smtp-mail.outlook.com (Outlook) or smtp.sendgrid.net (SendGrid).'
-                  )}
-                </Field.Hint>
+                <Field.Hint />
               </Field.Root>
             </FullWidthField>
 
             <FullWidthField>
               <Field.Root
+                hint={t(
+                  'accountModal.smtp.portHint',
+                  'Standard ports: 587 (recommended, STARTTLS), 465 (SSL/TLS) or 25 (unencrypted, not recommended).'
+                )}
                 required
                 name="port"
                 error={
@@ -430,12 +444,7 @@ export const CredentialsStep = ({
                   step={1}
                 />
                 <Field.Error />
-                <Field.Hint>
-                  {t(
-                    'accountModal.smtp.portHint',
-                    'Standard ports: 587 (recommended, STARTTLS), 465 (SSL/TLS) or 25 (unencrypted, not recommended).'
-                  )}
-                </Field.Hint>
+                <Field.Hint />
               </Field.Root>
             </FullWidthField>
 
@@ -447,7 +456,14 @@ export const CredentialsStep = ({
             </SectionTitle>
 
             <FullWidthField>
-              <Field.Root required name="user">
+              <Field.Root
+                hint={t(
+                  'accountModal.smtp.userHint',
+                  'Usually the full email address. Some providers use only the part before the @.'
+                )}
+                required
+                name="user"
+              >
                 <Field.Label>{t('accountModal.smtp.user', 'Username or email')}</Field.Label>
                 <TextInput
                   placeholder="user@example.com"
@@ -455,12 +471,7 @@ export const CredentialsStep = ({
                   autoComplete="off"
                   onChange={(e) => onChange('user', e.target.value)}
                 />
-                <Field.Hint>
-                  {t(
-                    'accountModal.smtp.userHint',
-                    'Usually the full email address. Some providers use only the part before the @.'
-                  )}
-                </Field.Hint>
+                <Field.Hint />
               </Field.Root>
             </FullWidthField>
 
@@ -825,7 +836,14 @@ export const CredentialsStep = ({
 
             {provider === 'mailgun' && (
               <FullWidthField>
-                <Field.Root required name="mailgunDomain">
+                <Field.Root
+                  hint={t(
+                    'accountModal.mailgun.domainHint',
+                    'Your verified Mailgun domain (for example mg.example.com) or a sandbox domain for testing.'
+                  )}
+                  required
+                  name="mailgunDomain"
+                >
                   <Field.Label>{t('accountModal.mailgun.domain', 'Mailgun domain')}</Field.Label>
                   <TextInput
                     placeholder="mg.example.com"
@@ -833,12 +851,7 @@ export const CredentialsStep = ({
                     autoComplete="off"
                     onChange={(e) => onChange('mailgunDomain', e.target.value)}
                   />
-                  <Field.Hint>
-                    {t(
-                      'accountModal.mailgun.domainHint',
-                      'Your verified Mailgun domain (for example mg.example.com) or a sandbox domain for testing.'
-                    )}
-                  </Field.Hint>
+                  <Field.Hint />
                 </Field.Root>
               </FullWidthField>
             )}

@@ -33,7 +33,14 @@ export const DetailsStep = ({
     <FormSection>
       <Flex direction="column" gap={4} style={{ width: '100%' }} alignItems="stretch">
         <FullWidthField>
-          <Field.Root required name="name">
+          <Field.Root
+            hint={t(
+              'accountModal.details.nameHint',
+              'Give this email account a unique, descriptive name so you can identify it later.'
+            )}
+            required
+            name="name"
+          >
             <Field.Label>{t('accountModal.details.name', 'Account name')}</Field.Label>
             <TextInput
               placeholder={t(
@@ -44,12 +51,7 @@ export const DetailsStep = ({
               onChange={(e) => onChange('name', e.target.value)}
               autoComplete="off"
             />
-            <Field.Hint>
-              {t(
-                'accountModal.details.nameHint',
-                'Give this email account a unique, descriptive name so you can identify it later.'
-              )}
-            </Field.Hint>
+            <Field.Hint />
           </Field.Root>
         </FullWidthField>
 
@@ -89,6 +91,10 @@ export const DetailsStep = ({
         ) : (
           <FullWidthField>
             <Field.Root
+              hint={t(
+                'accountModal.details.fromEmailHint',
+                'The address that appears as the sender in the recipients’ inbox.'
+              )}
               required
               name="fromEmail"
               error={
@@ -109,18 +115,19 @@ export const DetailsStep = ({
                 autoComplete="off"
               />
               <Field.Error />
-              <Field.Hint>
-                {t(
-                  'accountModal.details.fromEmailHint',
-                  'The address that appears as the sender in the recipients’ inbox.'
-                )}
-              </Field.Hint>
+              <Field.Hint />
             </Field.Root>
           </FullWidthField>
         )}
 
         <FullWidthField>
-          <Field.Root name="fromName">
+          <Field.Root
+            hint={t(
+              'accountModal.details.fromNameHint',
+              'The friendly name shown next to the email address, e.g. "ACME Corp" instead of only "noreply@acme.com".'
+            )}
+            name="fromName"
+          >
             <Field.Label>{t('accountModal.details.fromName', 'From display name')}</Field.Label>
             <TextInput
               placeholder={t('accountModal.details.fromNamePlaceholder', 'Company name')}
@@ -128,17 +135,16 @@ export const DetailsStep = ({
               onChange={(e) => onChange('fromName', e.target.value)}
               autoComplete="off"
             />
-            <Field.Hint>
-              {t(
-                'accountModal.details.fromNameHint',
-                'The friendly name shown next to the email address, e.g. "ACME Corp" instead of only "noreply@acme.com".'
-              )}
-            </Field.Hint>
+            <Field.Hint />
           </Field.Root>
         </FullWidthField>
 
         <FullWidthField>
           <Field.Root
+            hint={t(
+              'accountModal.details.replyToHint',
+              'Replies from recipients go to this address. Leave it empty to use the sender address.'
+            )}
             name="replyTo"
             error={
               replyToInvalid
@@ -158,17 +164,18 @@ export const DetailsStep = ({
               autoComplete="off"
             />
             <Field.Error />
-            <Field.Hint>
-              {t(
-                'accountModal.details.replyToHint',
-                'Replies from recipients go to this address. Leave it empty to use the sender address.'
-              )}
-            </Field.Hint>
+            <Field.Hint />
           </Field.Root>
         </FullWidthField>
 
         <FullWidthField>
-          <Field.Root name="description">
+          <Field.Root
+            hint={t(
+              'accountModal.details.descriptionHint',
+              'Notes about the purpose of this account. Only visible to admins.'
+            )}
+            name="description"
+          >
             <Field.Label>
               {t('accountModal.details.description', 'Account description')}
             </Field.Label>
@@ -180,12 +187,7 @@ export const DetailsStep = ({
               value={form.description}
               onChange={(e) => onChange('description', e.target.value)}
             />
-            <Field.Hint>
-              {t(
-                'accountModal.details.descriptionHint',
-                'Notes about the purpose of this account. Only visible to admins.'
-              )}
-            </Field.Hint>
+            <Field.Hint />
           </Field.Root>
         </FullWidthField>
       </Flex>

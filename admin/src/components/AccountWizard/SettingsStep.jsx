@@ -22,7 +22,14 @@ export const SettingsStep = ({ form, onChange }) => {
   return (
     <FormSection>
       <Flex direction="column" gap={5} style={{ width: '100%' }} alignItems="stretch">
-        <Field.Root name="dailyLimit" error={errors.dailyLimit ? limitError : undefined}>
+        <Field.Root
+          hint={t(
+            'accountModal.settings.dailyLimitHint',
+            'Maximum number of emails this account can send per day. Set 0 for unlimited.'
+          )}
+          name="dailyLimit"
+          error={errors.dailyLimit ? limitError : undefined}
+        >
           <Field.Label style={LABEL_STYLE}>
             {t('accountModal.settings.dailyLimit', 'Daily email limit')}
           </Field.Label>
@@ -34,15 +41,17 @@ export const SettingsStep = ({ form, onChange }) => {
             step={1}
           />
           <Field.Error />
-          <Field.Hint>
-            {t(
-              'accountModal.settings.dailyLimitHint',
-              'Maximum number of emails this account can send per day. Set 0 for unlimited.'
-            )}
-          </Field.Hint>
+          <Field.Hint />
         </Field.Root>
 
-        <Field.Root name="hourlyLimit" error={errors.hourlyLimit ? limitError : undefined}>
+        <Field.Root
+          hint={t(
+            'accountModal.settings.hourlyLimitHint',
+            'Maximum number of emails this account can send per hour. Set 0 for unlimited.'
+          )}
+          name="hourlyLimit"
+          error={errors.hourlyLimit ? limitError : undefined}
+        >
           <Field.Label style={LABEL_STYLE}>
             {t('accountModal.settings.hourlyLimit', 'Hourly email limit')}
           </Field.Label>
@@ -54,15 +63,14 @@ export const SettingsStep = ({ form, onChange }) => {
             step={1}
           />
           <Field.Error />
-          <Field.Hint>
-            {t(
-              'accountModal.settings.hourlyLimitHint',
-              'Maximum number of emails this account can send per hour. Set 0 for unlimited.'
-            )}
-          </Field.Hint>
+          <Field.Hint />
         </Field.Root>
 
         <Field.Root
+          hint={t(
+            'accountModal.settings.priorityHint',
+            'When routing emails, accounts with a higher priority (1-10) are preferred. Use 10 for your most reliable account.'
+          )}
           name="priority"
           error={
             errors.priority
@@ -81,12 +89,7 @@ export const SettingsStep = ({ form, onChange }) => {
             step={1}
           />
           <Field.Error />
-          <Field.Hint>
-            {t(
-              'accountModal.settings.priorityHint',
-              'When routing emails, accounts with a higher priority (1-10) are preferred. Use 10 for your most reliable account.'
-            )}
-          </Field.Hint>
+          <Field.Hint />
         </Field.Root>
 
         <Divider />
