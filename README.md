@@ -322,10 +322,17 @@ The provider value `nodemailer` is an alias of `smtp`.
 
 ### Mailgun
 
-1. In Mailgun copy your **Private API key** and your verified sending domain.
-2. In MagicMail choose **Mailgun** and enter the domain (for example `mg.example.com`) and the key.
+1. In Mailgun copy your **Private API key** and your verified sending domain. Note the region the domain was created in (US or EU).
+2. In MagicMail choose **Mailgun**, enter the domain (for example `mg.example.com`), pick the region and paste the key.
 
-MagicMail calls Mailgun's US API endpoint (`api.mailgun.net`). Domains in Mailgun's EU region are not supported yet.
+A Mailgun domain can only be used through the API host of its region. MagicMail stores the region as `config.region` and calls:
+
+| `config.region` | API host                     |
+| --------------- | ---------------------------- |
+| `us` (default)  | `https://api.mailgun.net`    |
+| `eu`            | `https://api.eu.mailgun.net` |
+
+Any other value is rejected with a validation error when the account is created or updated. Accounts saved without a region keep using the US host.
 
 ### Provider comparison
 
@@ -336,7 +343,7 @@ MagicMail calls Mailgun's US API endpoint (`api.mailgun.net`). Domains in Mailgu
 | Yahoo Mail    | OAuth 2.0             | SMTP with XOAUTH2           | by Yahoo             |
 | SMTP          | Username and password | Nodemailer, any SMTP server | optional (see above) |
 | SendGrid      | API key               | HTTPS API (v3)              | by SendGrid          |
-| Mailgun       | API key + domain      | HTTPS API (US region)       | by Mailgun           |
+| Mailgun       | API key + domain      | HTTPS API (US or EU region) | by Mailgun           |
 
 All providers support attachments, inline images (`cid`) and custom headers.
 

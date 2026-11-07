@@ -5,6 +5,8 @@ import {
   Field,
   Flex,
   NumberInput,
+  SingleSelect,
+  SingleSelectOption,
   Switch,
   TextInput,
   Typography,
@@ -851,6 +853,33 @@ export const CredentialsStep = ({
                     autoComplete="off"
                     onChange={(e) => onChange('mailgunDomain', e.target.value)}
                   />
+                  <Field.Hint />
+                </Field.Root>
+              </FullWidthField>
+            )}
+
+            {provider === 'mailgun' && (
+              <FullWidthField>
+                <Field.Root
+                  hint={t(
+                    'accountModal.mailgun.regionHint',
+                    'The region where your Mailgun domain was created. EU domains are sent through api.eu.mailgun.net, US domains through api.mailgun.net.'
+                  )}
+                  required
+                  name="mailgunRegion"
+                >
+                  <Field.Label>{t('accountModal.mailgun.region', 'Mailgun region')}</Field.Label>
+                  <SingleSelect
+                    value={form.mailgunRegion}
+                    onChange={(value) => onChange('mailgunRegion', value)}
+                  >
+                    <SingleSelectOption value="us">
+                      {t('accountModal.mailgun.regionUs', 'US (api.mailgun.net)')}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="eu">
+                      {t('accountModal.mailgun.regionEu', 'EU (api.eu.mailgun.net)')}
+                    </SingleSelectOption>
+                  </SingleSelect>
                   <Field.Hint />
                 </Field.Root>
               </FullWidthField>

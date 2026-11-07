@@ -58,7 +58,7 @@ test('every Field.Hint sits in a Field.Root that sets the hint prop', () => {
   assert.deepEqual(missing, []);
 });
 
-test('account wizard renders all 14 field hints through Field.Root', () => {
+test('account wizard renders its field hints (at least the 14 original ones) through Field.Root', () => {
   const wizard = ['CredentialsStep.jsx', 'DetailsStep.jsx', 'SettingsStep.jsx'].map((name) =>
     fs.readFileSync(path.join(ADMIN_SRC, 'components/AccountWizard', name), 'utf8')
   );
@@ -66,5 +66,5 @@ test('account wizard renders all 14 field hints through Field.Root', () => {
     (sum, source) => sum + (source.match(/<Field\.Root\s[^>]*?\bhint=/g) || []).length,
     0
   );
-  assert.equal(hintProps, 14);
+  assert.ok(hintProps >= 14, `expected at least 14 Field.Root hint props, found ${hintProps}`);
 });

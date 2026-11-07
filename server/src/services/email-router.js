@@ -3,6 +3,7 @@
 const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
+const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -1959,6 +1960,10 @@ module.exports = ({ strapi }) => ({
     ) {
       throw accountConfigError('Mailgun domain is not a valid host name');
     }
+    const region = resolveMailgunRegion(config.region);
+    if (!region) {
+      throw accountConfigError('Mailgun region must be "us" or "eu"');
+    }
 
     this.validateEmailSecurity(emailData);
 
@@ -1991,7 +1996,7 @@ module.exports = ({ strapi }) => ({
 
       // fetch derives the multipart boundary from the FormData body.
       const response = await fetch(
-        `https://api.mailgun.net/v3/${encodeURIComponent(domain)}/messages`,
+        `${mailgunApiBaseUrl(region)}/v3/${encodeURIComponent(domain)}/messages`,
         {
           method: 'POST',
           headers: {

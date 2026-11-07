@@ -76,6 +76,7 @@ export const createEmptyForm = () => ({
   secure: false,
   apiKey: '',
   mailgunDomain: '',
+  mailgunRegion: 'us',
   microsoftTenantId: '',
   oauthClientId: '',
   oauthClientSecret: '',
@@ -116,6 +117,8 @@ export const accountToForm = (account = {}) => {
     secure: config.secure === true,
     apiKey: stringOr(config.apiKey),
     mailgunDomain: stringOr(config.domain),
+    // Accounts saved before regions existed use the US endpoint.
+    mailgunRegion: config.region === 'eu' ? 'eu' : 'us',
     microsoftTenantId: stringOr(config.tenantId),
     oauthClientId: stringOr(config.clientId),
     oauthClientSecret: stringOr(config.clientSecret),
@@ -218,7 +221,11 @@ export const buildConfig = (provider, form) => {
     case 'sendgrid':
       return { apiKey: form.apiKey.trim() };
     case 'mailgun':
-      return { apiKey: form.apiKey.trim(), domain: form.mailgunDomain.trim() };
+      return {
+        apiKey: form.apiKey.trim(),
+        domain: form.mailgunDomain.trim(),
+        region: form.mailgunRegion === 'eu' ? 'eu' : 'us',
+      };
     case 'gmail-oauth':
     case 'yahoo-oauth':
       return { clientId: form.oauthClientId.trim(), clientSecret: form.oauthClientSecret };

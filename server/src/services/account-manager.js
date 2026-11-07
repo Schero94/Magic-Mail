@@ -4,6 +4,7 @@ const { errors } = require('@strapi/utils');
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
 const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
+const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
 
 /**
  * Constant placeholder returned instead of every stored secret. It carries no
@@ -21,6 +22,23 @@ const SECRET_MASK = '********';
 const IDENTITY_FIELDS = ['host', 'port', 'user', 'clientId', 'tenantId', 'domain', 'allowInsecure'];
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
+
+/**
+ * Rejects an unsupported Mailgun `config.region`. Only "us" and "eu" are
+ * accepted; an omitted region keeps the US endpoint (accounts saved before
+ * regions existed).
+ *
+ * @param {string} provider - effective provider of the account
+ * @param {object|undefined|null} config - incoming plain config
+ * @throws {errors.ValidationError}
+ */
+const assertMailgunRegion = (provider, config) => {
+  if (provider !== 'mailgun' || !config || !('region' in config)) return;
+  if (resolveMailgunRegion(config.region)) return;
+  throw new errors.ValidationError(`Mailgun region must be one of: ${MAILGUN_REGIONS.join(', ')}`, {
+    config: [`region: must be one of ${MAILGUN_REGIONS.join(', ')}`],
+  });
+};
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -81,6 +99,8 @@ module.exports = ({ strapi }) => ({
     } = accountData;
 
     strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
+
+    assertMailgunRegion(provider, config);
 
     // Encrypt sensitive config data
     const encryptedConfig = config ? encryptCredentials(config) : null;
@@ -157,6 +177,8 @@ module.exports = ({ strapi }) => ({
         }
       );
     }
+
+    assertMailgunRegion(provider ?? existingAccount.provider, config);
 
     let encryptedConfig = existingAccount.config;
     if (config) {

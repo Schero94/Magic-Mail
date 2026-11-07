@@ -18,6 +18,7 @@
 * **admin:** tables wrap long values instead of scrolling sideways on desktop widths; stat cards line up with the page edges; contrast fixes for the dark-mode Transactional badge and the Pending delivery status.
 * **admin:** the analytics view pages and searches on the server and clears logs in batches; the routing view shows broken account references; account edit shows how many rules reference an account.
 * **ci:** pull requests run ESLint, the Prettier check, tests, build, export and bundle verification, `npm pack --dry-run` and a production audit on Node 22 and 24; the Dependabot auto-merge verification runs lint and the format check too.
+* **email:** Mailgun EU region. Mailgun accounts take `config.region` (`us` or `eu`, default `us`); `eu` sends through `api.eu.mailgun.net`. The account wizard has a region field, and the server rejects any other value on create and update. Existing accounts without a region keep using `api.mailgun.net`.
 * **build:** ESLint 10 flat config (`@eslint/js`, `eslint-plugin-react-hooks` 7, `eslint-config-prettier`) and Prettier, with `lint`, `lint:fix`, `format` and `format:check` scripts.
 
 ### Changes
