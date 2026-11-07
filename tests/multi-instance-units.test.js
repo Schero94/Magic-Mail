@@ -557,6 +557,75 @@ test(
   }
 );
 
+test('H5: concurrent updates can not give two templates one reference id', { skip }, async () => {
+  const knex = memoryKnex();
+  try {
+    await knex.schema.createTable('templates', (t) => {
+      t.increments('id');
+      t.string('document_id');
+      t.integer('template_reference_id');
+      t.string('subject');
+    });
+    await knex('templates').insert([
+      { document_id: 'tpl-a', template_reference_id: 11, subject: 'a' },
+      { document_id: 'tpl-b', template_reference_id: 12, subject: 'b' },
+    ]);
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const toDoc = (row) =>
+      row && {
+        id: row.id,
+        documentId: row.document_id,
+        templateReferenceId: row.template_reference_id,
+        subject: row.subject,
+      };
+    const documents = () => ({
+      findMany: async ({ filters }) => {
+        // Slow check: without the lease both updates would pass it.
+        const rows = await knex('templates').where({
+          template_reference_id: filters.templateReferenceId,
+        });
+        await sleep(20);
+        return rows.map(toDoc);
+      },
+      findOne: async ({ documentId }) =>
+        toDoc(await knex('templates').where({ document_id: documentId }).first()),
+      update: async ({ documentId, data }) => {
+        const patch = {};
+        if ('templateReferenceId' in data) patch.template_reference_id = data.templateReferenceId;
+        if ('subject' in data) patch.subject = data.subject;
+        await knex('templates').where({ document_id: documentId }).update(patch);
+        return toDoc(await knex('templates').where({ document_id: documentId }).first());
+      },
+    });
+    const strapi = strapiFor(knex, { strapi: { documents } });
+    const designer = require('../server/src/services/email-designer')({ strapi });
+    designer.findOne = async (id) =>
+      toDoc(await knex('templates').where({ document_id: id }).first());
+    designer.snapshotVersion = async () => null;
+    const previous = global.strapi;
+    global.strapi = strapi;
+    try {
+      const results = await Promise.allSettled([
+        designer.update('tpl-a', { templateReferenceId: 99 }),
+        designer.update('tpl-b', { templateReferenceId: '99' }),
+      ]);
+      assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+      const rejected = results.find((r) => r.status === 'rejected');
+      assert.match(rejected.reason.message, /already exists/);
+      const rows = await knex('templates').where({ template_reference_id: 99 });
+      assert.equal(rows.length, 1);
+      // Re-saving a template with its own reference id is allowed.
+      const owner = rows[0].document_id;
+      await designer.update(owner, { templateReferenceId: 99, subject: 'kept' });
+    } finally {
+      if (previous === undefined) delete global.strapi;
+      else global.strapi = previous;
+    }
+  } finally {
+    await knex.destroy();
+  }
+});
+
 test('config: rateLimit options are validated', () => {
   const { validator } = require('../server/src/config');
   assert.doesNotThrow(() => validator({ rateLimit: { store: 'database' } }));

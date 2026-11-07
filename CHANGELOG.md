@@ -17,6 +17,8 @@
 * **templates:** saving the Users & Permissions reset-password and confirmation templates at the same time keeps both changes (compare-and-set on the core-store row, duplicate rows removed). The plugin's one-time flags use the same write.
 * **jobs:** the quota refresh, the tracking privacy migration, the retention purge and the sensitive-link purge run in one process per interval (database lease) instead of in every process.
 * **quota:** hourly and daily windows only move forward, so a replica whose clock lags slightly can no longer reset a window another replica already opened.
+* **content-api:** `/api/magic-mail/send` and `/send-message` accept API tokens again. Strapi 5.45+ names the Content-API token strategy `content-api-token` (previously `api-token`), so the `api-token-only` policy rejected every API-token request with 403 "Policy Failed". Both names are accepted; admin tokens (`admin-token`) stay rejected.
+* **templates:** changing a template's reference id is checked and written under the same database lease as creating one, so two templates can no longer end up with the same reference id (concurrent saves on two instances); a taken id returns 400.
 * **settings:** a settings change made on one instance applies on every instance within about a second (cache revalidated against the row's `updated_at`); the default settings row is created once across processes.
 
 ### Migration

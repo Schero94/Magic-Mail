@@ -493,10 +493,36 @@ module.exports = ({ strapi }) => ({
     // current (pre-update) state is not lost when it was never snapshotted.
     await this.snapshotVersion(actualDocumentId, template);
 
-    const updated = await strapi.documents(EMAIL_TEMPLATE_UID).update({
-      documentId: actualDocumentId,
-      data: updateData,
-    });
+    const applyUpdate = () =>
+      strapi.documents(EMAIL_TEMPLATE_UID).update({
+        documentId: actualDocumentId,
+        data: updateData,
+      });
+
+    // A new reference id is checked and written under the same database
+    // lease as create(): the schema's `unique` is checked by the application
+    // only, so two processes could otherwise give two templates one id.
+    const requestedRef =
+      updateData.templateReferenceId === undefined ||
+      updateData.templateReferenceId === null ||
+      updateData.templateReferenceId === ''
+        ? null
+        : parseInt(updateData.templateReferenceId, 10);
+    const updated =
+      requestedRef !== null && requestedRef !== Number(template.templateReferenceId)
+        ? await coordination.withLease(
+            strapi,
+            'template-reference-id',
+            async () => {
+              const existing = await this.findByReferenceId(requestedRef);
+              if (existing && existing.documentId !== actualDocumentId) {
+                throw new Error(`Template with reference ID ${requestedRef} already exists`);
+              }
+              return applyUpdate();
+            },
+            { ttlMs: 30_000, waitMs: 15_000 }
+          )
+        : await applyUpdate();
 
     await this.snapshotVersion(actualDocumentId, updated);
 
