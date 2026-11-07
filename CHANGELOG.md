@@ -1,3 +1,15 @@
+# [4.2.0](https://github.com/Schero94/Magic-Mail/compare/v4.1.0...v4.2.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **delivery:** await eventHub listeners so a failing listener cannot reject unhandled ([ab04820](https://github.com/Schero94/Magic-Mail/commit/ab0482033041be18f9c462179b069e91464376dc))
+
+
+### Features
+
+* **delivery:** signed SendGrid and Mailgun bounce/complaint webhooks ([bdf13c8](https://github.com/Schero94/Magic-Mail/commit/bdf13c888fbcce5604c30be47cec0173ec7cd389))
+
 ## [Unreleased]
 
 ### Added
