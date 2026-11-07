@@ -911,7 +911,7 @@ MagicMail can retry mails that were not sent: up to 3 retries per mail (after 1,
   // { success: true, queued: true, status: 'pending', outboxId, emailId, accountUsed: null, messageId: null }
   ```
 
-  The Content API accepts the same optional fields: `POST /api/magic-mail/send` with `"queue": true` and `"idempotencyKey": "..."` (letters, digits, `. _ : -`, up to 128 characters). The key is scoped per caller type (`content-api`, `service`, ...); a repeated key returns the first row with `duplicate: true`.
+  The Content API accepts the same optional fields: `POST /api/magic-mail/send` with `"queue": true` and `"idempotencyKey": "..."` (letters, digits, `. _ : -`, up to 128 characters). A repeated key returns the first row with `duplicate: true`. Keys are scoped by caller: each API token (and, with `contentApi.allowUserRoles`, each user) has its own key space, so one integration can never suppress or read another's mail with a guessed key. Server code shares one key space per `source` (default `service`); pass `idempotencyScope` to separate callers there too.
 
 - **For failed sends (owner setting):** _Settings → MagicMail → Plugin Settings → Retries and outbox → Queue failed sends_. A send still runs inline with failover as before. When it fails, the error is classified:
 
@@ -922,7 +922,7 @@ MagicMail can retry mails that were not sent: up to 3 retries per mail (after 1,
 | The provider **may** have accepted it (connection lost after the message was sent, HTTP 500/502/504, timeout) | Stored as `uncertain`, **never re-sent automatically**                       | the original error, unchanged, with `error.magicMailOutboxId`       |
 | Permanent refusal (SMTP 5xx, HTTP 400/404/413/422, invalid input)                                             | Not stored                                                                   | the original error, unchanged                                       |
 
-Sends to an explicit account (`accountName`, admin account test) and test sends are never captured. Native Strapi emails (password reset, confirmation) follow the same rules; when no MagicMail account is available they still go to the original Strapi provider first, as before. `queue: false` turns capture off for one call.
+Sends to an explicit account (`accountName`, admin account test) and test sends are never captured. Native Strapi emails (password reset, confirmation) follow the same rules; when no MagicMail account can take them they still go to the original Strapi provider first, as before. If that provider fails too, the mail is captured only when every MagicMail account is over its quota (a later quota hour can deliver it). With no active MagicMail account at all the worker could never send it, so the provider's error reaches Strapi unchanged, as in 4.3. `queue: false` turns capture off for one call.
 
 **"Retries per mail"** (1 to 10, default 3) is the number of retries after the first try. A `queue: true` mail gets the first try plus that many retries.
 
@@ -932,14 +932,16 @@ Sends to an explicit account (`accountName`, admin account test) and test sends 
 
 A message can be lost in the gap between "the provider has it" and "we were told so". SMTP connections that drop after the message was transmitted, and HTTP APIs that answer 500, 502 or 504 or time out after the request was sent (503 means the request was not handled, RFC 9110 15.6.4, and is retried), may or may not have delivered it. None of the supported providers offers an idempotency key (SendGrid v3 Mail Send, Mailgun messages, Microsoft Graph sendMail, Gmail users.messages.send), so a retry could send a duplicate. MagicMail therefore records these as `uncertain` and leaves the decision to a person. Every queued attempt uses the same `Message-ID` and an `X-MagicMail-Outbox` header, which helps to find the mail in the provider's log and lets some mail clients collapse an accidental duplicate (a mitigation, not a guarantee).
 
-For SMTP the stage is known exactly: a private logger watches nodemailer's transaction log for the server's `354` reply to `DATA` (it keeps a yes/no flag only, never the text). A drop before `354` is safe to retry; a drop after it is uncertain.
+For SMTP the stage is known exactly: a private logger watches nodemailer's transaction log for the server's `354` reply to `DATA` (it keeps a yes/no flag only, never the text). A drop before `354` is safe to retry; a drop after it is uncertain, whatever system code (`ECONNRESET`, `EHOSTUNREACH`, ...) the socket reported. For HTTP providers a network error counts as "not accepted" only when it proves the connect phase (refused connection, failed DNS lookup, connect timeout, or an unreachable host raised by `connect()`); any other network error is uncertain.
+
+Recording the result is just as careful. If the database write that marks a mail `sent` fails after the provider accepted it, MagicMail retries the write a few times and otherwise leaves the claim to expire, so the mail ends as `uncertain`, never as `pending`. Any error after a provider was contacted that did not come from the provider itself (database, bookkeeping) is treated as uncertain.
 
 ### The Outbox tab
 
 **MagicMail → Outbox** lists pending, retrying, failed, uncertain, sent and discarded mails with recipient, subject, attempts, next try or last error code. Per row:
 
 - **Details:** the error history (time, account, error code, class). The provider's error text and the mail content are never stored or shown.
-- **Retry now:** sends it again within seconds (one more attempt). For an uncertain mail the dialog states the duplicate risk.
+- **Retry now:** sends it again within seconds. A pending mail keeps its remaining automatic retries; a failed or uncertain mail gets one more attempt. For an uncertain mail the dialog states the duplicate risk.
 - **Mark as sent:** for an uncertain mail after checking the provider's log. Nothing is sent.
 - **Discard:** the mail is not sent and its content is deleted.
 
@@ -968,7 +970,7 @@ module.exports = () => ({
         pollIntervalMs: 10_000, // plus up to 50 % jitter
         batchSize: 5, // mails claimed per poll
         concurrency: 2, // parallel queued sends per process
-        leaseMs: 180_000, // claim timeout; above the bounded send time (30 s connect + 60 s socket)
+        leaseMs: 180_000, // claim timeout; above the bounded send time (30 s connect + 60 s socket, 30 s OAuth token refresh)
         backoffMs: [60_000, 300_000, 900_000], // wait before retry 1, 2, 3 (+/- jitterRatio)
         jitterRatio: 0.2,
         maxAgeHours: 24, // default notAfter
@@ -995,7 +997,8 @@ The outbox needs nothing beyond the [multi-instance setup](#running-several-inst
 ### Limits
 
 - Retries are evaluated against the routing rules at retry time, prefer another account than the one that failed last (the same one if it is the only one), and never replace an explicitly requested account.
-- The worker does not use the original Strapi email provider as a fallback.
+- The worker does not use the original Strapi email provider as a fallback. That is why a native Strapi mail is not captured when no MagicMail account exists at all.
+- Queued OAuth sends (Gmail, Microsoft, Yahoo) bound the token refresh to 30 seconds and re-check the claim after it, right before the provider request. A process that lost its claim during a slow refresh does not send.
 - The existing immediate failover between accounts is unchanged. It still moves on after `ECONNECTION`/`ECONNRESET` and HTTP 500/502/503, which in rare cases (connection lost after the message was sent) can deliver twice; queued sends use the stricter rules above.
 - Outbox indexes are declared through Strapi's content-type `indexes` key, which Strapi 5.61 supports but does not document; a test pins it.
 

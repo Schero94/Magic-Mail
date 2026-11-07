@@ -20,6 +20,15 @@
 * **admin:** Outbox tab (filter, details with the error history, Retry now, Mark as sent, Discard) and a "Retries and outbox" settings section, in all five languages.
 * **rbac:** new actions `plugin::magic-mail.queue.read` and `plugin::magic-mail.queue.manage`.
 
+### Fixed (send queue, before release)
+
+* **queue:** a database error while recording `sent` after the provider accepted a mail no longer re-queues it. The `sent` write is retried three times (0.25, 1, 3 s); if it still fails the claim expires and the mail ends as `uncertain`. Errors after a provider was contacted that did not come from the provider adapter are classified as ambiguous.
+* **queue:** a socket error after the SMTP `354` reply is uncertain whatever system code nodemailer keeps in `originalCode` (`EHOSTUNREACH`, `ENETUNREACH`, ...); before, those were treated as "not connected" and re-sent. For fetch-based providers, `EHOSTUNREACH`/`ENETUNREACH` count as not connected only with `syscall: 'connect'`. The same rule decides queue failover between accounts.
+* **queue:** a native Strapi mail whose fallback to the Strapi email provider fails is captured only when every MagicMail account is over quota. With no MagicMail account the error reaches Strapi as in 4.3 instead of resolving as queued and expiring after 24 hours.
+* **queue:** Content API idempotency keys are scoped per API token (or per user with `contentApi.allowUserRoles`), so callers can no longer suppress each other's mails or read each other's outbox ids with a shared key. New `send()` option `idempotencyScope` for server callers.
+* **queue:** _Retry now_ on a pending mail keeps its remaining automatic retries instead of cutting them to one.
+* **queue:** queued OAuth sends limit the token refresh request to 30 seconds and re-check the claim before the provider request, so a process whose lease expired during a slow refresh never sends a mail the reaper already marked uncertain.
+
 ### Migration notes
 
 * Nothing changes until `queue: true` is passed or _Queue failed sends_ is switched on.
