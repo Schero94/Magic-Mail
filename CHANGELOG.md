@@ -1,3 +1,72 @@
+# [4.0.0](https://github.com/Schero94/Magic-Mail/compare/v3.1.0...v4.0.0) (2026-11-07)
+
+
+* build!: harden the supply chain, packaging and release workflow ([5b8954d](https://github.com/Schero94/Magic-Mail/commit/5b8954de4d1c779902f19acdc0dd4646af079784))
+* chore(email-only)!: drop legacy messaging columns and traces, document 4.0 hardening ([53d8ef3](https://github.com/Schero94/Magic-Mail/commit/53d8ef350b22a8568f0781cc36ebb5bb9358a4b1))
+* fix(email)!: harden the sending path and route all native Strapi mail ([fef71e5](https://github.com/Schero94/Magic-Mail/commit/fef71e59d796d185b953857dba22120c12e575a1))
+* fix(security)!: harden accounts, OAuth flows and credential key management ([e443839](https://github.com/Schero94/Magic-Mail/commit/e4438395a1f080569e75f501351ef476af855513))
+* fix(templates)!: validate users-permissions templates, fix versioning and settings singleton ([14dd2b1](https://github.com/Schero94/Magic-Mail/commit/14dd2b11c99f517bc2715a23ad26cb06ffd10e5e))
+* fix(tracking)!: harden click/open tracking, retention and analytics deletion ([015fc25](https://github.com/Schero94/Magic-Mail/commit/015fc257656cd97d7abc2f98e677e94254833931))
+
+
+### Bug Fixes
+
+* **admin:** accounts screens keyboard, focus and responsive layout ([0e041b3](https://github.com/Schero94/Magic-Mail/commit/0e041b345fd1131b527c66bea25ad9d0accd013e))
+* **admin:** analytics and settings layout, states, focus and touch targets ([4647723](https://github.com/Schero94/Magic-Mail/commit/4647723003485ebd2a81076e3a56c5cf29737d21))
+* **admin:** keep routing match-type badges on one line ([74eec23](https://github.com/Schero94/Magic-Mail/commit/74eec23332212260ebe5e64ad4401abdb68fc297))
+* **admin:** render account wizard field hints through Field.Root ([759dc0b](https://github.com/Schero94/Magic-Mail/commit/759dc0b252b6476ecb1d65a8b91cdb06d0b3d7ae))
+* **admin:** routing rules layout, form hints, focus and account matching ([e48f535](https://github.com/Schero94/Magic-Mail/commit/e48f5355ea22972b3a98cd654deb15def72566fa))
+* **admin:** say that the default from email does not change the sender ([f039b0d](https://github.com/Schero94/Magic-Mail/commit/f039b0d9e0f04b0e6b6228c1d659113cf4ca78ea))
+* **admin:** template list and editor keyboard, focus, contrast and layout ([2612e5f](https://github.com/Schero94/Magic-Mail/commit/2612e5f748344e1d16901e7dc62e8a8d91f48b96))
+* **admin:** use one download icon for both template downloads ([303139d](https://github.com/Schero94/Magic-Mail/commit/303139d32fc71594507570201a6f464658c42098))
+* **email:** evaluate equal-priority routing rules in list order ([a368301](https://github.com/Schero94/Magic-Mail/commit/a368301f11d9ef3b645c7f7e920df63eea7572b6))
+* **i18n:** use sentence case for all stat card labels ([0c0c42c](https://github.com/Schero94/Magic-Mail/commit/0c0c42c18a4ede629b1616144f57af7d37fd2eb3))
+* **oauth:** keep rotated refresh tokens, refresh early and retry once on 401; add editor-config route ([1600773](https://github.com/Schero94/Magic-Mail/commit/160077355d9d2d192325ea83c655fdffaaeb2238))
+* **release:** pass the npm token as fallback to Trusted Publishing ([e3a85a6](https://github.com/Schero94/Magic-Mail/commit/e3a85a686635a32327527f073e8df0817662f797))
+* resolve all ESLint findings ([7c5d25c](https://github.com/Schero94/Magic-Mail/commit/7c5d25cd6d749de6ec19a679bc4c9a86f9554f51))
+* **security:** throttle rate-limit sweeps, key IPv6 by /64, close tracking-URL and log gaps ([a887ca4](https://github.com/Schero94/Magic-Mail/commit/a887ca4076c9cc9253e443ba478f8cd9b3ca422b))
+
+
+### Features
+
+* **admin:** add dark-mode, i18n and accessibility foundation ([90903e5](https://github.com/Schero94/Magic-Mail/commit/90903e5d00766e16d95102158c997c24b155d3af))
+* **admin:** harden the analytics and plugin settings views ([131a8ae](https://github.com/Schero94/Magic-Mail/commit/131a8ae318c1fc0fd079e557a864660ad683013f)), closes [#E2E8F0](https://github.com/Schero94/Magic-Mail/issues/E2E8F0) [#1E293B](https://github.com/Schero94/Magic-Mail/issues/1E293B)
+* **admin:** harden the email accounts view and account wizard ([4794fa2](https://github.com/Schero94/Magic-Mail/commit/4794fa2a0460d7ad81d7ce925665b0b7ff02ce3f))
+* **admin:** harden the email templates and template editor views ([30e9dcc](https://github.com/Schero94/Magic-Mail/commit/30e9dccb5015147d10be59c098dc3a92b14360d4))
+* **admin:** harden the routing rules view ([be8eb62](https://github.com/Schero94/Magic-Mail/commit/be8eb6277697c5f2aa404c97dae7710013eef428))
+* **admin:** merge view translations into all five locales ([5b5c55e](https://github.com/Schero94/Magic-Mail/commit/5b5c55ee0d649e5dab5f2e81d449a17150414257))
+* **admin:** reconnect existing OAuth accounts from the edit wizard ([bcb810a](https://github.com/Schero94/Magic-Mail/commit/bcb810afa04923d978b3855250193529112a8f9f))
+* **email:** support the Mailgun EU region ([cd0a837](https://github.com/Schero94/Magic-Mail/commit/cd0a83717ae0bcb509feeda17a021ec9d04f8078))
+
+
+### BREAKING CHANGES
+
+* Node.js >=22.12 is required, and
+@strapi/plugin-users-permissions ^5.57.0 is now a required peer dependency.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* the routing-rule attributes whatsappFallback and whatsappPhoneField are removed; Strapi drops the columns magic_mail_routing_rules.whatsapp_fallback and whatsapp_phone_field on the first start of 4.0 (back up the database first if you need them; with database.settings.forceMigration=false they stay and can be dropped manually).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* users-permissions email templates reject unsupported placeholders, <% %> blocks and ${...} with 400; template versions now store the saved content (v1 = created) instead of the pre-save content; template list filters other than category/isActive/templateReferenceId are ignored; the template test-send response returns data.success instead of data.result. Migration steps are in CHANGELOG.md under [Unreleased].
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* changing an account's provider/host/port/user/OAuth client/tenant/domain/allowInsecure requires re-entering stored secrets; secrets are shown as the constant "********"; credentials are stored in a v1 format that 3.x can not read and MAGIC_MAIL_ENCRYPTION_KEY is required outside development/test; OAuth needs a public https server.url (or URL) in production and in-flight authorizations must be restarted; Microsoft tenant ids are validated; routing rules must reference existing accounts; provider "ses" is removed; test sends are limited to 10/min per admin; test endpoints return fixed error messages. Migration steps are in CHANGELOG.md under [Unreleased].
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* tracking needs a public URL (no localhost fallback; mail is
+sent untracked otherwise); Content-API sends are click-tracked only for hosts
+in tracking.allowedLinkHosts; tracked links expire after 180 days; tracking
+events store truncated IPs and are deleted after 90 days; tracking hashes use
+MAGIC_MAIL_TRACKING_SECRET / MAGIC_MAIL_ENCRYPTION_KEY (old hashes still
+verify); email-log recipient/subject/templateId semantics changed; at most 100
+links per email are tracked. See CHANGELOG.md for migration steps.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* Content-API send routes accept API tokens only unless contentApi.allowUserRoles is true; userId must reference an existing user. /send-message rejects the removed `channel` parameter and validates `to`; the response has no `channel` field. path/href attachments are rejected for every caller and provider (pass `content`). from/replyTo must be valid single addresses (from must match the account) and custom headers are limited to an allowlist. An explicit accountName is never replaced on quota/errors; the template category sets the email type; the global unsubscribe URL requires enableUnsubscribeHeader; defaultFromEmail no longer rewrites from; quota windows are clock-aligned (UTC default) and add two private account fields. Migration steps are in CHANGELOG.md under [Unreleased].
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 ## [Unreleased]
 
 ### ⚠ BREAKING CHANGES (platform, packaging and API surface)
