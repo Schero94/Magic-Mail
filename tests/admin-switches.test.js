@@ -12,6 +12,7 @@ const affectedFiles = [
       'settings.enableLinkTracking',
       'settings.enableOpenTracking',
       'settings.enableUnsubscribeHeader',
+      'settings.queueFailedSends',
     ],
   },
   {

@@ -14,7 +14,13 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   defaultFromEmail: '',
   unsubscribeUrl: '',
   enableUnsubscribeHeader: true,
+  // Send queue (outbox): capture failed sends, and the retries per mail.
+  queueFailedSends: false,
+  queueMaxAttempts: 3,
 });
+
+/** Server range of queueMaxAttempts (Zod schema pluginSettings.update). */
+export const QUEUE_MAX_ATTEMPTS_RANGE = Object.freeze({ min: 1, max: 10 });
 
 export const SETTINGS_KEYS = Object.freeze(Object.keys(SETTINGS_DEFAULTS));
 
@@ -35,6 +41,8 @@ export const normalizeSettings = (data) => {
     const value = source[key];
     if (typeof fallback === 'boolean') {
       result[key] = typeof value === 'boolean' ? value : fallback;
+    } else if (typeof fallback === 'number') {
+      result[key] = Number.isInteger(value) ? value : fallback;
     } else {
       result[key] = typeof value === 'string' ? value : '';
     }
@@ -96,7 +104,7 @@ const checkUrl = (value, protocols) => {
 /**
  * Validates the editable settings.
  * @param {typeof SETTINGS_DEFAULTS} settings
- * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'>>}
+ * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'|'invalidRange'>>}
  *   error codes per field (empty object = valid)
  */
 export const validateSettings = (settings) => {
@@ -112,6 +120,19 @@ export const validateSettings = (settings) => {
 
   const name = settings?.defaultFromName ?? '';
   if (name.length > MAX_NAME_LENGTH || /[\r\n]/.test(name)) errors.defaultFromName = 'invalidText';
+
+  // A cleared number field is undefined: invalid, so Save stays disabled.
+  const attempts =
+    settings && 'queueMaxAttempts' in settings
+      ? settings.queueMaxAttempts
+      : SETTINGS_DEFAULTS.queueMaxAttempts;
+  if (
+    !Number.isInteger(attempts) ||
+    attempts < QUEUE_MAX_ATTEMPTS_RANGE.min ||
+    attempts > QUEUE_MAX_ATTEMPTS_RANGE.max
+  ) {
+    errors.queueMaxAttempts = 'invalidRange';
+  }
 
   return errors;
 };

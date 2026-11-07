@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Box, Typography, Flex, Loader, Switch, TextInput, Field } from '@strapi/design-system';
+import {
+  Box,
+  Typography,
+  Flex,
+  Loader,
+  NumberInput,
+  Switch,
+  TextInput,
+  Field,
+} from '@strapi/design-system';
 import { Page, useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -12,6 +21,7 @@ import {
   LinkIcon,
   EyeIcon,
   EnvelopeIcon,
+  InboxStackIcon,
 } from '@heroicons/react/24/outline';
 import styled, { keyframes, css } from 'styled-components';
 import { GradientButton, TertiaryButton } from '../components/StyledButtons';
@@ -20,6 +30,7 @@ import { UnsavedChangesDialog } from '../components/shared/UnsavedChangesDialog'
 import { motionSafe } from '../components/shared/motion';
 import { accent, color, fontSize } from '../utils/theme';
 import {
+  QUEUE_MAX_ATTEMPTS_RANGE,
   SETTINGS_DEFAULTS,
   diffSettings,
   isInsecureRemoteUrl,
@@ -262,6 +273,11 @@ const errorMessage = (t, code) => {
       return t('settings.errors.invalidEmail', 'Enter a valid email address');
     case 'invalidText':
       return t('settings.errors.invalidText', 'Use a single line of at most 1000 characters');
+    case 'invalidRange':
+      return t('settings.errors.invalidRange', 'Enter a whole number from {min} to {max}', {
+        min: QUEUE_MAX_ATTEMPTS_RANGE.min,
+        max: QUEUE_MAX_ATTEMPTS_RANGE.max,
+      });
     default:
       return undefined;
   }
@@ -759,6 +775,72 @@ const PluginSettingsContent = () => {
               <Field.Error />
             </Field.Root>
           </Flex>
+        </SectionContent>
+      </SettingsSection>
+
+      {/* Send queue (outbox) */}
+      <SettingsSection tag="section" aria-labelledby="mm-settings-queue">
+        <SectionHeader alignItems="center">
+          <SectionIcon $bgColor="rgba(37, 99, 235, 0.15)" $tone="primary">
+            <InboxStackIcon aria-hidden="true" />
+          </SectionIcon>
+          <Flex direction="column" alignItems="flex-start" gap={1}>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-queue">
+              {t('settings.queue.title', 'Retries and outbox')}
+            </Typography>
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'settings.queue.subtitle',
+                'Retry mails that could not be sent, and keep the rest for a decision'
+              )}
+            </Typography>
+          </Flex>
+        </SectionHeader>
+        <SectionContent>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>{t('settings.queue.capture.label', 'Queue failed sends')}</SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.queue.capture.description',
+                  'When every account failed and no provider accepted the mail, it is stored in the outbox and retried later. The send then reports success with queued: true, so a caller with its own fallback (for example Magic Link) no longer runs it. Mails whose delivery is uncertain are never re-sent automatically.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.queueFailedSends}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('queueFailedSends', checked)}
+                aria-label={t('settings.queue.capture.label', 'Queue failed sends')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="queueMaxAttempts"
+              width="100%"
+              error={errorMessage(t, errors.queueMaxAttempts)}
+              hint={t(
+                'settings.queue.maxAttempts.hint',
+                'Retries per mail after the first try ({min} to {max}). By default the waits are 1, 5 and 15 minutes.',
+                { min: QUEUE_MAX_ATTEMPTS_RANGE.min, max: QUEUE_MAX_ATTEMPTS_RANGE.max }
+              )}
+            >
+              <Field.Label>{t('settings.queue.maxAttempts.label', 'Retries per mail')}</Field.Label>
+              <NumberInput
+                value={settings.queueMaxAttempts}
+                onValueChange={(value) => handleChange('queueMaxAttempts', value)}
+                step={1}
+                disabled={!canManage}
+              />
+              <Field.Hint />
+              <Field.Error />
+            </Field.Root>
+          </SettingRow>
         </SectionContent>
       </SettingsSection>
 

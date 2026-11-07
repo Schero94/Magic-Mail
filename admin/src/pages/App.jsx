@@ -8,16 +8,19 @@ import {
   FunnelIcon,
   DocumentTextIcon,
   ChartBarIcon,
+  InboxStackIcon,
 } from '@heroicons/react/24/outline';
 import HomePage from './HomePage';
 import RoutingRules from './RoutingRules';
 import TemplateList from './EmailDesigner/TemplateList';
 import EditorPage from './EmailDesigner/EditorPage';
 import Analytics from './Analytics';
+import Outbox from './Outbox';
 import pluginId from '../pluginId';
 import pluginPermissions from '../permissions';
 import { PluginPageTitle } from '../components/shared/Headings';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
+import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 
 const BASE_PATH = `/plugins/${pluginId}`;
 
@@ -26,12 +29,13 @@ const TAB_PATHS = {
   routing: `${BASE_PATH}/routing`,
   templates: `${BASE_PATH}/designer`,
   analytics: `${BASE_PATH}/analytics`,
+  outbox: `${BASE_PATH}/outbox`,
 };
 
 const iconProps = { width: 16, height: 16 };
 
 /**
- * Below 768px the four tabs do not fit: they scroll sideways on one line
+ * Below 768px the tabs do not fit: they scroll sideways on one line
  * instead of wrapping their labels or being clipped off-screen.
  */
 const TabsList = styled(Tabs.List)`
@@ -50,12 +54,14 @@ const App = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useMagicMailIntl();
+  const { canReadQueue } = useMagicMailRBAC();
 
   // Check if we're in the editor (with specific ID, 'new', or 'core/...')
   const isEditorRoute = /\/designer\/(new|\d+|core\/.+)/.test(location.pathname);
 
   // Determine active tab from route
   const getActiveTab = () => {
+    if (location.pathname.includes('/outbox')) return 'outbox';
     if (location.pathname.includes('/analytics')) return 'analytics';
     if (location.pathname.includes('/routing')) return 'routing';
     if (location.pathname.includes('/designer') && !isEditorRoute) return 'templates';
@@ -76,6 +82,11 @@ const App = () => {
       label: t('app.tabs.templates', 'Email Templates'),
     },
     { value: 'analytics', Icon: ChartBarIcon, label: t('app.tabs.analytics', 'Analytics') },
+    // The outbox has its own grant (queue.read); a direct link without it
+    // shows the view's no-permission state.
+    ...(canReadQueue || location.pathname.includes('/outbox')
+      ? [{ value: 'outbox', Icon: InboxStackIcon, label: t('app.tabs.outbox', 'Outbox') }]
+      : []),
   ];
 
   const activeTab = getActiveTab();
@@ -132,6 +143,10 @@ const App = () => {
 
                 <Tabs.Content value="analytics">
                   <Analytics />
+                </Tabs.Content>
+
+                <Tabs.Content value="outbox">
+                  <Outbox />
                 </Tabs.Content>
               </Tabs.Root>
             </Box>

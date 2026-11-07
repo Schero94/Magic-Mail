@@ -580,7 +580,8 @@ const schemas = {
   // ── Outbox (send queue) admin routes ───────────────────────────────────
   'outbox.listQuery': z
     .object({
-      status: z.enum(OUTBOX_STATUSES).optional(),
+      // 'retrying' = pending after at least one failed try.
+      status: z.enum([...OUTBOX_STATUSES, 'retrying']).optional(),
       lastErrorClass: z
         .enum(['transient', 'permanent', 'ambiguous', 'capacity', 'expired'])
         .optional(),

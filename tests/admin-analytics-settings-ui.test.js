@@ -146,6 +146,8 @@ test('UI-M03: settings are normalised from the API and only changed keys are sav
     defaultFromEmail: '',
     unsubscribeUrl: '',
     enableUnsubscribeHeader: true,
+    queueFailedSends: false,
+    queueMaxAttempts: 3,
   });
   assert.equal(
     'trackingFallbackUrl' in loaded,
@@ -290,8 +292,8 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
   );
   assert.equal(
     (src.match(/<Field\.Error \/>/g) ?? []).length,
-    4,
-    'every text input shows its validation error'
+    5,
+    'every text and number input shows its validation error'
   );
 });
 

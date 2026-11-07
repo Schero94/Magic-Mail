@@ -541,7 +541,13 @@ async function list(strapi, query = {}) {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 25));
   const filtered = (qb) => {
-    if (query.status) qb.where(col('status'), query.status);
+    if (query.status === 'retrying') {
+      qb.where(col('status'), 'pending').andWhere((inner) =>
+        inner.where(col('attempts'), '>', 0).orWhere(col('createdVia'), 'capture-on-failure')
+      );
+    } else if (query.status) {
+      qb.where(col('status'), query.status);
+    }
     if (query.lastErrorClass) qb.where(col('lastErrorClass'), query.lastErrorClass);
     if (query.source) qb.where(col('source'), query.source);
     if (query.from) qb.where(col('createdAt'), '>=', new Date(query.from));

@@ -13,7 +13,11 @@ const compiledRBACHook = esbuild.transformSync(source('admin/src/hooks/useMagicM
   loader: 'js',
 }).code;
 
-function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error: undefined }) {
+function evaluateRBACHook(
+  allowedActions,
+  rbacState = { isLoading: false, error: undefined },
+  queueActions = {}
+) {
   const captured = {};
   const module = { exports: {} };
   const permissions = {
@@ -21,10 +25,19 @@ function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error:
     read: [{ action: 'plugin::magic-mail.read', subject: null }],
     manage: [{ action: 'plugin::magic-mail.manage', subject: null }],
     testSend: [{ action: 'plugin::magic-mail.test-send', subject: null }],
+    queueRead: [{ action: 'plugin::magic-mail.queue.read', subject: null }],
+    queueManage: [{ action: 'plugin::magic-mail.queue.manage', subject: null }],
   };
   const dependencies = {
     '@strapi/strapi/admin': {
+      // The hook asks for the outbox grants in a second call (useRBAC names
+      // capabilities after the last action segment, so queue.read would
+      // collide with read).
       useRBAC: (requestedPermissions) => {
+        if (requestedPermissions.some(({ action }) => action.includes('.queue.'))) {
+          captured.queuePermissions = requestedPermissions;
+          return { allowedActions: queueActions, ...rbacState };
+        }
         captured.requestedPermissions = requestedPermissions;
         return { allowedActions, ...rbacState };
       },
@@ -46,6 +59,7 @@ function evaluateRBACHook(allowedActions, rbacState = { isLoading: false, error:
   return {
     capabilities: module.exports.useMagicMailRBAC(),
     requestedPermissions: captured.requestedPermissions,
+    queuePermissions: captured.queuePermissions,
   };
 }
 
@@ -210,6 +224,9 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
       flags,
       {
         ...expected,
+        canReadQueue: false,
+        canManageQueue: false,
+        isQueueLoading: false,
         isReadOnly: expected.canRead && !expected.canManage,
         isLoading: false,
         error: undefined,
@@ -218,10 +235,28 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
     );
     assert.deepEqual(
       Object.keys(permissions).sort(),
-      ['access', 'manage', 'read', 'testSend'],
+      ['access', 'manage', 'queueManage', 'queueRead', 'read', 'testSend'],
       role
     );
   }
+});
+
+test('RBAC hook reads the outbox grants separately from read/manage', () => {
+  const readOnly = evaluateRBACHook({ canRead: true }, undefined, { canRead: true });
+  assert.deepEqual(readOnly.queuePermissions, [
+    { action: 'plugin::magic-mail.queue.read', subject: null },
+    { action: 'plugin::magic-mail.queue.manage', subject: null },
+  ]);
+  assert.equal(readOnly.capabilities.canReadQueue, true);
+  assert.equal(readOnly.capabilities.canManageQueue, false);
+  assert.equal(readOnly.capabilities.canManage, false);
+
+  const queueOnly = evaluateRBACHook({}, undefined, { canRead: true, canManage: true });
+  assert.equal(queueOnly.capabilities.canRead, false, 'queue.read does not grant read');
+  assert.equal(queueOnly.capabilities.canManageQueue, true);
+
+  const loading = evaluateRBACHook({}, { isLoading: true, error: undefined }, { canRead: true });
+  assert.equal(loading.capabilities.canReadQueue, false, 'fails closed while loading');
 });
 
 test('RBAC hook fails closed while permissions load or when the permission request fails', () => {

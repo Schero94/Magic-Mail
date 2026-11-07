@@ -20,6 +20,7 @@ const NAMESPACES = [
   'editor',
   'routing',
   'settings',
+  'queue',
   'templates',
   'common',
   'plugin',
