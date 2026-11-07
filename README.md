@@ -1309,7 +1309,7 @@ npm run verify:runtime
 
 Run `npm audit` from your Strapi project root to check the complete installed tree; npm applies overrides from the root project only.
 
-Known host-side advisory: `npm audit --omit=dev` in this repository reports GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6) inside `@strapi/utils`, which resolves to the Strapi host's own copy. MagicMail validates every request with its own patched zod (`^4.6.7`) and bounds all collections, so the advisory is not reachable through MagicMail inputs. It disappears once your Strapi version ships a fixed zod.
+MagicMail validates every request with its own zod (`^4.6.7`) and bounds all collections. Strapi itself ships other zod copies inside `@strapi/*` packages; if `npm audit` in your project reports one of them, the fix comes with a Strapi update.
 
 ### Maintenance status
 
