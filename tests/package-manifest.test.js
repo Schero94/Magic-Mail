@@ -112,6 +112,9 @@ test('workflows pin actions by SHA, use least privilege and never run install sc
   const release = read('.github/workflows/release.yml');
   assert.match(release, /needs:\s*verify/);
   assert.match(release, /NPM_CONFIG_PROVENANCE:\s*'true'/);
+  // Trusted Publishing is not configured on npmjs.com yet; the token fallback must stay wired.
+  assert.match(release, /NPM_TOKEN:\s*\$\{\{\s*secrets\.NPM_TOKEN\s*\}\}/);
+  assert.match(release, /NODE_AUTH_TOKEN:\s*\$\{\{\s*secrets\.NPM_TOKEN\s*\}\}/);
   assert.match(read('.github/workflows/ci.yml'), /pull_request/);
   assert.equal(pkg.publishConfig.provenance, true);
 });

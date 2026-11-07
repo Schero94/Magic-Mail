@@ -8,6 +8,7 @@
 # - Dependencies are installed with --ignore-scripts, so no dependency lifecycle script ever runs
 #   while a write-capable token is in the environment.
 # - Checkout does not persist credentials; semantic-release authenticates with GITHUB_TOKEN itself.
+# - npm auth: Trusted Publishing first, NPM_TOKEN secret as fallback until OIDC is configured on npmjs.com.
 name: Release
 
 on:
@@ -88,5 +89,10 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # npm Trusted Publishing (OIDC) is tried first. Until a trusted publisher is configured
+          # for this package on npmjs.com the exchange returns 404, so semantic-release falls back
+          # to the token below (same setup as Magic Session Manager).
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
         run: npx --no-install semantic-release
