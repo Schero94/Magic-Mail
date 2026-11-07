@@ -1,16 +1,16 @@
 /**
  * Styled button components for MagicMail.
  *
- * - Text buttons and icon buttons share one control height (36px, DS size M).
+ * - Text buttons share one control height (36px, DS size M).
  * - Filled surfaces use the contrast-safe brand palette (white text >= 4.5:1).
  * - Colours on neutral surfaces come from DS theme tokens or scheme-aware
  *   accents, so dark mode works.
  * - Hover lifts are disabled for users who prefer reduced motion.
- * - Icon buttons show a DS tooltip with their aria-label.
+ * - Table row actions use the DS IconButton through the shared table layer
+ *   (components/shared/table), the same as Magic Link.
  */
-import { forwardRef } from 'react';
 import styled, { css } from 'styled-components';
-import { Button, Tooltip } from '@strapi/design-system';
+import { Button } from '@strapi/design-system';
 import { accent, brand, color, fontSize } from '../utils/theme';
 import { reducedMotion } from './shared/motion';
 
@@ -112,119 +112,6 @@ export const DangerButton = styled(Button)`
     }
   }
 `;
-
-// ================ ICON BUTTONS ================
-const iconButtonBase = css`
-  padding: 8px;
-  min-width: ${CONTROL_HEIGHT};
-  min-height: ${CONTROL_HEIGHT};
-  width: ${CONTROL_HEIGHT};
-  height: ${CONTROL_HEIGHT};
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-
-  svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  &:hover:not(:disabled) {
-    color: #ffffff;
-    transform: translateY(-1px);
-  }
-
-  ${disabledState}
-  ${reducedMotion}
-`;
-
-/**
- * Builds a tinted icon button.
- * @param {object} tone
- * @param {string} tone.tint - rgb triple used for resting background and border
- * @param {Function|string} tone.fg - resting icon colour
- * @param {string} tone.hover - filled hover background (white icon >= 4.5:1)
- * @param {string} tone.hoverBorder
- */
-const createIconButton = ({ tint, fg, hover, hoverBorder }) => {
-  const StyledIconButton = styled(Button)`
-    && {
-      ${iconButtonBase}
-      background: linear-gradient(135deg, rgba(${tint}, 0.06) 0%, rgba(${tint}, 0.14) 100%);
-      color: ${fg};
-      border: 1px solid rgba(${tint}, 0.32);
-
-      &:hover:not(:disabled) {
-        background: ${hover};
-        border-color: ${hoverBorder};
-        box-shadow: 0 4px 12px rgba(${tint}, 0.3);
-      }
-    }
-  `;
-
-  /**
-   * Icon-only button. Its aria-label doubles as a DS tooltip for sighted
-   * users; a native `title` is dropped to avoid a duplicate tooltip.
-   */
-  const IconOnlyButton = forwardRef(({ title, ...props }, ref) => {
-    const label = props['aria-label'] ?? title;
-    const button = <StyledIconButton ref={ref} aria-label={label} {...props} />;
-    return label ? <Tooltip label={label}>{button}</Tooltip> : button;
-  });
-
-  return IconOnlyButton;
-};
-
-export const IconButton = createIconButton({
-  tint: '128, 128, 128',
-  fg: color('neutral600'),
-  hover: `linear-gradient(135deg, ${brand.primary} 0%, ${brand.primaryHover} 100%)`,
-  hoverBorder: brand.primary,
-});
-IconButton.displayName = 'IconButton';
-
-export const IconButtonDanger = createIconButton({
-  tint: '220, 38, 38',
-  fg: accent.danger,
-  hover: `linear-gradient(135deg, ${brand.danger} 0%, ${brand.dangerHover} 100%)`,
-  hoverBorder: brand.danger,
-});
-IconButtonDanger.displayName = 'IconButtonDanger';
-
-export const IconButtonPrimary = createIconButton({
-  tint: '3, 105, 161',
-  fg: accent.primary,
-  hover: `linear-gradient(135deg, ${brand.primary} 0%, ${brand.primaryHover} 100%)`,
-  hoverBorder: brand.primary,
-});
-IconButtonPrimary.displayName = 'IconButtonPrimary';
-
-export const IconButtonSuccess = createIconButton({
-  tint: '21, 128, 61',
-  fg: accent.success,
-  hover: `linear-gradient(135deg, ${brand.success} 0%, ${brand.successHover} 100%)`,
-  hoverBorder: brand.success,
-});
-IconButtonSuccess.displayName = 'IconButtonSuccess';
-
-export const IconButtonWarning = createIconButton({
-  tint: '180, 83, 9',
-  fg: accent.warning,
-  hover: `linear-gradient(135deg, ${brand.warning} 0%, ${brand.warningHover} 100%)`,
-  hoverBorder: brand.warning,
-});
-IconButtonWarning.displayName = 'IconButtonWarning';
-
-export const IconButtonPurple = createIconButton({
-  tint: '147, 51, 234',
-  fg: accent.secondary,
-  hover: `linear-gradient(135deg, ${brand.secondary} 0%, ${brand.secondaryHover} 100%)`,
-  hoverBorder: brand.secondary,
-});
-IconButtonPurple.displayName = 'IconButtonPurple';
 
 // ================ LARGE CTA BUTTON (empty states) ================
 export const CTAButton = styled(Button)`

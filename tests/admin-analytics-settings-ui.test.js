@@ -259,7 +259,11 @@ test('UI-10/UI-M05/FUN-18: Analytics pages and searches on the server and shows 
     /<SearchField\s+label=\{t\('analytics\.search\.label'/,
     'the search field has an accessible name'
   );
-  assert.match(src, /<PaginationBar aria-label=\{t\('analytics\.pagination\.label'/);
+  assert.match(
+    src,
+    /<TablePagination[\s\S]*?pageSize=\{LOGS_PAGE_SIZE\}[\s\S]*?label=\{t\('analytics\.pagination\.label'/,
+    'server pages use the shared table pagination'
+  );
   assert.match(src, /count: totalLogs/, 'the confirmation counts all logs, not one page');
   assert.match(src, /useFormatters/);
 });
@@ -294,10 +298,15 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
 test('browser acceptance: Analytics layout fits every width and keeps focus after Clear All', () => {
   const src = read(ANALYTICS);
   assert.doesNotMatch(src, /max-width: 1200px/, 'stat cards align with the page edges');
-  assert.match(src, /td\.wrap-cell \{/, 'long recipients and subjects wrap instead of scrolling');
-  assert.match(src, /white-space: normal;/, 'cells override the DS nowrap table');
-  assert.match(src, /<LogList aria-label=/, 'phones get a list instead of a seven-column table');
-  assert.match(src, /<StatusSlot>/, 'the status stays on one line beside long addresses');
+  assert.match(
+    src,
+    /<Td className="cell-wrap" data-label=\{columnLabels\.recipient\}>/,
+    'long recipients wrap (shared td.cell-wrap) and get a label in the phone card'
+  );
+  assert.match(src, /<Td className="cell-wrap" data-label=\{columnLabels\.subject\}>/);
+  assert.match(src, /<DataTable[\s\S]*?<StyledTable colCount=\{7\}/, 'shared table layer');
+  assert.doesNotMatch(src, /LogList|StatusSlot|TableScroller/, 'no second mobile-only list');
+  assert.match(src, /<StatusBadge \$tone=\{delivery\.tone \?\? 'neutral'\}>/);
   assert.match(src, /label: 'Pending', tone: 'warning'/, 'pending uses the AA warning accent');
   assert.match(
     src,

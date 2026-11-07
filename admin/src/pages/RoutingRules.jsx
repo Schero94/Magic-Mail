@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import {
-  Box,
-  Flex,
-  Typography,
-  Loader,
   Badge,
+  Box,
+  Button,
+  Flex,
+  IconButton,
+  Loader,
   SingleSelect,
   SingleSelectOption,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  Typography,
+  VisuallyHidden,
 } from '@strapi/design-system';
-import { Thead, Tbody, Tr, Th, Td, VisuallyHidden } from '@strapi/design-system';
+import { Filter, Pencil, Sparkle, Trash, WarningCircle } from '@strapi/icons';
 import {
   PlusIcon,
-  PencilIcon,
   TrashIcon,
   CheckIcon,
   SparklesIcon,
@@ -20,47 +27,38 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
-import {
-  GradientButton,
-  TertiaryButton,
-  CTAButton,
-  IconButton,
-  IconButtonDanger,
-} from '../components/StyledButtons';
+import { GradientButton, TertiaryButton } from '../components/StyledButtons';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { SectionHeading } from '../components/shared/Headings';
 import { SearchField } from '../components/shared/SearchField';
+import {
+  DataTable,
+  EmptyState,
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  LoadErrorState,
+  MonoText,
+  StatusBadge,
+  StyledTable,
+  keepNativeButtonKeys,
+} from '../components/shared/table';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
 import { useFormatters } from '../hooks/useFormatters';
 import { RuleModal } from './Routing/RuleModal';
 import {
   Container,
-  EmptyIconCircle,
-  EmptyState,
-  EmptyText,
-  EmptyTitle,
-  FilterBar,
-  FilterSlot,
-  FloatingIcon,
   Header,
   HeaderContent,
-  MatchValue,
-  OnlineBadge,
-  RuleCard,
-  RuleCardDetails,
-  RuleCardList,
   RulesContainer,
-  SearchSlot,
   SectionBar,
   StatCard,
   StatIcon,
   StatLabel,
   StatsGrid,
   StatValue,
-  StyledTable,
   Subtitle,
-  TableScroll,
   Title,
   WarningText,
 } from './Routing/styles';
@@ -73,16 +71,6 @@ import {
   hasBrokenAccountReference,
   sortRulesByEvaluationOrder,
 } from './Routing/ruleUtils';
-
-/**
- * The DS table cell prevents the default of every key when it holds several
- * buttons (its grid navigation), which blocks native Enter/Space activation
- * and Tab. Those keys stay with the buttons; arrow keys still move the grid.
- */
-const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
-const keepNativeButtonKeys = (event) => {
-  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
-};
 
 /** Focus target after a dialog closes whose opener is gone (deleted row). */
 const getFocusFallback = () =>
@@ -245,20 +233,27 @@ const RoutingRulesPage = () => {
     );
   };
 
+  const columnLabels = {
+    status: t('routing.table.status', 'Status'),
+    name: t('routing.table.name', 'Rule Name'),
+    matchType: t('routing.table.matchType', 'Match Type'),
+    matchValue: t('routing.table.matchValue', 'Match Value'),
+    account: t('routing.table.account', 'Target Account'),
+    priority: t('routing.table.priority', 'Priority'),
+    actions: t('routing.table.actions', 'Actions'),
+  };
+
   const renderStatus = (rule) => (
-    <Flex alignItems="center" gap={2} shrink={0}>
-      <OnlineBadge $active={rule.isActive} aria-hidden="true" />
-      <Badge variant={rule.isActive ? 'success' : 'neutral'} size="S">
-        {rule.isActive
-          ? t('routing.status.active', 'Active')
-          : t('routing.status.inactive', 'Inactive')}
-      </Badge>
-    </Flex>
+    <StatusBadge $tone={rule.isActive ? 'success' : 'neutral'}>
+      {rule.isActive
+        ? t('routing.status.active', 'Active')
+        : t('routing.status.inactive', 'Inactive')}
+    </StatusBadge>
   );
 
-  const renderName = (rule, headingTag) => (
+  const renderName = (rule) => (
     <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
-      <Typography fontWeight="semiBold" tag={headingTag}>
+      <Typography fontWeight="semiBold" textColor="neutral800">
         {rule.name}
       </Typography>
       {rule.description && (
@@ -269,15 +264,13 @@ const RoutingRulesPage = () => {
     </Flex>
   );
 
-  const renderMatchType = (rule) => (
-    <Badge size="S" variant="secondary">
-      {getMatchTypeLabel(rule.matchType, t)}
-    </Badge>
-  );
+  const renderMatchType = (rule) => <Badge>{getMatchTypeLabel(rule.matchType, t)}</Badge>;
 
   const renderAccount = (rule) => (
     <Flex direction="column" alignItems="flex-start" gap={1}>
-      <Typography fontWeight="semiBold">{rule.accountName}</Typography>
+      <Typography variant="omega" fontWeight="semiBold">
+        {rule.accountName}
+      </Typography>
       {renderAccountWarning(rule.accountName)}
       {rule.fallbackAccountName && (
         <Typography variant="pi" textColor="neutral600">
@@ -294,139 +287,151 @@ const RoutingRulesPage = () => {
   const renderPriority = (rule) => {
     const isHigh = Number(rule.priority) >= HIGH_PRIORITY_THRESHOLD;
     return (
-      <Badge size="S" variant={isHigh ? 'warning' : 'neutral'}>
-        <Flex tag="span" alignItems="center" gap={1}>
-          {isHigh && <SparklesIcon aria-hidden="true" style={{ width: 12, height: 12 }} />}
-          {formatNumber(rule.priority)}
-          {isHigh && (
-            <VisuallyHidden>{t('routing.table.highPriority', 'High priority')}</VisuallyHidden>
-          )}
-        </Flex>
-      </Badge>
+      <StatusBadge $tone={isHigh ? 'warning' : 'neutral'}>
+        {isHigh && <Sparkle aria-hidden="true" />}
+        {formatNumber(rule.priority)}
+        {isHigh && (
+          <VisuallyHidden>{t('routing.table.highPriority', 'High priority')}</VisuallyHidden>
+        )}
+      </StatusBadge>
     );
   };
 
   const renderActions = (rule) => (
-    <>
+    <Flex gap={1} justifyContent="flex-end" onKeyDown={keepNativeButtonKeys}>
       <IconButton
+        label={t('routing.actions.edit', 'Edit rule "{name}"', { name: rule.name })}
+        variant="ghost"
         onClick={() => setEditingRule(rule)}
         disabled={!canEditRules}
-        aria-label={t('routing.actions.edit', 'Edit rule "{name}"', {
-          name: rule.name,
-        })}
       >
-        <PencilIcon aria-hidden="true" />
+        <Pencil aria-hidden="true" />
       </IconButton>
-      <IconButtonDanger
+      <IconButton
+        label={t('routing.actions.delete', 'Delete rule "{name}"', { name: rule.name })}
+        variant="danger-light"
         onClick={() => setPendingDelete(rule)}
-        aria-label={t('routing.actions.delete', 'Delete rule "{name}"', {
-          name: rule.name,
-        })}
       >
-        <TrashIcon aria-hidden="true" />
-      </IconButtonDanger>
-    </>
+        <Trash aria-hidden="true" />
+      </IconButton>
+    </Flex>
   );
 
-  const renderBody = () => {
-    if (permissionsError) {
-      return (
-        <EmptyState role="alert">
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={4}
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <EmptyIconCircle $tone="danger" aria-hidden="true">
-              <ExclamationTriangleIcon />
-            </EmptyIconCircle>
-            <EmptyText variant="omega" textColor="neutral600">
-              {t(
-                'common.permissions.loadError',
-                'Your permissions could not be loaded. Reload the page to try again.'
-              )}
-            </EmptyText>
-          </Flex>
-        </EmptyState>
-      );
-    }
-
+  const renderTableBody = () => {
     if (loadError) {
       return (
-        <EmptyState role="alert">
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={6}
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <EmptyIconCircle $tone="danger" aria-hidden="true">
-              <ExclamationTriangleIcon />
-            </EmptyIconCircle>
-            <EmptyTitle variant="alpha" tag="h2" textColor="neutral800">
-              {t('routing.error.title', 'Routing rules could not be loaded')}
-            </EmptyTitle>
-            <EmptyText variant="omega" textColor="neutral600">
-              {t(
-                'routing.error.description',
-                'Check your connection and permissions, then try again.'
-              )}
-            </EmptyText>
-            <GradientButton
-              onClick={reloadData}
-              loading={loading}
-              startIcon={<ArrowPathIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
-            >
-              {t('routing.error.retry', 'Retry')}
-            </GradientButton>
-          </Flex>
-        </EmptyState>
+        <LoadErrorState
+          message={t('routing.error.title', 'Routing rules could not be loaded')}
+          description={t(
+            'routing.error.description',
+            'Check your connection and permissions, then try again.'
+          )}
+          onRetry={reloadData}
+          isRetrying={loading}
+        />
       );
     }
 
     if (rules.length === 0) {
       return (
-        <EmptyState>
-          <FloatingIcon aria-hidden="true">
-            <FunnelIcon />
-          </FloatingIcon>
-
-          <Flex
-            direction="column"
-            alignItems="center"
-            gap={6}
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <EmptyIconCircle aria-hidden="true">
-              <FunnelIcon />
-            </EmptyIconCircle>
-
-            <EmptyTitle variant="alpha" tag="h2" textColor="neutral800">
-              {t('routing.empty.title', 'No Routing Rules Yet')}
-            </EmptyTitle>
-
-            <EmptyText variant="omega" textColor="neutral600">
-              {canManage
-                ? t(
-                    'routing.empty.descriptionManage',
-                    'Create your first routing rule to route emails based on type, recipient, subject, template, or a custom field.'
-                  )
-                : t('routing.empty.descriptionReadOnly', 'No routing rules have been set up yet.')}
-            </EmptyText>
-
-            {canManage && (
-              <CTAButton
-                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+        <EmptyState
+          icon={Filter}
+          title={t('routing.empty.title', 'No Routing Rules Yet')}
+          description={
+            canManage
+              ? t(
+                  'routing.empty.descriptionManage',
+                  'Create your first routing rule to route emails based on type, recipient, subject, template, or a custom field.'
+                )
+              : t('routing.empty.descriptionReadOnly', 'No routing rules have been set up yet.')
+          }
+          actions={
+            canManage ? (
+              <GradientButton
+                startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
                 onClick={() => setShowModal(true)}
-                data-mm-focus-fallback
                 disabled={!canEditRules}
               >
                 {t('routing.empty.cta', 'Create First Rule')}
-              </CTAButton>
+              </GradientButton>
+            ) : null
+          }
+        />
+      );
+    }
+
+    if (filteredRules.length === 0) {
+      return (
+        <EmptyState
+          icon={Filter}
+          title={t('routing.filters.noResults', 'No rules found matching your filters')}
+          actions={
+            hasFilters ? (
+              <Button variant="secondary" size="L" onClick={resetFilters}>
+                {t('routing.filters.reset', 'Reset filters')}
+              </Button>
+            ) : null
+          }
+        />
+      );
+    }
+
+    return (
+      <StyledTable colCount={canManage ? 7 : 6} rowCount={filteredRules.length + 1}>
+        <Thead>
+          <Tr>
+            <Th>{columnLabels.status}</Th>
+            <Th>{columnLabels.name}</Th>
+            <Th>{columnLabels.matchType}</Th>
+            <Th>{columnLabels.matchValue}</Th>
+            <Th>{columnLabels.account}</Th>
+            <Th>{columnLabels.priority}</Th>
+            {canManage && (
+              <Th>
+                <VisuallyHidden>{columnLabels.actions}</VisuallyHidden>
+              </Th>
             )}
-          </Flex>
-        </EmptyState>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {filteredRules.map((rule) => (
+            <Tr key={getRuleKey(rule)}>
+              <Td data-label={columnLabels.status}>{renderStatus(rule)}</Td>
+              <Td className="cell-wrap" data-label={columnLabels.name}>
+                {renderName(rule)}
+              </Td>
+              <Td data-label={columnLabels.matchType}>{renderMatchType(rule)}</Td>
+              <Td className="cell-wrap" data-label={columnLabels.matchValue}>
+                <MonoText>{rule.matchValue}</MonoText>
+              </Td>
+              <Td className="cell-wrap" data-label={columnLabels.account}>
+                {renderAccount(rule)}
+              </Td>
+              <Td data-label={columnLabels.priority}>{renderPriority(rule)}</Td>
+              {canManage && <Td data-label="">{renderActions(rule)}</Td>}
+            </Tr>
+          ))}
+        </Tbody>
+      </StyledTable>
+    );
+  };
+
+  const renderBody = () => {
+    if (permissionsError) {
+      return (
+        <RulesContainer>
+          <DataTable>
+            <EmptyState
+              icon={WarningCircle}
+              tone="danger"
+              role="alert"
+              title={t(
+                'common.permissions.loadError',
+                'Your permissions could not be loaded. Reload the page to try again.'
+              )}
+            />
+          </DataTable>
+        </RulesContainer>
       );
     }
 
@@ -435,7 +440,7 @@ const RoutingRulesPage = () => {
         <Box marginBottom={4}>
           <SectionBar justifyContent="space-between" alignItems="center">
             <SectionHeading>{t('routing.section.title', 'Routing Rules')}</SectionHeading>
-            {canManage && (
+            {canManage && !loadError && (
               <GradientButton
                 startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
                 onClick={() => setShowModal(true)}
@@ -446,15 +451,17 @@ const RoutingRulesPage = () => {
               </GradientButton>
             )}
           </SectionBar>
-          <Typography variant="pi" tag="p" textColor="neutral600" marginTop={2}>
-            {t(
-              'routing.section.orderHint',
-              'Rules are listed in evaluation order: the highest priority is checked first, and the first matching rule wins.'
-            )}
-          </Typography>
+          {!loadError && rules.length > 0 && (
+            <Typography variant="pi" tag="p" textColor="neutral600" marginTop={2}>
+              {t(
+                'routing.section.orderHint',
+                'Rules are listed in evaluation order: the highest priority is checked first, and the first matching rule wins.'
+              )}
+            </Typography>
+          )}
         </Box>
 
-        {(accountsError || brokenCount > 0) && (
+        {!loadError && (accountsError || brokenCount > 0) && (
           <Box
             marginBottom={4}
             padding={4}
@@ -492,153 +499,60 @@ const RoutingRulesPage = () => {
           </Box>
         )}
 
-        {/* Filter Bar */}
-        <FilterBar>
-          <SearchSlot>
-            <SearchField
-              label={t('routing.search.label', 'Search routing rules')}
-              placeholder={t(
-                'routing.search.placeholder',
-                'Search by name, description, value, or account...'
-              )}
-              value={searchQuery}
-              onChange={setSearchQuery}
-            />
-          </SearchSlot>
+        {!loadError && rules.length > 0 && (
+          <FilterBar>
+            <FilterSearch>
+              <SearchField
+                label={t('routing.search.label', 'Search routing rules')}
+                placeholder={t(
+                  'routing.search.placeholder',
+                  'Search by name, description, value, or account...'
+                )}
+                value={searchQuery}
+                onChange={setSearchQuery}
+              />
+            </FilterSearch>
 
-          <FilterSlot>
-            <SingleSelect
-              aria-label={t('routing.filters.status', 'Filter by status')}
-              value={filterStatus}
-              onChange={(value) => setFilterStatus(String(value))}
-              size="S"
-            >
-              <SingleSelectOption value="all">
-                {t('routing.filters.allStatuses', 'All Rules')}
-              </SingleSelectOption>
-              <SingleSelectOption value="active">
-                {t('routing.status.active', 'Active')}
-              </SingleSelectOption>
-              <SingleSelectOption value="inactive">
-                {t('routing.status.inactive', 'Inactive')}
-              </SingleSelectOption>
-            </SingleSelect>
-          </FilterSlot>
-
-          <FilterSlot>
-            <SingleSelect
-              aria-label={t('routing.filters.matchType', 'Filter by match type')}
-              value={filterMatchType}
-              onChange={(value) => setFilterMatchType(String(value))}
-              size="S"
-            >
-              <SingleSelectOption value="all">
-                {t('routing.filters.allTypes', 'All Types')}
-              </SingleSelectOption>
-              {knownMatchTypes.map((type) => (
-                <SingleSelectOption key={type} value={type}>
-                  {getMatchTypeLabel(type, t)}
+            <FilterSelect>
+              <SingleSelect
+                aria-label={t('routing.filters.status', 'Filter by status')}
+                value={filterStatus}
+                onChange={(value) => setFilterStatus(String(value))}
+              >
+                <SingleSelectOption value="all">
+                  {t('routing.filters.allStatuses', 'All Rules')}
                 </SingleSelectOption>
-              ))}
-            </SingleSelect>
-          </FilterSlot>
-        </FilterBar>
+                <SingleSelectOption value="active">
+                  {t('routing.status.active', 'Active')}
+                </SingleSelectOption>
+                <SingleSelectOption value="inactive">
+                  {t('routing.status.inactive', 'Inactive')}
+                </SingleSelectOption>
+              </SingleSelect>
+            </FilterSelect>
 
-        {/* Rules Table */}
-        {filteredRules.length > 0 ? (
-          <>
-            <TableScroll
-              role="region"
-              aria-label={t('routing.table.label', 'Routing rules in evaluation order')}
-            >
-              <StyledTable colCount={canManage ? 7 : 6} rowCount={filteredRules.length + 1}>
-                <Thead>
-                  <Tr>
-                    <Th>{t('routing.table.status', 'Status')}</Th>
-                    <Th>{t('routing.table.name', 'Rule Name')}</Th>
-                    <Th>{t('routing.table.matchType', 'Match Type')}</Th>
-                    <Th>{t('routing.table.matchValue', 'Match Value')}</Th>
-                    <Th>{t('routing.table.account', 'Target Account')}</Th>
-                    <Th>{t('routing.table.priority', 'Priority')}</Th>
-                    {canManage && (
-                      <Th className="actions-cell">{t('routing.table.actions', 'Actions')}</Th>
-                    )}
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {filteredRules.map((rule) => (
-                    <Tr key={getRuleKey(rule)}>
-                      <Td>{renderStatus(rule)}</Td>
-                      <Td className="wrap-cell name-cell">{renderName(rule)}</Td>
-                      <Td className="type-cell">{renderMatchType(rule)}</Td>
-                      <Td className="wrap-cell">
-                        <MatchValue variant="pi">{rule.matchValue}</MatchValue>
-                      </Td>
-                      <Td className="wrap-cell">{renderAccount(rule)}</Td>
-                      <Td>{renderPriority(rule)}</Td>
-                      {canManage && (
-                        <Td className="actions-cell">
-                          <Flex gap={2} onKeyDown={keepNativeButtonKeys}>
-                            {renderActions(rule)}
-                          </Flex>
-                        </Td>
-                      )}
-                    </Tr>
-                  ))}
-                </Tbody>
-              </StyledTable>
-            </TableScroll>
-
-            {/* Phones and small tablets: one card per rule, in evaluation order,
-                instead of a seven-column table that scrolls sideways. */}
-            <RuleCardList
-              aria-label={t('routing.table.label', 'Routing rules in evaluation order')}
-            >
-              {filteredRules.map((rule) => (
-                <RuleCard key={getRuleKey(rule)}>
-                  <Flex justifyContent="space-between" alignItems="flex-start" gap={3}>
-                    {renderName(rule, 'h3')}
-                    {renderStatus(rule)}
-                  </Flex>
-                  <RuleCardDetails>
-                    <div>
-                      <dt>{t('routing.table.matchType', 'Match Type')}</dt>
-                      <dd>{renderMatchType(rule)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t('routing.table.priority', 'Priority')}</dt>
-                      <dd>{renderPriority(rule)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t('routing.table.matchValue', 'Match Value')}</dt>
-                      <dd>
-                        <MatchValue variant="pi">{rule.matchValue}</MatchValue>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t('routing.table.account', 'Target Account')}</dt>
-                      <dd>{renderAccount(rule)}</dd>
-                    </div>
-                  </RuleCardDetails>
-                  {canManage && <Flex gap={2}>{renderActions(rule)}</Flex>}
-                </RuleCard>
-              ))}
-            </RuleCardList>
-          </>
-        ) : (
-          <Box padding={8} style={{ textAlign: 'center' }}>
-            <Flex direction="column" alignItems="center" gap={4}>
-              <Typography variant="beta" tag="p" textColor="neutral600">
-                {t('routing.filters.noResults', 'No rules found matching your filters')}
-              </Typography>
-              {hasFilters && (
-                <TertiaryButton onClick={resetFilters}>
-                  {t('routing.filters.reset', 'Reset filters')}
-                </TertiaryButton>
-              )}
-            </Flex>
-          </Box>
+            <FilterSelect>
+              <SingleSelect
+                aria-label={t('routing.filters.matchType', 'Filter by match type')}
+                value={filterMatchType}
+                onChange={(value) => setFilterMatchType(String(value))}
+              >
+                <SingleSelectOption value="all">
+                  {t('routing.filters.allTypes', 'All Types')}
+                </SingleSelectOption>
+                {knownMatchTypes.map((type) => (
+                  <SingleSelectOption key={type} value={type}>
+                    {getMatchTypeLabel(type, t)}
+                  </SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </FilterSelect>
+          </FilterBar>
         )}
+
+        <DataTable aria-label={t('routing.table.label', 'Routing rules in evaluation order')}>
+          {renderTableBody()}
+        </DataTable>
       </RulesContainer>
     );
   };

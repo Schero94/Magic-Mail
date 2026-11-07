@@ -710,5 +710,14 @@
   "accountModal.oauth.reconnect": "Erneut mit {provider} verbinden",
   "accountModal.oauth.reconnectedTitle": "Neue Autorisierung erhalten",
   "accountModal.oauth.reconnectedBody": "Speichern Sie das Konto, um die neue Autorisierung bei {provider} zu übernehmen.",
-  "accountModal.toast.reconnected": "{name} wurde erneut mit {provider} verbunden."
+  "accountModal.toast.reconnected": "{name} wurde erneut mit {provider} verbunden.",
+  "common.entriesPerPage": "Einträge pro Seite",
+  "common.entries": "{count} Einträge",
+  "common.table.retry": "Erneut versuchen",
+  "common.table.pagination.summary": "{from}-{to} von {total}",
+  "common.table.pagination.label": "Seitennavigation",
+  "common.table.pagination.goTo": "Zu Seite {page}",
+  "common.table.pagination.more": "Weitere Seiten",
+  "common.previous": "Zurück",
+  "common.next": "Weiter"
 }

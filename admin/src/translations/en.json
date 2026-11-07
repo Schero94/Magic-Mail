@@ -710,5 +710,14 @@
   "accountModal.oauth.reconnect": "Reconnect with {provider}",
   "accountModal.oauth.reconnectedTitle": "New authorization received",
   "accountModal.oauth.reconnectedBody": "Save the account to store the new {provider} authorization.",
-  "accountModal.toast.reconnected": "{name} was reconnected with {provider}."
+  "accountModal.toast.reconnected": "{name} was reconnected with {provider}.",
+  "common.entriesPerPage": "Entries per page",
+  "common.entries": "{count} entries",
+  "common.table.retry": "Try again",
+  "common.table.pagination.summary": "Showing {from}-{to} of {total}",
+  "common.table.pagination.label": "Pagination",
+  "common.table.pagination.goTo": "Go to page {page}",
+  "common.table.pagination.more": "More pages",
+  "common.previous": "Previous",
+  "common.next": "Next"
 }

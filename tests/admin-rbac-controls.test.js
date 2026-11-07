@@ -67,7 +67,7 @@ test('account write and send controls use separate manage and test-send permissi
   assert.ok(home.includes('canManage'), 'manage controls are permission-gated');
   assert.ok(home.includes('canTestSend'), 'test-send controls use their own capability');
   assert.ok(
-    home.includes("aria-label={t('accounts.actions.test', 'Test account {name}'"),
+    home.includes("label={t('accounts.actions.test', 'Test account {name}'"),
     'test-send action remains accessible'
   );
 });
@@ -246,7 +246,7 @@ test('read, manage and test-send grants gate the matching visible controls', () 
   const settings = source('admin/src/pages/PluginSettings.jsx');
 
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('accounts\.actions\.test', 'Test account \{name\}'/.test(
+    /\{canTestSend && \([\s\S]{0,300}?label=\{t\('accounts\.actions\.test', 'Test account \{name\}'/.test(
       home
     ),
     'account test-send is shown only with the test-send capability'
@@ -260,7 +260,7 @@ test('read, manage and test-send grants gate the matching visible controls', () 
     'template export requires read while template import requires manage'
   );
   assert.ok(
-    /\{canTestSend && \([\s\S]{0,300}?aria-label=\{t\('templates\.actions\.testSend', 'Send test email'\)\}/.test(
+    /\{canTestSend && \([\s\S]{0,300}?label=\{t\('templates\.actions\.testSend', 'Send test email'\)\}/.test(
       templates
     ),
     'template test-send is shown only with the test-send capability'
@@ -295,7 +295,9 @@ test('analytics delete confirmation stays gated if manage permission is removed 
     'the confirmation action is only reachable through the manage-gated dialog'
   );
   assert.ok(
-    /\{canManage && hasAnyLogs && \(\s*<DangerButton/.test(analytics),
+    /\{canManage && hasAnyLogs && \(\s*<FilterActions>\s*<Button\s+variant="danger-light"/.test(
+      analytics
+    ),
     'the Clear All trigger is hidden without manage permission'
   );
 });

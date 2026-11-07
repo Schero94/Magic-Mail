@@ -710,5 +710,14 @@
   "accountModal.oauth.reconnect": "Reconectar com {provider}",
   "accountModal.oauth.reconnectedTitle": "Nova autorização recebida",
   "accountModal.oauth.reconnectedBody": "Salve a conta para armazenar a nova autorização do {provider}.",
-  "accountModal.toast.reconnected": "{name} foi reconectada com {provider}."
+  "accountModal.toast.reconnected": "{name} foi reconectada com {provider}.",
+  "common.entriesPerPage": "Entradas por página",
+  "common.entries": "{count} entradas",
+  "common.table.retry": "Tentar novamente",
+  "common.table.pagination.summary": "{from}-{to} de {total}",
+  "common.table.pagination.label": "Paginação",
+  "common.table.pagination.goTo": "Ir para a página {page}",
+  "common.table.pagination.more": "Mais páginas",
+  "common.previous": "Anterior",
+  "common.next": "Próximo"
 }

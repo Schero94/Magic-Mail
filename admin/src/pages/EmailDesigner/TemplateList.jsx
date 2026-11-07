@@ -1,75 +1,79 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Divider, Flex, Loader, Tabs, Typography } from '@strapi/design-system';
-import { Thead, Tbody, Tr, Th, Td, Table } from '@strapi/design-system';
+import {
+  Button,
+  Divider,
+  Flex,
+  IconButton,
+  Loader,
+  Tabs,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  Typography,
+  VisuallyHidden,
+} from '@strapi/design-system';
+import {
+  Code,
+  Download,
+  Duplicate,
+  Eye,
+  File,
+  PaperPlane,
+  Pencil,
+  Trash,
+  Upload,
+  WarningCircle,
+} from '@strapi/icons';
 import {
   PlusIcon,
-  PencilIcon,
-  EyeIcon,
   TrashIcon,
-  ArrowDownTrayIcon,
   ArrowUpTrayIcon,
-  ArrowPathIcon,
   DocumentTextIcon,
   ChartBarIcon,
-  SparklesIcon,
   CheckCircleIcon,
-  BoltIcon,
-  DocumentDuplicateIcon,
-  PaperAirplaneIcon,
-  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { Download } from '@strapi/icons';
-import {
-  GradientButton,
-  SecondaryButton,
-  TertiaryButton,
-  CTAButton,
-  IconButton,
-  IconButtonDanger,
-  IconButtonPrimary,
-  IconButtonSuccess,
-  IconButtonPurple,
-} from '../../components/StyledButtons';
+import { CTAButton, GradientButton, SecondaryButton } from '../../components/StyledButtons';
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 import { SectionHeading } from '../../components/shared/Headings';
 import { SearchField } from '../../components/shared/SearchField';
+import {
+  DataTable,
+  EmptyState,
+  FilterActions,
+  FilterBar,
+  FilterSearch,
+  FilterSelect,
+  LoadErrorState,
+  LoadingState,
+  MonoText,
+  PageSizeSelect,
+  StatusBadge,
+  StyledTable,
+  TablePagination,
+  clampPage,
+  getPageCount,
+  keepNativeButtonKeys,
+  paginate,
+} from '../../components/shared/table';
 import { useMagicMailRBAC } from '../../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useFormatters } from '../../hooks/useFormatters';
 import { TemplateCodeSnippetsModal } from './TemplateCodeSnippetsModal';
 import { TemplateTestSendModal } from './TemplateTestSendModal';
 import { downloadBlob } from './editorUtils';
-import {
-  PAGE_SIZE_OPTIONS,
-  clampPage,
-  countPages,
-  filterTemplates,
-  getCategoryBadgeProps,
-  getPageWindow,
-  keepNativeButtonKeys,
-} from './templateListUtils';
+import { PAGE_SIZE_OPTIONS, filterTemplates, getCategoryVariant } from './templateListUtils';
 import {
   Container,
-  CoreTableCard,
   EmptyButtonGroup,
-  EmptyContent,
   EmptyFeatureItem,
   EmptyFeatureList,
-  EmptyIcon,
-  EmptyState,
-  EmptyText,
-  EmptyTitle,
-  FilterBar,
   Header,
   HeaderContent,
   HiddenFileInput,
-  NoResultsBox,
-  NoResultsIcon,
-  PageSizeSelect,
-  PaginationButton,
-  PaginationWrapper,
   SectionDivider,
   SectionHeaderRow,
   StatCard,
@@ -77,9 +81,7 @@ import {
   StatLabel,
   StatValue,
   StatsGrid,
-  StyledTable,
   Subtitle,
-  TableWrapper,
   TemplatesContainer,
   Title,
 } from './templateListStyles';
@@ -192,10 +194,9 @@ const TemplateList = () => {
     () => filterTemplates(templates, searchTerm),
     [templates, searchTerm]
   );
-  const totalPages = countPages(filteredTemplates.length, itemsPerPage);
+  const totalPages = getPageCount(filteredTemplates.length, itemsPerPage);
   const page = clampPage(currentPage, totalPages);
-  const startIndex = (page - 1) * itemsPerPage;
-  const paginatedTemplates = filteredTemplates.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedTemplates = paginate(filteredTemplates, page, itemsPerPage);
 
   // Keep the stored page in range after deletes (UI-22); adjusted while rendering.
   if (currentPage !== page) setCurrentPage(page);
@@ -394,301 +395,279 @@ const TemplateList = () => {
   if (permissionsError) {
     return (
       <Container>
-        <EmptyState role="alert">
-          <EmptyContent>
-            <EmptyIcon $tone="danger">
-              <ExclamationTriangleIcon aria-hidden="true" />
-            </EmptyIcon>
-            <EmptyText variant="omega" textColor="neutral700">
-              {t(
-                'common.permissions.loadError',
-                'Your permissions could not be loaded. Reload the page to try again.'
-              )}
-            </EmptyText>
-          </EmptyContent>
-        </EmptyState>
+        <DataTable>
+          <EmptyState
+            icon={WarningCircle}
+            tone="danger"
+            role="alert"
+            title={t(
+              'common.permissions.loadError',
+              'Your permissions could not be loaded. Reload the page to try again.'
+            )}
+          />
+        </DataTable>
       </Container>
     );
   }
 
   const showSkeleton = loading && templates.length === 0;
   const statValue = (value) => (showSkeleton || stats === null ? '-' : formatNumber(value || 0));
-  const showingFrom = filteredTemplates.length === 0 ? 0 : startIndex + 1;
-  const showingTo = Math.min(startIndex + itemsPerPage, filteredTemplates.length);
+  const columnLabels = {
+    id: t('templates.table.id', 'ID'),
+    name: t('templates.table.name', 'Name'),
+    category: t('templates.table.category', 'Category'),
+    status: t('templates.table.status', 'Status'),
+    actions: t('templates.table.actions', 'Actions'),
+  };
 
   const renderEmptyState = () => (
-    <EmptyState>
-      <EmptyContent>
-        <EmptyIcon>
-          <SparklesIcon aria-hidden="true" />
-        </EmptyIcon>
-        <EmptyTitle variant="alpha" textColor="neutral800" tag="h2">
-          {t('templates.empty.title', 'No email templates yet')}
-        </EmptyTitle>
-        <EmptyText variant="omega" textColor="neutral600">
-          {canManage
-            ? t(
-                'templates.empty.description',
-                'Start creating professional email templates with the visual designer.'
-              )
-            : t(
-                'templates.empty.readOnlyDescription',
-                'Templates created by users with the manage permission appear here.'
-              )}
-        </EmptyText>
-
-        <EmptyFeatureList>
-          <EmptyFeatureItem>
-            <CheckCircleIcon aria-hidden="true" />
-            <Typography variant="omega" fontWeight="semiBold">
-              {t('templates.empty.feature.editor.title', 'Drag-and-drop editor')}
-            </Typography>
-            <Typography variant="pi" textColor="neutral600">
-              {t(
-                'templates.empty.feature.editor.text',
-                'Build emails visually with the Unlayer editor'
-              )}
-            </Typography>
-          </EmptyFeatureItem>
-          <EmptyFeatureItem>
-            <CheckCircleIcon aria-hidden="true" />
-            <Typography variant="omega" fontWeight="semiBold">
-              {t('templates.empty.feature.dynamic.title', 'Dynamic content')}
-            </Typography>
-            <Typography variant="pi" textColor="neutral600">
-              {t(
-                'templates.empty.feature.dynamic.text',
-                'Use Mustache variables for personalised emails'
-              )}
-            </Typography>
-          </EmptyFeatureItem>
-          <EmptyFeatureItem>
-            <CheckCircleIcon aria-hidden="true" />
-            <Typography variant="omega" fontWeight="semiBold">
-              {t('templates.empty.feature.versions.title', 'Version history')}
-            </Typography>
-            <Typography variant="pi" textColor="neutral600">
-              {t(
-                'templates.empty.feature.versions.text',
-                'Track changes and restore earlier versions'
-              )}
-            </Typography>
-          </EmptyFeatureItem>
-        </EmptyFeatureList>
-
-        {(canManage || canImport) && (
-          <EmptyButtonGroup>
-            {canManage && (
-              <CTAButton
-                startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
-                onClick={handleCreateTemplate}
-              >
-                {t('templates.empty.create', 'Create your first template')}
-              </CTAButton>
+    <EmptyState
+      icon={File}
+      title={t('templates.empty.title', 'No email templates yet')}
+      description={
+        canManage
+          ? t(
+              'templates.empty.description',
+              'Start creating professional email templates with the visual designer.'
+            )
+          : t(
+              'templates.empty.readOnlyDescription',
+              'Templates created by users with the manage permission appear here.'
+            )
+      }
+    >
+      <EmptyFeatureList>
+        <EmptyFeatureItem>
+          <CheckCircleIcon aria-hidden="true" />
+          <Typography variant="omega" fontWeight="semiBold">
+            {t('templates.empty.feature.editor.title', 'Drag-and-drop editor')}
+          </Typography>
+          <Typography variant="pi" textColor="neutral600">
+            {t(
+              'templates.empty.feature.editor.text',
+              'Build emails visually with the Unlayer editor'
             )}
-            {canImport && (
-              <SecondaryButton
-                startIcon={<ArrowUpTrayIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
-                onClick={openImportPicker}
-                loading={importing}
-              >
-                {t('templates.import.button', 'Import templates')}
-              </SecondaryButton>
+          </Typography>
+        </EmptyFeatureItem>
+        <EmptyFeatureItem>
+          <CheckCircleIcon aria-hidden="true" />
+          <Typography variant="omega" fontWeight="semiBold">
+            {t('templates.empty.feature.dynamic.title', 'Dynamic content')}
+          </Typography>
+          <Typography variant="pi" textColor="neutral600">
+            {t(
+              'templates.empty.feature.dynamic.text',
+              'Use Mustache variables for personalised emails'
             )}
-          </EmptyButtonGroup>
-        )}
-      </EmptyContent>
-    </EmptyState>
-  );
+          </Typography>
+        </EmptyFeatureItem>
+        <EmptyFeatureItem>
+          <CheckCircleIcon aria-hidden="true" />
+          <Typography variant="omega" fontWeight="semiBold">
+            {t('templates.empty.feature.versions.title', 'Version history')}
+          </Typography>
+          <Typography variant="pi" textColor="neutral600">
+            {t(
+              'templates.empty.feature.versions.text',
+              'Track changes and restore earlier versions'
+            )}
+          </Typography>
+        </EmptyFeatureItem>
+      </EmptyFeatureList>
 
-  const renderErrorState = () => (
-    <EmptyState role="alert">
-      <EmptyContent>
-        <EmptyIcon $tone="danger">
-          <ExclamationTriangleIcon aria-hidden="true" />
-        </EmptyIcon>
-        <EmptyTitle variant="alpha" textColor="neutral800" tag="h2">
-          {t('templates.error.title', 'Templates could not be loaded')}
-        </EmptyTitle>
-        <EmptyText variant="omega" textColor="neutral600">
-          {t(
-            'templates.error.description',
-            'Check your connection and permissions, then try again.'
-          )}
-        </EmptyText>
+      {(canManage || canImport) && (
         <EmptyButtonGroup>
-          <GradientButton
-            startIcon={<ArrowPathIcon style={iconSize} aria-hidden="true" />}
-            onClick={() => {
-              setDataLoading(true);
-              reloadData();
-            }}
-            loading={loading}
-          >
-            {t('templates.retry', 'Try again')}
-          </GradientButton>
+          {canManage && (
+            <CTAButton
+              startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+              onClick={handleCreateTemplate}
+            >
+              {t('templates.empty.create', 'Create your first template')}
+            </CTAButton>
+          )}
+          {canImport && (
+            <SecondaryButton
+              startIcon={<ArrowUpTrayIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+              onClick={openImportPicker}
+              loading={importing}
+            >
+              {t('templates.import.button', 'Import templates')}
+            </SecondaryButton>
+          )}
         </EmptyButtonGroup>
-      </EmptyContent>
+      )}
     </EmptyState>
   );
 
   const renderTemplateActions = (template) => (
-    <Flex gap={2} justifyContent="flex-end" wrap="nowrap" onKeyDown={keepNativeButtonKeys}>
+    <Flex gap={1} justifyContent="flex-end" wrap="nowrap" onKeyDown={keepNativeButtonKeys}>
       {canManage ? (
-        <IconButtonPrimary
+        <IconButton
+          label={t('templates.actions.edit', 'Edit template {name}', { name: template.name })}
+          variant="ghost"
           onClick={() => navigate(`/plugins/magic-mail/designer/${template.templateReferenceId}`)}
-          aria-label={t('templates.actions.edit', 'Edit template {name}', { name: template.name })}
         >
-          <PencilIcon aria-hidden="true" />
-        </IconButtonPrimary>
+          <Pencil aria-hidden="true" />
+        </IconButton>
       ) : (
-        <IconButtonPrimary
+        <IconButton
+          label={t('templates.actions.view', 'View template {name}', { name: template.name })}
+          variant="ghost"
           onClick={() => navigate(`/plugins/magic-mail/designer/${template.templateReferenceId}`)}
-          aria-label={t('templates.actions.view', 'View template {name}', { name: template.name })}
         >
-          <EyeIcon aria-hidden="true" />
-        </IconButtonPrimary>
+          <Eye aria-hidden="true" />
+        </IconButton>
       )}
       <IconButton
+        label={t('templates.actions.downloadHtml', 'Download as HTML')}
+        variant="ghost"
         onClick={() => handleDownload(template, 'html')}
-        aria-label={t('templates.actions.downloadHtml', 'Download as HTML')}
       >
         <Download aria-hidden="true" />
       </IconButton>
       <IconButton
+        label={t('templates.actions.downloadJson', 'Download as JSON')}
+        variant="ghost"
         onClick={() => handleDownload(template, 'json')}
-        aria-label={t('templates.actions.downloadJson', 'Download as JSON')}
       >
         <Download aria-hidden="true" />
       </IconButton>
       {canManage && (
         <IconButton
+          label={t('templates.actions.duplicate', 'Duplicate template')}
+          variant="ghost"
           onClick={() => handleDuplicate(template)}
-          aria-label={t('templates.actions.duplicate', 'Duplicate template')}
         >
-          <DocumentDuplicateIcon aria-hidden="true" />
+          <Duplicate aria-hidden="true" />
         </IconButton>
       )}
-      <IconButtonPurple
+      <IconButton
+        label={t('templates.actions.code', 'Show code snippets')}
+        variant="ghost"
         onClick={() => setCodeTemplate(template)}
-        aria-label={t('templates.actions.code', 'Show code snippets')}
       >
-        <BoltIcon aria-hidden="true" />
-      </IconButtonPurple>
+        <Code aria-hidden="true" />
+      </IconButton>
       {canTestSend && (
-        <IconButtonSuccess
+        <IconButton
+          label={t('templates.actions.testSend', 'Send test email')}
+          variant="ghost"
           onClick={() => openTestSend(template)}
-          aria-label={t('templates.actions.testSend', 'Send test email')}
         >
-          <PaperAirplaneIcon aria-hidden="true" />
-        </IconButtonSuccess>
+          <PaperPlane aria-hidden="true" />
+        </IconButton>
       )}
       {canManage && (
-        <IconButtonDanger
+        <IconButton
+          label={t('templates.actions.delete', 'Delete template')}
+          variant="danger-light"
           onClick={() => setPendingDelete(template)}
-          aria-label={t('templates.actions.delete', 'Delete template')}
         >
-          <TrashIcon aria-hidden="true" />
-        </IconButtonDanger>
+          <Trash aria-hidden="true" />
+        </IconButton>
       )}
     </Flex>
   );
 
-  const renderPagination = () => (
-    <PaginationWrapper aria-label={t('templates.pagination.label', 'Template pages')}>
-      <Flex gap={3} alignItems="center" wrap="wrap">
-        <Typography variant="pi" textColor="neutral600" aria-live="polite">
-          {t('templates.pagination.showing', 'Showing {from}-{to} of {total}', {
-            from: showingFrom,
-            to: showingTo,
-            total: filteredTemplates.length,
-          })}
-        </Typography>
-        <Flex gap={2} alignItems="center">
-          <Typography
-            variant="pi"
-            textColor="neutral600"
-            tag="label"
-            htmlFor="magic-mail-templates-page-size"
-          >
-            {t('templates.pagination.perPage', 'Per page')}
-          </Typography>
-          <PageSizeSelect
-            id="magic-mail-templates-page-size"
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </PageSizeSelect>
-        </Flex>
-      </Flex>
-      {totalPages > 1 && (
-        <Flex gap={2} wrap="wrap">
-          <PaginationButton
-            type="button"
-            onClick={() => setCurrentPage(Math.max(1, page - 1))}
-            disabled={page === 1}
-            aria-label={t('templates.pagination.previous', 'Previous page')}
-          >
-            {t('templates.pagination.previousShort', 'Previous')}
-          </PaginationButton>
-          {getPageWindow(page, totalPages).map((pageNum) => (
-            <PaginationButton
-              type="button"
-              key={pageNum}
-              $active={page === pageNum}
-              aria-current={page === pageNum ? 'page' : undefined}
-              aria-label={t('templates.pagination.page', 'Page {page}', { page: pageNum })}
-              onClick={() => setCurrentPage(pageNum)}
-            >
-              {pageNum}
-            </PaginationButton>
-          ))}
-          <PaginationButton
-            type="button"
-            onClick={() => setCurrentPage(Math.min(totalPages, page + 1))}
-            disabled={page === totalPages}
-            aria-label={t('templates.pagination.next', 'Next page')}
-          >
-            {t('templates.pagination.nextShort', 'Next')}
-          </PaginationButton>
-        </Flex>
-      )}
-    </PaginationWrapper>
-  );
-
-  const renderCustomTemplates = () => {
-    // Every state keeps the same distance to the tabs as the list.
+  const renderTableBody = () => {
     if (loadError && templates.length === 0) {
-      return <TemplatesContainer>{renderErrorState()}</TemplatesContainer>;
-    }
-    if (showSkeleton) {
       return (
-        <TemplatesContainer>
-          <Flex justifyContent="center" padding={10}>
-            <Loader>{t('templates.loading', 'Loading templates...')}</Loader>
-          </Flex>
-        </TemplatesContainer>
+        <LoadErrorState
+          message={t('templates.error.title', 'Templates could not be loaded')}
+          description={t(
+            'templates.error.description',
+            'Check your connection and permissions, then try again.'
+          )}
+          onRetry={() => {
+            setDataLoading(true);
+            reloadData();
+          }}
+          isRetrying={loading}
+        />
       );
     }
-    if (templates.length === 0) {
-      return <TemplatesContainer>{renderEmptyState()}</TemplatesContainer>;
+    if (showSkeleton) {
+      return <LoadingState label={t('templates.loading', 'Loading templates...')} />;
+    }
+    if (templates.length === 0) return renderEmptyState();
+    if (filteredTemplates.length === 0) {
+      return (
+        <EmptyState
+          icon={File}
+          title={t('templates.noResults.title', 'No templates found')}
+          description={t('templates.noResults.text', 'Try a different search term.')}
+          actions={
+            <Button variant="secondary" size="L" onClick={() => changeSearch('')}>
+              {t('templates.noResults.clear', 'Clear search')}
+            </Button>
+          }
+        />
+      );
     }
 
+    return (
+      <>
+        <StyledTable colCount={5} rowCount={paginatedTemplates.length + 1}>
+          <Thead>
+            <Tr>
+              <Th>{columnLabels.id}</Th>
+              <Th>{columnLabels.name}</Th>
+              <Th>{columnLabels.category}</Th>
+              <Th>{columnLabels.status}</Th>
+              <Th>
+                <VisuallyHidden>{columnLabels.actions}</VisuallyHidden>
+              </Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {paginatedTemplates.map((template) => (
+              <Tr key={template.templateReferenceId ?? template.id}>
+                <Td data-label={columnLabels.id}>
+                  <MonoText>#{template.templateReferenceId}</MonoText>
+                </Td>
+                <Td className="cell-wrap" data-label={columnLabels.name}>
+                  <Typography variant="omega" fontWeight="semiBold">
+                    {template.name}
+                  </Typography>
+                </Td>
+                <Td data-label={columnLabels.category}>
+                  <StatusBadge $tone={getCategoryVariant(template.category)}>
+                    {getCategoryLabel(template.category)}
+                  </StatusBadge>
+                </Td>
+                <Td data-label={columnLabels.status}>
+                  <StatusBadge $tone={template.isActive ? 'success' : 'neutral'}>
+                    {template.isActive
+                      ? t('templates.status.active', 'Active')
+                      : t('templates.status.inactive', 'Inactive')}
+                  </StatusBadge>
+                </Td>
+                <Td data-label="">{renderTemplateActions(template)}</Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </StyledTable>
+        <TablePagination
+          page={page}
+          pageCount={totalPages}
+          total={filteredTemplates.length}
+          pageSize={itemsPerPage}
+          onChange={setCurrentPage}
+          label={t('templates.pagination.label', 'Template pages')}
+        />
+      </>
+    );
+  };
+
+  const renderCustomTemplates = () => {
+    const hasList = !(loadError && templates.length === 0) && !showSkeleton && templates.length > 0;
     return (
       <TemplatesContainer>
         <SectionHeaderRow justifyContent="space-between" alignItems="center">
           <SectionHeading>{t('templates.list.heading', 'Your templates')}</SectionHeading>
-          {canManage && (
+          {canManage && hasList && (
             <GradientButton
-              startIcon={<PlusIcon style={{ width: 20, height: 20 }} aria-hidden="true" />}
+              startIcon={<PlusIcon style={iconSize} aria-hidden="true" />}
               onClick={handleCreateTemplate}
             >
               {t('templates.create', 'Create template')}
@@ -696,110 +675,58 @@ const TemplateList = () => {
           )}
         </SectionHeaderRow>
 
-        <FilterBar>
-          <SearchField
-            label={t('templates.search.label', 'Search templates')}
-            placeholder={t('templates.search.placeholder', 'Search by name, subject, or ID...')}
-            value={searchTerm}
-            onChange={changeSearch}
-          />
-          {canImport && (
-            <SecondaryButton
-              startIcon={<ArrowUpTrayIcon style={iconSize} aria-hidden="true" />}
-              onClick={openImportPicker}
-              loading={importing}
-            >
-              {t('templates.import.short', 'Import')}
-            </SecondaryButton>
-          )}
-          {canExport && (
-            <TertiaryButton
-              startIcon={<ArrowDownTrayIcon style={iconSize} aria-hidden="true" />}
-              onClick={handleExport}
-              disabled={templates.length === 0}
-            >
-              {t('templates.export.short', 'Export')}
-            </TertiaryButton>
-          )}
-        </FilterBar>
-
-        {filteredTemplates.length > 0 ? (
-          <TableWrapper>
-            <StyledTable colCount={5} rowCount={paginatedTemplates.length + 1}>
-              <Thead>
-                <Tr>
-                  <Th style={{ width: '100px' }}>
-                    <Typography variant="sigma">{t('templates.table.id', 'ID')}</Typography>
-                  </Th>
-                  <Th>
-                    <Typography variant="sigma">{t('templates.table.name', 'Name')}</Typography>
-                  </Th>
-                  <Th style={{ width: '140px' }}>
-                    <Typography variant="sigma">
-                      {t('templates.table.category', 'Category')}
-                    </Typography>
-                  </Th>
-                  <Th style={{ width: '110px' }}>
-                    <Typography variant="sigma">{t('templates.table.status', 'Status')}</Typography>
-                  </Th>
-                  {/* 1% + nowrap actions: the column shrinks to its buttons on one line. */}
-                  <Th style={{ width: '1%' }}>
-                    <Flex justifyContent="flex-end" width="100%">
-                      <Typography variant="sigma">
-                        {t('templates.table.actions', 'Actions')}
-                      </Typography>
-                    </Flex>
-                  </Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {paginatedTemplates.map((template) => (
-                  <Tr key={template.templateReferenceId ?? template.id}>
-                    <Td>
-                      <Typography variant="omega" fontWeight="bold">
-                        #{template.templateReferenceId}
-                      </Typography>
-                    </Td>
-                    <Td>
-                      <Typography variant="omega" fontWeight="semiBold">
-                        {template.name}
-                      </Typography>
-                    </Td>
-                    <Td>
-                      <Badge {...getCategoryBadgeProps(template.category)}>
-                        {getCategoryLabel(template.category)}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <Badge variant={template.isActive ? 'success' : 'neutral'}>
-                        {template.isActive
-                          ? t('templates.status.active', 'Active')
-                          : t('templates.status.inactive', 'Inactive')}
-                      </Badge>
-                    </Td>
-                    <Td>{renderTemplateActions(template)}</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </StyledTable>
-            {renderPagination()}
-          </TableWrapper>
-        ) : (
-          <NoResultsBox>
-            <NoResultsIcon aria-hidden="true" />
-            <Typography variant="beta" textColor="neutral700" tag="h3">
-              {t('templates.noResults.title', 'No templates found')}
-            </Typography>
-            <Typography variant="omega" textColor="neutral600" tag="p">
-              {t('templates.noResults.text', 'Try a different search term.')}
-            </Typography>
-            <Flex justifyContent="center" marginTop={5}>
-              <TertiaryButton onClick={() => changeSearch('')}>
-                {t('templates.noResults.clear', 'Clear search')}
-              </TertiaryButton>
-            </Flex>
-          </NoResultsBox>
+        {hasList && (
+          <FilterBar>
+            <FilterSearch>
+              <SearchField
+                label={t('templates.search.label', 'Search templates')}
+                placeholder={t('templates.search.placeholder', 'Search by name, subject, or ID...')}
+                value={searchTerm}
+                onChange={changeSearch}
+              />
+            </FilterSearch>
+            <FilterSelect>
+              <PageSizeSelect
+                value={itemsPerPage}
+                sizes={PAGE_SIZE_OPTIONS}
+                onChange={(size) => {
+                  setItemsPerPage(size);
+                  setCurrentPage(1);
+                }}
+              />
+            </FilterSelect>
+            {(canImport || canExport) && (
+              <FilterActions>
+                {canImport && (
+                  <Button
+                    variant="secondary"
+                    size="L"
+                    startIcon={<Upload aria-hidden="true" />}
+                    onClick={openImportPicker}
+                    loading={importing}
+                  >
+                    {t('templates.import.short', 'Import')}
+                  </Button>
+                )}
+                {canExport && (
+                  <Button
+                    variant="tertiary"
+                    size="L"
+                    startIcon={<Download aria-hidden="true" />}
+                    onClick={handleExport}
+                    disabled={templates.length === 0}
+                  >
+                    {t('templates.export.short', 'Export')}
+                  </Button>
+                )}
+              </FilterActions>
+            )}
+          </FilterBar>
         )}
+
+        <DataTable aria-label={t('templates.list.heading', 'Your templates')}>
+          {renderTableBody()}
+        </DataTable>
       </TemplatesContainer>
     );
   };
@@ -882,28 +809,23 @@ const TemplateList = () => {
               </Typography>
             </Flex>
 
-            <CoreTableCard>
-              <Table colCount={2} rowCount={coreEmailTypes.length + 1}>
+            <DataTable aria-label={t('templates.core.heading', 'Core email templates')}>
+              <StyledTable colCount={2} rowCount={coreEmailTypes.length + 1}>
                 <Thead>
                   <Tr>
+                    <Th>{t('templates.core.table.type', 'Email type')}</Th>
                     <Th>
-                      <Typography variant="sigma">
-                        {t('templates.core.table.type', 'Email type')}
-                      </Typography>
-                    </Th>
-                    <Th>
-                      <Flex justifyContent="flex-end" width="100%">
-                        <Typography variant="sigma">
-                          {t('templates.table.actions', 'Actions')}
-                        </Typography>
-                      </Flex>
+                      <VisuallyHidden>{t('templates.table.actions', 'Actions')}</VisuallyHidden>
                     </Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {coreEmailTypes.map((coreEmail) => (
                     <Tr key={coreEmail.type}>
-                      <Td>
+                      <Td
+                        className="cell-wrap"
+                        data-label={t('templates.core.table.type', 'Email type')}
+                      >
                         <Flex direction="column" alignItems="flex-start" gap={1}>
                           <Typography variant="omega" fontWeight="semiBold">
                             {coreEmail.name}
@@ -913,31 +835,28 @@ const TemplateList = () => {
                           </Typography>
                         </Flex>
                       </Td>
-                      <Td>
-                        <Flex gap={2} justifyContent="flex-end">
-                          <IconButtonPrimary
-                            onClick={() =>
-                              navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
-                            }
-                            aria-label={
+                      <Td data-label="">
+                        <Flex gap={1} justifyContent="flex-end">
+                          <IconButton
+                            label={
                               !canManage
                                 ? t('templates.core.view', 'View {name}', { name: coreEmail.name })
                                 : t('templates.core.edit', 'Edit {name}', { name: coreEmail.name })
                             }
+                            variant="ghost"
+                            onClick={() =>
+                              navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
+                            }
                           >
-                            {canManage ? (
-                              <PencilIcon aria-hidden="true" />
-                            ) : (
-                              <EyeIcon aria-hidden="true" />
-                            )}
-                          </IconButtonPrimary>
+                            {canManage ? <Pencil aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                          </IconButton>
                         </Flex>
                       </Td>
                     </Tr>
                   ))}
                 </Tbody>
-              </Table>
-            </CoreTableCard>
+              </StyledTable>
+            </DataTable>
           </TemplatesContainer>
         </Tabs.Content>
       </Tabs.Root>
