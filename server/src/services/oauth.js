@@ -216,9 +216,11 @@ module.exports = ({ strapi }) => ({
    * @param {string} refreshToken - Refresh token
    * @param {string} clientId - OAuth Client ID (from DB!)
    * @param {string} clientSecret - OAuth Client Secret (from DB!)
+   * @param {{signal?: AbortSignal}} [options] - abort signal (bounded queue sends)
    */
-  async refreshGmailTokens(refreshToken, clientId, clientSecret) {
+  async refreshGmailTokens(refreshToken, clientId, clientSecret, options = {}) {
     const response = await fetch('https://oauth2.googleapis.com/token', {
+      ...(options.signal ? { signal: options.signal } : {}),
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -412,8 +414,9 @@ module.exports = ({ strapi }) => ({
    * @param {string} clientId - Application (Client) ID
    * @param {string} clientSecret - Client Secret Value
    * @param {string} tenantId - Tenant (Directory) ID
+   * @param {{signal?: AbortSignal}} [options] - abort signal (bounded queue sends)
    */
-  async refreshMicrosoftTokens(refreshToken, clientId, clientSecret, tenantId) {
+  async refreshMicrosoftTokens(refreshToken, clientId, clientSecret, tenantId, options = {}) {
     if (!tenantId) {
       throw new Error('Tenant ID is required for Microsoft OAuth token refresh');
     }
@@ -424,6 +427,7 @@ module.exports = ({ strapi }) => ({
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantSegment(tenantId)}/oauth2/v2.0/token`;
 
     const response = await fetch(tokenEndpoint, {
+      ...(options.signal ? { signal: options.signal } : {}),
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -564,11 +568,13 @@ module.exports = ({ strapi }) => ({
    * @param {string} refreshToken - Refresh token
    * @param {string} clientId - Yahoo Client ID
    * @param {string} clientSecret - Yahoo Client Secret
+   * @param {{signal?: AbortSignal}} [options] - abort signal (bounded queue sends)
    */
-  async refreshYahooTokens(refreshToken, clientId, clientSecret) {
+  async refreshYahooTokens(refreshToken, clientId, clientSecret, options = {}) {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
     const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
+      ...(options.signal ? { signal: options.signal } : {}),
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

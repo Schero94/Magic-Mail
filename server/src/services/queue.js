@@ -31,6 +31,8 @@ const DEFAULT_QUEUE_CONFIG = Object.freeze({
 const PRIORITY_RANK = { high: 0, normal: 1, low: 2 };
 const REAPER_INTERVAL_MS = 60_000;
 const MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Pauses between tries of the 'sent' write after the provider accepted a message. */
+const SENT_WRITE_RETRY_DELAYS_MS = [250, 1_000, 3_000];
 
 /** Message fields stored in the encrypted payload (the prepared message). */
 const PAYLOAD_FIELDS = [
@@ -99,6 +101,7 @@ module.exports = ({ strapi }) => {
     nudged: false,
     clock: () => Date.now(),
     random: Math.random,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   };
 
   const now = () => state.clock();
@@ -265,7 +268,7 @@ module.exports = ({ strapi }) => {
     if (bytes > cfg.maxPayloadBytes) {
       throw queueError('QUEUE_PAYLOAD_TOO_LARGE', 'The message is too large for the send queue');
     }
-    const idempotencyKeyHash = hashKey(options.source, options.idempotencyKey);
+    const idempotencyKeyHash = hashKey(options.keyScope || options.source, options.idempotencyKey);
     const created = now();
     const notAfter =
       options.notAfter instanceof Date && Number.isFinite(options.notAfter.getTime())
@@ -337,12 +340,13 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Test hook: replace the clock and random source.
-     * @param {{clock?: () => number, random?: () => number}} hooks
+     * Test hook: replace the clock, random source and sleep.
+     * @param {{clock?: () => number, random?: () => number, sleep?: (ms: number) => Promise<void>}} hooks
      */
-    setTestHooks({ clock, random } = {}) {
+    setTestHooks({ clock, random, sleep } = {}) {
       if (clock) state.clock = clock;
       if (random) state.random = random;
+      if (sleep) state.sleep = sleep;
     },
 
     /**
@@ -367,13 +371,13 @@ module.exports = ({ strapi }) => {
     /**
      * Returns the result for an idempotency key that was already queued.
      *
-     * @param {string} source
+     * @param {string} keyScope - source, or `source:caller` (send() option idempotencyScope)
      * @param {string} key
      * @returns {Promise<object|null>}
      */
-    async findDuplicate(source, key) {
+    async findDuplicate(keyScope, key) {
       if (!key || !store.isAvailable(strapi)) return null;
-      const row = await store.findByHash(strapi, hashKey(source, key));
+      const row = await store.findByHash(strapi, hashKey(keyScope, key));
       return row ? queuedResult(row, { duplicate: true }) : null;
     },
 
@@ -381,7 +385,7 @@ module.exports = ({ strapi }) => {
      * Queues a prepared message (`send(..., { queue: true })`).
      *
      * @param {object} data - prepared working copy
-     * @param {{emailLog: object|null, source: string, idempotencyKey?: string, notAfter?: Date, accountDocumentId?: string, createdByUser?: number}} options
+     * @param {{emailLog: object|null, source: string, keyScope?: string, idempotencyKey?: string, notAfter?: Date, accountDocumentId?: string, createdByUser?: number}} options
      * @returns {Promise<object>} queued result
      * @sideeffect Inserts an outbox row; updates the email log; nudges the local worker
      */
@@ -419,7 +423,7 @@ module.exports = ({ strapi }) => {
      * original error as before.
      *
      * @param {object} data - prepared working copy
-     * @param {{emailLog: object|null, source: string, errorClass: string, error: *, attempted?: string[], lastAccountDocumentId?: string, idempotencyKey?: string, notAfter?: Date}} options
+     * @param {{emailLog: object|null, source: string, errorClass: string, error: *, attempted?: string[], lastAccountDocumentId?: string, keyScope?: string, idempotencyKey?: string, notAfter?: Date}} options
      * @returns {Promise<object|null>} the stored row
      * @sideeffect Inserts an outbox row
      */
@@ -595,53 +599,32 @@ module.exports = ({ strapi }) => {
           dispatched = true;
           row.lastAccountDocumentId = fields.lastAccountDocumentId;
         },
+        // Called right before a provider request that followed a slow step
+        // (OAuth token refresh): extends the claim or aborts the send when
+        // the reaper or another process took the row meanwhile.
+        confirmClaim: async () => {
+          const owned = await store.fencedUpdate(strapi, row, {
+            leaseUntil: now() + cfg.leaseMs,
+          });
+          if (!owned) throw new LeaseLostError();
+        },
       };
 
+      let routing;
       try {
-        const routing = await router().routeAndDispatch(data, ctx);
-        const providerMessageId = normalizeMessageId(routing.result?.messageId);
-        const owned = await store.fencedUpdate(
-          strapi,
-          row,
-          {
-            status: 'sent',
-            phase: 'queued',
-            payload: null,
-            accountUsed: routing.account?.name || null,
-            providerMessageId,
-            sentAt: new Date(now()),
-            leaseUntil: null,
-          },
-          ['sending', 'uncertain']
-        );
-        if (!owned) {
-          strapi.log.warn('[magic-mail] [QUEUE] Sent, but the claim had expired');
-        }
-        const sentRow = {
-          ...row,
-          status: 'sent',
-          accountUsed: routing.account?.name || null,
-          providerMessageId,
-        };
-        await updateLog(
-          sentRow,
-          {
-            deliveryStatus: 'sent',
-            deliveredAt: new Date(now()),
-            accountId: routing.account?.documentId || null,
-            accountName: routing.account?.name || null,
-            providerMessageId,
-          },
-          { status: 'sent', attempts: row.attempts }
-        );
-        await emit('sent', sentRow);
-        return 'sent';
+        routing = await router().routeAndDispatch(data, ctx);
       } catch (error) {
         if (error instanceof LeaseLostError || error?.code === 'MAGIC_MAIL_LEASE_LOST') {
           strapi.log.warn('[magic-mail] [QUEUE] Claim lost; another process owns the row');
           return 'lost';
         }
-        const errorClass = combineOutcome(ctx.attemptOutcomes, error);
+        // Only an error raised by the provider adapter (sendViaAccount) says
+        // anything about delivery. Any other error after the first dispatch
+        // (database, lease bookkeeping) proves nothing, so it is ambiguous.
+        const errorClass =
+          dispatched && error?.magicMailFromProvider !== true
+            ? 'ambiguous'
+            : combineOutcome(ctx.attemptOutcomes, error);
         return service.finishFailure(
           row,
           {
@@ -652,6 +635,77 @@ module.exports = ({ strapi }) => {
           !dispatched && errorClass !== 'capacity'
         );
       }
+
+      // The provider accepted the message. From here on nothing may reach
+      // finishFailure: a bookkeeping error must never cause a second send.
+      return service.finishSent(row, routing);
+    },
+
+    /**
+     * Records an accepted message (fenced). The 'sent' write is retried a
+     * few times; when it still fails the row stays in sending/dispatching,
+     * so the reaper marks it uncertain once the lease expires (never
+     * pending, never re-sent automatically).
+     *
+     * @param {object} row - claimed row
+     * @param {{account: object, result: object}} routing - routeAndDispatch result
+     * @returns {Promise<string>} 'sent', or 'unrecorded' when the write failed
+     */
+    async finishSent(row, routing) {
+      const providerMessageId = normalizeMessageId(routing.result?.messageId);
+      const fields = {
+        status: 'sent',
+        phase: 'queued',
+        payload: null,
+        accountUsed: routing.account?.name || null,
+        providerMessageId,
+        sentAt: new Date(now()),
+        leaseUntil: null,
+      };
+
+      let owned;
+      let recorded = false;
+      for (let attempt = 0; attempt < SENT_WRITE_RETRY_DELAYS_MS.length + 1; attempt += 1) {
+        try {
+          owned = await store.fencedUpdate(strapi, row, fields, ['sending', 'uncertain']);
+          recorded = true;
+          break;
+        } catch (error) {
+          if (attempt >= SENT_WRITE_RETRY_DELAYS_MS.length) {
+            strapi.log.error(
+              '[magic-mail] [QUEUE] Sent, but the result could not be stored; the row will be marked uncertain:',
+              error?.name || 'Error',
+              sanitizeErrorCode(error)
+            );
+            break;
+          }
+          await state.sleep(SENT_WRITE_RETRY_DELAYS_MS[attempt]);
+        }
+      }
+      if (recorded && !owned) {
+        strapi.log.warn('[magic-mail] [QUEUE] Sent, but the claim had expired');
+      }
+
+      const sentRow = {
+        ...row,
+        status: 'sent',
+        accountUsed: routing.account?.name || null,
+        providerMessageId,
+      };
+      await updateLog(
+        sentRow,
+        {
+          deliveryStatus: 'sent',
+          deliveredAt: new Date(now()),
+          accountId: routing.account?.documentId || null,
+          accountName: routing.account?.name || null,
+          providerMessageId,
+        },
+        { status: 'sent', attempts: row.attempts }
+      );
+      if (!recorded) return 'unrecorded';
+      await emit('sent', sentRow);
+      return 'sent';
     },
 
     /**
@@ -993,7 +1047,12 @@ module.exports = ({ strapi }) => {
         status: 'pending',
         phase: 'queued',
         nextAttemptAt: at,
-        maxAttempts: (row.attempts || 0) + 1,
+        // A pending row keeps its remaining automatic retries; a failed or
+        // uncertain row gets exactly one more attempt.
+        maxAttempts:
+          row.status === 'pending'
+            ? Math.max(row.maxAttempts || 0, (row.attempts || 0) + 1)
+            : (row.attempts || 0) + 1,
         leaseToken: null,
         leaseUntil: null,
         claimedBy: null,

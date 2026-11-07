@@ -94,6 +94,82 @@ test('classifier: SMTP socket errors depend on the probe stage', () => {
   assert.equal(classifyDeliveryError(tagPreDispatch(err({ status: 500 }))), 'transient');
 });
 
+test('classifier: routing errors need connect-phase proof (no re-send after 354)', () => {
+  const fetchFailed = (cause) => Object.assign(new TypeError('fetch failed'), { cause });
+  const cases = [
+    // nodemailer _onError(err, 'ESOCKET') keeps the system code in originalCode.
+    [
+      tagSmtpStage(err({ code: 'ESOCKET', originalCode: 'EHOSTUNREACH' }), { dataAccepted: true }),
+      'ambiguous',
+    ],
+    [
+      tagSmtpStage(err({ code: 'ESOCKET', originalCode: 'ENETUNREACH' }), { dataAccepted: true }),
+      'ambiguous',
+    ],
+    [
+      tagSmtpStage(err({ code: 'ESOCKET', originalCode: 'ECONNREFUSED' }), { dataAccepted: true }),
+      'ambiguous',
+    ],
+    [
+      tagSmtpStage(err({ code: 'ESOCKET', originalCode: 'EHOSTUNREACH' }), {
+        dataAccepted: false,
+      }),
+      'transient',
+    ],
+    [err({ code: 'ESOCKET', originalCode: 'EHOSTUNREACH' }), 'ambiguous'],
+    [err({ code: 'ESOCKET', originalCode: 'EHOSTUNREACH', syscall: 'connect' }), 'transient'],
+    // fetch causes
+    [fetchFailed({ code: 'EHOSTUNREACH' }), 'ambiguous'],
+    [fetchFailed({ code: 'ENETUNREACH', syscall: 'read' }), 'ambiguous'],
+    [fetchFailed({ code: 'ENETUNREACH', syscall: 'connect' }), 'transient'],
+    [fetchFailed({ code: 'ENOTFOUND', syscall: 'getaddrinfo' }), 'transient'],
+    [fetchFailed({ code: 'EAI_AGAIN' }), 'transient'],
+    [
+      fetchFailed(
+        Object.assign(new AggregateError([], 'x'), {
+          code: 'EHOSTUNREACH',
+          errors: [
+            { code: 'EHOSTUNREACH', syscall: 'connect' },
+            { code: 'EHOSTUNREACH', syscall: 'connect' },
+          ],
+        })
+      ),
+      'transient',
+    ],
+    // top-level system errors
+    [err({ code: 'EHOSTUNREACH' }), 'ambiguous'],
+    [err({ code: 'EHOSTUNREACH', syscall: 'connect' }), 'transient'],
+    [err({ code: 'ECONNREFUSED' }), 'transient'],
+  ];
+  for (const [error, expected] of cases) {
+    assert.equal(classifyDeliveryError(error), expected, JSON.stringify(error));
+  }
+});
+
+test('classifier: a real refused connect (fetch and nodemailer) is transient', async () => {
+  const server = net.createServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  await new Promise((resolve) => server.close(resolve));
+
+  const fetchError = await fetch(`http://127.0.0.1:${port}/`).then(
+    () => null,
+    (error) => error
+  );
+  assert.ok(fetchError);
+  assert.equal(classifyDeliveryError(fetchError), 'transient');
+
+  const transport = nodemailer.createTransport({ host: '127.0.0.1', port, secure: false });
+  const smtpError = await transport
+    .sendMail({ from: 'a@example.test', to: 'b@example.test', subject: 's', text: 't' })
+    .then(
+      () => null,
+      (error) => error
+    );
+  assert.ok(smtpError);
+  assert.equal(classifyDeliveryError(smtpError), 'transient', smtpError.code);
+});
+
 test('combineOutcome: one ambiguous attempt makes the chain ambiguous', () => {
   assert.equal(combineOutcome([], err({ responseCode: 451 })), 'transient');
   assert.equal(combineOutcome(['transient'], err({ responseCode: 451 })), 'transient');

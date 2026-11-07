@@ -23,24 +23,70 @@
 
 /** @typedef {'transient'|'permanent'|'ambiguous'|'capacity'|'expired'} DeliveryClass */
 
-/** Errors raised before any network contact or by a refused connection. */
-const NOT_CONNECTED_CODES = new Set([
+/** Errors raised before any network contact (credentials, config, envelope). */
+const PRE_NETWORK_CODES = new Set([
   'EAUTH',
   'ENOAUTH',
   'EOAUTH2',
   'ETLS',
   'EDNS',
   'EENVELOPE',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'ECONNREFUSED',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'UND_ERR_CONNECT_TIMEOUT',
   'MAGIC_MAIL_ACCOUNT_CONFIG',
   'MAGIC_MAIL_ACCOUNT_UNAVAILABLE',
   'MAGIC_MAIL_ACCOUNT_QUOTA',
 ]);
+
+/**
+ * System codes that can only come from name resolution or from opening a
+ * connection: a refused connect (ECONNREFUSED), a failed lookup
+ * (getaddrinfo ENOTFOUND / EAI_AGAIN) or undici's connect timeout.
+ */
+const CONNECT_ONLY_CODES = new Set([
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/**
+ * Routing errors. They are raised on connect, but also on an established
+ * socket (for example a retransmission timeout after an ICMP unreachable
+ * on Linux), so they prove nothing without `syscall: 'connect'`.
+ */
+const ROUTE_CODES = new Set(['EHOSTUNREACH', 'ENETUNREACH']);
+
+/**
+ * True when a system error was raised by connect() or getaddrinfo(). Node
+ * sets `error.syscall` on system errors (nodejs.org/api/errors.html
+ * "error.syscall"); with autoSelectFamily a refused connect is an
+ * AggregateError whose `errors` each carry the syscall.
+ *
+ * @param {*} error
+ * @returns {boolean}
+ */
+function raisedOnConnect(error) {
+  if (!error || typeof error !== 'object') return false;
+  const phase = (value) => value === 'connect' || value === 'getaddrinfo';
+  if (phase(error.syscall)) return true;
+  return (
+    Array.isArray(error.errors) &&
+    error.errors.length > 0 &&
+    error.errors.every((inner) => inner && typeof inner === 'object' && phase(inner.syscall))
+  );
+}
+
+/**
+ * True when a system code (top level or fetch cause) proves that no
+ * connection to the provider existed.
+ *
+ * @param {*} error - error or cause carrying `code`
+ * @returns {boolean}
+ */
+function provesNotConnected(error) {
+  if (!error || typeof error !== 'object') return false;
+  if (CONNECT_ONLY_CODES.has(error.code)) return true;
+  return ROUTE_CODES.has(error.code) && raisedOnConnect(error);
+}
 
 /** Socket-level SMTP errors: safe only before the server answered DATA with 354. */
 const SMTP_SOCKET_CODES = new Set(['ECONNECTION', 'ESOCKET', 'ETIMEDOUT', 'ECONNRESET']);
@@ -85,7 +131,6 @@ const isCode = (value) => typeof value === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.
 function classifyDeliveryError(error) {
   if (!error || typeof error !== 'object') return 'ambiguous';
   const code = error.code;
-  const causeCode = error.cause && typeof error.cause === 'object' ? error.cause.code : undefined;
 
   if (PERMANENT_CODES.has(code) || error.name === 'ValidationError') return 'permanent';
   if (CAPACITY_CODES.has(code)) return 'capacity';
@@ -99,13 +144,25 @@ function classifyDeliveryError(error) {
     return responseCode >= 500 && responseCode !== 503 ? 'permanent' : 'transient';
   }
 
-  if (NOT_CONNECTED_CODES.has(code) || NOT_CONNECTED_CODES.has(error.originalCode)) {
-    return 'transient';
-  }
-  if (NOT_CONNECTED_CODES.has(causeCode)) return 'transient';
+  if (PRE_NETWORK_CODES.has(code)) return 'transient';
 
+  // nodemailer reports every socket problem as ECONNECTION / ESOCKET /
+  // ETIMEDOUT and keeps the system code in `originalCode`. The SMTP stage the
+  // probe saw decides: a drop after 354 may follow an accepted message,
+  // whatever the system code says.
   if (SMTP_SOCKET_CODES.has(code)) {
-    return error.magicMailSmtpStage === 'before-data' ? 'transient' : 'ambiguous';
+    if (error.magicMailSmtpStage === 'before-data') return 'transient';
+    if (error.magicMailSmtpStage === 'after-data') return 'ambiguous';
+    // No probe: only proof of the connect phase counts.
+    return CONNECT_ONLY_CODES.has(error.originalCode) || raisedOnConnect(error)
+      ? 'transient'
+      : 'ambiguous';
+  }
+
+  if (provesNotConnected(error)) return 'transient';
+  // fetch() wraps network errors as TypeError('fetch failed', { cause }).
+  if (error.cause && typeof error.cause === 'object' && provesNotConnected(error.cause)) {
+    return 'transient';
   }
 
   const status = Number(error.status);
@@ -249,6 +306,27 @@ function tagPreDispatch(error) {
   return error;
 }
 
+/**
+ * Marks an error that came out of the provider adapter (sendViaAccount), as
+ * opposed to a database or bookkeeping error around it.
+ * @param {*} error
+ * @returns {*}
+ */
+function tagProviderError(error) {
+  if (error && typeof error === 'object') {
+    try {
+      Object.defineProperty(error, 'magicMailFromProvider', {
+        value: true,
+        enumerable: false,
+        configurable: true,
+      });
+    } catch {
+      // frozen error: the queue treats it as ambiguous
+    }
+  }
+  return error;
+}
+
 module.exports = {
   PROVIDER_CAPABILITIES,
   classifyDeliveryError,
@@ -258,4 +336,5 @@ module.exports = {
   createSmtpProbe,
   tagSmtpStage,
   tagPreDispatch,
+  tagProviderError,
 };

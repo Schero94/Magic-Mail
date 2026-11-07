@@ -674,3 +674,261 @@ test('retention removes sent rows and old payloads', { skip: !hasSqlite }, async
     await ctx.close();
   }
 });
+
+test(
+  'a database error on the sent write never re-sends an accepted message',
+  { skip: !hasSqlite },
+  async () => {
+    const original = store.fencedUpdate;
+    const refused = () =>
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    const ctx = await setup();
+    try {
+      ctx.queue.setTestHooks({ sleep: async () => {} });
+
+      // 1) One failed write: retried, recorded as sent, one delivery.
+      const once = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 31), {
+        emailLog: null,
+        source: 'service',
+      });
+      let failures = 1;
+      store.fencedUpdate = async (strapi, row, fields, statuses) => {
+        if (fields.status === 'sent' && failures > 0) {
+          failures -= 1;
+          throw refused();
+        }
+        return original(strapi, row, fields, statuses);
+      };
+      await ctx.queue.runOnce();
+      let row = await store.findByDocumentId(ctx.strapi, once.outboxId);
+      assert.equal(row.status, 'sent');
+      assert.equal(receivedFor(once.outboxId).length, 1);
+
+      // 2) The write keeps failing: the row is never pending again, the
+      // reaper marks it uncertain and the worker never sends it twice.
+      const always = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 32), {
+        emailLog: null,
+        source: 'service',
+      });
+      store.fencedUpdate = async (strapi, target, fields, statuses) => {
+        if (fields.status === 'sent') throw refused();
+        return original(strapi, target, fields, statuses);
+      };
+      await ctx.queue.runOnce();
+      store.fencedUpdate = original;
+      row = await store.findByDocumentId(ctx.strapi, always.outboxId);
+      assert.equal(row.status, 'sending');
+      assert.equal(row.phase, 'dispatching');
+      assert.ok(
+        !ctx.events.some(
+          (e) => e.name === 'magic-mail.queue.sent' && e.payload.outboxId === always.outboxId
+        )
+      );
+
+      ctx.advance(QUEUE_CONFIG.leaseMs + 1_000);
+      await ctx.queue.reap();
+      for (let i = 0; i < 5; i += 1) {
+        ctx.advance(3_600_000);
+        await ctx.queue.runOnce();
+        await ctx.queue.reap();
+      }
+      row = await store.findByDocumentId(ctx.strapi, always.outboxId);
+      assert.equal(row.status, 'uncertain');
+      assert.equal(row.lastErrorCode, 'LEASE_EXPIRED_DURING_SEND');
+      const accepted = receivedFor(always.outboxId).filter((entry) => entry.accepted);
+      assert.equal(accepted.length, 1, 'exactly one accepted delivery');
+    } finally {
+      store.fencedUpdate = original;
+      await ctx.close();
+    }
+  }
+);
+
+test(
+  'a database error after the first dispatch is ambiguous, never transient',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    const router = ctx.router;
+    const original = router.routeAndDispatch;
+    try {
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 33), {
+        emailLog: null,
+        source: 'service',
+      });
+      router.routeAndDispatch = async function (data, routingCtx) {
+        await routingCtx.onBeforeDispatch({ documentId: 'acc-1', name: 'primary' });
+        throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      };
+      await ctx.queue.runOnce();
+      const row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.status, 'uncertain');
+      assert.equal(row.lastErrorClass, 'ambiguous');
+    } finally {
+      router.routeAndDispatch = original;
+      await ctx.close();
+    }
+  }
+);
+
+test(
+  'admin retry of a pending row keeps its remaining automatic retries',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    try {
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('r451', 34), {
+        emailLog: null,
+        source: 'service',
+      });
+      await ctx.queue.runOnce();
+      let row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.status, 'pending');
+      assert.equal(row.attempts, 1);
+      assert.equal(row.maxAttempts, 4);
+      await ctx.queue.retry(outboxId, { adminId: 1 });
+      row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.status, 'pending');
+      assert.equal(row.maxAttempts, 4, 'budget kept');
+      await ctx.queue.runOnce();
+      row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.status, 'pending', 'still retried after the manual attempt');
+      assert.equal(row.attempts, 2);
+    } finally {
+      await ctx.close();
+    }
+  }
+);
+
+test(
+  'send(): a failed Strapi-provider fallback is captured only when an account can send it later',
+  { skip: !hasSqlite },
+  async () => {
+    const refused = () =>
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    // No MagicMail account at all: the worker could never deliver it.
+    const none = await setup({ accounts: [], settings: { queueFailedSends: true } });
+    try {
+      let calls = 0;
+      await assert.rejects(
+        none.router.send(
+          { to: 'ok@example.test', subject: 'Synthetic', text: 'x' },
+          {
+            source: 'strapi-email',
+            fallbackSend: async () => {
+              calls += 1;
+              throw refused();
+            },
+          }
+        ),
+        { code: 'ECONNREFUSED' }
+      );
+      assert.equal(calls, 1);
+      const [{ total }] = await none.knex(fixtures.OUTBOX_TABLE).count({ total: '*' });
+      assert.equal(Number(total), 0, 'nothing captured');
+    } finally {
+      await none.close();
+    }
+
+    // Quota exhausted: a later quota window can deliver it.
+    const limited = await setup({
+      accounts: [fixtures.smtpAccount('primary', smtp.port, { isPrimary: true, hourlyLimit: 1 })],
+      settings: { queueFailedSends: true },
+    });
+    try {
+      const first = await limited.router.send({
+        to: 'ok@example.test',
+        subject: 'Synthetic',
+        text: 'x',
+      });
+      assert.equal(first.success, true);
+      const second = await limited.router.send(
+        { to: 'ok@example.test', subject: 'Synthetic', text: 'x' },
+        { source: 'strapi-email', fallbackSend: async () => Promise.reject(refused()) }
+      );
+      assert.equal(second.queued, true);
+      assert.equal(second.status, 'pending');
+    } finally {
+      await limited.close();
+    }
+  }
+);
+
+test(
+  'Content API: idempotency keys are scoped per API token (no cross-caller suppression)',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    const previous = global.strapi;
+    global.strapi = ctx.strapi;
+    try {
+      const controller = require('../server/src/controllers/controller');
+      const call = async (tokenId) => {
+        const request = {
+          request: {
+            body: {
+              to: 'ok@example.test',
+              subject: 'Synthetic',
+              text: 'x',
+              queue: true,
+              idempotencyKey: 'reset-42',
+            },
+          },
+          state: {
+            auth: { strategy: { name: 'content-api-token' }, credentials: { id: tokenId } },
+          },
+          body: undefined,
+        };
+        await controller.send(request);
+        return request.body;
+      };
+      const a = await call(1);
+      const b = await call(2);
+      const a2 = await call(1);
+      assert.equal(a.queued, true);
+      assert.equal(b.queued, true);
+      assert.notEqual(b.outboxId, a.outboxId, 'token 2 gets its own row');
+      assert.equal(b.duplicate, undefined);
+      assert.equal(a2.duplicate, true, 'the same token is de-duplicated');
+      assert.equal(a2.outboxId, a.outboxId);
+      const [{ total }] = await ctx.knex(fixtures.OUTBOX_TABLE).count({ total: '*' });
+      assert.equal(Number(total), 2);
+    } finally {
+      if (previous === undefined) delete global.strapi;
+      else global.strapi = previous;
+      await ctx.close();
+    }
+  }
+);
+
+test(
+  'a claim lost during a slow token step aborts the send (no duplicate after the reaper)',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    const original = ctx.router.sendViaAccount;
+    try {
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 35), {
+        emailLog: null,
+        source: 'service',
+      });
+      let providerCalls = 0;
+      ctx.router.sendViaAccount = async function (account, attempt) {
+        // The token refresh stalls past the lease; the reaper takes the row.
+        ctx.advance(QUEUE_CONFIG.leaseMs + 1_000);
+        await ctx.queue.reap();
+        await this.confirmDispatchClaim(attempt.__dispatch);
+        providerCalls += 1;
+        return original.call(this, account, attempt);
+      };
+      await ctx.queue.runOnce();
+      assert.equal(providerCalls, 0, 'provider never called without the claim');
+      const row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.status, 'uncertain');
+      assert.equal(receivedFor(outboxId).length, 0);
+    } finally {
+      ctx.router.sendViaAccount = original;
+      await ctx.close();
+    }
+  }
+);

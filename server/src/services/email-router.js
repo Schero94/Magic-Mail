@@ -13,6 +13,7 @@ const {
   createSmtpProbe,
   tagSmtpStage,
   tagPreDispatch,
+  tagProviderError,
 } = require('../utils/delivery-outcome');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -226,6 +227,8 @@ const BOUNDED_SMTP_TIMEOUTS = Object.freeze({
   socketTimeout: 60_000,
 });
 const BOUNDED_FETCH_TIMEOUT_MS = 60_000;
+/** Upper bound for one OAuth token refresh request in bounded (queue) sends. */
+const BOUNDED_OAUTH_REFRESH_TIMEOUT_MS = 30_000;
 
 /**
  * fetch options for a provider request: an abort signal for bounded (queue)
@@ -237,6 +240,20 @@ const BOUNDED_FETCH_TIMEOUT_MS = 60_000;
 function fetchBounds(emailData) {
   return emailData?.__dispatch?.bounded
     ? { signal: AbortSignal.timeout(BOUNDED_FETCH_TIMEOUT_MS) }
+    : {};
+}
+
+/**
+ * fetch options for an OAuth token refresh: an abort signal for bounded
+ * (queue) sends, so a stalled token endpoint can not outlive the claim.
+ * Created per call, so the timeout starts when the request starts.
+ *
+ * @param {object} emailData
+ * @returns {{signal?: AbortSignal}}
+ */
+function oauthRefreshBounds(emailData) {
+  return emailData?.__dispatch?.bounded
+    ? { signal: AbortSignal.timeout(BOUNDED_OAUTH_REFRESH_TIMEOUT_MS) }
     : {};
 }
 
@@ -985,7 +1002,9 @@ module.exports = ({ strapi }) => ({
    *   `{ success, queued: true, status, outboxId, emailId }` without sending inline);
    *   false: never queue; 'auto'/omitted: capture failed sends when the owner setting
    *   `queueFailedSends` is on
-   * @param {string} [options.idempotencyKey] - De-duplicates queued sends per source
+   * @param {string} [options.idempotencyKey] - De-duplicates queued sends per source (and scope)
+   * @param {string} [options.idempotencyScope] - Caller identity the key is scoped to
+   *   (the Content API passes `token:<id>` or `user:<id>`)
    * @param {Date} [options.notAfter] - A queued message is never sent after this time
    * @returns {Promise<Object>} Send result
    * @throws {Error} The provider error (unchanged), with `magicMailOutboxId` when an
@@ -994,6 +1013,10 @@ module.exports = ({ strapi }) => ({
   async send(input, options = {}) {
     const data = cloneEmailData(input);
     const source = options.source || 'service';
+    // Idempotency keys are scoped by source and, when given, by the caller.
+    const keyScope = options.idempotencyScope
+      ? `${source}:${String(options.idempotencyScope)}`
+      : source;
 
     if (!data.templateData && data.data) data.templateData = data.data;
 
@@ -1083,7 +1106,7 @@ module.exports = ({ strapi }) => ({
       if (options.allowInactive || source === 'admin-test') {
         throw validationError('Test sends can not be queued');
       }
-      const duplicate = await queueService.findDuplicate(source, options.idempotencyKey);
+      const duplicate = await queueService.findDuplicate(keyScope, options.idempotencyKey);
       if (duplicate) return duplicate;
       queueService.assertQueueable(data);
     }
@@ -1107,6 +1130,7 @@ module.exports = ({ strapi }) => ({
         emailLog,
         source,
         idempotencyKey: options.idempotencyKey,
+        keyScope,
         notAfter: options.notAfter,
         accountDocumentId: options.accountDocumentId,
         createdByUser: options.createdByUser,
@@ -1139,6 +1163,7 @@ module.exports = ({ strapi }) => ({
         attempted,
         lastAccountDocumentId: routingCtx.lastAccountDocumentId,
         idempotencyKey: options.idempotencyKey,
+        keyScope,
         notAfter: options.notAfter,
       });
     };
@@ -1206,7 +1231,15 @@ module.exports = ({ strapi }) => ({
             messageId: result?.messageId,
           };
         } catch (fallbackError) {
-          if (captureEnabled && classifyDeliveryError(fallbackError) === 'transient') {
+          // Capture only when a MagicMail account can send it later (quota
+          // window). With no account at all the worker could never deliver
+          // it (it does not use the Strapi provider), so the error reaches
+          // the caller as in 4.3.
+          if (
+            captureEnabled &&
+            error?.code === 'MAGIC_MAIL_QUOTA_EXHAUSTED' &&
+            classifyDeliveryError(fallbackError) === 'transient'
+          ) {
             const row = await captureFailure(fallbackError, 'transient');
             if (row) return resolveQueued(row);
           }
@@ -1498,7 +1531,13 @@ module.exports = ({ strapi }) => ({
       : (Array.isArray(ctx.softExclude) ? ctx.softExclude : []).filter(Boolean);
     const dispatchOptions =
       ctx.bounded || ctx.trackOutcome
-        ? { bounded: ctx.bounded === true, trackOutcome: ctx.trackOutcome === true }
+        ? {
+            bounded: ctx.bounded === true,
+            trackOutcome: ctx.trackOutcome === true,
+            // Queue sends: re-checks the outbox claim right before a provider
+            // request that followed a slow step (OAuth token refresh).
+            ...(typeof ctx.confirmClaim === 'function' ? { confirmClaim: ctx.confirmClaim } : {}),
+          }
         : null;
 
     for (let index = 0; index < MAX_ROUTING_CANDIDATES; index += 1) {
@@ -1561,6 +1600,10 @@ module.exports = ({ strapi }) => ({
         }
         return { account, result };
       } catch (error) {
+        // Mark errors raised by the provider adapter: only those say anything
+        // about delivery (queue.js treats any other error after dispatch as
+        // ambiguous).
+        tagProviderError(error);
         if (reservation === 'reserved') await this.releaseQuota(account);
         lastError = error;
         // Queue sends fail over only on proven non-acceptance (strict
@@ -2020,6 +2063,26 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Queue sends: confirms (and extends) the outbox claim before a provider
+   * request. A lost claim throws MAGIC_MAIL_LEASE_LOST, so a process whose
+   * lease expired during a slow token refresh never sends. Any other error
+   * here happened before the provider was contacted.
+   *
+   * @param {object|null} dispatch - `emailData.__dispatch`
+   * @returns {Promise<void>}
+   * @throws {Error} MAGIC_MAIL_LEASE_LOST, or a pre-dispatch tagged error
+   */
+  async confirmDispatchClaim(dispatch) {
+    if (typeof dispatch?.confirmClaim !== 'function') return;
+    try {
+      await dispatch.confirmClaim();
+    } catch (error) {
+      if (error?.code === 'MAGIC_MAIL_LEASE_LOST') throw error;
+      throw tagPreDispatch(error);
+    }
+  },
+
+  /**
    * Runs an OAuth send and, when the provider rejects the access token
    * (HTTP 401 or SMTP EAUTH), refreshes it once and retries. A rejected token
    * guarantees the message was not accepted, so the retry cannot duplicate it.
@@ -2028,9 +2091,10 @@ module.exports = ({ strapi }) => ({
    * @param {object} oauth
    * @param {() => Promise<object>} refresh
    * @param {(accessToken: string) => Promise<object>} send
+   * @param {object} [dispatch] - `emailData.__dispatch` (queue: `confirmClaim`)
    * @returns {Promise<object>}
    */
-  async withOAuthRetry(account, oauth, refresh, send) {
+  async withOAuthRetry(account, oauth, refresh, send, dispatch = null) {
     let accessToken;
     try {
       accessToken = await this.currentOAuthToken(account, oauth, refresh);
@@ -2038,6 +2102,7 @@ module.exports = ({ strapi }) => ({
       // Token refresh failed: nothing was sent.
       throw tagPreDispatch(error);
     }
+    await this.confirmDispatchClaim(dispatch);
     try {
       return await send(accessToken);
     } catch (error) {
@@ -2051,6 +2116,7 @@ module.exports = ({ strapi }) => ({
       } catch (refreshError) {
         throw tagPreDispatch(refreshError);
       }
+      await this.confirmDispatchClaim(dispatch);
       return send(renewed);
     }
   },
@@ -2077,11 +2143,20 @@ module.exports = ({ strapi }) => ({
       strapi
         .plugin('magic-mail')
         .service('oauth')
-        .refreshGmailTokens(oauth.refreshToken, config.clientId, config.clientSecret);
+        .refreshGmailTokens(
+          oauth.refreshToken,
+          config.clientId,
+          config.clientSecret,
+          oauthRefreshBounds(emailData)
+        );
 
     const rawMessage = await buildRawMimeMessage(account, emailData);
-    return this.withOAuthRetry(account, oauth, refresh, (accessToken) =>
-      this.postGmailMessage(accessToken, rawMessage, fetchBounds(emailData))
+    return this.withOAuthRetry(
+      account,
+      oauth,
+      refresh,
+      (accessToken) => this.postGmailMessage(accessToken, rawMessage, fetchBounds(emailData)),
+      emailData.__dispatch
     );
   },
 
@@ -2140,13 +2215,18 @@ module.exports = ({ strapi }) => ({
           oauth.refreshToken,
           config.clientId,
           config.clientSecret,
-          config.tenantId
+          config.tenantId,
+          oauthRefreshBounds(emailData)
         );
     };
 
     const rawMessage = await buildRawMimeMessage(account, emailData);
-    return this.withOAuthRetry(account, oauth, refresh, (accessToken) =>
-      this.postGraphMessage(accessToken, rawMessage, fetchBounds(emailData))
+    return this.withOAuthRetry(
+      account,
+      oauth,
+      refresh,
+      (accessToken) => this.postGraphMessage(accessToken, rawMessage, fetchBounds(emailData)),
+      emailData.__dispatch
     );
   },
 
@@ -2197,10 +2277,19 @@ module.exports = ({ strapi }) => ({
       strapi
         .plugin('magic-mail')
         .service('oauth')
-        .refreshYahooTokens(oauth.refreshToken, config.clientId, config.clientSecret);
+        .refreshYahooTokens(
+          oauth.refreshToken,
+          config.clientId,
+          config.clientSecret,
+          oauthRefreshBounds(emailData)
+        );
 
-    return this.withOAuthRetry(account, oauth, refresh, (accessToken) =>
-      this.sendYahooMessage(account, oauth, emailData, accessToken)
+    return this.withOAuthRetry(
+      account,
+      oauth,
+      refresh,
+      (accessToken) => this.sendYahooMessage(account, oauth, emailData, accessToken),
+      emailData.__dispatch
     );
   },
 
