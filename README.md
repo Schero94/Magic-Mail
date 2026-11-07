@@ -590,7 +590,7 @@ module.exports = () => ({
 
 With user roles allowed, the email log is always attributed to the authenticated user and a body `userId` is ignored. With an API token, `userId` must be the id or documentId of an existing users-permissions user (else 400).
 
-The body is validated strictly: unknown fields, `path`/`href` attachments and invalid addresses return 400. Both send routes share a budget of 60 requests per minute per token (in process memory, so each Strapi instance counts separately).
+The body is validated strictly: unknown fields, `path`/`href` attachments and invalid addresses return 400. Both send routes share a budget of 60 requests per minute per token, counted across all Strapi instances (see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster)).
 
 ### Example: send
 
@@ -901,7 +901,9 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 
 ### Required configuration
 
-1. **One database for all processes.** Point every replica at the same PostgreSQL (`DATABASE_URL` or `DATABASE_HOST` and friends). SQLite only works for several processes on one machine and one file.
+1. **One database for all processes.** Point every replica at the same PostgreSQL (`DATABASE_URL` or `DATABASE_HOST` and friends). SQLite only works for several processes on one machine and one file. MySQL uses the same portable SQL but has not been load-tested with several processes yet.
+   - The database user needs the `CREATE TABLE` right Strapi already uses (for the three coordination tables).
+   - Every process opens its own connection pool. Keep `processes x pool.max` (`connection.pool` in `config/database.js`) below the server's `max_connections`; for 8 processes on a small Railway PostgreSQL, a `pool: { min: 0, max: 5 }` is a safe start.
 2. **Identical secrets everywhere.** Set these as Railway _shared variables_ (or one `.env` used by every pm2 worker):
 
    ```bash
@@ -927,15 +929,15 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
    });
    ```
 
-4. **pm2 cluster mode.** No sticky sessions are needed. Example `ecosystem.config.js`:
+4. **pm2 cluster mode.** No sticky sessions are needed. pm2's cluster mode runs a Node.js script, so point it at the Strapi CLI instead of `npm`. Example `ecosystem.config.js`:
 
    ```javascript
    module.exports = {
      apps: [
        {
          name: 'strapi',
-         script: 'npm',
-         args: 'run start',
+         script: './node_modules/@strapi/strapi/bin/strapi.js',
+         args: 'start',
          exec_mode: 'cluster',
          instances: 4,
          env: { NODE_ENV: 'production' },
@@ -944,7 +946,13 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
    };
    ```
 
-5. **Optional: Redis for the rate limiter.** The database store is enough for most installs. If you already run Redis, create the client yourself and pass it in; on a Redis error the database store is used:
+   In a container (Railway, Docker) start it in the foreground with `pm2-runtime start ecosystem.config.js` as the start command. All workers of one replica share its `PORT`; pm2 spreads the requests over them.
+
+5. **Railway replicas.** Set the replica count in the service settings (for example 2). Every replica runs the same start command and gets the same variables, so with `instances: 4` you get 8 processes. Railway's proxy balances requests across replicas without stickiness, which MagicMail does not need.
+
+   On a **brand-new, empty database**, deploy with one replica first. Strapi itself creates its system tables (`strapi_migrations`, ...) at the first boot, and several processes doing that at the same moment can crash with `duplicate key value violates unique constraint "pg_class_relname_nsp_index"`. This is Strapi core, not MagicMail; a restart fixes it. Once the schema exists, scale up.
+
+6. **Optional: Redis for the rate limiter.** The database store is enough for most installs. If you already run Redis, create the client yourself and pass it in; on a Redis error the database store is used:
 
    ```javascript
    // config/plugins.js
@@ -969,6 +977,7 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 - Rate limits are fixed windows, so a caller can send up to twice the limit across a window boundary. Up to `max / 10 - 1` tracking hits per process and window may go uncounted.
 - Changing `quotaTimezone` to a zone that is behind the old one keeps counting in the old window until the new zone catches up (stricter, never looser).
 - Unique account names, rule names and template reference ids are enforced by the application under a lease, not by a database index. Duplicates created by earlier versions stay until you rename them.
+- Content-API sends that fail because the account quota is used up or the `accountName` is unknown return 500 "Failed to send email", as in earlier versions.
 - Strapi's own Users & Permissions settings page still writes its email templates without compare-and-set; a save there at the same moment as a MagicMail save can still win.
 
 ### Testing it

@@ -5,7 +5,7 @@
 * **multi-instance:** MagicMail is correct with several Node processes on one database (for example 2 Railway replicas with `pm2 -i 4`), without sticky sessions or Redis. Three plugin tables are created at startup with plain `CREATE TABLE` (PostgreSQL, MySQL, SQLite): `magic_mail_claims` (leases and de-duplication claims), `magic_mail_rate_limits` (shared rate-limit windows) and `magic_mail_oauth_pending` (one row per OAuth flow). Expired rows are removed every five minutes.
 * **rate-limit:** limits are counted across all processes. New `rateLimit` plugin config: `store: 'database'` (default), `'redis'` (pass an ioredis or node-redis v4+ client as `rateLimit.redis`; falls back to the database on errors) or `'memory'` (previous per-process limiter).
 * **ops:** every process logs short one-way fingerprints of the encryption, tracking and OAuth state secrets at startup, so replicas with different secrets are easy to spot.
-* **docs:** README section "Running several instances (Railway replicas, pm2 cluster)" with the required configuration.
+* **docs:** README section "Running several instances (Railway replicas, pm2 cluster)" with the required configuration: one database and pool sizing, identical secrets, `proxy.koa`, a pm2 cluster example that starts the Strapi CLI (cluster mode needs a Node.js script, not `npm`) under `pm2-runtime`, Railway replicas, a one-replica first deploy on an empty database, and optional Redis. The Content-API section no longer says the send rate limit is counted per process.
 
 ### Fixed
 
@@ -37,7 +37,7 @@ No action is needed for a single instance. For several instances, read "Running 
 
 * **delivery:** signed SendGrid and Mailgun bounce/complaint webhooks ([bdf13c8](https://github.com/Schero94/Magic-Mail/commit/bdf13c888fbcce5604c30be47cec0173ec7cd389))
 
-## [Unreleased]
+## 4.2.0 details (written as "Unreleased" before the 4.2.0 release)
 
 ### Added
 
