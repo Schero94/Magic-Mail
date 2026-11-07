@@ -12,6 +12,7 @@ const {
   isHostAllowed,
   redactUrlForLog,
 } = require('../utils/tracking-url-policy');
+const coordination = require('../utils/coordination');
 
 // Content Type UIDs
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -49,6 +50,36 @@ const LOCAL_HOSTNAMES = new Set([
 ]);
 
 let warnedMissingBaseUrl = false;
+
+/**
+ * Atomically increments an engagement counter of one row with a single
+ * UPDATE (no read-modify-write), so parallel opens/clicks handled by
+ * different processes are all counted and `first*At` keeps the earliest
+ * value. Portable SQL (COALESCE), PostgreSQL, MySQL and SQLite.
+ *
+ * @param {object} strapi
+ * @param {string} uid - content type
+ * @param {string} documentId
+ * @param {{counter: string, first?: string, last?: string}} fields - attribute names
+ * @param {Date} now
+ * @returns {Promise<boolean>} false when no database connection exists (caller falls back)
+ */
+async function incrementCounter(strapi, uid, documentId, { counter, first, last }, now) {
+  const db = coordination.getDb(strapi);
+  const model = coordination.modelTable(strapi, uid);
+  if (!db || !model) return false;
+  const { knex } = db;
+  const column = model.column;
+  const update = {
+    [column(counter)]: knex.raw('COALESCE(??, 0) + 1', [column(counter)]),
+  };
+  if (first) update[column(first)] = knex.raw('COALESCE(??, ?)', [column(first), now]);
+  if (last) update[column(last)] = now;
+  update[column('updatedAt')] = now;
+  const query = db.schema ? knex(model.tableName).withSchema(db.schema) : knex(model.tableName);
+  await query.where({ [column('documentId')]: documentId }).update(update);
+  return true;
+}
 
 const hashesEqual = (actual, expected) => {
   if (typeof actual !== 'string' || typeof expected !== 'string') return false;
@@ -600,14 +631,23 @@ module.exports = ({ strapi }) => ({
 
       const now = new Date();
 
-      await strapi.documents(EMAIL_LOG_UID).update({
-        documentId: emailLog.documentId,
-        data: {
-          openCount: (emailLog.openCount || 0) + 1,
-          firstOpenedAt: emailLog.firstOpenedAt || now,
-          lastOpenedAt: now,
-        },
-      });
+      const atomic = await incrementCounter(
+        strapi,
+        EMAIL_LOG_UID,
+        emailLog.documentId,
+        { counter: 'openCount', first: 'firstOpenedAt', last: 'lastOpenedAt' },
+        now
+      );
+      if (!atomic) {
+        await strapi.documents(EMAIL_LOG_UID).update({
+          documentId: emailLog.documentId,
+          data: {
+            openCount: (emailLog.openCount || 0) + 1,
+            firstOpenedAt: emailLog.firstOpenedAt || now,
+            lastOpenedAt: now,
+          },
+        });
+      }
 
       const event = await strapi.documents(EMAIL_EVENT_UID).create({
         data: {
@@ -647,12 +687,21 @@ module.exports = ({ strapi }) => ({
 
       const now = new Date();
 
-      await strapi.documents(EMAIL_LOG_UID).update({
-        documentId: emailLog.documentId,
-        data: {
-          clickCount: (emailLog.clickCount || 0) + 1,
-        },
-      });
+      const atomic = await incrementCounter(
+        strapi,
+        EMAIL_LOG_UID,
+        emailLog.documentId,
+        { counter: 'clickCount' },
+        now
+      );
+      if (!atomic) {
+        await strapi.documents(EMAIL_LOG_UID).update({
+          documentId: emailLog.documentId,
+          data: {
+            clickCount: (emailLog.clickCount || 0) + 1,
+          },
+        });
+      }
 
       const event = await strapi.documents(EMAIL_EVENT_UID).create({
         data: {
@@ -1148,14 +1197,23 @@ module.exports = ({ strapi }) => ({
 
       if (count) {
         const now = new Date();
-        await strapi.documents(EMAIL_LINK_UID).update({
-          documentId: linkMapping.documentId,
-          data: {
-            clickCount: (linkMapping.clickCount || 0) + 1,
-            firstClickedAt: linkMapping.firstClickedAt || now,
-            lastClickedAt: now,
-          },
-        });
+        const atomic = await incrementCounter(
+          strapi,
+          EMAIL_LINK_UID,
+          linkMapping.documentId,
+          { counter: 'clickCount', first: 'firstClickedAt', last: 'lastClickedAt' },
+          now
+        );
+        if (!atomic) {
+          await strapi.documents(EMAIL_LINK_UID).update({
+            documentId: linkMapping.documentId,
+            data: {
+              clickCount: (linkMapping.clickCount || 0) + 1,
+              firstClickedAt: linkMapping.firstClickedAt || now,
+              lastClickedAt: now,
+            },
+          });
+        }
       }
 
       return linkMapping.originalUrl;
@@ -1260,10 +1318,12 @@ module.exports = ({ strapi }) => ({
       if (rows.length < BATCH_SIZE) break;
     }
 
-    await store.set({
-      key: 'trackingPrivacyMigrationV1',
-      value: { done: true, changed, at: new Date().toISOString() },
-    });
+    // Compare-and-set write: no duplicate core-store rows for the flag.
+    await coordination.updateStoreValue(
+      strapi,
+      { type: 'plugin', name: 'magic-mail', key: 'trackingPrivacyMigrationV1' },
+      () => ({ done: true, changed, at: new Date().toISOString() })
+    );
     return changed;
   },
 
@@ -1371,6 +1431,7 @@ module.exports = ({ strapi }) => ({
 module.exports.TRACKING_ID_PATTERN = TRACKING_ID_PATTERN;
 module.exports.getRestPrefix = getRestPrefix;
 module.exports.__test__ = {
+  incrementCounter,
   anonymizeIp,
   normalizeRecipient,
   rewriteAnchorHrefs,

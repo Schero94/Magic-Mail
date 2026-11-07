@@ -11,6 +11,7 @@
 const Mustache = require('mustache');
 const htmlToTextLib = require('html-to-text');
 const { errors } = require('@strapi/utils');
+const coordination = require('../utils/coordination');
 
 // Content Type UIDs
 const EMAIL_TEMPLATE_UID = 'plugin::magic-mail.email-template';
@@ -45,33 +46,22 @@ const CORE_TEMPLATE_STORE_KEYS = {
   'email-confirmation': 'email_confirmation',
 };
 
-/** Per-template in-process lock so concurrent saves get distinct version numbers. */
-const versionLocks = new Map();
-
 /**
- * Runs `task` exclusively per key.
+ * Serialises version numbering per template across processes (database
+ * lease, see utils/coordination) so concurrent saves on different replicas
+ * or pm2 workers never get the same number.
  *
  * @template T
- * @param {string} key
+ * @param {object} strapi
+ * @param {string} key - template documentId
  * @param {() => Promise<T>} task
  * @returns {Promise<T>}
  */
-async function withVersionLock(key, task) {
-  const previous = versionLocks.get(key) || Promise.resolve();
-  let release;
-  const current = new Promise((resolve) => {
-    release = resolve;
+const withVersionLock = (strapi, key, task) =>
+  coordination.withLease(strapi, `template-version:${key}`, task, {
+    ttlMs: 30_000,
+    waitMs: 15_000,
   });
-  const chained = previous.then(() => current);
-  versionLocks.set(key, chained);
-  await previous;
-  try {
-    return await task();
-  } finally {
-    release();
-    if (versionLocks.get(key) === chained) versionLocks.delete(key);
-  }
-}
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -430,27 +420,37 @@ module.exports = ({ strapi }) => ({
         );
       }
 
-      const existing = await this.findByReferenceId(parsed);
-      if (existing) {
-        throw new Error(`Template with reference ID ${parsed} already exists`);
-      }
-
       templateReferenceId = parsed;
-    } else {
-      templateReferenceId = await this._generateUniqueTemplateReferenceId();
-      strapi.log.info(
-        `[magic-mail] [INFO] Auto-generated templateReferenceId=${templateReferenceId}`
-      );
     }
 
-    // 3. Create template
-    const template = await strapi.documents(EMAIL_TEMPLATE_UID).create({
-      data: {
-        ...data,
-        templateReferenceId,
-        isActive: data.isActive !== undefined ? data.isActive : true,
+    // Check and insert under one database lease: the schema's `unique` is
+    // checked by the application only, so two processes could otherwise
+    // both pass the check and insert the same reference id.
+    const template = await coordination.withLease(
+      strapi,
+      'template-reference-id',
+      async () => {
+        if (templateReferenceId !== undefined) {
+          const existing = await this.findByReferenceId(templateReferenceId);
+          if (existing) {
+            throw new Error(`Template with reference ID ${templateReferenceId} already exists`);
+          }
+        } else {
+          templateReferenceId = await this._generateUniqueTemplateReferenceId();
+          strapi.log.info(
+            `[magic-mail] [INFO] Auto-generated templateReferenceId=${templateReferenceId}`
+          );
+        }
+        return strapi.documents(EMAIL_TEMPLATE_UID).create({
+          data: {
+            ...data,
+            templateReferenceId,
+            isActive: data.isActive !== undefined ? data.isActive : true,
+          },
+        });
       },
-    });
+      { ttlMs: 30_000, waitMs: 15_000 }
+    );
 
     strapi.log.info(
       `[magic-mail] [SUCCESS] Template created: documentId=${template.documentId}, name="${template.name}"`
@@ -657,7 +657,7 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<object|null>}
    */
   async createVersion(templateDocumentId, data, { skipIfUnchanged = false } = {}) {
-    return withVersionLock(String(templateDocumentId), () =>
+    return withVersionLock(strapi, String(templateDocumentId), () =>
       this._createVersionLocked(templateDocumentId, data, skipIfUnchanged)
     );
   },
@@ -1180,25 +1180,33 @@ module.exports = ({ strapi }) => ({
    * @throws {errors.ValidationError} For invalid placeholders or expressions
    */
   async updateCoreTemplate(coreEmailType, data) {
-    const { store, storeKey } = await this._coreTemplateStore(coreEmailType);
+    const { storeKey } = await this._coreTemplateStore(coreEmailType);
 
     const message = editorToCore(data.message, 'message');
     const object = editorToCore(data.subject, 'subject');
 
-    const emailsConfig = (await store.get({ key: 'email' })) || {};
-    const current = emailsConfig[storeKey] || {};
-
-    emailsConfig[storeKey] = {
-      ...current,
-      options: {
-        ...(current.options || {}),
-        message,
-        object,
-      },
-      design: data.design ?? current.design ?? null,
-    };
-
-    await store.set({ key: 'email', value: emailsConfig });
+    // The `email` key holds both users-permissions templates. A
+    // compare-and-set update keeps a concurrent save of the other template
+    // (another admin, another replica) instead of overwriting it.
+    await coordination.updateStoreValue(
+      strapi,
+      { type: 'plugin', name: 'users-permissions', key: 'email' },
+      (stored) => {
+        const emailsConfig =
+          stored && typeof stored === 'object' && !Array.isArray(stored) ? { ...stored } : {};
+        const current = emailsConfig[storeKey] || {};
+        emailsConfig[storeKey] = {
+          ...current,
+          options: {
+            ...(current.options || {}),
+            message,
+            object,
+          },
+          design: data.design ?? current.design ?? null,
+        };
+        return emailsConfig;
+      }
+    );
 
     strapi.log.info(`[magic-mail] [SUCCESS] Core email template updated: ${storeKey}`);
     return { message: 'Saved' };

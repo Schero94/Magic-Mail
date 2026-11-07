@@ -1,18 +1,27 @@
 'use strict';
 
+const crypto = require('crypto');
 const { createLogger } = require('./utils/logger');
+const coordination = require('./utils/coordination');
 
 /** Marks functions installed by MagicMail so hot reloads never stack wrappers. */
 const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
 const QUOTA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TRACKING_MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Random start delay so replicas and pm2 workers do not hit the database together. */
+const jitter = (maxMs) => Math.floor(Math.random() * maxMs);
 
 /**
  * Bootstrap: Initialize MagicMail plugin
  * - routes Strapi's native email (service.send and sendTemplatedEmail) through MagicMail
+ * - creates the coordination tables (leases, rate limits, OAuth flows)
  * - keeps quota counters of ended windows at zero for the admin UI
  * - runs the one-time sensitive tracking-link purge
  * - schedules tracking privacy migration and retention
+ *
+ * Every process (replica, pm2 worker) keeps its own timers, but each job runs
+ * under a database lease (`runSingleton`), so one process does the work per
+ * interval and a crashed leader is replaced on the next tick.
  */
 module.exports = async ({ strapi }) => {
   const log = createLogger(strapi);
@@ -40,6 +49,17 @@ module.exports = async ({ strapi }) => {
   };
 
   try {
+    await coordination.ready(strapi);
+  } catch (err) {
+    log.error(
+      '[BOOTSTRAP] Coordination tables could not be created; multi-instance safety is degraded:',
+      err?.name || 'Error'
+    );
+  }
+
+  logSecretFingerprints(strapi);
+
+  try {
     installEmailInterception(strapi, log);
   } catch (err) {
     log.error('[BOOTSTRAP] Native email interception failed; Strapi emails bypass MagicMail:', err);
@@ -49,12 +69,21 @@ module.exports = async ({ strapi }) => {
     const refreshQuotaWindows = async () => {
       try {
         if (!strapi || !strapi.plugin) return;
-        await strapi.plugin('magic-mail').service('email-router').refreshQuotaWindows();
+        await coordination.runSingleton(
+          strapi,
+          'quota-refresh',
+          QUOTA_REFRESH_INTERVAL_MS - 30 * 1000,
+          async () => {
+            await strapi.plugin('magic-mail').service('email-router').refreshQuotaWindows();
+            // Expired leases, rate-limit windows and abandoned OAuth flows.
+            await coordination.purgeExpired(strapi);
+          }
+        );
       } catch (err) {
         log.error('[QUOTA] Quota window refresh failed:', err);
       }
     };
-    registerTimer(setTimeout(refreshQuotaWindows, 5 * 1000));
+    registerTimer(setTimeout(refreshQuotaWindows, 5 * 1000 + jitter(5 * 1000)));
     registerTimer(setInterval(refreshQuotaWindows, QUOTA_REFRESH_INTERVAL_MS));
   } catch (err) {
     log.error('[BOOTSTRAP] Quota refresh schedule failed:', err);
@@ -63,28 +92,38 @@ module.exports = async ({ strapi }) => {
   // One-time purge of historic tracking link mappings that captured a
   // sensitive/authentication URL before the tracking policy existed.
   registerTimer(
-    setTimeout(async () => {
-      try {
-        await purgeSensitiveLinkMappings(strapi, log);
-      } catch (err) {
-        log.warn(
-          '[PURGE] Sensitive link purge did not complete; it will run again on next start:',
-          err
-        );
-      }
-    }, 10 * 1000)
+    setTimeout(
+      async () => {
+        try {
+          await coordination.runSingleton(strapi, 'sensitive-link-purge', 30 * 60 * 1000, () =>
+            purgeSensitiveLinkMappings(strapi, log)
+          );
+        } catch (err) {
+          log.warn(
+            '[PURGE] Sensitive link purge did not complete; it will run again on next start:',
+            err
+          );
+        }
+      },
+      10 * 1000 + jitter(5 * 1000)
+    )
   );
 
   // Tracking privacy and retention: one-time anonymisation of legacy events,
   // then periodic deletion of expired events, links and (optionally) logs.
   const runTrackingMaintenance = async () => {
     try {
-      await strapi.plugin('magic-mail').service('analytics').runTrackingMaintenance();
+      await coordination.runSingleton(
+        strapi,
+        'tracking-maintenance',
+        TRACKING_MAINTENANCE_INTERVAL_MS - 5 * 60 * 1000,
+        () => strapi.plugin('magic-mail').service('analytics').runTrackingMaintenance()
+      );
     } catch (err) {
       log.warn('[RETENTION] Tracking maintenance failed:', err);
     }
   };
-  registerTimer(setTimeout(runTrackingMaintenance, 60 * 1000));
+  registerTimer(setTimeout(runTrackingMaintenance, 60 * 1000 + jitter(30 * 1000)));
   registerTimer(setInterval(runTrackingMaintenance, TRACKING_MAINTENANCE_INTERVAL_MS));
 
   log.info('[SUCCESS] Bootstrap complete');
@@ -241,12 +280,53 @@ async function purgeSensitiveLinkMappings(strapi, log) {
     if (rows.length < pageSize) break;
   }
 
-  await store.set({
-    key: 'sensitiveLinkPurgeV2',
-    value: { done: true, removed, at: new Date().toISOString() },
-  });
+  // Compare-and-set write: no duplicate core-store rows for the flag.
+  await coordination.updateStoreValue(
+    strapi,
+    { type: 'plugin', name: 'magic-mail', key: 'sensitiveLinkPurgeV2' },
+    () => ({ done: true, removed, at: new Date().toISOString() })
+  );
   if (removed > 0) {
     log.info(`[PURGE] Removed ${removed} historic sensitive tracking link mapping(s)`);
+  }
+}
+
+/**
+ * Logs short, one-way fingerprints of the secrets that must be identical on
+ * every replica and pm2 worker (encryption key, tracking secret, OAuth state
+ * secret). Mismatched replicas show different values; the secrets themselves
+ * can not be derived from 32 bits of an HKDF/HMAC output.
+ *
+ * @param {object} strapi
+ */
+function logSecretFingerprints(strapi) {
+  try {
+    const { derivePurposeKey } = require('./utils/encryption');
+    const appKeys = strapi?.config?.get?.('server.app.keys');
+    const appKey =
+      (Array.isArray(appKeys) ? appKeys[0] : null) ||
+      String(process.env.APP_KEYS || '')
+        .split(',')
+        .map((key) => key.trim())
+        .find(Boolean);
+    const fingerprint = (material) =>
+      material
+        ? crypto
+            .createHmac('sha256', derivePurposeKey(material, 'instance-fingerprint'))
+            .update('magic-mail')
+            .digest('hex')
+            .slice(0, 8)
+        : 'unset';
+    const encryption = process.env.MAGIC_MAIL_ENCRYPTION_KEY;
+    const tracking = process.env.MAGIC_MAIL_TRACKING_SECRET || encryption || appKey;
+    const oauthState = process.env.MAGIC_MAIL_OAUTH_STATE_SECRET || encryption || appKey;
+    strapi.log.info(
+      `[magic-mail] Secret fingerprints (must match on every instance): encryption=${fingerprint(
+        encryption
+      )} tracking=${fingerprint(tracking)} oauthState=${fingerprint(oauthState)}`
+    );
+  } catch {
+    // Diagnostics only.
   }
 }
 
@@ -254,3 +334,4 @@ module.exports.installEmailInterception = installEmailInterception;
 module.exports.uninstallEmailInterception = uninstallEmailInterception;
 module.exports.purgeSensitiveLinkMappings = purgeSensitiveLinkMappings;
 module.exports.WRAPPED = WRAPPED;
+module.exports.logSecretFingerprints = logSecretFingerprints;

@@ -6,6 +6,7 @@ const { decryptCredentials } = require('../utils/encryption');
 const { normalizeMessageId } = require('../utils/message-id');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
+const coordination = require('../utils/coordination');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -44,7 +45,8 @@ const RETRYABLE_ERROR_CODES = new Set([
 /** HTTP status codes from API providers that guarantee the message was not accepted. */
 // Refresh OAuth tokens this long before they expire (clock skew, slow sends).
 const OAUTH_EXPIRY_SKEW_MS = 60_000;
-// In-flight token refreshes per account (single-flight, per process).
+// In-flight token refreshes per account (single-flight per process; the
+// database lease in currentOAuthToken serialises processes).
 const oauthRefreshes = new Map();
 const RETRYABLE_HTTP_STATUS = new Set([401, 403, 429, 500, 502, 503]);
 
@@ -745,6 +747,39 @@ function readAccountSecret(value) {
   } catch {
     throw accountConfigError('Account credentials could not be read. Please re-enter them.');
   }
+}
+
+/**
+ * SET clause that counts one send in the current quota windows. Windows only
+ * move forward: the keys (`YYYY-MM-DD`, `YYYY-MM-DDTHH`) sort as strings, so
+ * a stored key at or after this process's key is kept and counted (a replica
+ * whose clock lags slightly can not reset a window another one opened); an
+ * older or missing key starts a new window at 1. Counter assignments come
+ * before the key assignments (MySQL evaluates SET left to right).
+ *
+ * @param {Function} knex
+ * @param {{day: string, hour: string}} keys
+ * @returns {object}
+ */
+function forwardOnlyQuotaUpdate(knex, keys) {
+  return {
+    emails_sent_today: knex.raw(
+      'CASE WHEN quota_day_key >= ? THEN COALESCE(emails_sent_today, 0) + 1 ELSE 1 END',
+      [keys.day]
+    ),
+    emails_sent_this_hour: knex.raw(
+      'CASE WHEN quota_hour_key >= ? THEN COALESCE(emails_sent_this_hour, 0) + 1 ELSE 1 END',
+      [keys.hour]
+    ),
+    quota_day_key: knex.raw('CASE WHEN quota_day_key >= ? THEN quota_day_key ELSE ? END', [
+      keys.day,
+      keys.day,
+    ]),
+    quota_hour_key: knex.raw('CASE WHEN quota_hour_key >= ? THEN quota_hour_key ELSE ? END', [
+      keys.hour,
+      keys.hour,
+    ]),
+  };
 }
 
 /**
@@ -1617,7 +1652,34 @@ module.exports = ({ strapi }) => ({
       return tokens.accessToken;
     }
 
-    const run = (async () => {
+    const isFresh = (blob) => {
+      if (!blob || !blob.accessToken) return false;
+      if (!blob.expiresAt) return true;
+      const expiry = new Date(blob.expiresAt).getTime();
+      return Number.isFinite(expiry) && expiry - OAUTH_EXPIRY_SKEW_MS > Date.now();
+    };
+    const rejectedToken = force ? oauth.accessToken : null;
+
+    // Cross-process: one refresh per account at a time (database lease).
+    // After acquiring the lease the stored blob is read again: another
+    // replica or worker may have refreshed already (then its token is used),
+    // or rotated the refresh token (then the newest one is used).
+    const refreshLocked = async () => {
+      const stored = await this.readStoredOAuth(account.documentId);
+      if (stored) {
+        if (isFresh(stored) && stored.accessToken !== rejectedToken) {
+          return {
+            accessToken: stored.accessToken,
+            refreshToken: stored.refreshToken || oauth.refreshToken,
+            expiresAt: stored.expiresAt,
+          };
+        }
+        Object.assign(oauth, stored);
+      }
+      return refreshAndStore();
+    };
+
+    const refreshAndStore = async () => {
       try {
         const newTokens = await refresh();
         const oauthService = strapi.plugin('magic-mail').service('oauth');
@@ -1647,6 +1709,31 @@ module.exports = ({ strapi }) => ({
           'Access token expired and refresh failed. Please re-authenticate this account.'
         );
       }
+    };
+
+    const run = (async () => {
+      try {
+        return await coordination.withLease(
+          strapi,
+          `oauth-refresh:${account.documentId || key}`,
+          refreshLocked,
+          { ttlMs: 60_000, waitMs: 20_000 }
+        );
+      } catch (error) {
+        if (!(error instanceof coordination.LeaseTimeoutError)) throw error;
+        // Another process is still refreshing: use its result when stored.
+        const stored = await this.readStoredOAuth(account.documentId);
+        if (isFresh(stored) && stored.accessToken !== rejectedToken) {
+          return {
+            accessToken: stored.accessToken,
+            refreshToken: stored.refreshToken || oauth.refreshToken,
+            expiresAt: stored.expiresAt,
+          };
+        }
+        throw accountConfigError(
+          'Access token refresh is in progress on another instance. Please retry shortly.'
+        );
+      }
     })();
     oauthRefreshes.set(key, run);
     try {
@@ -1655,6 +1742,26 @@ module.exports = ({ strapi }) => ({
       return tokens.accessToken;
     } finally {
       oauthRefreshes.delete(key);
+    }
+  },
+
+  /**
+   * Reads and decrypts the stored `oauth` blob of an account. Only used when
+   * a database connection exists (several processes may share the account).
+   *
+   * @param {string} documentId
+   * @returns {Promise<object|null>}
+   */
+  async readStoredOAuth(documentId) {
+    if (!documentId || !coordination.getDb(strapi)) return null;
+    try {
+      const row = await strapi
+        .documents(EMAIL_ACCOUNT_UID)
+        .findOne({ documentId, fields: ['oauth'] });
+      if (!row || !row.oauth) return null;
+      return decryptCredentials(row.oauth) || null;
+    } catch {
+      return null;
     }
   },
 
@@ -2084,7 +2191,7 @@ module.exports = ({ strapi }) => ({
           .whereNull('daily_limit')
           .orWhere('daily_limit', '<=', 0)
           .orWhereNull('quota_day_key')
-          .orWhereNot('quota_day_key', keys.day)
+          .orWhere('quota_day_key', '<', keys.day)
           .orWhereRaw('COALESCE(emails_sent_today, 0) < daily_limit')
       )
       .andWhere((qb) =>
@@ -2092,23 +2199,12 @@ module.exports = ({ strapi }) => ({
           .whereNull('hourly_limit')
           .orWhere('hourly_limit', '<=', 0)
           .orWhereNull('quota_hour_key')
-          .orWhereNot('quota_hour_key', keys.hour)
+          .orWhere('quota_hour_key', '<', keys.hour)
           .orWhereRaw('COALESCE(emails_sent_this_hour, 0) < hourly_limit')
       )
       // Counter assignments come before the key assignments: MySQL evaluates
       // SET left to right with already-updated values.
-      .update({
-        emails_sent_today: knex.raw(
-          'CASE WHEN quota_day_key = ? THEN COALESCE(emails_sent_today, 0) + 1 ELSE 1 END',
-          [keys.day]
-        ),
-        emails_sent_this_hour: knex.raw(
-          'CASE WHEN quota_hour_key = ? THEN COALESCE(emails_sent_this_hour, 0) + 1 ELSE 1 END',
-          [keys.hour]
-        ),
-        quota_day_key: keys.day,
-        quota_hour_key: keys.hour,
-      });
+      .update(forwardOnlyQuotaUpdate(knex, keys));
     return affected > 0 ? 'reserved' : false;
   },
 
@@ -2148,11 +2244,13 @@ module.exports = ({ strapi }) => ({
     if (!db) return;
     const { knex, table } = db;
     const keys = quotaWindowKeys(new Date(), this.getQuotaTimeZone());
+    // Forward only: a process whose clock lags never resets a window that
+    // another process already opened.
     await knex(table)
-      .where((qb) => qb.whereNull('quota_hour_key').orWhereNot('quota_hour_key', keys.hour))
+      .where((qb) => qb.whereNull('quota_hour_key').orWhere('quota_hour_key', '<', keys.hour))
       .update({ emails_sent_this_hour: 0, quota_hour_key: keys.hour });
     await knex(table)
-      .where((qb) => qb.whereNull('quota_day_key').orWhereNot('quota_day_key', keys.day))
+      .where((qb) => qb.whereNull('quota_day_key').orWhere('quota_day_key', '<', keys.day))
       .update({ emails_sent_today: 0, quota_day_key: keys.day });
   },
 
@@ -2174,18 +2272,7 @@ module.exports = ({ strapi }) => ({
         last_used: now,
         updated_at: now,
       };
-      if (!countersReserved) {
-        update.emails_sent_today = knex.raw(
-          'CASE WHEN quota_day_key = ? THEN COALESCE(emails_sent_today, 0) + 1 ELSE 1 END',
-          [keys.day]
-        );
-        update.emails_sent_this_hour = knex.raw(
-          'CASE WHEN quota_hour_key = ? THEN COALESCE(emails_sent_this_hour, 0) + 1 ELSE 1 END',
-          [keys.hour]
-        );
-        update.quota_day_key = keys.day;
-        update.quota_hour_key = keys.hour;
-      }
+      if (!countersReserved) Object.assign(update, forwardOnlyQuotaUpdate(knex, keys));
       const affected = await knex(table).where({ document_id: documentId }).update(update);
       if (affected > 0) return;
     }

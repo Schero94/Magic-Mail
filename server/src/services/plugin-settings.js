@@ -1,9 +1,17 @@
 'use strict';
 
+const coordination = require('../utils/coordination');
+
 const SETTINGS_UID = 'plugin::magic-mail.plugin-settings';
 
 /** How long a loaded settings row is reused (per process). */
 const CACHE_TTL_MS = 10_000;
+/**
+ * Within the TTL a cache hit older than this re-checks the row's id and
+ * updated_at (one indexed single-row SELECT), so a change saved on another
+ * replica or pm2 worker is picked up within about a second.
+ */
+const REVALIDATE_MS = 1_000;
 
 const DEFAULT_SETTINGS = Object.freeze({
   enableLinkTracking: true,
@@ -20,14 +28,17 @@ const DEFAULT_SETTINGS = Object.freeze({
  * Plugin Settings Service
  *
  * The settings single type is read on every send. Reads are cached for a few
- * seconds (invalidated by updateSettings on this instance), the default row
- * is created by at most one caller per process, and duplicate rows left by
- * concurrent first sends (pre-4.0) are removed so every read sees the same
- * row (FUN-27).
+ * seconds (invalidated by updateSettings on this instance and revalidated
+ * against the row's updated_at about once a second, so other instances see
+ * changes quickly), the default row is created under a database lease by one
+ * caller across all processes, and duplicate rows left by concurrent first
+ * sends (pre-4.0) are removed so every read sees the same row (FUN-27).
  */
 module.exports = ({ strapi }) => {
   let cache = null;
   let cacheExpiresAt = 0;
+  let cacheStamp = null;
+  let checkedAt = 0;
   let creating = null;
   let duplicatesChecked = false;
 
@@ -52,6 +63,40 @@ module.exports = ({ strapi }) => {
     strapi.log.warn(`[magic-mail] [SETTINGS] Removed ${rows.length - 1} duplicate settings row(s)`);
   };
 
+  /** @param {unknown} value @returns {number|null} epoch ms */
+  const toMillis = (value) => {
+    if (value === null || value === undefined) return null;
+    const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+    const time = new Date(number).getTime();
+    return Number.isFinite(time) ? time : null;
+  };
+
+  /** @param {object|null} row @returns {string|null} */
+  const stampOf = (row) => (row ? `${row.id}:${toMillis(row.updatedAt)}` : null);
+
+  /**
+   * Reads id + updated_at of the current settings row directly. Returns
+   * undefined when no database connection exists or the read fails.
+   *
+   * @returns {Promise<string|null|undefined>}
+   */
+  const readStamp = async () => {
+    const db = coordination.getDb(strapi);
+    const model = coordination.modelTable(strapi, SETTINGS_UID);
+    if (!db || !model) return undefined;
+    try {
+      const query = db.schema
+        ? db.knex(model.tableName).withSchema(db.schema)
+        : db.knex(model.tableName);
+      const row = await query
+        .orderBy(model.column('id'), 'asc')
+        .first({ id: model.column('id'), updatedAt: model.column('updatedAt') });
+      return stampOf(row || null);
+    } catch {
+      return undefined;
+    }
+  };
+
   /**
    * Returns the settings row, creating the defaults once if none exists.
    *
@@ -70,14 +115,16 @@ module.exports = ({ strapi }) => {
     if (!creating) {
       creating = (async () => {
         try {
-          const again = await findCurrent();
-          if (again) return again;
-          const created = await documents().create({ data: { ...DEFAULT_SETTINGS } });
-          strapi.log.info('[magic-mail] [SETTINGS] Created default plugin settings');
-          // Another instance may have created a row at the same time.
-          await removeDuplicates();
-          duplicatesChecked = true;
-          return (await findCurrent()) || created;
+          return await coordination.withLease(strapi, 'plugin-settings-create', async () => {
+            const again = await findCurrent();
+            if (again) return again;
+            const created = await documents().create({ data: { ...DEFAULT_SETTINGS } });
+            strapi.log.info('[magic-mail] [SETTINGS] Created default plugin settings');
+            // A pre-4.3 instance may have created a row at the same time.
+            await removeDuplicates();
+            duplicatesChecked = true;
+            return (await findCurrent()) || created;
+          });
         } finally {
           creating = null;
         }
@@ -94,11 +141,18 @@ module.exports = ({ strapi }) => {
      */
     async getSettings() {
       const now = Date.now();
-      if (cache && now < cacheExpiresAt) return { ...cache };
+      if (cache && now < cacheExpiresAt) {
+        if (now - checkedAt < REVALIDATE_MS) return { ...cache };
+        const stamp = await readStamp();
+        checkedAt = Date.now();
+        if (stamp === undefined || stamp === cacheStamp) return { ...cache };
+      }
       try {
         const settings = await loadOrCreate();
         cache = settings;
+        cacheStamp = stampOf(settings);
         cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+        checkedAt = Date.now();
         return { ...settings };
       } catch (error) {
         strapi.log.error(
@@ -154,6 +208,8 @@ module.exports = ({ strapi }) => {
     clearCache() {
       cache = null;
       cacheExpiresAt = 0;
+      cacheStamp = null;
+      checkedAt = 0;
     },
   };
 };

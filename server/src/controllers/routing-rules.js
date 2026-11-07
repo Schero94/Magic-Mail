@@ -3,6 +3,7 @@
 const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
+const coordination = require('../utils/coordination');
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -133,7 +134,11 @@ module.exports = {
     try {
       const data = validate('routingRules.create', sanitizeRuleData(ctx.request.body));
       await assertAccountsExist(data);
-      const rule = await strapi.documents(ROUTING_RULE_UID).create({ data });
+      // Name uniqueness is checked by the application; the lease serialises
+      // check and insert across processes.
+      const rule = await coordination.withLease(strapi, 'routing-rule-names', () =>
+        strapi.documents(ROUTING_RULE_UID).create({ data })
+      );
 
       ctx.body = {
         data: rule,
@@ -165,10 +170,12 @@ module.exports = {
 
       const data = validate('routingRules.update', sanitizeRuleData(ctx.request.body));
       await assertAccountsExist(data);
-      const rule = await strapi.documents(ROUTING_RULE_UID).update({
-        documentId: ruleId,
-        data,
-      });
+      const rule = await coordination.withLease(strapi, 'routing-rule-names', () =>
+        strapi.documents(ROUTING_RULE_UID).update({
+          documentId: ruleId,
+          data,
+        })
+      );
 
       ctx.body = {
         data: rule,

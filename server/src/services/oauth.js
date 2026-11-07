@@ -1,6 +1,7 @@
 'use strict';
 
 const { encryptCredentials } = require('../utils/encryption');
+const coordination = require('../utils/coordination');
 
 /**
  * OAuth Service
@@ -677,30 +678,33 @@ module.exports = ({ strapi }) => ({
       .trim()
       .toLowerCase();
     const isPrimary = accountDetails.isPrimary || false;
-    // Keep the single-primary invariant.
-    if (isPrimary) {
-      await strapi.plugin('magic-mail').service('account-manager').unsetAllPrimary();
-    }
-
-    const account = await strapi.documents('plugin::magic-mail.email-account').create({
-      data: {
-        name: accountDetails.name || email,
-        description: accountDetails.description ?? null,
-        provider: `${provider}-oauth`,
-        config: encryptCredentials(configToStore),
-        oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
-        fromEmail: email,
-        fromName: accountDetails.fromName || email.split('@')[0],
-        replyTo: (accountDetails.replyTo || email).trim().toLowerCase(),
-        isActive: accountDetails.isActive !== undefined ? accountDetails.isActive : true,
-        isPrimary,
-        priority: accountDetails.priority ?? 1,
-        dailyLimit: accountDetails.dailyLimit ?? 0,
-        hourlyLimit: accountDetails.hourlyLimit ?? 0,
-        emailsSentToday: 0,
-        emailsSentThisHour: 0,
-        totalEmailsSent: 0,
-      },
+    // Same database lease as account-manager create/update: the primary
+    // switch and the name check can not interleave across processes.
+    const account = await coordination.withLease(strapi, 'email-accounts', async () => {
+      // Keep the single-primary invariant.
+      if (isPrimary) {
+        await strapi.plugin('magic-mail').service('account-manager').unsetAllPrimary();
+      }
+      return strapi.documents('plugin::magic-mail.email-account').create({
+        data: {
+          name: accountDetails.name || email,
+          description: accountDetails.description ?? null,
+          provider: `${provider}-oauth`,
+          config: encryptCredentials(configToStore),
+          oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
+          fromEmail: email,
+          fromName: accountDetails.fromName || email.split('@')[0],
+          replyTo: (accountDetails.replyTo || email).trim().toLowerCase(),
+          isActive: accountDetails.isActive !== undefined ? accountDetails.isActive : true,
+          isPrimary,
+          priority: accountDetails.priority ?? 1,
+          dailyLimit: accountDetails.dailyLimit ?? 0,
+          hourlyLimit: accountDetails.hourlyLimit ?? 0,
+          emailsSentToday: 0,
+          emailsSentThisHour: 0,
+          totalEmailsSent: 0,
+        },
+      });
     });
 
     strapi.log.info('[magic-mail] [SUCCESS] OAuth email account created');
@@ -735,13 +739,22 @@ module.exports = ({ strapi }) => ({
       throw error;
     }
 
-    const updated = await strapi.documents('plugin::magic-mail.email-account').update({
-      documentId: account.documentId,
-      data: {
-        // A reconnect starts from a fresh token set; old tokens are dropped.
-        oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
-      },
-    });
+    // Same lease as the token refresh in email-router: a refresh that is
+    // running on another process finishes first, and the next refresh reads
+    // these new tokens instead of overwriting them.
+    const updated = await coordination.withLease(
+      strapi,
+      `oauth-refresh:${account.documentId}`,
+      () =>
+        strapi.documents('plugin::magic-mail.email-account').update({
+          documentId: account.documentId,
+          data: {
+            // A reconnect starts from a fresh token set; old tokens are dropped.
+            oauth: this.buildOAuthBlob(null, { ...tokenData, email }),
+          },
+        }),
+      { ttlMs: 60_000, waitMs: 30_000 }
+    );
 
     strapi.log.info('[magic-mail] [SUCCESS] OAuth account reconnected');
     return updated;

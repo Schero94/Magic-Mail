@@ -22,6 +22,16 @@ module.exports = {
       // pinned in the admin bundle.
       version: null,
     },
+    rateLimit: {
+      // Where request counters live. 'database' (default) shares them across
+      // every process through the Strapi database, so the limits hold with
+      // several replicas or pm2 workers. 'redis' uses `rateLimit.redis` (an
+      // ioredis or node-redis v4+ client you create) and falls back to the
+      // database on errors. 'memory' counts per process (single instance).
+      store: 'database',
+      // Key prefix for the redis store.
+      redisPrefix: 'magic-mail:rl:',
+    },
     // IANA time zone for hourly/daily account quota windows.
     quotaTimezone: 'UTC',
     tracking: {
@@ -116,6 +126,35 @@ module.exports = {
         throw new Error(
           '[magic-mail] config.designer.version must be an exact version such as "1.524.0"'
         );
+      }
+    }
+    if (config?.rateLimit !== undefined) {
+      const rateLimit = config.rateLimit;
+      if (typeof rateLimit !== 'object' || rateLimit === null || Array.isArray(rateLimit)) {
+        throw new Error('[magic-mail] config.rateLimit must be an object');
+      }
+      if (
+        rateLimit.store !== undefined &&
+        !['database', 'redis', 'memory'].includes(rateLimit.store)
+      ) {
+        throw new Error(
+          "[magic-mail] config.rateLimit.store must be 'database', 'redis' or 'memory'"
+        );
+      }
+      if (rateLimit.store === 'redis') {
+        const client = rateLimit.redis;
+        const hasIncr =
+          client && (typeof client.incrby === 'function' || typeof client.incrBy === 'function');
+        const hasExpire =
+          client && (typeof client.pexpire === 'function' || typeof client.pExpire === 'function');
+        if (!hasIncr || !hasExpire) {
+          throw new Error(
+            "[magic-mail] config.rateLimit.redis must be an ioredis or node-redis client when store is 'redis'"
+          );
+        }
+      }
+      if (rateLimit.redisPrefix !== undefined && typeof rateLimit.redisPrefix !== 'string') {
+        throw new Error('[magic-mail] config.rateLimit.redisPrefix must be a string');
       }
     }
     if (config?.quotaTimezone !== undefined) {
