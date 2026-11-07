@@ -52,7 +52,7 @@ test('README describes email designer features as fully included', () => {
   );
   assert.match(
     readme,
-    /\|\s*\*\*Unlimited Templates\*\*\s*\|\s*✅\s*\|/u,
+    /\|\s*Unlimited templates\s*\|\s*Yes\s*\|/iu,
     'README must state that templates are unlimited'
   );
 });

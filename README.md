@@ -1,31 +1,38 @@
-# MagicMail: email accounts, routing and templates for Strapi 5
+# MagicMail for Strapi 5
 
-Project site: https://schero94.github.io/Magic-Mail/
+Send every Strapi email through the right account: several SMTP and API accounts, routing rules, quotas, failover that never doubles a mail, an outbox with retries, templates and delivery tracking, all inside the Strapi admin.
 
-[![NPM Version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Strapi Version](<https://img.shields.io/badge/Strapi-5.57%2B%20(tested%205.61)-blue.svg>)](https://strapi.io)
+[![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
+[![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
+[![CI](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml/badge.svg)](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-schero94.github.io%2FMagic--Mail-6d4aff.svg)](https://schero94.github.io/Magic-Mail/)
 
-MagicMail adds a mail desk to the Strapi admin. You connect one or more sending accounts (Gmail, Microsoft 365, Yahoo, any SMTP server, SendGrid or Mailgun), decide with routing rules which account sends which email, design templates, and see what was delivered, opened and clicked.
+Live docs: https://schero94.github.io/Magic-Mail/
 
-It plugs into the Strapi email service you already use. Code that calls `strapi.plugin('email').service('email').send()`, Strapi's own password-reset mail and every Users & Permissions mail go through MagicMail without changes.
+![MagicMail email accounts screen: three SMTP accounts with priority, usage today against the daily limit and total sent](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/accounts.webp)
 
-MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or usage limits.
+Your code keeps calling `strapi.plugin('email').service('email').send()`. Strapi's password-reset mail and every Users & Permissions mail go through MagicMail without changes. MagicMail picks the account, reserves its quota, logs the mail and tells you what happened to it.
 
-**At a glance**
+MagicMail sends email only. It is MIT licensed, with no license key, tiers or usage limits.
 
-- 6 providers: Gmail, Microsoft 365 and Yahoo with OAuth 2.0, SMTP (optional DKIM), SendGrid, Mailgun
-- Routing rules by email type, recipient, subject, template or a custom value, with a fallback account
-- Hourly and daily quotas per account, reserved atomically, with safe failover
-- Template designer: visual editor (Unlayer) or plain HTML/text, Mustache variables, versions, import/export
-- Delivery log with privacy-friendly open and click tracking and configurable retention
-- Credentials encrypted with AES-256-GCM; secrets never reach the browser
-- Admin UI in English, German, French, Spanish and Portuguese, light and dark mode
+## What you get
+
+- **Six providers.** Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server (optional DKIM), SendGrid and Mailgun. Credentials are encrypted with AES-256-GCM and never reach the browser.
+- **Routing rules.** Choose the account by email type, recipient, subject, template or a custom value, with a fallback account per rule.
+- **Quotas and safe failover.** Hourly and daily limits per account, reserved atomically. When an account fails, the next one is tried only if the error proves the provider did not take the mail, so a mail is never delivered twice by failover.
+- **Outbox with retries.** Opt-in per send or for every failed send: 3 retries by default (after 1, 5 and 15 minutes, configurable from 1 to 10), idempotency keys, and an Outbox tab where you retry, discard or mark uncertain mails as sent.
+- **Delivery webhooks.** Signed SendGrid and Mailgun bounce and complaint webhooks update the delivery log and emit events other plugins can listen to.
+- **Templates.** A visual editor (Unlayer) or plain HTML and text, Mustache variables, versions with restore, import and export, plus the Users & Permissions reset and confirmation mails.
+- **Analytics.** A delivery log with server-side search, open and click tracking with truncated IPs and configurable retention.
+- **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
+- **Admin in five languages.** English, German, French, Spanish and Portuguese, in light and dark mode.
 
 ## Contents
 
-- [Screenshots](#screenshots)
 - [Quick start](#quick-start)
+- [Compatibility](#compatibility)
+- [Screenshots](#screenshots)
 - [Sending email](#sending-email)
 - [Provider setup](#provider-setup)
 - [Routing rules and quotas](#routing-rules-and-quotas)
@@ -38,116 +45,111 @@ MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or
 - [Configuration reference](#configuration-reference)
 - [Retries and the outbox](#retries-and-the-outbox)
 - [Running several instances (Railway replicas, pm2 cluster)](#running-several-instances-railway-replicas-pm2-cluster)
+- [Security and privacy](#security-and-privacy)
 - [Troubleshooting](#troubleshooting)
-- [Upgrading to 4.0.0](#upgrading-to-400)
-- [Development](#development)
-
----
-
-## Screenshots
-
-The screenshots show synthetic demo data (`example.test` addresses) on Strapi 5.61.
-
-### Email accounts
-
-![Email accounts list with usage, quotas and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/EmailAccountDashboard.png)
-_Accounts table with status, provider, priority, today's usage against the daily limit, total sent, last used, and edit, test and delete actions. Below 768 px each row becomes a card._
-
-### Account wizard
-
-![Add email account wizard, provider step](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Emailaddccount1.png)
-_Four steps: provider, details, credentials, settings. OAuth providers connect in a popup._
-
-### Routing rules
-
-![Routing rules list in evaluation order](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/RoutingEmailTemplates.png)
-_Rules table in evaluation order with status, match type and value, target and fallback account, and priority. Rules that point to a missing or inactive account are flagged._
-
-### Templates
-
-![Template list with categories, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Templates.png)
-_Templates table with Reference ID, category and status; edit, download as HTML or JSON, duplicate, code snippets, test send and delete. Shows 5, 10, 25 or 50 entries per page._
-
-### Template editor
-
-![Template editor with the visual designer](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailDesigner.png)
-_Template editor. For this screenshot the Unlayer canvas was replaced by a local stand-in, so no request went to Unlayer; the real editor looks different inside the canvas._
-
-### Analytics
-
-![Analytics with totals and the delivery log](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalytics.png)
-_Totals and the delivery log table with server-side search and paging, delivery status, opens and clicks per email._
-
-### Plugin settings
-
-![Plugin settings for tracking and unsubscribe headers](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/pluginSettings.png)
-_Settings → MagicMail → Plugin Settings: link and open tracking, tracking base URL, unsubscribe header, default sender name._
-
-### Dark mode and mobile
-
-![Analytics in dark mode](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalyticsDark.png)
-
-| Accounts at 390 px                                                                                         | Routing rules at 390 px                                                                                             |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| ![Accounts on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/mobileAccounts.png) | ![Routing rules on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/mobileRoutingRules.png) |
+- [FAQ](#faq)
+- [Migration notes](#migration-notes)
+- [Contributing](#contributing)
 
 ---
 
 ## Quick start
 
-### Requirements
-
-- Node.js `>=22.12.0 <=26.x.x`
-- Strapi `^5.57.0` (developed and tested against 5.61)
-- `@strapi/plugin-users-permissions` `^5.57.0` (part of every default Strapi app; the email log links to its users)
-- Outside development and test: the environment variable `MAGIC_MAIL_ENCRYPTION_KEY` (see [Environment variables](#environment-variables))
-
-### 1. Install
+About a minute in an existing Strapi 5 project:
 
 ```bash
 npm install strapi-plugin-magic-mail
+# yarn add strapi-plugin-magic-mail  |  pnpm add strapi-plugin-magic-mail
 ```
 
-### 2. Enable
-
 ```javascript
-// config/plugins.js (or config/plugins.ts with export default)
+// config/plugins.js (config/plugins.ts: export default () => ({ ... }))
 module.exports = () => ({
-  'magic-mail': {
-    enabled: true,
-  },
+  'magic-mail': { enabled: true },
 });
 ```
 
-### 3. Set the encryption key
-
 ```bash
-# Generate once and keep it with your other secrets
+# Outside development and test MagicMail needs an encryption key. Generate it once and keep it.
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-```env
+# .env
 MAGIC_MAIL_ENCRYPTION_KEY=<the generated value>
 ```
-
-Keep the key stable. Losing it makes the stored account credentials unreadable.
-
-### 4. Build and start
 
 ```bash
 npm run build
 npm run develop
 ```
 
-### 5. Add an account and send a test
+Open **MagicMail → Email Accounts**, click **Add account**, pick a provider (see [Provider setup](#provider-setup)) and use the account's **Test** action with your own address. From now on every `strapi.plugin('email')` call goes through MagicMail.
 
-1. Open **MagicMail → Email Accounts** in the admin and click **Add account**.
-2. Pick a provider and enter the details (see [Provider setup](#provider-setup)).
-3. Click the **Test** action on the account, enter your own address and choose **Direct test**.
+Keep the encryption key stable: without it the stored account credentials cannot be read. Super admins see MagicMail right away; other roles need the [permissions](#permissions) `access` and `read`.
 
-Every existing `strapi.plugin('email')` call now goes through MagicMail.
+## Compatibility
 
-Upgrading from 3.x? Read [Upgrading to 4.0.0](#upgrading-to-400) first.
+| MagicMail | Strapi                                     | Node.js                                       | Databases                                                                                |
+| --------- | ------------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 4.x       | `^5.57.0` (acceptance host: Strapi 5.61.0) | `>=22.12.0 <=26.x.x` (CI runs Node 22 and 24) | PostgreSQL, MySQL 8, SQLite. Several processes: PostgreSQL tested, MySQL not load-tested |
+| 3.1       | `^5.57.0`                                  | `>=20.19.0 <=26.x.x`                          | as Strapi                                                                                |
+
+- Peer dependencies: `@strapi/strapi`, `@strapi/plugin-users-permissions` (every default Strapi app has it; the email log links to its users), `react`, `react-dom`, `react-router-dom` and `styled-components` as in a `create-strapi-app` project. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers, which the Strapi admin provides.
+- The packed plugin installs without plugin warnings into a fresh `create-strapi-app@5.61` project with yarn 1, npm 11 and pnpm.
+- The minimum Strapi version is 5.57.0, the first release whose admin ships Design System 2.2.4, the version the MagicMail admin uses.
+
+## Screenshots
+
+All screenshots show synthetic data (`example.test` addresses) on an isolated Strapi 5.61 host.
+
+### Email accounts
+
+![Email accounts: stat cards and a table of three SMTP accounts with status, provider, priority, usage today against the daily limit, total sent and last used](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/accounts.webp)
+_Accounts with status, provider, priority, today's usage against the daily limit, total sent and last use, plus edit, test and delete. Below 768 px each row becomes a card._
+
+### Outbox
+
+![Outbox: two retrying mails with 2 of 4 attempts, one uncertain mail with the code ECONNECTION and one failed mail with SMTP_451](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/outbox.webp)
+_Mails waiting for a retry, failed for good, or uncertain, with attempts, next try or last error code. Retry now, Mark as sent and Discard per row._
+
+![Outbox details of an uncertain mail: recipient, subject, attempts, not-sent-after time, an explanation that the provider may have received it, and the error history](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/outbox-uncertain.webp)
+_Details of an uncertain mail. The error history stores codes and account names only, never the provider's message or the mail content._
+
+### Account wizard
+
+![Add email account wizard, provider step](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/account-wizard.webp)
+_Four steps: provider, details, credentials, settings. OAuth providers connect in a popup._
+
+### Routing rules
+
+![Routing rules in evaluation order with status, match type and value, target and fallback account, and priority](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/routing-rules.webp)
+_Rules in evaluation order. Rules that point to a missing or inactive account are flagged._
+
+### Templates
+
+![Template list with categories, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/templates.webp)
+_Templates with Reference ID, category and status; edit, download as HTML or JSON, duplicate, code snippets, test send and delete._
+
+![Template editor with the visual designer](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/template-editor.webp)
+_Template editor. For this screenshot the Unlayer canvas was replaced by a local stand-in, so no request went to Unlayer; the real editor looks different inside the canvas._
+
+### Analytics
+
+![Analytics with totals and the delivery log](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/analytics.webp)
+_Totals and the delivery log with server-side search and paging, delivery status, opens and clicks per email._
+
+### Settings
+
+![Plugin settings: default sender and the Retries and outbox section with the Queue failed sends switch and Retries per mail](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/settings-retries.webp)
+_Settings → MagicMail → Plugin Settings. Tracking, unsubscribe header, default sender, and the "Retries and outbox" section._
+
+### Dark mode and mobile
+
+![Analytics in dark mode](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/analytics-dark.webp)
+
+| Accounts at 390 px                                                                                                    | Routing rules at 390 px                                                                                                         | Outbox at 390 px, dark                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| ![Accounts on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/mobile-accounts.webp) | ![Routing rules on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/mobile-routing-rules.webp) | ![Outbox on a phone in dark mode](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/mobile-outbox-dark.webp) |
+
+On narrow screens the section tabs scroll sideways; edge buttons show that more sections exist, and the active section stays in view.
 
 ---
 
@@ -388,15 +390,15 @@ Examples:
 
 Everything in the designer is included, with no tiers:
 
-| Feature                           | Included |
-| --------------------------------- | -------- |
-| **Visual Designer (Unlayer)**     | ✅       |
-| **Plain HTML/Text editing**       | ✅       |
-| **Unlimited Templates**           | ✅       |
-| **Mustache Variables**            | ✅       |
-| **Import / Export**               | ✅       |
-| **Template Versioning**           | ✅       |
-| **Users & Permissions templates** | ✅       |
+| Feature                       | Included |
+| ----------------------------- | -------- |
+| Visual designer (Unlayer)     | Yes      |
+| Plain HTML and text editing   | Yes      |
+| Unlimited templates           | Yes      |
+| Mustache variables            | Yes      |
+| Import and export             | Yes      |
+| Template versions             | Yes      |
+| Users & Permissions templates | Yes      |
 
 ### Creating templates
 
@@ -573,6 +575,8 @@ The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.
 | `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, template |
 | `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                           |
 | `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click redirect                                                                |
+| `POST` | `/api/magic-mail/webhooks/sendgrid/:accountId`                  | signature | SendGrid bounce and complaint events ([details](#bounces-and-complaints))     |
+| `POST` | `/api/magic-mail/webhooks/mailgun/:accountId`                   | signature | Mailgun bounce and complaint events ([details](#bounces-and-complaints))      |
 
 ### The API token rule
 
@@ -668,6 +672,8 @@ All admin routes live under `/magic-mail` on the Strapi server (not `/api`), req
 | Analytics     | `GET /analytics/stats`, `GET /analytics/emails`, `GET /analytics/emails/:emailId`, `GET /analytics/users/:userId`                                                                                                                                                     | `read`                                                        |
 |               | `DELETE /analytics/emails/:emailId`, `DELETE /analytics/emails`                                                                                                                                                                                                       | `manage`                                                      |
 |               | `GET /analytics/debug` (only with `MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT=true`, never in production)                                                                                                                                                                       | `read`                                                        |
+| Outbox        | `GET /outbox`, `GET /outbox/:documentId`, `GET /analytics/queue-stats`                                                                                                                                                                                                | `queue.read`                                                  |
+|               | `POST /outbox/:documentId/retry`, `POST /outbox/:documentId/discard`, `POST /outbox/:documentId/mark-sent`, `DELETE /outbox`                                                                                                                                          | `queue.manage`                                                |
 | Settings      | `GET /settings` / `PUT /settings`                                                                                                                                                                                                                                     | `read` / `manage`                                             |
 
 Test sends (`/accounts/:accountId/test`, `/test-strapi-service`, `/designer/templates/:id/test-send`) are limited to 10 per minute per admin.
@@ -845,6 +851,25 @@ module.exports = () => ({
 });
 ```
 
+| Key                           | Type                                | Default                                      | Effect                                                                                              |
+| ----------------------------- | ----------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `debug`                       | boolean                             | `false`                                      | Info and debug logs; warnings and errors are always logged                                          |
+| `contentApi.allowUserRoles`   | boolean                             | `false`                                      | Let users-permissions roles call the Content API send routes                                        |
+| `quotaTimezone`               | IANA zone                           | `'UTC'`                                      | Time zone of the hourly and daily quota windows                                                     |
+| `tracking.eventRetentionDays` | integer >= 0                        | `90`                                         | Delete open and click events after this many days (0 = keep)                                        |
+| `tracking.linkTtlDays`        | integer >= 0                        | `180`                                        | Tracked links redirect this long (0 = forever)                                                      |
+| `tracking.logRetentionDays`   | integer >= 0                        | `0`                                          | Delete email logs with their events and links (0 = keep)                                            |
+| `tracking.maxLinksPerEmail`   | integer >= 0                        | `100`                                        | Further links stay untracked                                                                        |
+| `tracking.allowedLinkHosts`   | string[]                            | `[]`                                         | Hosts that may be click-tracked (see below)                                                         |
+| `tracking.anonymizeIp`        | boolean                             | `true`                                       | Store IPs truncated to /24 (IPv4) or /48 (IPv6)                                                     |
+| `designer.projectId`          | positive integer or `null`          | `null`                                       | Your own Unlayer project id                                                                         |
+| `designer.scriptUrl`          | https URL or `null`                 | `null`                                       | Self-hosted Unlayer `embed.js`                                                                      |
+| `designer.version`            | string or `null`                    | `null`                                       | Exact Unlayer build                                                                                 |
+| `rateLimit.store`             | `'database'`, `'redis'`, `'memory'` | `'database'`                                 | Where rate-limit counters live ([details](#running-several-instances-railway-replicas-pm2-cluster)) |
+| `rateLimit.redis`             | Redis client                        | none                                         | ioredis or node-redis v4+ client for `store: 'redis'`                                               |
+| `rateLimit.redisPrefix`       | string                              | `'magic-mail:rl:'`                           | Key prefix in Redis                                                                                 |
+| `queue.*`                     | object                              | see [Retries and the outbox](#configuration) | Outbox worker, retries, limits and retention                                                        |
+
 `allowedLinkHosts` empty means: every host may be click-tracked for admin, service and native sends, and **no** host for Content-API sends. When the list is set, it applies to all sends.
 
 ### Admin settings
@@ -983,6 +1008,24 @@ module.exports = () => ({
 });
 ```
 
+| Key                              | Default                   | Allowed                               | Effect                                           |
+| -------------------------------- | ------------------------- | ------------------------------------- | ------------------------------------------------ |
+| `queue.worker`                   | `true`                    | boolean                               | `false`: this process never sends queued mail    |
+| `queue.pollIntervalMs`           | `10000`                   | 1000 to 3600000                       | Poll interval, plus up to 50 % jitter            |
+| `queue.batchSize`                | `5`                       | 1 to 100                              | Mails claimed per poll                           |
+| `queue.concurrency`              | `2`                       | 1 to 20                               | Parallel queued sends per process                |
+| `queue.leaseMs`                  | `180000`                  | 30000 to 3600000                      | Claim timeout; must exceed the bounded send time |
+| `queue.backoffMs`                | `[60000, 300000, 900000]` | 1 to 10 values, 1000 to 86400000 each | Wait before retry 1, 2, 3, ...                   |
+| `queue.jitterRatio`              | `0.2`                     | 0 to 0.9                              | Random spread of each wait                       |
+| `queue.maxAgeHours`              | `24`                      | 1 to 720                              | Default `notAfter` of a queued mail              |
+| `queue.maxPayloadBytes`          | `10485760` (10 MiB)       | 1024 to 20971520                      | Larger mails are not queued                      |
+| `queue.maxDispatchPerMinute`     | `120`                     | 1 to 100000                           | Queued sends per minute across all processes     |
+| `queue.retention.sentDays`       | `7`                       | 1 to 3650                             | Remove sent and discarded rows                   |
+| `queue.retention.unresolvedDays` | `14`                      | 1 to 3650                             | Keep the content of failed and uncertain mails   |
+| `queue.retention.rowDays`        | `30`                      | 1 to 3650                             | Remove failed and uncertain rows                 |
+
+Invalid values stop Strapi at startup with a message naming the key.
+
 ### Several instances (Railway, pm2)
 
 The outbox needs nothing beyond the [multi-instance setup](#running-several-instances-railway-replicas-pm2-cluster): one database and identical secrets (`MAGIC_MAIL_ENCRYPTION_KEY` must be the same everywhere, or a worker can not read a mail queued on another replica).
@@ -999,7 +1042,7 @@ The outbox needs nothing beyond the [multi-instance setup](#running-several-inst
 - Retries are evaluated against the routing rules at retry time, prefer another account than the one that failed last (the same one if it is the only one), and never replace an explicitly requested account.
 - The worker does not use the original Strapi email provider as a fallback. That is why a native Strapi mail is not captured when no MagicMail account exists at all.
 - Queued OAuth sends (Gmail, Microsoft, Yahoo) bound the token refresh to 30 seconds and re-check the claim after it, right before the provider request. A process that lost its claim during a slow refresh does not send.
-- Inline failover between accounts uses the same strict rules as the queue. Before this release it also moved on after a connection lost after DATA and after HTTP 500/502, which in rare cases delivered a mail twice.
+- Inline failover between accounts uses the same strict rules as the queue. Up to 4.4.0 it also moved on after a connection lost after DATA and after HTTP 500/502, which in rare cases delivered a mail twice (see [Migration notes](#migration-notes)).
 - Outbox indexes are declared through Strapi's content-type `indexes` key, which Strapi 5.61 supports but does not document; a test pins it.
 
 ---
@@ -1112,6 +1155,24 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 
 ---
 
+## Security and privacy
+
+- **Credentials.** SMTP passwords, API keys, OAuth tokens and DKIM keys are encrypted with AES-256-GCM (key derived from `MAGIC_MAIL_ENCRYPTION_KEY` with HKDF). The admin API returns the placeholder `********` instead of a secret, and changing the host, user, provider or OAuth client requires the secret again.
+- **Admin routes.** Every route needs an authenticated administrator plus the capability listed in [Permissions](#permissions). `access` only shows the menu entry.
+- **Content API.** The send routes accept API tokens only (users-permissions roles only with `contentApi.allowUserRoles`), reject unknown fields, file-path and URL attachments, and share 60 requests per minute per token across all instances. Never enable them for the _Public_ role.
+- **What goes out.** HTML is sanitised, `from` is pinned to the sending account's address, custom headers are allowlisted, and SMTP requires TLS 1.2 or newer with certificate checks (unless `allowInsecure` is set on a non-production or loopback host).
+- **OAuth.** Callbacks are public but use a signed, single-use state with PKCE, bound to the admin who started the flow and stored in the database.
+- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and provider messages and addresses are not stored.
+- **Tracking.** Open and click events keep IPs truncated to /24 or /48 and no location, and expire after 90 days (links after 180 days). Authentication links are never tracked. Mention tracking in your privacy notice.
+- **Outbox.** Queued mails are stored encrypted and deleted once sent or discarded; the admin API and the Outbox tab never show mail content. `forgetRecipient(address)` removes a recipient's queued mails.
+- **Logs.** MagicMail's log lines carry error names and codes, not recipient addresses or message content.
+- **Third parties.** Mails go only to the providers you configure. The visual template editor loads Unlayer's editor in the admin's browser (see [the visual editor and privacy](#the-visual-editor-unlayer-and-privacy)); the plain HTML editor needs no third party.
+- **Supply chain.** Releases are published from GitHub Actions with npm provenance.
+
+**Reporting a vulnerability:** use [GitHub private vulnerability reporting](https://github.com/Schero94/Magic-Mail/security/advisories/new). Please do not open a public issue for security problems.
+
+---
+
 ## Troubleshooting
 
 **Email not received**
@@ -1147,7 +1208,59 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 
 ---
 
-## Upgrading to 4.0.0
+## FAQ
+
+**Do I have to change my existing email code?**
+No. MagicMail wraps the provider of `@strapi/email` at startup, so `strapi.plugin('email').service('email').send()` and `sendTemplatedEmail()`, Strapi's admin password reset and the Users & Permissions mails are routed through it. Use the [router service](#option-2-the-magicmail-router-service) only when you need its extra options.
+
+**What happens when no account can send?**
+For mails sent through the Strapi email service, the email provider you configured before takes over when no MagicMail account is active or every eligible account is over its quota. The router service and the Content API return the error instead. With _Queue failed sends_ on, a mail blocked only by quotas is retried in the next quota hour.
+
+**Can a mail be delivered twice?**
+Not because of MagicMail's own retries. Failover tries another account only when the error proves the provider did not take the mail, and the outbox never re-sends an uncertain mail on its own. You decide in the Outbox tab whether to retry it or mark it as sent. Idempotency keys stop the same mail from being queued twice.
+
+**Do I need Redis or sticky sessions for several replicas?**
+No. Quotas, rate limits, OAuth flows and the outbox are coordinated through the database. Redis is optional for the rate limiter. See [Running several instances](#running-several-instances-railway-replicas-pm2-cluster).
+
+**Is the outbox on by default?**
+No. It stays off until you pass `queue: true` to a send or switch on _Queue failed sends_. Without either, `send()` behaves as before.
+
+**My login or magic-link mails must not arrive late. What should I do?**
+Send them with `queue: false`, or pass `notAfter` set to the token expiry. MagicMail never sends a queued mail after `notAfter`.
+
+**Which providers report bounces?**
+SendGrid and Mailgun, through signed webhooks you enable per account. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook.
+
+**Does the visual editor send data to a third party?**
+The Unlayer editor loads from `editor.unlayer.com` in the browser of each editor user; images go to your Strapi Media Library. The plain HTML and text editor works without Unlayer, and sending templates never needs it.
+
+**Is there a paid version or a license key?**
+No. MagicMail is MIT licensed with no tiers or usage limits.
+
+---
+
+## Migration notes
+
+The full list is in [CHANGELOG.md](./CHANGELOG.md). Upgrade one minor or major at a time and read each step.
+
+### Upgrading to the next release (after 4.4.0)
+
+1. **Stricter failover.** A send whose account fails with HTTP 500/502/504, a timeout, or an SMTP connection lost after the message was transmitted now throws instead of trying the next account, because that provider may already have delivered it. SMTP `4xx` replies (also `451` after DATA) and HTTP 408 now fail over. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
+2. **Packaging.** `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers instead of dependencies, and `@strapi/utils` is a dependency. Nothing to do in a standard Strapi project; the admin build uses Strapi's own copies.
+
+### Upgrading to 4.4
+
+1. Nothing changes until you pass `queue: true` or switch on _Queue failed sends_.
+2. Roles that had `read` get `queue.read`, roles that had `manage` get `queue.manage`, once at startup. Remove them in the role editor if a role should not see failed mails.
+3. Callers with their own fallback (for example Magic Link) should send with `queue: false` or a `notAfter`, or their fallback no longer runs while _Queue failed sends_ is on.
+4. Several instances need the same `MAGIC_MAIL_ENCRYPTION_KEY` to send mails queued by another instance.
+5. MySQL: `SKIP LOCKED` is unsafe for statement-based replication; use row-based replication.
+
+### Upgrading to 4.3
+
+No action for a single instance. For several instances read [Running several instances](#running-several-instances-railway-replicas-pm2-cluster): one database, identical `APP_KEYS`, `MAGIC_MAIL_ENCRYPTION_KEY`, `MAGIC_MAIL_TRACKING_SECRET` and `MAGIC_MAIL_OAUTH_STATE_SECRET`, and `server.proxy.koa: true` behind a proxy.
+
+### Upgrading to 4.0.0
 
 4.0.0 is a major release with security and correctness changes. **Back up the database first**: credentials are re-encrypted in a format 3.x cannot read, and two legacy routing-rule columns are dropped. The full list with migration notes is in [CHANGELOG.md](./CHANGELOG.md).
 
@@ -1170,7 +1283,15 @@ Breaking changes and what to do:
 
 ---
 
-## Development
+## Contributing
+
+Bug reports, fixes and documentation improvements are welcome.
+
+- **Bug?** [Open a bug report](https://github.com/Schero94/Magic-Mail/issues/new?template=bug-report.yml) with your Strapi, Node.js and MagicMail versions and the `[magic-mail]` log lines (remove addresses and secrets first).
+- **Idea?** [Open a feature request](https://github.com/Schero94/Magic-Mail/issues/new?template=feature-request.yml).
+- **Security issue?** See [Security and privacy](#security-and-privacy).
+
+Development setup:
 
 ```bash
 npm ci --ignore-scripts
@@ -1182,16 +1303,21 @@ npm run verify
 npm run verify:runtime
 ```
 
-`npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change. Pull requests run the same checks on Node 22 and 24.
-
-- **Bug?** [Open an issue](https://github.com/Schero94/Magic-Mail/issues)
-- **Idea?** [Start a discussion](https://github.com/Schero94/Magic-Mail/discussions)
+`npm run test:multi-instance` runs the multi-process suite (set `MAGIC_MAIL_TEST_PG_URL` for PostgreSQL). `npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change. Pull requests run the same checks on Node 22 and 24. Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `docs:`); releases are cut from `main` by semantic-release.
 
 ### Dependency audits
 
 Run `npm audit` from your Strapi project root to check the complete installed tree; npm applies overrides from the root project only.
 
-Known host-side advisory: `npm audit --omit=dev` in this repository reports GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6) inside `@strapi/utils`, which the Strapi host provides. MagicMail validates every request with its own patched zod (`^4.6.7`) and bounds all collections, so the advisory is not reachable through MagicMail inputs. It disappears once your Strapi version ships a fixed zod.
+Known host-side advisory: `npm audit --omit=dev` in this repository reports GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6) inside `@strapi/utils`, which resolves to the Strapi host's own copy. MagicMail validates every request with its own patched zod (`^4.6.7`) and bounds all collections, so the advisory is not reachable through MagicMail inputs. It disappears once your Strapi version ships a fixed zod.
+
+### Maintenance status
+
+Actively maintained. Releases follow semantic versioning and support the Strapi 5 line.
+
+### Languages
+
+The admin UI is available in English, German, French, Spanish and Portuguese.
 
 ---
 
