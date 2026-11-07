@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
+const { routingRuleEvaluationSort } = require('../utils/routing-order');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -1375,7 +1376,7 @@ module.exports = ({ strapi }) => ({
     // priority are evaluated in the order shown: oldest rule first.
     const allRules = await strapi.documents(ROUTING_RULE_UID).findMany({
       filters: { isActive: true },
-      sort: [{ priority: 'desc' }, { createdAt: 'asc' }],
+      sort: routingRuleEvaluationSort(),
     });
 
     const byName = (name) => {

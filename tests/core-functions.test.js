@@ -331,3 +331,82 @@ test('selectAccount evaluates rules in the admin list order (priority desc, then
   await r.selectAccount('transactional', 'normal', [], { to: 'a@example.test' });
   assert.deepEqual(ruleSort, [{ priority: 'desc' }, { createdAt: 'asc' }]);
 });
+
+test('equal-priority rules: the router picks the rule listed first by GET /routing-rules', async () => {
+  const { routingRuleEvaluationSort } = require('../server/src/utils/routing-order');
+  // Stored in an order that differs from the evaluation order on purpose.
+  const rules = [
+    {
+      name: 'Newer',
+      isActive: true,
+      priority: 5,
+      createdAt: '2026-02-01T00:00:00.000Z',
+      matchType: 'emailType',
+      matchValue: 'transactional',
+      accountName: 'Newer account',
+    },
+    {
+      name: 'Low',
+      isActive: true,
+      priority: 1,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      matchType: 'emailType',
+      matchValue: 'transactional',
+      accountName: 'Low account',
+    },
+    {
+      name: 'Older',
+      isActive: true,
+      priority: 5,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      matchType: 'emailType',
+      matchValue: 'transactional',
+      accountName: 'Older account',
+    },
+  ];
+  /** Applies a Document Service sort array like the database would. */
+  const applySort = (rows, sort = []) =>
+    [...rows].sort((a, b) => {
+      for (const entry of sort) {
+        const [[field, dir]] = Object.entries(entry);
+        if (a[field] === b[field]) continue;
+        const cmp = a[field] < b[field] ? -1 : 1;
+        return dir === 'desc' ? -cmp : cmp;
+      }
+      return 0;
+    });
+  const accounts = ['Newer account', 'Low account', 'Older account', 'Primary'].map((name) => ({
+    documentId: name,
+    name,
+    priority: 1,
+    isActive: true,
+    isPrimary: name === 'Primary',
+  }));
+  const strapi = {
+    log: quietLog,
+    config: { get: (_key, fallback) => fallback },
+    documents: (uid) => ({
+      findMany: async (args = {}) =>
+        uid.endsWith('routing-rule') ? applySort(rules, args.sort) : accounts,
+    }),
+  };
+
+  const listed = applySort(rules, routingRuleEvaluationSort()).map((rule) => rule.name);
+  assert.deepEqual(listed, ['Older', 'Newer', 'Low'], 'admin list order');
+
+  const r = require('../server/src/services/email-router')({ strapi });
+  const selected = await r.selectAccount('transactional', 'normal', [], { to: 'a@example.test' });
+  assert.equal(selected.name, 'Older account', 'first listed matching rule wins');
+});
+
+test('GET /routing-rules and the router share one evaluation order', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  for (const file of [
+    'server/src/controllers/routing-rules.js',
+    'server/src/services/email-router.js',
+  ]) {
+    const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    assert.match(source, /sort: routingRuleEvaluationSort\(\)/, file);
+  }
+});

@@ -2,6 +2,7 @@
 
 const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
+const { routingRuleEvaluationSort } = require('../utils/routing-order');
 
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -82,7 +83,7 @@ module.exports = {
   async getAll(ctx) {
     try {
       const rules = await strapi.documents(ROUTING_RULE_UID).findMany({
-        sort: [{ priority: 'desc' }, { createdAt: 'asc' }],
+        sort: routingRuleEvaluationSort(),
       });
 
       ctx.body = {
