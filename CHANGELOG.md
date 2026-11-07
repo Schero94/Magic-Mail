@@ -1,3 +1,16 @@
+# [4.3.0](https://github.com/Schero94/Magic-Mail/compare/v4.2.0...v4.3.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **content-api:** accept the content-api-token auth strategy on send routes ([4852de8](https://github.com/Schero94/Magic-Mail/commit/4852de8b624264fd1ebf4f5bd4a1f69ab7b448e8))
+* **templates:** check reference id changes under the database lease ([96eb050](https://github.com/Schero94/Magic-Mail/commit/96eb0508476bf9acd9476327b9dd65c4187fdee9))
+
+
+### Features
+
+* **multi-instance:** coordinate replicas and pm2 workers through the database ([d43071a](https://github.com/Schero94/Magic-Mail/commit/d43071a71d1af58a5667efd94e9a2986c461e985))
+
 ## [Unreleased]
 
 ### Added
