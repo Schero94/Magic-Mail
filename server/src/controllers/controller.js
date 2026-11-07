@@ -1,6 +1,7 @@
 'use strict';
 
 const { validate, handleControllerError } = require('../validation');
+const { isContentApiToken } = require('../utils/auth-strategy');
 
 const USER_UID = 'plugin::users-permissions.user';
 
@@ -53,7 +54,7 @@ function userRolesAllowed() {
 async function authorizeSender(ctx, body) {
   const strategy = ctx.state?.auth?.strategy?.name;
 
-  if (strategy === 'api-token') {
+  if (isContentApiToken(ctx)) {
     if (body.userId !== undefined) {
       body.userId = await resolveExistingUserId(body.userId);
     }

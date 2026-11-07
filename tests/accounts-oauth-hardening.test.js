@@ -842,6 +842,10 @@ test('SEC-07: content-API send routes carry the api-token-only policy', () => {
   const strapiWith = (allow) => ({ strapi: { config: { get: () => allow } } });
   const ctxWith = (name) => ({ state: { auth: { strategy: { name } } } });
   assert.equal(policy(ctxWith('api-token'), {}, strapiWith(false)), true);
+  // Strapi 5.45+ names the Content-API token strategy `content-api-token`.
+  assert.equal(policy(ctxWith('content-api-token'), {}, strapiWith(false)), true);
+  // Admin tokens belong to the admin API.
+  assert.equal(policy(ctxWith('admin-token'), {}, strapiWith(true)), false);
   assert.equal(policy(ctxWith('users-permissions'), {}, strapiWith(false)), false);
   assert.equal(policy(ctxWith('users-permissions'), {}, strapiWith(true)), true);
   assert.equal(policy({ state: {} }, {}, strapiWith(true)), false);
