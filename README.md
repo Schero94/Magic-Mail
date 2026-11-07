@@ -48,7 +48,7 @@ The screenshots show synthetic demo data (`example.test` addresses) on Strapi 5.
 ### Email accounts
 
 ![Email accounts list with usage, quotas and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/EmailAccountDashboard.png)
-_Accounts with status, provider, priority, today's usage against the daily limit, and test/edit/delete actions._
+_Accounts table with status, provider, priority, today's usage against the daily limit, total sent, last used, and edit, test and delete actions. Below 768 px each row becomes a card._
 
 ### Account wizard
 
@@ -58,12 +58,12 @@ _Four steps: provider, details, credentials, settings. OAuth providers connect i
 ### Routing rules
 
 ![Routing rules list in evaluation order](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/RoutingEmailTemplates.png)
-_Rules in evaluation order. Rules that point to a missing or inactive account are flagged._
+_Rules table in evaluation order with status, match type and value, target and fallback account, and priority. Rules that point to a missing or inactive account are flagged._
 
 ### Templates
 
 ![Template list with categories, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Templates.png)
-_Templates with Reference ID, category and status; edit, download as HTML or JSON, duplicate, code snippets, test send and delete._
+_Templates table with Reference ID, category and status; edit, download as HTML or JSON, duplicate, code snippets, test send and delete. Shows 5, 10, 25 or 50 entries per page._
 
 ### Template editor
 
@@ -73,7 +73,7 @@ _Template editor. For this screenshot the Unlayer canvas was replaced by a local
 ### Analytics
 
 ![Analytics with totals and the delivery log](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalytics.png)
-_Totals, delivery log with server-side search, opens and clicks per email._
+_Totals and the delivery log table with server-side search and paging, delivery status, opens and clicks per email._
 
 ### Plugin settings
 

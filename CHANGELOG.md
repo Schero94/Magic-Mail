@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Changed
+
+* **admin:** every Magic Mail list (email accounts, routing rules, custom templates, core emails and the analytics delivery log) now uses the same table design as Magic Link: one shared table card with a neutral header band, uppercase column labels, tinted status and category badges, Design System icon buttons for row actions, empty, no-match, loading and error states inside the card, and Design System pagination with "Showing x-y of z". Below 768 px each row becomes a labelled card; the separate mobile card lists are gone. Page headers, stat cards and dialogs keep the Magic Mail look. No API or data changes.
+* **admin:** long account names, sender and recipient addresses, rule names, target accounts and template names truncate with an ellipsis and show the full text on hover instead of breaking mid-word on narrow screens.
+* **docs:** README and GitHub Pages screenshots retaken with the new tables.
+
+### Fixed
+
+* **admin:** after a single template version is deleted, focus moves to the next version's Restore button (the previous one when the last entry was deleted, the drawer heading when none is left) instead of being lost; "Delete all versions" moves focus to the drawer heading.
+
 # [4.0.0](https://github.com/Schero94/Magic-Mail/compare/v3.1.0...v4.0.0) (2026-11-07)
 
 
@@ -67,7 +79,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
-## [Unreleased]
+## 4.0.0 details and migration notes (written as "Unreleased" before the 4.0.0 release)
 
 ### ⚠ BREAKING CHANGES (platform, packaging and API surface)
 
