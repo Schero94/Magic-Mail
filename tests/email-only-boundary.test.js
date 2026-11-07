@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 
-test('Magic-Mail registers only email, OAuth, analytics, settings, and tracking routes', () => {
+test('Magic-Mail registers only email, OAuth, analytics, settings, tracking and delivery webhook routes', () => {
   const adminRoutes = require('../server/src/routes/admin').routes;
   const contentRoutes = require('../server/src/routes/content-api').routes;
   const routes = [...adminRoutes, ...contentRoutes];
@@ -27,6 +27,8 @@ test('Magic-Mail registers only email, OAuth, analytics, settings, and tracking 
       'GET /track/open/:emailId/:recipientHash',
       'POST /send',
       'POST /send-message',
+      'POST /webhooks/mailgun/:accountId',
+      'POST /webhooks/sendgrid/:accountId',
     ].sort()
   );
 });

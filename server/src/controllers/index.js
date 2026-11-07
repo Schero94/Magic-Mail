@@ -7,6 +7,7 @@ const routingRules = require('./routing-rules');
 const emailDesigner = require('./email-designer');
 const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
+const deliveryWebhooks = require('./delivery-webhooks');
 
 module.exports = {
   controller,
@@ -16,4 +17,5 @@ module.exports = {
   emailDesigner,
   analytics,
   pluginSettings,
+  deliveryWebhooks,
 };

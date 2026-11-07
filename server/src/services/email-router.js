@@ -3,6 +3,7 @@
 const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
+const { normalizeMessageId } = require('../utils/message-id');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
 
@@ -995,6 +996,8 @@ module.exports = ({ strapi }) => ({
           accountName: routing.account.name,
           deliveredAt: new Date(),
           deliveryStatus: 'sent',
+          // Real provider id (or null): bounce/complaint webhooks match on it.
+          providerMessageId: normalizeMessageId(routing.result?.messageId),
         },
         { attempted, skipped }
       );
@@ -1023,6 +1026,7 @@ module.exports = ({ strapi }) => ({
               accountName: 'strapi-email-provider',
               deliveredAt: new Date(),
               deliveryStatus: 'sent',
+              providerMessageId: normalizeMessageId(result?.messageId),
             },
             { attempted, skipped, fallback: 'strapi-email-provider' }
           );
@@ -1785,13 +1789,15 @@ module.exports = ({ strapi }) => ({
         body: rawMessage.toString('base64'),
       });
 
-      // Microsoft Graph returns 202 Accepted on success.
+      // Microsoft Graph returns 202 Accepted on success, with no body and no
+      // message id. Report none rather than a synthetic id that no delivery
+      // event could ever match.
       if (response.status !== 202) {
         strapi.log.error('[magic-mail] Microsoft Graph response status:', response.status);
         throw providerHttpError('Microsoft Graph', response.status);
       }
 
-      return { messageId: `microsoft-${Date.now()}`, response: 'Accepted' };
+      return { messageId: null, response: 'Accepted' };
     } catch (err) {
       strapi.log.error('[magic-mail] Microsoft Graph API send failed:', err?.name || 'Error');
       throw err;
@@ -1938,7 +1944,8 @@ module.exports = ({ strapi }) => ({
       }
 
       return {
-        messageId: response.headers?.get?.('x-message-id') || `sendgrid-${Date.now()}`,
+        // SendGrid's id; its webhooks report it as the `sg_message_id` prefix.
+        messageId: normalizeMessageId(response.headers?.get?.('x-message-id')),
         response: 'Accepted',
       };
     } catch (err) {
@@ -2014,7 +2021,7 @@ module.exports = ({ strapi }) => ({
 
       const result = await response.json();
       return {
-        messageId: result.id || `mailgun-${Date.now()}`,
+        messageId: normalizeMessageId(result.id),
         response: result.message || 'Queued',
       };
     } catch (err) {

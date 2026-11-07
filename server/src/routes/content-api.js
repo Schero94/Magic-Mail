@@ -25,6 +25,14 @@ const sendRateLimit = [
   { name: 'plugin::magic-mail.rate-limit', config: { bucket: 'send', max: 60, window: 60_000 } },
 ];
 
+// Signed provider webhooks: providers batch and retry, so the budget is generous.
+const webhookRateLimit = [
+  {
+    name: 'plugin::magic-mail.rate-limit',
+    config: { bucket: 'webhooks', max: 600, window: 60_000 },
+  },
+];
+
 const trackRateLimit = [
   {
     name: 'plugin::magic-mail.rate-limit',
@@ -80,6 +88,32 @@ module.exports = {
         auth: false,
         middlewares: trackRateLimit,
         description: 'Track link click and redirect',
+      },
+    },
+
+    // ============= DELIVERY WEBHOOKS =============
+    // Public but signed: SendGrid ECDSA / Mailgun HMAC, verified in the
+    // delivery-webhooks service with the account's stored secret.
+    {
+      method: 'POST',
+      path: '/webhooks/sendgrid/:accountId',
+      handler: 'deliveryWebhooks.sendgrid',
+      config: {
+        policies: [],
+        auth: false,
+        middlewares: webhookRateLimit,
+        description: 'Signed SendGrid bounce/complaint webhook',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/webhooks/mailgun/:accountId',
+      handler: 'deliveryWebhooks.mailgun',
+      config: {
+        policies: [],
+        auth: false,
+        middlewares: webhookRateLimit,
+        description: 'Signed Mailgun bounce/complaint webhook',
       },
     },
   ],

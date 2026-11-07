@@ -37,6 +37,7 @@ import {
   PORT_MAX,
   PORT_MIN,
   getRedirectUri,
+  getWebhookUrl,
   isIntegerInRange,
   isMaskedSecret,
 } from './wizardState';
@@ -72,7 +73,16 @@ const GuideStep = ({ number, children }) => (
 );
 
 /** Text input for a secret; explains how stored (masked) secrets are kept. */
-const SecretField = ({ name, label, value, placeholder, hint, onChange, isEditMode }) => {
+const SecretField = ({
+  name,
+  label,
+  value,
+  placeholder,
+  hint,
+  onChange,
+  isEditMode,
+  required = true,
+}) => {
   const { t } = useMagicMailIntl();
   const masked = isEditMode && isMaskedSecret(value);
   return (
@@ -86,7 +96,7 @@ const SecretField = ({ name, label, value, placeholder, hint, onChange, isEditMo
               )
             : hint
         }
-        required
+        required={required}
         name={name}
       >
         <Field.Label>{label}</Field.Label>
@@ -134,6 +144,103 @@ const RedirectUri = ({ providerKey, serverRedirectUri }) => {
         )}
       </Typography>
     </li>
+  );
+};
+
+/**
+ * Optional signed bounce/complaint webhook for SendGrid and Mailgun accounts.
+ *
+ * @param {object} props
+ * @param {'sendgrid'|'mailgun'} props.provider
+ * @param {Record<string, any>} props.form
+ * @param {(field: string, value: unknown) => void} props.onChange
+ * @param {boolean} props.isEditMode
+ * @param {string|number|null} [props.accountId]
+ */
+const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId }) => {
+  const { t } = useMagicMailIntl();
+  const copy = useCopyToClipboard();
+  const url = getWebhookUrl(provider, accountId, {
+    backendURL: typeof window !== 'undefined' ? window.strapi?.backendURL : undefined,
+    origin: typeof window !== 'undefined' ? window.location.origin : '',
+  });
+
+  return (
+    <Flex direction="column" gap={4} style={{ width: '100%' }} alignItems="stretch">
+      <SectionTitle tag="h3">
+        <Lock aria-hidden="true" />
+        {t('accountModal.webhook.title', 'Bounce and complaint webhook (optional)')}
+      </SectionTitle>
+
+      {provider === 'sendgrid' ? (
+        <FullWidthField>
+          <Field.Root
+            hint={t(
+              'accountModal.webhook.sendgridKeyHint',
+              'SendGrid: Settings, Mail Settings, Event Webhook. Enable "Signed Event Webhook" and paste the verification key. Select the events Bounced, Dropped and Spam Reports.'
+            )}
+            name="webhookPublicKey"
+          >
+            <Field.Label>
+              {t('accountModal.webhook.sendgridKey', 'Signed Event Webhook verification key')}
+            </Field.Label>
+            <TextInput
+              placeholder="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE..."
+              value={form.webhookPublicKey}
+              autoComplete="off"
+              onChange={(e) => onChange('webhookPublicKey', e.target.value)}
+            />
+            <Field.Hint />
+          </Field.Root>
+        </FullWidthField>
+      ) : (
+        <SecretField
+          name="webhookSigningKey"
+          label={t('accountModal.webhook.mailgunKey', 'HTTP webhook signing key')}
+          placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          hint={t(
+            'accountModal.webhook.mailgunKeyHint',
+            'Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints.'
+          )}
+          value={form.webhookSigningKey}
+          onChange={(value) => onChange('webhookSigningKey', value)}
+          isEditMode={isEditMode}
+          required={false}
+        />
+      )}
+
+      <div>
+        <Typography variant="pi" fontWeight="bold" textColor="neutral800" tag="p">
+          {t('accountModal.webhook.url', 'Webhook URL')}
+        </Typography>
+        {url ? (
+          <RedirectUriRow>
+            <RedirectUriValue>{url}</RedirectUriValue>
+            <Button
+              variant="secondary"
+              size="S"
+              onClick={() =>
+                copy(url, { success: t('accountModal.webhook.copied', 'Webhook URL copied') })
+              }
+              aria-label={t('accountModal.webhook.copy', 'Copy webhook URL')}
+            >
+              {t('accountModal.guide.copy', 'Copy')}
+            </Button>
+          </RedirectUriRow>
+        ) : null}
+        <Typography variant="pi" textColor="neutral600" tag="p" style={{ marginTop: 4 }}>
+          {url
+            ? t(
+                'accountModal.webhook.urlHint',
+                'Register this URL with the provider. Requests without a valid signature are rejected; bounces and complaints then appear in Email Analytics.'
+              )
+            : t(
+                'accountModal.webhook.urlAfterSave',
+                'The webhook URL is shown here after the account is saved.'
+              )}
+        </Typography>
+      </div>
+    </Flex>
   );
 };
 
@@ -306,6 +413,7 @@ const ClientIdField = ({ name, label, placeholder, hint, value, onChange, locked
  * @param {boolean} props.isStarting
  * @param {() => void} props.onConnect
  * @param {Record<string, string>} props.serverRedirectUris
+ * @param {string|number|null} [props.accountId] - saved account (edit mode), for the webhook URL
  */
 export const CredentialsStep = ({
   provider,
@@ -317,6 +425,7 @@ export const CredentialsStep = ({
   isStarting,
   onConnect,
   serverRedirectUris = {},
+  accountId = null,
 }) => {
   const { t } = useMagicMailIntl();
   const set = (field) => (value) => onChange(field, value);
@@ -907,6 +1016,14 @@ export const CredentialsStep = ({
               value={form.apiKey}
               onChange={set('apiKey')}
               isEditMode={isEditMode}
+            />
+
+            <DeliveryWebhookFields
+              provider={provider}
+              form={form}
+              onChange={onChange}
+              isEditMode={isEditMode}
+              accountId={accountId}
             />
 
             <StaticAlert

@@ -719,5 +719,17 @@
   "common.table.pagination.goTo": "Go to page {page}",
   "common.table.pagination.more": "More pages",
   "common.previous": "Previous",
-  "common.next": "Next"
+  "common.next": "Next",
+  "analytics.delivery.bounced": "Bounced",
+  "analytics.delivery.complained": "Complaint",
+  "accountModal.webhook.title": "Bounce and complaint webhook (optional)",
+  "accountModal.webhook.sendgridKey": "Signed Event Webhook verification key",
+  "accountModal.webhook.sendgridKeyHint": "SendGrid: Settings, Mail Settings, Event Webhook. Enable \"Signed Event Webhook\" and paste the verification key. Select the events Bounced, Dropped and Spam Reports.",
+  "accountModal.webhook.mailgunKey": "HTTP webhook signing key",
+  "accountModal.webhook.mailgunKeyHint": "Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints.",
+  "accountModal.webhook.url": "Webhook URL",
+  "accountModal.webhook.copy": "Copy webhook URL",
+  "accountModal.webhook.copied": "Webhook URL copied",
+  "accountModal.webhook.urlHint": "Register this URL with the provider. Requests without a valid signature are rejected; bounces and complaints then appear in Email Analytics.",
+  "accountModal.webhook.urlAfterSave": "The webhook URL is shown here after the account is saved."
 }

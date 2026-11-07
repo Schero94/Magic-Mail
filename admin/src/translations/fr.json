@@ -719,5 +719,17 @@
   "common.table.pagination.goTo": "Aller à la page {page}",
   "common.table.pagination.more": "Autres pages",
   "common.previous": "Précédent",
-  "common.next": "Suivant"
+  "common.next": "Suivant",
+  "analytics.delivery.bounced": "Rejeté",
+  "analytics.delivery.complained": "Plainte",
+  "accountModal.webhook.title": "Webhook de rebonds et plaintes (facultatif)",
+  "accountModal.webhook.sendgridKey": "Clé de vérification du Signed Event Webhook",
+  "accountModal.webhook.sendgridKeyHint": "SendGrid : Settings, Mail Settings, Event Webhook. Activez « Signed Event Webhook » et collez la clé de vérification. Sélectionnez les événements Bounced, Dropped et Spam Reports.",
+  "accountModal.webhook.mailgunKey": "Clé de signature des webhooks HTTP",
+  "accountModal.webhook.mailgunKeyHint": "Mailgun : Settings, API Security, HTTP webhook signing key. Ajoutez ensuite l'URL ci-dessous pour les événements Permanent Failure et Spam Complaints.",
+  "accountModal.webhook.url": "URL du webhook",
+  "accountModal.webhook.copy": "Copier l'URL du webhook",
+  "accountModal.webhook.copied": "URL du webhook copiée",
+  "accountModal.webhook.urlHint": "Enregistrez cette URL chez le fournisseur. Les requêtes sans signature valide sont refusées ; les rebonds et plaintes apparaissent ensuite dans l'analyse des e-mails.",
+  "accountModal.webhook.urlAfterSave": "L'URL du webhook s'affiche ici une fois le compte enregistré."
 }
