@@ -171,7 +171,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      strapi.log.error('[magic-mail] Google token exchange failed:', response.status);
+      strapi.log.error(`[magic-mail] Google token exchange failed: ${response.status}`);
       throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
@@ -189,7 +189,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!userInfoResponse.ok) {
-      strapi.log.error('[magic-mail] Google user-info request failed:', userInfoResponse.status);
+      strapi.log.error(`[magic-mail] Google user-info request failed: ${userInfoResponse.status}`);
       throw new Error('Failed to get user email from Google');
     }
 
@@ -336,15 +336,15 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      strapi.log.error('[magic-mail] Microsoft token exchange failed:', response.status);
+      strapi.log.error(`[magic-mail] Microsoft token exchange failed: ${response.status}`);
       throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
     const tokens = await response.json();
     strapi.log.info('[magic-mail] [SUCCESS] Tokens received from Microsoft');
-    strapi.log.info('[magic-mail] Has access_token:', !!tokens.access_token);
-    strapi.log.info('[magic-mail] Has refresh_token:', !!tokens.refresh_token);
-    strapi.log.info('[magic-mail] Has id_token:', !!tokens.id_token);
+    strapi.log.info(`[magic-mail] Has access_token: ${!!tokens.access_token}`);
+    strapi.log.info(`[magic-mail] Has refresh_token: ${!!tokens.refresh_token}`);
+    strapi.log.info(`[magic-mail] Has id_token: ${!!tokens.id_token}`);
 
     if (!tokens.access_token) {
       throw new Error('No access token received from Microsoft');
@@ -378,8 +378,7 @@ module.exports = ({ strapi }) => ({
 
       if (!userInfoResponse.ok) {
         strapi.log.error(
-          '[magic-mail] Microsoft Graph user-info request failed:',
-          userInfoResponse.status
+          `[magic-mail] Microsoft Graph user-info request failed: ${userInfoResponse.status}`
         );
         throw new Error(
           `Failed to get user email from Microsoft Graph: ${userInfoResponse.status}`
@@ -441,7 +440,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      strapi.log.error('[magic-mail] Microsoft token refresh failed:', response.status);
+      strapi.log.error(`[magic-mail] Microsoft token refresh failed: ${response.status}`);
       throw new Error(`Failed to refresh Microsoft tokens: ${response.status}`);
     }
 
@@ -525,7 +524,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!response.ok) {
-      strapi.log.error('[magic-mail] Yahoo token exchange failed:', response.status);
+      strapi.log.error(`[magic-mail] Yahoo token exchange failed: ${response.status}`);
       throw new Error(`Failed to exchange code for tokens: ${response.status}`);
     }
 
@@ -543,7 +542,7 @@ module.exports = ({ strapi }) => ({
     });
 
     if (!userInfoResponse.ok) {
-      strapi.log.error('[magic-mail] Yahoo user-info request failed:', userInfoResponse.status);
+      strapi.log.error(`[magic-mail] Yahoo user-info request failed: ${userInfoResponse.status}`);
       throw new Error('Failed to get user email from Yahoo');
     }
 

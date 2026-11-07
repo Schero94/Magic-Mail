@@ -367,7 +367,7 @@ module.exports = ({ strapi }) => ({
         reasonCode: event.reasonCode,
       });
     } catch (error) {
-      strapi.log.warn('[magic-mail] Delivery event listener failed:', error?.name || 'Error');
+      strapi.log.warn(`[magic-mail] Delivery event listener failed: ${error?.name || 'Error'}`);
     }
     return true;
   },

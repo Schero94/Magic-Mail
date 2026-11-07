@@ -34,7 +34,7 @@ const handle = (provider) => async (ctx) => {
       });
     status = result.status;
   } catch (error) {
-    strapi.log.error('[magic-mail] Delivery webhook failed:', error?.name || 'Error');
+    strapi.log.error(`[magic-mail] Delivery webhook failed: ${error?.name || 'Error'}`);
     status = 500;
   }
   ctx.status = status;

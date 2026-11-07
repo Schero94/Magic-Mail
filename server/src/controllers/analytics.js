@@ -160,7 +160,7 @@ module.exports = ({ strapi }) => ({
           .service('analytics')
           .recordOpen(emailId, recipientHash, ctx.request);
       } catch (err) {
-        strapi.log.error('[magic-mail] Error recording open event:', err?.name || 'Error');
+        strapi.log.error(`[magic-mail] Error recording open event: ${err?.name || 'Error'}`);
       }
     }
     sendPixel(ctx);
@@ -196,7 +196,7 @@ module.exports = ({ strapi }) => ({
         });
       }
     } catch (err) {
-      strapi.log.error('[magic-mail] Error getting original URL:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] Error getting original URL: ${err?.name || 'Error'}`);
     }
 
     if (!url) {
@@ -225,7 +225,7 @@ module.exports = ({ strapi }) => ({
           .recordClick(emailId, linkHash, recipientHash, url, ctx.request);
       } catch (err) {
         // The recipient still reaches the page when the analytics write fails.
-        strapi.log.error('[magic-mail] Error recording click event:', err?.name || 'Error');
+        strapi.log.error(`[magic-mail] Error recording click event: ${err?.name || 'Error'}`);
       }
     }
 

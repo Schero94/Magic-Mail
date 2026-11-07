@@ -145,7 +145,7 @@ module.exports = ({ strapi }) => {
         source: row.source || null,
       });
     } catch (error) {
-      strapi.log.warn('[magic-mail] [QUEUE] Event listener failed:', error?.name || 'Error');
+      strapi.log.warn(`[magic-mail] [QUEUE] Event listener failed: ${error?.name || 'Error'}`);
     }
   };
 
@@ -178,7 +178,7 @@ module.exports = ({ strapi }) => {
         },
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] [QUEUE] Email log update failed:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] [QUEUE] Email log update failed: ${error?.name || 'Error'}`);
     }
   };
 
@@ -457,8 +457,7 @@ module.exports = ({ strapi }) => {
         return row;
       } catch (error) {
         strapi.log.warn(
-          '[magic-mail] [QUEUE] Failed send could not be queued:',
-          error?.code || error?.name || 'Error'
+          `[magic-mail] [QUEUE] Failed send could not be queued: ${error?.name || 'Error'} (${sanitizeErrorCode(error)})`
         );
         return null;
       }
@@ -672,9 +671,7 @@ module.exports = ({ strapi }) => {
         } catch (error) {
           if (attempt >= SENT_WRITE_RETRY_DELAYS_MS.length) {
             strapi.log.error(
-              '[magic-mail] [QUEUE] Sent, but the result could not be stored; the row will be marked uncertain:',
-              error?.name || 'Error',
-              sanitizeErrorCode(error)
+              `[magic-mail] [QUEUE] Sent, but the result could not be stored; the row will be marked uncertain: ${error?.name || 'Error'} (${sanitizeErrorCode(error)})`
             );
             break;
           }

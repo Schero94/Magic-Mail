@@ -15,6 +15,7 @@ const {
   tagSmtpStage,
   tagPreDispatch,
   tagProviderError,
+  sanitizeErrorCode,
 } = require('../utils/delivery-outcome');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -1052,8 +1053,7 @@ module.exports = ({ strapi }) => ({
         (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
     } catch (error) {
       strapi.log.warn(
-        '[magic-mail] Plugin settings unavailable; using defaults:',
-        error?.name || 'Error'
+        `[magic-mail] Plugin settings unavailable; using defaults: ${error?.name || 'Error'}`
       );
     }
 
@@ -1231,8 +1231,7 @@ module.exports = ({ strapi }) => ({
             { attempted, skipped, fallback: 'strapi-email-provider' }
           );
           strapi.log.error(
-            '[magic-mail] [ERROR] Strapi email provider fallback failed:',
-            fallbackError?.name || 'Error'
+            `[magic-mail] [ERROR] Strapi email provider fallback failed: ${fallbackError?.name || 'Error'}`
           );
           throw fallbackError;
         }
@@ -1268,9 +1267,7 @@ module.exports = ({ strapi }) => ({
         { attempted, skipped, ...(queueInfo ? { queue: queueInfo } : {}) }
       );
       strapi.log.error(
-        '[magic-mail] [ERROR] Email send failed:',
-        error?.name || 'Error',
-        error?.code || ''
+        `[magic-mail] [ERROR] Email send failed: ${error?.name || 'Error'} (${sanitizeErrorCode(error)})`
       );
       throw error;
     }
@@ -1354,7 +1351,7 @@ module.exports = ({ strapi }) => ({
       strapi.log.debug('[magic-mail] [EMAIL] Template rendered');
       return { ...rendered, templateReferenceId: referenceId };
     } catch (error) {
-      strapi.log.error('[magic-mail] [ERROR] Template rendering failed:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] [ERROR] Template rendering failed: ${error?.name || 'Error'}`);
       throw new Error(`Template rendering failed: ${error.message}`, { cause: error });
     }
   },
@@ -1420,8 +1417,7 @@ module.exports = ({ strapi }) => ({
       });
     } catch (error) {
       strapi.log.warn(
-        '[magic-mail] Delivery log could not be created; sending without it:',
-        error?.name || 'Error'
+        `[magic-mail] Delivery log could not be created; sending without it: ${error?.name || 'Error'}`
       );
       return null;
     }
@@ -1460,8 +1456,7 @@ module.exports = ({ strapi }) => ({
       return html;
     } catch (error) {
       strapi.log.error(
-        '[magic-mail] [WARNING] Tracking setup failed; continuing without tracking:',
-        error?.name || 'Error'
+        `[magic-mail] [WARNING] Tracking setup failed; continuing without tracking: ${error?.name || 'Error'}`
       );
       return data.html;
     }
@@ -1487,7 +1482,9 @@ module.exports = ({ strapi }) => ({
           : fields,
       });
     } catch (error) {
-      strapi.log.error('[magic-mail] [RECONCILE] Email log update failed:', error?.name || 'Error');
+      strapi.log.error(
+        `[magic-mail] [RECONCILE] Email log update failed: ${error?.name || 'Error'}`
+      );
     }
   },
 
@@ -1576,8 +1573,7 @@ module.exports = ({ strapi }) => ({
           });
         } catch (error) {
           strapi.log.error(
-            '[magic-mail] [RECONCILE] Account stats update failed (message already accepted):',
-            error?.name || 'Error'
+            `[magic-mail] [RECONCILE] Account stats update failed (message already accepted): ${error?.name || 'Error'}`
           );
         }
         return { account, result };
@@ -1597,9 +1593,7 @@ module.exports = ({ strapi }) => ({
         }
         if (!explicit && canFailover) {
           strapi.log.warn(
-            '[magic-mail] [FAILOVER] Account could not send; trying the next account:',
-            error?.name || 'Error',
-            error?.code || error?.status || ''
+            `[magic-mail] [FAILOVER] Account could not send; trying the next account: ${error?.name || 'Error'} (${sanitizeErrorCode(error)})`
           );
           continue;
         }
@@ -1788,8 +1782,7 @@ module.exports = ({ strapi }) => ({
       await this.updateAccountStats(account.documentId);
     } catch (error) {
       strapi.log.error(
-        '[magic-mail] [RECONCILE] Account stats update failed (message already accepted):',
-        error?.name || 'Error'
+        `[magic-mail] [RECONCILE] Account stats update failed (message already accepted): ${error?.name || 'Error'}`
       );
     }
     return { success: true, accountUsed: account.name, messageId: result.messageId };
@@ -1984,7 +1977,7 @@ module.exports = ({ strapi }) => ({
           expiresAt: newTokens.expiresAt,
         };
       } catch (refreshErr) {
-        strapi.log.error('[magic-mail] Token refresh failed:', refreshErr?.name || 'Error');
+        strapi.log.error(`[magic-mail] Token refresh failed: ${refreshErr?.name || 'Error'}`);
         throw accountConfigError(
           'Access token expired and refresh failed. Please re-authenticate this account.'
         );
@@ -2157,14 +2150,14 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!response.ok) {
-        strapi.log.error('[magic-mail] Gmail API request failed:', response.status);
+        strapi.log.error(`[magic-mail] Gmail API request failed: ${response.status}`);
         throw providerHttpError('Gmail', response.status);
       }
 
       const result = await response.json();
       return { messageId: result.id, response: 'OK' };
     } catch (err) {
-      strapi.log.error('[magic-mail] Gmail API send failed:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] Gmail API send failed: ${err?.name || 'Error'}`);
       throw err;
     }
   },
@@ -2230,13 +2223,13 @@ module.exports = ({ strapi }) => ({
       // message id. Report none rather than a synthetic id that no delivery
       // event could ever match.
       if (response.status !== 202) {
-        strapi.log.error('[magic-mail] Microsoft Graph response status:', response.status);
+        strapi.log.error(`[magic-mail] Microsoft Graph response status: ${response.status}`);
         throw providerHttpError('Microsoft Graph', response.status);
       }
 
       return { messageId: null, response: 'Accepted' };
     } catch (err) {
-      strapi.log.error('[magic-mail] Microsoft Graph API send failed:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] Microsoft Graph API send failed: ${err?.name || 'Error'}`);
       throw err;
     }
   },
@@ -2318,7 +2311,7 @@ module.exports = ({ strapi }) => ({
       }
       return { messageId: result.messageId, response: result.response };
     } catch (err) {
-      strapi.log.error('[magic-mail] Yahoo OAuth send failed:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] Yahoo OAuth send failed: ${err?.name || 'Error'}`);
       throw err;
     }
   },
@@ -2395,7 +2388,7 @@ module.exports = ({ strapi }) => ({
       });
 
       if (!response.ok) {
-        strapi.log.error('[magic-mail] SendGrid API request failed:', response.status);
+        strapi.log.error(`[magic-mail] SendGrid API request failed: ${response.status}`);
         throw providerHttpError('SendGrid', response.status);
       }
 
@@ -2405,7 +2398,7 @@ module.exports = ({ strapi }) => ({
         response: 'Accepted',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] SendGrid send failed:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] SendGrid send failed: ${err?.name || 'Error'}`);
       throw err;
     }
   },
@@ -2472,7 +2465,7 @@ module.exports = ({ strapi }) => ({
       );
 
       if (!response.ok) {
-        strapi.log.error('[magic-mail] Mailgun API request failed:', response.status);
+        strapi.log.error(`[magic-mail] Mailgun API request failed: ${response.status}`);
         throw providerHttpError('Mailgun', response.status);
       }
 
@@ -2482,7 +2475,7 @@ module.exports = ({ strapi }) => ({
         response: result.message || 'Queued',
       };
     } catch (err) {
-      strapi.log.error('[magic-mail] Mailgun send failed:', err?.name || 'Error');
+      strapi.log.error(`[magic-mail] Mailgun send failed: ${err?.name || 'Error'}`);
       throw err;
     }
   },
@@ -2581,7 +2574,7 @@ module.exports = ({ strapi }) => ({
           ),
         });
     } catch (error) {
-      strapi.log.error('[magic-mail] [RECONCILE] Quota release failed:', error?.name || 'Error');
+      strapi.log.error(`[magic-mail] [RECONCILE] Quota release failed: ${error?.name || 'Error'}`);
     }
   },
 
