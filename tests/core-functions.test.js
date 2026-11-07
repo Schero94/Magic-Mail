@@ -311,3 +311,23 @@ test('version history lists saved states newest first and restore saves the old 
     /does not belong/
   );
 });
+
+test('selectAccount evaluates rules in the admin list order (priority desc, then oldest first)', async () => {
+  let ruleSort;
+  const strapi = {
+    log: quietLog,
+    config: { get: (_key, fallback) => fallback },
+    documents: (uid) => ({
+      findMany: async (args = {}) => {
+        if (uid.endsWith('routing-rule')) {
+          ruleSort = args.sort;
+          return [];
+        }
+        return [{ documentId: 'a-primary', name: 'Primary', priority: 1, isPrimary: true }];
+      },
+    }),
+  };
+  const r = require('../server/src/services/email-router')({ strapi });
+  await r.selectAccount('transactional', 'normal', [], { to: 'a@example.test' });
+  assert.deepEqual(ruleSort, [{ priority: 'desc' }, { createdAt: 'asc' }]);
+});

@@ -1370,9 +1370,11 @@ module.exports = ({ strapi }) => ({
     });
     if (!accounts || accounts.length === 0) return null;
 
+    // Same order as GET /routing-rules (the admin list), so rules with equal
+    // priority are evaluated in the order shown: oldest rule first.
     const allRules = await strapi.documents(ROUTING_RULE_UID).findMany({
       filters: { isActive: true },
-      sort: [{ priority: 'desc' }],
+      sort: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
 
     const byName = (name) => {
