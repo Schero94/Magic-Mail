@@ -15,6 +15,21 @@
 
 ### Added
 
+* **queue:** opt-in send queue (outbox) with up to 3 retries (1, 5, 15 minutes, +/-20 % jitter), safe with several replicas and pm2 workers on one database. `send(input, { queue: true, idempotencyKey?, notAfter? })` stores the prepared mail and resolves `{ success: true, queued: true, status, outboxId, emailId, accountUsed: null, messageId: null }` (additive keys); the Content API send routes accept optional `queue` and `idempotencyKey`. New owner setting _Queue failed sends_ (default off) captures sends that failed after failover: proven non-acceptance or no capacity resolve as queued, ambiguous outcomes are kept as `uncertain` (never re-sent automatically) and the original error is thrown with `error.magicMailOutboxId`, permanent errors are thrown unchanged. See README "Retries and the outbox".
+* **queue:** new content type `plugin::magic-mail.outbox-message` (table `magic_mail_outbox`, hidden) with encrypted payloads, `config.queue` options, admin routes `/magic-mail/outbox` and `/magic-mail/analytics/queue-stats`, events `magic-mail.queue.*`, and retention.
+* **admin:** Outbox tab (filter, details with the error history, Retry now, Mark as sent, Discard) and a "Retries and outbox" settings section, in all five languages.
+* **rbac:** new actions `plugin::magic-mail.queue.read` and `plugin::magic-mail.queue.manage`.
+
+### Migration notes
+
+* Nothing changes until `queue: true` is passed or _Queue failed sends_ is switched on.
+* Roles that had `read` get `queue.read`, roles that had `manage` get `queue.manage`, once at startup. Remove them in the role editor if a role should not see failed mails.
+* **Magic Link (and other callers with their own fallback):** with _Queue failed sends_ on, a temporary failure no longer throws, so the caller's fallback does not run and the login mail may arrive minutes later. Magic Link should call `send(..., { queue: false })`, or pass `notAfter` set to the token expiry. This needs a change in strapi-plugin-magic-link.
+* All instances need the same `MAGIC_MAIL_ENCRYPTION_KEY` to send mails queued by another instance.
+* MySQL: `SKIP LOCKED` is unsafe for statement-based replication; use row-based replication.
+
+### Added (4.3.0)
+
 * **multi-instance:** MagicMail is correct with several Node processes on one database (for example 2 Railway replicas with `pm2 -i 4`), without sticky sessions or Redis. Three plugin tables are created at startup with plain `CREATE TABLE` (PostgreSQL, MySQL, SQLite): `magic_mail_claims` (leases and de-duplication claims), `magic_mail_rate_limits` (shared rate-limit windows) and `magic_mail_oauth_pending` (one row per OAuth flow). Expired rows are removed every five minutes.
 * **rate-limit:** limits are counted across all processes. New `rateLimit` plugin config: `store: 'database'` (default), `'redis'` (pass an ioredis or node-redis v4+ client as `rateLimit.redis`; falls back to the database on errors) or `'memory'` (previous per-process limiter).
 * **ops:** every process logs short one-way fingerprints of the encryption, tracking and OAuth state secrets at startup, so replicas with different secrets are easy to spot.
