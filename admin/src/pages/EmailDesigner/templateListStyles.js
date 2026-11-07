@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { accent, brand, color, fontSize, theme } from '../../utils/theme';
 import { motionSafe, reducedMotion } from '../../components/shared/motion';
+import { CTA_HEIGHT } from '../../components/StyledButtons';
 
 export const breakpoints = {
   mobile: '768px',
@@ -144,10 +145,6 @@ export const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: ${theme.spacing.lg};
-  justify-content: center;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
 
   @media screen and (max-width: ${breakpoints.mobile}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -295,6 +292,11 @@ export const FilterBar = styled(Flex)`
 
   > [role='search'] {
     flex: 1 1 240px;
+  }
+
+  /* Import/Export share one row with the shared SearchField (42px high). */
+  && > button {
+    min-height: 42px;
   }
 
   @media screen and (max-width: ${breakpoints.mobile}) {
@@ -583,6 +585,11 @@ export const EmptyButtonGroup = styled.div`
   justify-content: center;
   margin-top: ${theme.spacing.xl};
   flex-wrap: wrap;
+
+  /* The secondary action sits next to the large CTA: same height in one row. */
+  && > button {
+    min-height: ${CTA_HEIGHT};
+  }
 `;
 
 export const HiddenFileInput = styled.input`
@@ -755,7 +762,8 @@ export const AccentText = styled(Typography)`
 export const RecommendedBadge = styled.span`
   display: inline-flex;
   align-items: center;
-  background: linear-gradient(135deg, ${brand.success}, ${brand.successHover});
+  background-color: ${brand.successHover};
+  background-image: linear-gradient(135deg, ${brand.success}, ${brand.successHover});
   color: #ffffff;
   padding: 4px 12px;
   border-radius: 4px;
@@ -785,7 +793,8 @@ export const SecondaryTriggerIcon = styled(DocumentArrowDownIcon)`
 
 export const CodeBlockWrapper = styled(Box)`
   position: relative;
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background-color: #0f172a;
+  background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: ${theme.shadows.lg};
@@ -846,7 +855,7 @@ export const CopyButton = styled.button`
   right: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);

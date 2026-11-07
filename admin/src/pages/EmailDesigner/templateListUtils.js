@@ -4,6 +4,19 @@
  */
 import { isValidEmailAddress } from '../../utils/emailValidation.mjs';
 
+/**
+ * The DS table cell (RawCell, DS 2.2.4) prevents the default of every key when
+ * it holds several buttons (its grid navigation). That blocks native
+ * Enter/Space activation and Tab. Those keys stay with the buttons; arrow keys
+ * still move through the grid.
+ */
+const NATIVE_BUTTON_KEYS = new Set(['Enter', ' ', 'Tab']);
+
+/** @param {KeyboardEvent} event */
+export const keepNativeButtonKeys = (event) => {
+  if (NATIVE_BUTTON_KEYS.has(event.key)) event.stopPropagation();
+};
+
 export const PAGE_SIZE_OPTIONS = Object.freeze([5, 10, 25, 50]);
 
 /**
@@ -132,6 +145,21 @@ export const CATEGORY_BADGE_VARIANTS = Object.freeze({
  */
 export const getCategoryVariant = (category) =>
   CATEGORY_BADGE_VARIANTS[category] ?? CATEGORY_BADGE_VARIANTS.custom;
+
+/**
+ * DS Badge props for a category. The DS 2.2.4 dark theme draws the `primary`
+ * variant as primary700 (#7b79ff) on primary200 (#4a4a6a), 2.4:1. That badge
+ * uses the primary100/primary600 pair instead (>= 4.5:1 in both schemes).
+ *
+ * @param {string} category
+ * @returns {{variant: string}|{backgroundColor: string, textColor: string}}
+ */
+export const getCategoryBadgeProps = (category) => {
+  const variant = getCategoryVariant(category);
+  return variant === 'primary'
+    ? { backgroundColor: 'primary100', textColor: 'primary600' }
+    : { variant };
+};
 
 /**
  * Base URL of the Strapi server for copyable cURL examples. Uses the backend

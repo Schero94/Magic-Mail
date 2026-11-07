@@ -8,6 +8,7 @@ import {
 import { TertiaryButton } from '../../components/StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useFormatters } from '../../hooks/useFormatters';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import {
   DeleteButton,
   EmptyVersions,
@@ -65,10 +66,11 @@ export const VersionHistoryDrawer = ({
 }) => {
   const { t } = useMagicMailIntl();
   const { formatDateTime } = useFormatters();
+  const returnFocus = useReturnFocus(Boolean(isOpen));
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <VersionSheet>
+      <VersionSheet onCloseAutoFocus={returnFocus}>
         <VersionSheetHeader closeLabel={t('editor.versions.close', 'Close version history')}>
           <VersionSheetTitle>
             <ClockIcon aria-hidden="true" />

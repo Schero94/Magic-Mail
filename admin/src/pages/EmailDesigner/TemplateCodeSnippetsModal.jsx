@@ -4,6 +4,7 @@ import { CheckIcon, ClipboardDocumentIcon, SparklesIcon } from '@heroicons/react
 import { TertiaryButton } from '../../components/StyledButtons';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { buildCodeSnippets, snippetText } from './codeSnippets';
 import {
   AccentText,
@@ -44,6 +45,7 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
   const copy = useCopyToClipboard();
   const [copiedKey, setCopiedKey] = useState(null);
   const resetTimer = useRef(null);
+  const returnFocus = useReturnFocus(Boolean(isOpen && template));
 
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
@@ -94,7 +96,7 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <CodeModalContent>
+      <CodeModalContent onCloseAutoFocus={returnFocus}>
         <StyledModalHeader closeLabel={t('common.close', 'Close')}>
           <Modal.Title>
             {t('templates.code.title', 'Code snippets: {name}', { name: template.name })}

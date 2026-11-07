@@ -11,6 +11,7 @@ import {
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { GradientButton, TertiaryButton } from '../../components/StyledButtons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
+import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { validateTestSendInput } from './templateListUtils';
 import {
   ModalField,
@@ -35,6 +36,7 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
   const { t } = useMagicMailIntl();
   const { get, post } = useFetchClient();
   const { toggleNotification } = useNotification();
+  const returnFocus = useReturnFocus(Boolean(isOpen));
 
   const [testEmail, setTestEmail] = useState('');
   const [testCc, setTestCc] = useState('');
@@ -139,7 +141,7 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <StyledModalContent>
+      <StyledModalContent onCloseAutoFocus={returnFocus}>
         <form onSubmit={sendTestEmail} noValidate>
           <StyledModalHeader closeLabel={t('common.close', 'Close')}>
             <Modal.Title>{t('templates.testSend.title', 'Send test email')}</Modal.Title>

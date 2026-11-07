@@ -84,6 +84,17 @@ test('test-send input validates To and every CC address before sending (UI-12)',
   assert.deepEqual(ok.cc, ['a@example.com', 'b@example.org']);
 });
 
+test('row action keys stay with the buttons inside the DS table cell', () => {
+  const stopped = [];
+  for (const key of ['Enter', ' ', 'Tab', 'ArrowRight']) {
+    let isStopped = false;
+    listUtils.keepNativeButtonKeys({ key, stopPropagation: () => (isStopped = true) });
+    if (isStopped) stopped.push(key);
+  }
+  assert.deepEqual(stopped, ['Enter', ' ', 'Tab'], 'arrow keys still reach the grid');
+  assert.match(read('TemplateList.jsx'), /onKeyDown=\{keepNativeButtonKeys\}/);
+});
+
 test('reference ids and categories are normalised', () => {
   assert.equal(listUtils.toPositiveTemplateId(12), 12);
   assert.equal(listUtils.toPositiveTemplateId('42'), 42);
@@ -92,6 +103,12 @@ test('reference ids and categories are normalised', () => {
   }
   assert.equal(listUtils.getCategoryVariant('marketing'), 'success');
   assert.equal(listUtils.getCategoryVariant('unknown'), 'neutral');
+  assert.deepEqual(listUtils.getCategoryBadgeProps('marketing'), { variant: 'success' });
+  assert.deepEqual(
+    listUtils.getCategoryBadgeProps('transactional'),
+    { backgroundColor: 'primary100', textColor: 'primary600' },
+    'the DS primary badge is too low in contrast in dark mode'
+  );
   for (const variant of Object.values(listUtils.CATEGORY_BADGE_VARIANTS)) {
     assert.match(
       variant,
@@ -396,7 +413,7 @@ test('template list: labelled search, error state with retry, confirm dialog and
   assert.match(list, /aria-current=\{page === pageNum \? 'page' : undefined\}/);
   assert.match(list, /input\.value = ''/, 'the import input is reset');
   assert.match(list, /<Title variant="alpha" tag="h1">/);
-  assert.match(list, /<Badge variant=\{getCategoryVariant/);
+  assert.match(list, /<Badge \{\.\.\.getCategoryBadgeProps\(template\.category\)\}>/);
   assert.doesNotMatch(list, /margin: '0 -32px/, 'no negative-margin divider overflow');
 });
 

@@ -63,6 +63,11 @@ export const HeaderRight = styled.div`
   @media screen and (max-width: ${MOBILE}) {
     justify-content: flex-start;
     width: 100%;
+
+    /* Wrapped toolbar rows fill the width instead of leaving ragged gaps. */
+    > * {
+      flex: 1 1 auto;
+    }
   }
 `;
 
@@ -94,6 +99,21 @@ export const SwitchWrapper = styled.div`
   @media screen and (max-width: ${MOBILE}) {
     padding-top: 0;
   }
+
+  /* Touch screens: the DS switch (40x24) grows to a 48x32 target with the
+     same proportions, as on the routing screen. */
+  @media (max-width: 767px) {
+    button[role='switch'] {
+      width: 48px;
+      height: 32px;
+      border-radius: 16px;
+    }
+
+    button[role='switch'] > span {
+      width: 24px;
+      height: 24px;
+    }
+  }
 `;
 
 export const TabsWrapper = styled.div`
@@ -110,7 +130,7 @@ export const TabListWrapper = styled.div`
   svg {
     width: 16px;
     height: 16px;
-    margin-right: 6px;
+    margin-right: 8px;
     vertical-align: -3px;
   }
 
@@ -147,7 +167,8 @@ export const TabContentWrapper = styled.div`
 `;
 
 export const TextTabContent = styled.div`
-  padding: 20px;
+  /* Same inset as the header, so the text area lines up with the fields. */
+  padding: 24px;
   height: calc(100vh - 240px);
   min-height: 520px;
 
@@ -200,7 +221,7 @@ export const ReadOnlyPreview = styled.iframe`
 `;
 
 export const ReadOnlyPanel = styled.div`
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -218,7 +239,7 @@ const outlineButton = css`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   padding: 8px 16px;
   height: ${CONTROL_HEIGHT};
   background: ${color('neutral0')};

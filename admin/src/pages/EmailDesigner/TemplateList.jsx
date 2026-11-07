@@ -47,8 +47,9 @@ import {
   clampPage,
   countPages,
   filterTemplates,
-  getCategoryVariant,
+  getCategoryBadgeProps,
   getPageWindow,
+  keepNativeButtonKeys,
 } from './templateListUtils';
 import {
   Container,
@@ -115,6 +116,8 @@ const TemplateList = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const customPanelRef = useRef(null);
+  const focusAfterDeleteRef = useRef(false);
 
   const canExport = canRead;
   const canImport = canManage;
@@ -175,6 +178,17 @@ const TemplateList = () => {
 
   const reloadData = () => setDataReloadKey((key) => key + 1);
 
+  // The deleted row (and the button that opened the dialog) is gone after the
+  // reload; move focus to the search field, or the first action of the empty
+  // state, instead of leaving it on <body>.
+  useEffect(() => {
+    if (!focusAfterDeleteRef.current || dataLoading) return;
+    focusAfterDeleteRef.current = false;
+    const panel = customPanelRef.current;
+    const target = panel?.querySelector('[role="search"] input') ?? panel?.querySelector('button');
+    target?.focus();
+  }, [templates, dataLoading]);
+
   const filteredTemplates = useMemo(
     () => filterTemplates(templates, searchTerm),
     [templates, searchTerm]
@@ -211,6 +225,7 @@ const TemplateList = () => {
           name: template.name,
         }),
       });
+      focusAfterDeleteRef.current = true;
       setPendingDelete(null);
       reloadData();
     } catch {
@@ -519,7 +534,7 @@ const TemplateList = () => {
   );
 
   const renderTemplateActions = (template) => (
-    <Flex gap={2} justifyContent="flex-end" wrap="wrap">
+    <Flex gap={2} justifyContent="flex-end" wrap="nowrap" onKeyDown={keepNativeButtonKeys}>
       {canManage ? (
         <IconButtonPrimary
           onClick={() => navigate(`/plugins/magic-mail/designer/${template.templateReferenceId}`)}
@@ -651,15 +666,22 @@ const TemplateList = () => {
   );
 
   const renderCustomTemplates = () => {
-    if (loadError && templates.length === 0) return renderErrorState();
+    // Every state keeps the same distance to the tabs as the list.
+    if (loadError && templates.length === 0) {
+      return <TemplatesContainer>{renderErrorState()}</TemplatesContainer>;
+    }
     if (showSkeleton) {
       return (
-        <Flex justifyContent="center" padding={10}>
-          <Loader>{t('templates.loading', 'Loading templates...')}</Loader>
-        </Flex>
+        <TemplatesContainer>
+          <Flex justifyContent="center" padding={10}>
+            <Loader>{t('templates.loading', 'Loading templates...')}</Loader>
+          </Flex>
+        </TemplatesContainer>
       );
     }
-    if (templates.length === 0) return renderEmptyState();
+    if (templates.length === 0) {
+      return <TemplatesContainer>{renderEmptyState()}</TemplatesContainer>;
+    }
 
     return (
       <TemplatesContainer>
@@ -721,7 +743,8 @@ const TemplateList = () => {
                   <Th style={{ width: '110px' }}>
                     <Typography variant="sigma">{t('templates.table.status', 'Status')}</Typography>
                   </Th>
-                  <Th style={{ width: '300px' }}>
+                  {/* 1% + nowrap actions: the column shrinks to its buttons on one line. */}
+                  <Th style={{ width: '1%' }}>
                     <Flex justifyContent="flex-end" width="100%">
                       <Typography variant="sigma">
                         {t('templates.table.actions', 'Actions')}
@@ -744,7 +767,7 @@ const TemplateList = () => {
                       </Typography>
                     </Td>
                     <Td>
-                      <Badge variant={getCategoryVariant(template.category)}>
+                      <Badge {...getCategoryBadgeProps(template.category)}>
                         {getCategoryLabel(template.category)}
                       </Badge>
                     </Td>
@@ -844,7 +867,9 @@ const TemplateList = () => {
           <Tabs.Trigger value="coreEmails">{t('templates.tabs.core', 'Core emails')}</Tabs.Trigger>
         </Tabs.List>
 
-        <Tabs.Content value="customTemplates">{renderCustomTemplates()}</Tabs.Content>
+        <Tabs.Content value="customTemplates" ref={customPanelRef}>
+          {renderCustomTemplates()}
+        </Tabs.Content>
 
         <Tabs.Content value="coreEmails">
           <TemplatesContainer>
