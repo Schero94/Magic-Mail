@@ -1,3 +1,20 @@
+# [4.4.0](https://github.com/Schero94/Magic-Mail/compare/v4.3.0...v4.4.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **admin:** space the uncertain hint from the error history ([da9f6b5](https://github.com/Schero94/Magic-Mail/commit/da9f6b5bd3cce0f67b075efcdaefab35aeb72ea2))
+* **queue:** never claim more rows than the limit on PostgreSQL ([346a41a](https://github.com/Schero94/Magic-Mail/commit/346a41af31f7e8d789426c39b14478a36f1f24cf))
+* **queue:** never re-send an accepted mail and scope idempotency keys ([beb80c1](https://github.com/Schero94/Magic-Mail/commit/beb80c193bd33b92191415dddcd01faa3e0a6f56))
+* **queue:** retry HTTP 503 as a refused request ([e8249c7](https://github.com/Schero94/Magic-Mail/commit/e8249c75689898bb7b737fc26444e3f4010e875f))
+
+
+### Features
+
+* **admin:** add Outbox tab and queue settings ([dbc7778](https://github.com/Schero94/Magic-Mail/commit/dbc7778acc060c29ea07f0f2c614108a84aad4b2))
+* **queue:** add opt-in outbox with retries, worker and admin API ([bde7aaa](https://github.com/Schero94/Magic-Mail/commit/bde7aaad2ed037a8f7a9e2060dde6b9c93af12f9))
+* **queue:** add strict delivery outcome classifier and payload encryption ([77f87f8](https://github.com/Schero94/Magic-Mail/commit/77f87f8d2c4298f011679fc07e514b3800ea12b4))
+
 # [4.3.0](https://github.com/Schero94/Magic-Mail/compare/v4.2.0...v4.3.0) (2026-11-07)
 
 
