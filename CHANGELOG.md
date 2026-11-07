@@ -41,6 +41,11 @@
 
 * **failover:** inline sends move on to the next account only when the error proves the provider did not accept the message, with the same classifier as the outbox (`utils/delivery-outcome.js`). A connection lost or timed out after the SMTP `354` reply, HTTP 500/502/504 and network errors after the request was sent no longer fail over; they reach the caller (and become `uncertain` outbox rows when _Queue failed sends_ is on). Before, these could deliver a mail twice through two accounts. SMTP `4xx` replies after DATA (for example `451`) and HTTP 408 now fail over; HTTP 401/403/429/503, SMTP 421, refused connections and authentication failures still do.
 
+### Changed
+
+* **package:** installs without plugin warnings in a fresh `create-strapi-app@5.61` project with yarn 1, npm 11 and pnpm. `@strapi/utils` (used by the server code) is now a dependency instead of a peer an app only has transitively. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers (`peerDependenciesMeta`) instead of bundled dependencies, so the plugin always uses the admin's own copies; Strapi 5.61 aliases and dedupes the Design System in the admin build. The `react`/`react-dom` peers accept `^18.0.0` like the Strapi 5 plugin template. The minimum Strapi stays 5.57.0, the first release whose admin ships Design System 2.2.4.
+* **package:** npm metadata: plain description, homepage `https://schero94.github.io/Magic-Mail/`, `git+https` repository URL, issue tracker and search keywords.
+
 ### Fixed (send queue, before release)
 
 * **queue:** a database error while recording `sent` after the provider accepted a mail no longer re-queues it. The `sent` write is retried three times (0.25, 1, 3 s); if it still fails the claim expires and the mail ends as `uncertain`. Errors after a provider was contacted that did not come from the provider adapter are classified as ambiguous.
