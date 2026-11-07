@@ -53,7 +53,7 @@ test('classifier: every rule of the design table', () => {
     [err({ status: 422 }), 'permanent'],
     [err({ status: 500 }), 'ambiguous'],
     [err({ status: 502 }), 'ambiguous'],
-    [err({ status: 503 }), 'ambiguous'],
+    [err({ status: 503 }), 'transient'],
     [err({ status: 504 }), 'ambiguous'],
     [
       Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }),

@@ -49,8 +49,14 @@ const CAPACITY_CODES = new Set(['MAGIC_MAIL_NO_ACCOUNT', 'MAGIC_MAIL_QUOTA_EXHAU
 
 const PERMANENT_CODES = new Set(['MAGIC_MAIL_VALIDATION', 'PAYLOAD_UNREADABLE']);
 
-/** HTTP statuses that prove the request was refused before processing. */
-const TRANSIENT_HTTP = new Set([401, 403, 408, 429]);
+/**
+ * HTTP statuses that prove the request was refused before processing. 503
+ * means the server "is currently unable to handle the request" (RFC 9110
+ * 15.6.4); Microsoft Graph documents it as "temporarily unavailable ... You
+ * can repeat the request after a delay" (learn.microsoft.com/graph/errors).
+ * 500, 502 and 504 stay ambiguous: the request may have been processed.
+ */
+const TRANSIENT_HTTP = new Set([401, 403, 408, 429, 503]);
 
 /**
  * Idempotency support per provider. No current provider documents an
