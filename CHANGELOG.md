@@ -1,3 +1,15 @@
+# [4.1.0](https://github.com/Schero94/Magic-Mail/compare/v4.0.0...v4.1.0) (2026-11-07)
+
+
+### Bug Fixes
+
+* **admin:** truncate table names like Magic Link and focus the next version after a delete ([3669dfc](https://github.com/Schero94/Magic-Mail/commit/3669dfcae82fffd33f13740fb46f979a42f920c8))
+
+
+### Features
+
+* **admin:** use the Magic Link table design for every list ([3bbbc3c](https://github.com/Schero94/Magic-Mail/commit/3bbbc3ccf91912c31c6d0ddd23a2644083858789))
+
 ## [Unreleased]
 
 ### Changed
