@@ -1,3 +1,10 @@
+## [4.4.1](https://github.com/Schero94/Magic-Mail/compare/v4.4.0...v4.4.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **failover:** fail over only when the provider did not accept the mail ([#8](https://github.com/Schero94/Magic-Mail/issues/8)) ([8b3d47b](https://github.com/Schero94/Magic-Mail/commit/8b3d47bb7086f37836c729d52fe45f0d8ac52b6a))
+
 # [4.4.0](https://github.com/Schero94/Magic-Mail/compare/v4.3.0...v4.4.0) (2026-11-07)
 
 
