@@ -506,11 +506,10 @@ export const StyledTable = styled(Table)`
       min-width: 160px;
     }
 
-    /* Long translated match types ("Benutzerdefiniertes Feld") wrap inside
-       the badge between words. */
+    /* Match-type badges stay on one line: a wrapped Design System badge
+       (fixed 1rem line height) looks cramped. */
     td.type-cell {
-      white-space: normal;
-      max-width: 160px;
+      white-space: nowrap;
     }
 
     ${reducedMotion}
