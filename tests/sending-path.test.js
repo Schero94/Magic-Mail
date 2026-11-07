@@ -1156,6 +1156,15 @@ test('Content-API send routes accept API tokens only unless allowUserRoles is se
     assert.equal(ctx.body.success, true);
     assert.equal(h.sent[0].options.source, 'content-api');
 
+    // Strapi 5.45+ strategy name (content-api-token).
+    const current = controllerContext(baseMail(), 'content-api-token');
+    await controller.send(current);
+    assert.equal(current.body.success, true);
+    await assert.rejects(
+      controller.send(controllerContext(baseMail(), 'admin-token')),
+      (e) => e.name === 'ForbiddenError'
+    );
+
     const allowed = createControllerHarness({ allowUserRoles: true });
     global.strapi = allowed.strapi;
     await controller.send(

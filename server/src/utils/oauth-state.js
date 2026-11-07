@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { derivePurposeKey } = require('./encryption');
+const coordination = require('./coordination');
 
 /**
  * OAuth state & PKCE helper.
@@ -12,10 +13,15 @@ const { derivePurposeKey } = require('./encryption');
  * can not be replayed (RFC 6819 CSRF protection, RFC 9700 binding).
  *
  * PKCE (RFC 7636): the code_verifier is generated at initiation time and
- * kept server-side in ONE plugin-store entry (`oauth:pending`) keyed by
- * nonce. Every create/consume prunes entries older than the TTL, so
- * abandoned flows never accumulate rows. All read-modify-write cycles on
- * that entry run under one in-process lock.
+ * kept server-side, one row per flow, in `magic_mail_oauth_pending` (nonce
+ * primary key). Consuming a flow is one conditional DELETE; only the caller
+ * whose DELETE removed the row succeeds, so a duplicated callback that lands
+ * on two processes (replicas, pm2 workers) can not both exchange the code,
+ * and concurrent flows never overwrite each other. Abandoned rows are
+ * pruned by TTL.
+ *
+ * Without a database connection (test doubles) the previous single
+ * plugin-store entry (`oauth:pending`) under an in-process lock is used.
  */
 
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -26,12 +32,7 @@ const LEGACY_PKCE_PREFIX = 'oauth:pkce:';
 const LEGACY_USED_STATE_KEY = 'oauth:usedStates';
 
 /**
- * In-process serialization queue. The plugin store has no compare-and-set,
- * so the pending map is only read and written inside `runExclusive`.
- *
- * Single-instance atomicity: horizontally scaled deployments should run the
- * OAuth flow against one instance (sticky admin sessions); the signed,
- * TTL-bounded, user-bound state keeps the residual window small.
+ * In-process serialization queue for the store fallback (no database).
  */
 const locks = new Map();
 
@@ -136,6 +137,102 @@ async function cleanupLegacyRows(strapi) {
   }
 }
 
+const pendingTable = (db) =>
+  db.schema
+    ? db.knex(coordination.TABLES.oauthPending).withSchema(db.schema)
+    : db.knex(coordination.TABLES.oauthPending);
+
+/**
+ * Inserts one pending flow, prunes expired rows and caps the table at
+ * MAX_PENDING_FLOWS (oldest first).
+ *
+ * @param {object} db - coordination db handle
+ * @param {{nonce: string, codeVerifier: string|null, createdAt: number}} flow
+ * @returns {Promise<void>}
+ */
+async function insertPendingRow(db, { nonce, codeVerifier, createdAt }) {
+  await pendingTable(db).insert({ nonce, code_verifier: codeVerifier, created_at: createdAt });
+  await pendingTable(db)
+    .where('created_at', '<', createdAt - STATE_TTL_MS)
+    .del();
+  const overflow = await pendingTable(db)
+    .orderBy('created_at', 'desc')
+    .offset(MAX_PENDING_FLOWS)
+    .first('created_at');
+  if (overflow) {
+    // Strictly older than the cut-off row: a burst within one millisecond
+    // may exceed the cap briefly but never deletes the flow just created.
+    await pendingTable(db).where('created_at', '<', Number(overflow.created_at)).del();
+  }
+}
+
+/**
+ * Atomically consumes a pending flow. Exactly one concurrent caller gets the
+ * row: PostgreSQL uses DELETE ... RETURNING, other databases read the
+ * verifier first and accept only when their DELETE removed the row.
+ *
+ * @param {object} db - coordination db handle
+ * @param {string} nonce
+ * @param {number} cutoff - rows created before this epoch ms are expired
+ * @returns {Promise<{codeVerifier: string|null}|null>}
+ */
+async function consumePendingRow(db, nonce, cutoff) {
+  if (db.dialect === 'postgres') {
+    const rows = await pendingTable(db)
+      .where({ nonce })
+      .andWhere('created_at', '>=', cutoff)
+      .del()
+      .returning(['code_verifier']);
+    if (!Array.isArray(rows) || rows.length !== 1) return null;
+    return { codeVerifier: rows[0].code_verifier || null };
+  }
+  const row = await pendingTable(db)
+    .where({ nonce })
+    .andWhere('created_at', '>=', cutoff)
+    .first('code_verifier');
+  if (!row) return null;
+  const deleted = await pendingTable(db).where({ nonce }).del();
+  if (Number(deleted) !== 1) return null;
+  return { codeVerifier: row.code_verifier || null };
+}
+
+/** Per-connection flag: the pre-4.3 store entry was checked in this process. */
+const migratedByKnex = new WeakSet();
+
+/**
+ * One-time move of flows from the pre-4.3 `oauth:pending` store entry into
+ * the table. Runs in one process (database lease); the entry is deleted
+ * after the copy, so a flow can not be restored after it was consumed.
+ *
+ * @param {object} strapi
+ * @param {object} db
+ * @returns {Promise<void>}
+ */
+async function migrateStoreEntry(strapi, db) {
+  if (migratedByKnex.has(db.knex)) return;
+  migratedByKnex.add(db.knex);
+  try {
+    await coordination.runSingleton(strapi, 'oauth-pending-migration', 60 * 60 * 1000, async () => {
+      const store = pluginStore(strapi);
+      const pending = prunePending(await store.get({ key: PENDING_STORE_KEY }), Date.now());
+      for (const [nonce, entry] of Object.entries(pending)) {
+        if (!/^[a-f0-9]{32}$/.test(nonce)) continue;
+        await pendingTable(db)
+          .insert({
+            nonce,
+            code_verifier: entry.codeVerifier || null,
+            created_at: entry.createdAt,
+          })
+          .onConflict('nonce')
+          .ignore();
+      }
+      await store.delete({ key: PENDING_STORE_KEY });
+    });
+  } catch {
+    // Best effort: an unmigrated flow just has to be started again.
+  }
+}
+
 /**
  * Normalises an admin user id for comparison.
  *
@@ -189,12 +286,18 @@ async function createState(strapi, { clientId, provider, userId, accountId, useP
   }
 
   try {
-    await runExclusive(PENDING_STORE_KEY, async () => {
-      const store = pluginStore(strapi);
-      const pending = prunePending(await store.get({ key: PENDING_STORE_KEY }), timestamp);
-      pending[nonce] = { codeVerifier, createdAt: timestamp };
-      await store.set({ key: PENDING_STORE_KEY, value: prunePending(pending, timestamp) });
-    });
+    const db = await coordination.ready(strapi);
+    if (db) {
+      await migrateStoreEntry(strapi, db);
+      await insertPendingRow(db, { nonce, codeVerifier, createdAt: timestamp });
+    } else {
+      await runExclusive(PENDING_STORE_KEY, async () => {
+        const store = pluginStore(strapi);
+        const pending = prunePending(await store.get({ key: PENDING_STORE_KEY }), timestamp);
+        pending[nonce] = { codeVerifier, createdAt: timestamp };
+        await store.set({ key: PENDING_STORE_KEY, value: prunePending(pending, timestamp) });
+      });
+    }
   } catch (err) {
     throw new Error(`[magic-mail] Could not persist PKCE verifier: ${err.message}`, {
       cause: err,
@@ -275,6 +378,19 @@ async function verifyAndConsumeState(strapi, stateString, expected = {}) {
     throw new Error('State was issued for another account');
   }
 
+  const db = await coordination.ready(strapi);
+  if (db) {
+    await migrateStoreEntry(strapi, db);
+    const entry = await consumePendingRow(db, payload.nonce, Date.now() - STATE_TTL_MS);
+    if (!entry) {
+      throw new Error('State already used or expired (replay protection)');
+    }
+    if (payload.pkce && !entry.codeVerifier) {
+      throw new Error('PKCE verifier is missing');
+    }
+    return { payload, codeVerifier: entry.codeVerifier || null };
+  }
+
   return runExclusive(PENDING_STORE_KEY, async () => {
     const store = pluginStore(strapi);
     const now = Date.now();
@@ -301,10 +417,16 @@ function resetLegacyCleanupForTests() {
   legacyCleanupDone = false;
 }
 
+/** Test hook: forget the per-connection migration flag. */
+function resetMigrationForTests(knex) {
+  migratedByKnex.delete(knex);
+}
+
 module.exports = {
   createState,
   verifyAndConsumeState,
   STATE_TTL_MS,
   PENDING_STORE_KEY,
   resetLegacyCleanupForTests,
+  resetMigrationForTests,
 };

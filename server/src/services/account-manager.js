@@ -5,6 +5,14 @@ const { encryptCredentials, decryptCredentials } = require('../utils/encryption'
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
 const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
 const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
+const coordination = require('../utils/coordination');
+
+/**
+ * Account writes that touch a cross-row invariant (one primary account,
+ * unique names checked by the application) run under this database lease,
+ * so two replicas or pm2 workers can not interleave them.
+ */
+const ACCOUNTS_LEASE = 'email-accounts';
 
 /**
  * Constant placeholder returned instead of every stored secret. It carries no
@@ -105,29 +113,30 @@ module.exports = ({ strapi }) => ({
     // Encrypt sensitive config data
     const encryptedConfig = config ? encryptCredentials(config) : null;
 
-    // If this is primary, unset other primaries
-    if (isPrimary) {
-      await this.unsetAllPrimary();
-    }
-
-    const account = await strapi.documents(EMAIL_ACCOUNT_UID).create({
-      data: {
-        name,
-        description: description ?? null,
-        provider,
-        config: encryptedConfig,
-        fromEmail,
-        fromName,
-        replyTo: replyTo || null,
-        isPrimary,
-        priority,
-        dailyLimit,
-        hourlyLimit,
-        isActive,
-        emailsSentToday: 0,
-        emailsSentThisHour: 0,
-        totalEmailsSent: 0,
-      },
+    const account = await coordination.withLease(strapi, ACCOUNTS_LEASE, async () => {
+      // If this is primary, unset other primaries
+      if (isPrimary) {
+        await this.unsetAllPrimary();
+      }
+      return strapi.documents(EMAIL_ACCOUNT_UID).create({
+        data: {
+          name,
+          description: description ?? null,
+          provider,
+          config: encryptedConfig,
+          fromEmail,
+          fromName,
+          replyTo: replyTo || null,
+          isPrimary,
+          priority,
+          dailyLimit,
+          hourlyLimit,
+          isActive,
+          emailsSentToday: 0,
+          emailsSentThisHour: 0,
+          totalEmailsSent: 0,
+        },
+      });
     });
 
     strapi.log.info(`[magic-mail] [SUCCESS] Email account created: ${name}`);
@@ -201,11 +210,6 @@ module.exports = ({ strapi }) => ({
       encryptedConfig = encryptCredentials(merged);
     }
 
-    // If this is being set to primary, unset other primaries
-    if (isPrimary && !existingAccount.isPrimary) {
-      await this.unsetAllPrimary();
-    }
-
     const data = {
       name,
       // '' clears the optional text fields (the form sends '' for "remove").
@@ -225,7 +229,13 @@ module.exports = ({ strapi }) => ({
       if (data[key] === undefined) delete data[key];
     }
 
-    const updatedAccount = await strapi.documents(EMAIL_ACCOUNT_UID).update({ documentId, data });
+    const updatedAccount = await coordination.withLease(strapi, ACCOUNTS_LEASE, async () => {
+      // If this is being set to primary, unset other primaries
+      if (isPrimary && !existingAccount.isPrimary) {
+        await this.unsetAllPrimary();
+      }
+      return strapi.documents(EMAIL_ACCOUNT_UID).update({ documentId, data });
+    });
 
     // Keep routing rules pointing at the renamed account (UI-M04).
     if (typeof name === 'string' && name !== previousName) {

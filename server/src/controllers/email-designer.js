@@ -134,6 +134,9 @@ module.exports = ({ strapi }) => ({
       if (isNotFoundMessage(error)) {
         return ctx.notFound(error.message);
       }
+      if (error && typeof error.message === 'string' && error.message.includes('already exists')) {
+        return ctx.badRequest(error.message);
+      }
       handleControllerError(ctx, error, '[magic-mail] Error updating template');
     }
   },

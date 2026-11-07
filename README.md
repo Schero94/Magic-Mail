@@ -36,6 +36,7 @@ MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or
 - [Admin API](#admin-api)
 - [Permissions](#permissions)
 - [Configuration reference](#configuration-reference)
+- [Running several instances (Railway replicas, pm2 cluster)](#running-several-instances-railway-replicas-pm2-cluster)
 - [Troubleshooting](#troubleshooting)
 - [Upgrading to 4.0.0](#upgrading-to-400)
 - [Development](#development)
@@ -255,7 +256,7 @@ MagicMail builds the redirect URI from the `URL` environment variable if it is s
 
 The account wizard shows the exact value the server uses; register exactly that value with the provider. In production the URL must be public `https`; there is no `localhost` fallback. The `localhost:1337` URIs below are for local development.
 
-The authorization popup reports back to the admin origin (`admin.url`). If the admin runs on its own host, set `admin.url` to that absolute URL. OAuth flows are bound to the admin who started them and kept in process memory, so several Strapi instances behind a load balancer need sticky admin sessions.
+The authorization popup reports back to the admin origin (`admin.url`). If the admin runs on its own host, set `admin.url` to that absolute URL. OAuth flows are bound to the admin who started them and stored in the database (one row per flow, consumed once), so the callback may land on any Strapi instance; no sticky sessions are needed.
 
 **Reconnecting an account** (revoked consent, expired refresh token): edit the account and use **Reconnect with &lt;provider&gt;** in the wizard. The provider must return the account's own mailbox. Access tokens are refreshed 60 seconds before they expire and once more if the provider rejects them; rotated refresh tokens are stored.
 
@@ -524,7 +525,7 @@ Open tracking adds a 1×1 pixel; click tracking rewrites `<a href>` links to a r
 
 **Retention.** Every 6 hours MagicMail deletes events older than `tracking.eventRetentionDays` (90) and tracked links older than `tracking.linkTtlDays` (180; expired links then show the fallback page). `tracking.logRetentionDays` optionally deletes old email logs with their events and links. Logs contain personal data (recipient addresses); you can also delete them with **Analytics → Clear All** or with `DELETE /magic-mail/analytics/emails?olderThan=<ISO date>`.
 
-**Rate limit.** The tracking routes allow 300 requests per minute and IP. Above that, opens and clicks are no longer recorded but recipients still get the pixel and the redirect; only above 3,000 per minute is a plain-text 429 returned.
+**Rate limit.** The tracking routes allow 300 requests per minute and IP (counted across all instances, see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster)). Above that, opens and clicks are no longer recorded but recipients still get the pixel and the redirect; only above 3,000 per minute is a plain-text 429 returned.
 
 **Signing.** Tracking hashes are signed with `MAGIC_MAIL_TRACKING_SECRET`, falling back to `MAGIC_MAIL_ENCRYPTION_KEY`. To rotate, keep the old values in `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS` (comma-separated) while old emails matter.
 
@@ -589,7 +590,7 @@ module.exports = () => ({
 
 With user roles allowed, the email log is always attributed to the authenticated user and a body `userId` is ignored. With an API token, `userId` must be the id or documentId of an existing users-permissions user (else 400).
 
-The body is validated strictly: unknown fields, `path`/`href` attachments and invalid addresses return 400. Both send routes share a budget of 60 requests per minute per token (in process memory, so each Strapi instance counts separately).
+The body is validated strictly: unknown fields, `path`/`href` attachments and invalid addresses return 400. Both send routes share a budget of 60 requests per minute per token, counted across all Strapi instances (see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster)).
 
 ### Example: send
 
@@ -796,7 +797,7 @@ Editing the Users & Permissions templates also needs the users-permissions email
 
 Without `MAGIC_MAIL_ENCRYPTION_KEY`, a development key derived from `ADMIN_JWT_SECRET`/`APP_KEYS` is used only when `NODE_ENV` is unset, `development` or `test`; rotating those secrets then makes stored credentials unreadable. Any other environment (for example `staging`) refuses to start without the key.
 
-Also set Strapi's `server.url` to your public URL (OAuth redirects, tracking links) and `server.proxy: true` behind a reverse proxy.
+Also set Strapi's `server.url` to your public URL (OAuth redirects, tracking links) and `server.proxy.koa: true` behind a reverse proxy.
 
 ### Plugin config
 
@@ -825,6 +826,11 @@ module.exports = () => ({
         projectId: null, // optional Unlayer project id
         scriptUrl: null, // optional https URL of the Unlayer loader
         version: null, // optional exact Unlayer build
+      },
+      rateLimit: {
+        store: 'database', // 'database' (shared by all instances), 'redis' or 'memory'
+        // redis: new Redis(process.env.REDIS_URL), // ioredis or node-redis v4+ client, store: 'redis'
+        redisPrefix: 'magic-mail:rl:',
       },
     },
   },
@@ -872,6 +878,114 @@ const stats = await designer.getStats(); // { total, active, inactive, byCategor
 
 ---
 
+## Running several instances (Railway replicas, pm2 cluster)
+
+MagicMail works with several Node processes that share one database, for example 2 Railway replicas with `pm2 -i 4` each (8 processes) on one PostgreSQL. No sticky sessions and no Redis are required: everything that has to be consistent across processes lives in the database.
+
+### What is shared and how
+
+| Concern                                                         | How it is kept correct across processes                                                                                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Account hourly/daily quotas                                     | One conditional `UPDATE ... WHERE count < limit` per send. Windows only move forward, so a replica whose clock lags a little never resets a window another one opened.                                 |
+| Rate limits (send, test send, webhooks, tracking)               | Fixed-window counters in `magic_mail_rate_limits`, one atomic upsert (`INSERT ... ON CONFLICT DO UPDATE`). Tracking routes only touch the database after a caller's first `max / 10` hits per process. |
+| OAuth flows (state, PKCE verifier)                              | One row per flow in `magic_mail_oauth_pending`; the callback consumes it with one conditional `DELETE`, so a duplicated callback can not be accepted twice.                                            |
+| OAuth token refresh                                             | One refresh per account at a time (database lease). Other processes wait briefly and then use the stored, refreshed token; a rotated refresh token is never overwritten by an older one.               |
+| Bounce and complaint webhooks                                   | A provider retry that reaches another process while the first one still works is acknowledged without work (claim row in `magic_mail_claims`, primary key). Listeners run once per event.              |
+| Open and click counters                                         | Single `UPDATE ... SET count = count + 1`, no read-modify-write.                                                                                                                                       |
+| Template version numbers, primary account, unique names         | Written under a short database lease, so two admins saving at the same moment on different instances get distinct version numbers and one primary account.                                             |
+| Users & Permissions email templates, plugin flags               | Compare-and-set update of the core-store row; concurrent saves of the reset-password and confirmation templates keep both changes.                                                                     |
+| Background jobs (quota refresh, retention, one-time migrations) | Every process keeps its timers, but each run takes a database lease, so one process does the work per interval. If it dies, another one takes over on its next tick.                                   |
+| Plugin settings cache                                           | Cached for 10 seconds per process and re-checked against the row's `updated_at` about once a second, so a change made on one instance applies everywhere within about a second.                        |
+
+The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `magic_mail_oauth_pending`) are created at startup with plain `CREATE TABLE` and work on PostgreSQL, MySQL and SQLite. Strapi does not touch tables it did not create. Expired rows are removed every five minutes.
+
+### Required configuration
+
+1. **One database for all processes.** Point every replica at the same PostgreSQL (`DATABASE_URL` or `DATABASE_HOST` and friends). SQLite only works for several processes on one machine and one file. MySQL uses the same portable SQL but has not been load-tested with several processes yet.
+   - The database user needs the `CREATE TABLE` right Strapi already uses (for the three coordination tables).
+   - Every process opens its own connection pool. Keep `processes x pool.max` (`connection.pool` in `config/database.js`) below the server's `max_connections`; for 8 processes on a small Railway PostgreSQL, a `pool: { min: 0, max: 5 }` is a safe start.
+2. **Identical secrets everywhere.** Set these as Railway _shared variables_ (or one `.env` used by every pm2 worker):
+
+   ```bash
+   NODE_ENV=production
+   APP_KEYS=...                       # same value and order on every replica
+   MAGIC_MAIL_ENCRYPTION_KEY=...      # credentials encrypted on one replica are read on another
+   MAGIC_MAIL_TRACKING_SECRET=...     # tracking links signed on one replica are verified on another
+   MAGIC_MAIL_OAUTH_STATE_SECRET=...  # OAuth state signed on one replica is verified on another
+   ```
+
+   At startup every process logs `[magic-mail] Secret fingerprints (must match on every instance): encryption=… tracking=… oauthState=…`. The values are short one-way fingerprints; if two instances print different values, their secrets differ.
+
+3. **Real client IPs behind the proxy.** Railway, Render, Fly and load balancers forward the client address in `X-Forwarded-For`. Without `proxy`, every unauthenticated caller shares the proxy's address and therefore one rate-limit quota:
+
+   ```javascript
+   // config/server.js
+   module.exports = ({ env }) => ({
+     host: env('HOST', '0.0.0.0'),
+     port: env.int('PORT', 1337),
+     url: env('PUBLIC_URL'), // public https URL (OAuth redirects, tracking links)
+     proxy: { koa: true },
+     app: { keys: env.array('APP_KEYS') },
+   });
+   ```
+
+4. **pm2 cluster mode.** No sticky sessions are needed. pm2's cluster mode runs a Node.js script, so point it at the Strapi CLI instead of `npm`. Example `ecosystem.config.js`:
+
+   ```javascript
+   module.exports = {
+     apps: [
+       {
+         name: 'strapi',
+         script: './node_modules/@strapi/strapi/bin/strapi.js',
+         args: 'start',
+         exec_mode: 'cluster',
+         instances: 4,
+         env: { NODE_ENV: 'production' },
+       },
+     ],
+   };
+   ```
+
+   In a container (Railway, Docker) start it in the foreground with `pm2-runtime start ecosystem.config.js` as the start command. All workers of one replica share its `PORT`; pm2 spreads the requests over them.
+
+5. **Railway replicas.** Set the replica count in the service settings (for example 2). Every replica runs the same start command and gets the same variables, so with `instances: 4` you get 8 processes. Railway's proxy balances requests across replicas without stickiness, which MagicMail does not need.
+
+   On a **brand-new, empty database**, deploy with one replica first. Strapi itself creates its system tables (`strapi_migrations`, ...) at the first boot, and several processes doing that at the same moment can crash with `duplicate key value violates unique constraint "pg_class_relname_nsp_index"`. This is Strapi core, not MagicMail; a restart fixes it. Once the schema exists, scale up.
+
+6. **Optional: Redis for the rate limiter.** The database store is enough for most installs. If you already run Redis, create the client yourself and pass it in; on a Redis error the database store is used:
+
+   ```javascript
+   // config/plugins.js
+   const Redis = require('ioredis');
+
+   module.exports = ({ env }) => ({
+     'magic-mail': {
+       config: {
+         rateLimit: env('REDIS_URL')
+           ? { store: 'redis', redis: new Redis(env('REDIS_URL')) }
+           : { store: 'database' },
+       },
+     },
+   });
+   ```
+
+   `rateLimit.store: 'memory'` restores the per-process limiter of earlier versions (single instance only).
+
+### Limits
+
+- A process that crashes between reserving a quota slot and sending keeps that slot used until the window ends.
+- Rate limits are fixed windows, so a caller can send up to twice the limit across a window boundary. Up to `max / 10 - 1` tracking hits per process and window may go uncounted.
+- Changing `quotaTimezone` to a zone that is behind the old one keeps counting in the old window until the new zone catches up (stricter, never looser).
+- Unique account names, rule names and template reference ids are enforced by the application under a lease, not by a database index. Duplicates created by earlier versions stay until you rename them.
+- Content-API sends that fail because the account quota is used up or the `accountName` is unknown return 500 "Failed to send email", as in earlier versions.
+- Strapi's own Users & Permissions settings page still writes its email templates without compare-and-set; a save there at the same moment as a MagicMail save can still win.
+
+### Testing it
+
+`npm run test:multi-instance` starts 8 processes against one SQLite file and checks the invariants above (one claim winner, no lost updates, shared rate-limit counts, each OAuth flow consumed once, compare-and-set store writes, atomic counters, quota limits). Set `MAGIC_MAIL_TEST_PG_URL=postgres://user@host:5432/throwaway_db` to run the same suite against PostgreSQL.
+
+---
+
 ## Troubleshooting
 
 **Email not received**
@@ -889,7 +1003,7 @@ const stats = await designer.getStats(); // { total, active, inactive, byCategor
 - Production: `server.url` must be public `https`.
 - Admin on its own host: set `admin.url`.
 - Microsoft: all five delegated permissions with admin consent, correct tenant ID, client secret not expired.
-- Several Strapi instances: use sticky admin sessions.
+- Several Strapi instances: every instance needs the same `MAGIC_MAIL_ENCRYPTION_KEY`, `MAGIC_MAIL_OAUTH_STATE_SECRET` and `APP_KEYS` (an "Invalid state signature" means they differ; compare the fingerprints in the startup log, see [Running several instances](#running-several-instances-railway-replicas-pm2-cluster)).
 
 **Edit wizard says "Stored credentials cannot be decrypted"**: the encryption key changed. Set the old key in `MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS`, or enter the secrets again.
 

@@ -1,8 +1,10 @@
 'use strict';
 
+const crypto = require('crypto');
 const { decryptCredentials } = require('../utils/encryption');
 const { normalizeMessageId, messageIdCandidates } = require('../utils/message-id');
 const { verifySendGridSignature, verifyMailgunSignature } = require('../utils/webhook-signatures');
+const coordination = require('../utils/coordination');
 
 /**
  * Signed bounce / complaint webhooks (SendGrid, Mailgun).
@@ -12,6 +14,12 @@ const { verifySendGridSignature, verifyMailgunSignature } = require('../utils/we
  *   Mailgun). Both live in the encrypted account config.
  * - Every request is authenticated with the provider signature and a bounded
  *   timestamp; Mailgun tokens and provider event ids are de-duplicated.
+ *   De-duplication is shared by every process: the first process to insert
+ *   the claim row (`magic_mail_claims`, primary key) processes the item; a
+ *   retry that lands on another replica or pm2 worker meanwhile is
+ *   acknowledged without work. A failed item releases its claim so the
+ *   provider's next retry is processed. The in-memory map is a first-level
+ *   cache in front of the table.
  * - Only bounce and complaint events are stored: on the email log
  *   (`bounced`/`complained`, sanitized reason code) plus one email event.
  * - `magic-mail.delivery.bounced` / `magic-mail.delivery.complained` are
@@ -59,6 +67,36 @@ function remember(key, now = Date.now()) {
     }
   }
   seen.set(key, now + SEEN_TTL_MS);
+}
+
+/**
+ * Claims a de-duplication key across processes.
+ *
+ * @param {object} strapi
+ * @param {string} key
+ * @returns {Promise<string|null|undefined>} token (won), null (already claimed),
+ *   undefined (no database: in-memory de-duplication only)
+ */
+async function claimOnce(strapi, key) {
+  const hashed = crypto.createHash('sha256').update(key).digest('hex');
+  return coordination.claim(strapi, `webhook:${hashed}`, SEEN_TTL_MS);
+}
+
+/**
+ * Releases a claim after a failure so a provider retry is processed again.
+ *
+ * @param {object} strapi
+ * @param {string} key
+ * @param {string|null|undefined} token
+ */
+async function releaseClaim(strapi, key, token) {
+  if (!token) return;
+  const hashed = crypto.createHash('sha256').update(key).digest('hex');
+  try {
+    await coordination.release(strapi, `webhook:${hashed}`, token);
+  } catch {
+    // The claim expires with SEEN_TTL_MS.
+  }
 }
 
 /** @param {unknown} value @returns {string} upper-case code fragment */
@@ -223,9 +261,20 @@ module.exports = ({ strapi }) => ({
       events = parseMailgunEvent(payload['event-data']);
     }
 
+    let replayClaim;
+    if (replayKey) {
+      replayClaim = await claimOnce(strapi, replayKey);
+      if (replayClaim === null) return { status: 200, processed: 0 };
+    }
+
     let processed = 0;
-    for (const event of events) {
-      if (await this.recordEvent(provider, event)) processed += 1;
+    try {
+      for (const event of events) {
+        if (await this.recordEvent(provider, event)) processed += 1;
+      }
+    } catch (error) {
+      await releaseClaim(strapi, replayKey, replayClaim);
+      throw error;
     }
     if (replayKey) remember(replayKey);
     return { status: 200, processed };
@@ -244,14 +293,46 @@ module.exports = ({ strapi }) => ({
 
     const eventId =
       event.eventId && EVENT_ID_PATTERN.test(event.eventId) ? `${provider}:${event.eventId}` : null;
+    let eventClaim;
     if (eventId) {
       if (wasSeen(`event:${eventId}`)) return false;
-      const existing = await strapi.db
-        .query(EMAIL_EVENT_UID)
-        .findOne({ where: { providerEventId: eventId }, select: ['id'] });
-      if (existing) return false;
+      // Cross-process claim first, then the stored events (older than the
+      // claim window) as the long-term record.
+      eventClaim = await claimOnce(strapi, `event:${eventId}`);
+      if (eventClaim === null) return false;
+      try {
+        const existing = await strapi.db
+          .query(EMAIL_EVENT_UID)
+          .findOne({ where: { providerEventId: eventId }, select: ['id'] });
+        if (existing) {
+          remember(`event:${eventId}`);
+          return false;
+        }
+      } catch (error) {
+        await releaseClaim(strapi, `event:${eventId}`, eventClaim);
+        throw error;
+      }
     }
 
+    try {
+      return await this._applyEvent(provider, event, candidates, eventId);
+    } catch (error) {
+      if (eventId) await releaseClaim(strapi, `event:${eventId}`, eventClaim);
+      throw error;
+    }
+  },
+
+  /**
+   * Writes one verified, de-duplicated event and emits it on the eventHub.
+   *
+   * @private
+   * @param {string} provider
+   * @param {{messageId: string|null, kind: 'bounced'|'complained', reasonCode: string}} event
+   * @param {string[]} candidates - normalized provider message ids
+   * @param {string|null} eventId
+   * @returns {Promise<boolean>}
+   */
+  async _applyEvent(provider, event, candidates, eventId) {
     const log = await strapi.db.query(EMAIL_LOG_UID).findOne({
       where: { providerMessageId: { $in: candidates } },
       select: ['id', 'documentId', 'providerMessageId'],
