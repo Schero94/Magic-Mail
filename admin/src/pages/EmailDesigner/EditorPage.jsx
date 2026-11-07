@@ -49,6 +49,7 @@ import {
   buildCorePayload,
   buildTemplatePayload,
   downloadBlob,
+  getVersionFocusAfterDelete,
   parseDesignFile,
   toFileName,
   validateTemplateFields,
@@ -178,6 +179,18 @@ const EditorPage = () => {
   const [pendingRestore, setPendingRestore] = useState(null);
   const [pendingVersionDelete, setPendingVersionDelete] = useState(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  // Focus target after a version deletion: the version id whose Restore button
+  // gets focus, or null for the drawer heading (see getVersionFocusTarget).
+  // The dialog closes first (focus returns to its opener inside the drawer);
+  // once the reloaded list is rendered, the effect below moves focus on.
+  const versionDrawerRef = useRef(null);
+  const versionFocusIdRef = useRef(null);
+  const versionFocusPendingRef = useRef(false);
+  const [versionFocusRequest, setVersionFocusRequest] = useState(0);
+  const getVersionFocusTarget = useCallback(
+    () => versionDrawerRef.current?.getFocusTarget(versionFocusIdRef.current) ?? null,
+    []
+  );
 
   const guard = useUnsavedChangesGuard(canManage && isDirty);
 
@@ -403,6 +416,13 @@ const EditorPage = () => {
     }
   };
 
+  // Runs after the reloaded version list is committed (see handleDeleteVersion).
+  useEffect(() => {
+    if (!versionFocusRequest || !versionFocusPendingRef.current || loadingVersions) return;
+    versionFocusPendingRef.current = false;
+    getVersionFocusTarget()?.focus();
+  }, [versionFocusRequest, loadingVersions, getVersionFocusTarget]);
+
   const handleOpenVersionHistory = () => {
     setShowVersionHistory(true);
     fetchVersions();
@@ -451,6 +471,7 @@ const EditorPage = () => {
    */
   const handleDeleteVersion = async (version, versionNumber) => {
     if (!canManage) return;
+    versionFocusIdRef.current = getVersionFocusAfterDelete(versions, version.id);
     try {
       await post(
         `/magic-mail/designer/templates/${encodeURIComponent(id)}/versions/${encodeURIComponent(version.id)}/delete`
@@ -463,6 +484,8 @@ const EditorPage = () => {
       });
       setPendingVersionDelete(null);
       await fetchVersions();
+      versionFocusPendingRef.current = true;
+      setVersionFocusRequest((n) => n + 1);
     } catch {
       console.error('[Version History] Failed to delete version');
       toggleNotification({
@@ -481,6 +504,7 @@ const EditorPage = () => {
   const handleDeleteAllVersions = async () => {
     if (!canManage) return;
     const count = versions.length;
+    versionFocusIdRef.current = null;
     try {
       await post(`/magic-mail/designer/templates/${encodeURIComponent(id)}/versions/delete-all`);
       toggleNotification({
@@ -493,6 +517,8 @@ const EditorPage = () => {
       });
       setConfirmDeleteAll(false);
       await fetchVersions();
+      versionFocusPendingRef.current = true;
+      setVersionFocusRequest((n) => n + 1);
     } catch {
       console.error('[Version History] Failed to delete all versions');
       toggleNotification({
@@ -1043,6 +1069,7 @@ const EditorPage = () => {
       </TabsWrapper>
 
       <VersionHistoryDrawer
+        ref={versionDrawerRef}
         isOpen={showVersionHistory}
         onClose={() => setShowVersionHistory(false)}
         versions={versions}
@@ -1088,6 +1115,7 @@ const EditorPage = () => {
           handleDeleteVersion(pendingVersionDelete.version, pendingVersionDelete.number)
         }
         onClose={() => setPendingVersionDelete(null)}
+        getReturnFocusFallback={getVersionFocusTarget}
       />
 
       <ConfirmDialog
@@ -1102,6 +1130,7 @@ const EditorPage = () => {
         confirmIcon={<TrashIcon width={16} height={16} aria-hidden="true" />}
         onConfirm={handleDeleteAllVersions}
         onClose={() => setConfirmDeleteAll(false)}
+        getReturnFocusFallback={getVersionFocusTarget}
       />
 
       <UnsavedChangesDialog guard={guard} />

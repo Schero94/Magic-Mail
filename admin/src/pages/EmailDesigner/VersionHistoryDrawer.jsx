@@ -1,3 +1,4 @@
+import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Flex, Loader, Modal, Typography } from '@strapi/design-system';
 import {
   ArrowPathIcon,
@@ -51,22 +52,45 @@ export const getVersionNumber = (version, index, total) => version?.versionNumbe
  * @param {(version: object, versionNumber: number) => void} props.onRestore
  * @param {(version: object, versionNumber: number) => void} props.onDelete
  * @param {() => void} props.onDeleteAll
+ * @param {React.Ref<{getFocusTarget: (versionId?: string|number|null) => (HTMLElement|null)}>} ref
+ *   `getFocusTarget(id)` returns the Restore button of that version, or the
+ *   drawer heading when the version is not listed (used after a deletion).
  */
-export const VersionHistoryDrawer = ({
-  isOpen,
-  onClose,
-  versions,
-  loading,
-  loadError,
-  onRetry,
-  canManage,
-  onRestore,
-  onDelete,
-  onDeleteAll,
-}) => {
+export const VersionHistoryDrawer = forwardRef(function VersionHistoryDrawer(
+  {
+    isOpen,
+    onClose,
+    versions,
+    loading,
+    loadError,
+    onRetry,
+    canManage,
+    onRestore,
+    onDelete,
+    onDeleteAll,
+  },
+  ref
+) {
   const { t } = useMagicMailIntl();
   const { formatDateTime } = useFormatters();
   const returnFocus = useReturnFocus(Boolean(isOpen));
+  const titleRef = useRef(null);
+  const restoreRefs = useRef(new Map());
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getFocusTarget: (versionId) => {
+        const button =
+          versionId === null || versionId === undefined
+            ? null
+            : restoreRefs.current.get(String(versionId));
+        if (button?.isConnected) return button;
+        return titleRef.current?.isConnected ? titleRef.current : null;
+      },
+    }),
+    []
+  );
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -74,7 +98,10 @@ export const VersionHistoryDrawer = ({
         <VersionSheetHeader closeLabel={t('editor.versions.close', 'Close version history')}>
           <VersionSheetTitle>
             <ClockIcon aria-hidden="true" />
-            <Modal.Title>{t('editor.versions.title', 'Version history')}</Modal.Title>
+            {/* tabIndex -1: focus target after deleting versions (not in the tab order). */}
+            <Modal.Title ref={titleRef} tabIndex={-1}>
+              {t('editor.versions.title', 'Version history')}
+            </Modal.Title>
             {versions.length > 0 && (
               <Typography variant="pi" textColor="neutral600">
                 {t('editor.versions.count', '({count})', { count: versions.length })}
@@ -145,6 +172,10 @@ export const VersionHistoryDrawer = ({
                     {canManage && (
                       <VersionActions>
                         <RestoreButton
+                          ref={(node) => {
+                            if (node) restoreRefs.current.set(String(version.id), node);
+                            else restoreRefs.current.delete(String(version.id));
+                          }}
                           size="S"
                           startIcon={<ArrowUturnLeftIcon aria-hidden="true" />}
                           onClick={() => onRestore(version, number)}
@@ -177,6 +208,6 @@ export const VersionHistoryDrawer = ({
       </VersionSheet>
     </Modal.Root>
   );
-};
+});
 
 export default VersionHistoryDrawer;

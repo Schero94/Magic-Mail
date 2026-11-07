@@ -457,7 +457,7 @@ test('editor: tabs keep Unlayer mounted, saves export from any tab, guard and di
   const drawer = read('VersionHistoryDrawer.jsx');
   assert.match(drawer, /<Modal\.Root open=\{isOpen\}/, 'version history is a real dialog (UI-13)');
   assert.match(drawer, /closeLabel=\{t\('editor\.versions\.close'/);
-  assert.match(drawer, /<Modal\.Title>/);
+  assert.match(drawer, /<Modal\.Title[ >]/);
   assert.match(read('editorStyles.js'), /width: min\(450px, 100vw\)/);
   assert.doesNotMatch(drawer, /en-US/);
 });
@@ -472,4 +472,50 @@ test('both template download actions use the Design System Download icon', () =>
     assert.match(button, /<Download aria-hidden="true" \/>/, `${key} uses Download`);
   }
   assert.doesNotMatch(source, /CodeBracketIcon|DocumentArrowDownIcon/);
+});
+
+test('deleting a version moves focus to the next Restore button, or the drawer heading', () => {
+  const { getVersionFocusAfterDelete } = editorUtils;
+  const list = [{ id: 30 }, { id: 20 }, { id: 10 }];
+  assert.equal(getVersionFocusAfterDelete(list, 30), 20, 'next version after the first');
+  assert.equal(getVersionFocusAfterDelete(list, '20'), 10, 'ids compare as strings');
+  assert.equal(getVersionFocusAfterDelete(list, 10), 20, 'previous version after the last');
+  assert.equal(getVersionFocusAfterDelete([{ id: 5 }], 5), null, 'heading when none is left');
+  assert.equal(getVersionFocusAfterDelete(list, 99), null, 'unknown id falls back to heading');
+  assert.equal(getVersionFocusAfterDelete(undefined, 1), null);
+
+  const drawer = read('VersionHistoryDrawer.jsx');
+  assert.match(drawer, /forwardRef\(function VersionHistoryDrawer/);
+  assert.match(drawer, /useImperativeHandle\(/);
+  assert.match(
+    drawer,
+    /<Modal\.Title ref=\{titleRef\} tabIndex=\{-1\}>/,
+    'heading is a focus target'
+  );
+  assert.match(drawer, /restoreRefs\.current\.set\(String\(version\.id\), node\)/);
+
+  const editor = read('EditorPage.jsx');
+  assert.match(
+    editor,
+    /versionFocusIdRef\.current = getVersionFocusAfterDelete\(versions, version\.id\)/
+  );
+  for (const close of ['setPendingVersionDelete(null);', 'setConfirmDeleteAll(false);']) {
+    const at = editor.indexOf(close, editor.indexOf('const handleDeleteVersion'));
+    assert.ok(at > 0, close);
+    assert.match(
+      editor.slice(at, at + 250),
+      /await fetchVersions\(\);\s*versionFocusPendingRef\.current = true;\s*setVersionFocusRequest\(/,
+      `${close} closes the dialog, reloads, then requests focus`
+    );
+  }
+  assert.match(
+    editor,
+    /useEffect\(\(\) => \{\s*if \(!versionFocusRequest \|\| !versionFocusPendingRef\.current \|\| loadingVersions\) return;\s*versionFocusPendingRef\.current = false;\s*getVersionFocusTarget\(\)\?\.focus\(\);/,
+    'focus moves only after the reloaded list is rendered'
+  );
+  assert.equal(
+    (editor.match(/getReturnFocusFallback=\{getVersionFocusTarget\}/g) || []).length,
+    2,
+    'single and bulk deletion both use the version focus target'
+  );
 });

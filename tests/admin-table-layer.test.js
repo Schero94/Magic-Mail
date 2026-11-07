@@ -130,3 +130,26 @@ test('status badge tones keep text at 4.5:1 or more in light and dark mode', () 
     }
   }
 });
+
+test('primary names and addresses truncate with a title like the Magic Link user cell', () => {
+  const cases = [
+    ['admin/src/pages/HomePage.jsx', ['account.name', 'account.fromEmail']],
+    ['admin/src/pages/RoutingRules.jsx', ['rule.name', 'rule.accountName']],
+    ['admin/src/pages/EmailDesigner/TemplateList.jsx', ['template.name']],
+    ['admin/src/pages/Analytics.jsx', ['log.recipient', 'log.recipientName']],
+  ];
+  for (const [file, values] of cases) {
+    const source = read(file);
+    for (const value of values) {
+      const escaped = value.replace('.', '\\.');
+      assert.match(
+        source,
+        new RegExp(
+          `<Typography[^>]*\\bellipsis\\b[^>]*title=\\{${escaped}[^}]*\\}[^>]*>\\s*\\{${escaped}\\}`
+        ),
+        `${file}: ${value} uses DS ellipsis with a title`
+      );
+    }
+  }
+  assert.doesNotMatch(read('admin/src/pages/HomePage.jsx'), /overflowWrap: 'anywhere'/);
+});

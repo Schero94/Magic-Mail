@@ -252,8 +252,14 @@ const RoutingRulesPage = () => {
   );
 
   const renderName = (rule) => (
-    <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
-      <Typography fontWeight="semiBold" textColor="neutral800">
+    <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0, maxWidth: '100%' }}>
+      <Typography
+        fontWeight="semiBold"
+        textColor="neutral800"
+        ellipsis
+        title={rule.name}
+        style={{ maxWidth: '100%' }}
+      >
         {rule.name}
       </Typography>
       {rule.description && (
@@ -267,8 +273,19 @@ const RoutingRulesPage = () => {
   const renderMatchType = (rule) => <Badge>{getMatchTypeLabel(rule.matchType, t)}</Badge>;
 
   const renderAccount = (rule) => (
-    <Flex direction="column" alignItems="flex-start" gap={1}>
-      <Typography variant="omega" fontWeight="semiBold">
+    <Flex
+      direction="column"
+      alignItems="flex-start"
+      gap={1}
+      style={{ minWidth: 0, maxWidth: '100%' }}
+    >
+      <Typography
+        variant="omega"
+        fontWeight="semiBold"
+        ellipsis
+        title={rule.accountName || undefined}
+        style={{ maxWidth: '100%' }}
+      >
         {rule.accountName}
       </Typography>
       {renderAccountWarning(rule.accountName)}

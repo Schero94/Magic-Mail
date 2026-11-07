@@ -315,9 +315,15 @@ const HomePage = () => {
       <Avatar $background={brand.gradient} aria-hidden="true">
         <Mail />
       </Avatar>
-      <Flex direction="column" alignItems="flex-start" gap={1} style={{ minWidth: 0 }}>
-        <Flex alignItems="center" gap={2} wrap="wrap">
-          <Typography fontWeight="semiBold" textColor="neutral800">
+      <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0, maxWidth: '100%' }}>
+        <Flex alignItems="center" gap={2} wrap="wrap" style={{ minWidth: 0, maxWidth: '100%' }}>
+          <Typography
+            fontWeight="semiBold"
+            textColor="neutral800"
+            ellipsis
+            title={account.name}
+            style={{ maxWidth: '100%' }}
+          >
             {account.name}
           </Typography>
           {account.isPrimary && (
@@ -327,7 +333,13 @@ const HomePage = () => {
             </StatusBadge>
           )}
         </Flex>
-        <Typography variant="pi" textColor="neutral600" style={{ overflowWrap: 'anywhere' }}>
+        <Typography
+          variant="pi"
+          textColor="neutral600"
+          ellipsis
+          title={account.fromEmail}
+          style={{ maxWidth: '100%' }}
+        >
           {account.fromEmail}
         </Typography>
       </Flex>

@@ -624,12 +624,25 @@ const Analytics = () => {
       <Avatar $background={brand.gradient} aria-hidden="true">
         <Mail />
       </Avatar>
-      <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0 }}>
-        <Typography variant="omega" fontWeight="semiBold" textColor="neutral800">
+      <Flex direction="column" alignItems="flex-start" style={{ minWidth: 0, maxWidth: '100%' }}>
+        <Typography
+          variant="omega"
+          fontWeight="semiBold"
+          textColor="neutral800"
+          ellipsis
+          title={log.recipient || undefined}
+          style={{ maxWidth: '100%' }}
+        >
           {log.recipient}
         </Typography>
         {log.recipientName && (
-          <Typography variant="pi" textColor="neutral600">
+          <Typography
+            variant="pi"
+            textColor="neutral600"
+            ellipsis
+            title={log.recipientName}
+            style={{ maxWidth: '100%' }}
+          >
             {log.recipientName}
           </Typography>
         )}

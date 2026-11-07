@@ -626,7 +626,13 @@ const TemplateList = () => {
                   <MonoText>#{template.templateReferenceId}</MonoText>
                 </Td>
                 <Td className="cell-wrap" data-label={columnLabels.name}>
-                  <Typography variant="omega" fontWeight="semiBold">
+                  <Typography
+                    variant="omega"
+                    fontWeight="semiBold"
+                    ellipsis
+                    title={template.name}
+                    style={{ maxWidth: '100%' }}
+                  >
                     {template.name}
                   </Typography>
                 </Td>

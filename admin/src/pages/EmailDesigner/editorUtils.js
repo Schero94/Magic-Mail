@@ -229,3 +229,21 @@ export const downloadBlob = (blob, fileName) => {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 };
+
+/**
+ * Picks the version that should receive focus after a single version was
+ * deleted from the history list: the next one in the list, or the previous one
+ * when the last entry was deleted. Returns null when no other version is left
+ * (focus then goes to the drawer heading).
+ *
+ * @param {Array<{id: string|number}>} versions - list before the deletion, in display order
+ * @param {string|number} deletedId
+ * @returns {string|number|null}
+ */
+export const getVersionFocusAfterDelete = (versions, deletedId) => {
+  const list = Array.isArray(versions) ? versions : [];
+  const index = list.findIndex((version) => String(version?.id) === String(deletedId));
+  if (index === -1) return null;
+  const next = list[index + 1] ?? list[index - 1];
+  return next?.id ?? null;
+};
