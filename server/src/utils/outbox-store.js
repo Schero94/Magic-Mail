@@ -287,13 +287,22 @@ async function claimDue(strapi, { limit, leaseMs, holder, now = Date.now() }) {
   ];
 
   if (db.dialect === 'postgres') {
-    const sub = due(table().select(col('id')))
+    // The locking SELECT runs once in a MATERIALIZED CTE. A plain
+    // `WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)` is part of the
+    // UPDATE's search condition, which Read Committed re-evaluates when a
+    // target row was changed concurrently (PostgreSQL 16 docs 13.2.1); with
+    // SKIP LOCKED the re-run picks other rows, and one claim took 8 rows with
+    // limit 2 on PostgreSQL 16 with 8 processes. WITH queries are evaluated
+    // once per statement and MATERIALIZED keeps them from being folded into
+    // the parent query (docs 7.8), so a claim never exceeds `limit`.
+    const picked = due(table().select(col('id')))
       .orderBy(order)
       .limit(limit)
       .forUpdate()
       .skipLocked();
     const rows = await table()
-      .whereIn(col('id'), sub)
+      .withMaterialized('magic_mail_outbox_picked', picked)
+      .whereIn(col('id'), db.knex.select(col('id')).from('magic_mail_outbox_picked'))
       .andWhere(col('status'), 'pending')
       .update(updates)
       .returning(selectColumns(col, ATTRIBUTES));

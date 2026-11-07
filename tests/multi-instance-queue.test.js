@@ -168,6 +168,20 @@ async function runSuite(t, db, knex, client) {
         const acceptedIds = smtp.received.filter((e) => e.accepted).map((e) => e.outboxId);
         assert.equal(new Set(acceptedIds).size, acceptedIds.length, 'no mail accepted twice');
 
+        // A claim never takes more rows than one process may have in flight.
+        // Sent rows keep the token of the claim that sent them.
+        const { table: outbox, col: column } = store.resolve(parent.strapi);
+        const perClaim = await outbox()
+          .select(column('leaseToken'))
+          .count({ n: '*' })
+          .whereNotNull(column('leaseToken'))
+          .groupBy(column('leaseToken'));
+        const largestClaim = Math.max(0, ...perClaim.map((entry) => Number(entry.n)));
+        assert.ok(
+          largestClaim <= QUEUE_CONFIG.concurrency,
+          `one claim took ${largestClaim} rows (concurrency ${QUEUE_CONFIG.concurrency})`
+        );
+
         const expectations = {
           ok: { status: 'sent', received: 1, accepted: 1, attempts: 1 },
           t2: { status: 'sent', received: 3, accepted: 1, attempts: 3 },
