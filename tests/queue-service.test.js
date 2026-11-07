@@ -718,6 +718,40 @@ test('retention removes sent rows and old payloads', { skip: !hasSqlite }, async
 });
 
 test(
+  'retention: an unresolved row is removed rowDays after its last change, not after the content purge',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    try {
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('ok', 19), {
+        emailLog: null,
+        source: 's',
+      });
+      const day = 24 * 3_600_000;
+      const start = Date.now();
+      // A failed row whose last state change was 20 days ago.
+      await ctx
+        .knex(fixtures.OUTBOX_TABLE)
+        .where({ document_id: outboxId })
+        .update({ status: 'failed', updated_at: new Date(start - 20 * day) });
+      const retention = { sentDays: 7, unresolvedDays: 14, rowDays: 30 };
+      // Day 20: the content is past unresolvedDays and is purged; the row stays.
+      let result = await store.purgeRetention(ctx.strapi, retention, start);
+      assert.equal(result.payloadsCleared, 1);
+      assert.equal(result.rowsDeleted, 0);
+      const row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.payload ?? null, null);
+      // Day 31: the row is removed (30 days after its last state change).
+      result = await store.purgeRetention(ctx.strapi, retention, start + 11 * day);
+      assert.equal(result.rowsDeleted, 1);
+      assert.equal(await store.findByDocumentId(ctx.strapi, outboxId), null);
+    } finally {
+      await ctx.close();
+    }
+  }
+);
+
+test(
   'a database error on the sent write never re-sends an accepted message',
   { skip: !hasSqlite },
   async () => {
