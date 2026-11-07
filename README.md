@@ -1,198 +1,216 @@
-# 📧 MagicMail - Email Business Suite for Strapi v5
+# MagicMail: email accounts, routing and templates for Strapi 5
 
 Project site: https://schero94.github.io/Magic-Mail/
-
-> Manage email accounts, routing rules, templates, OAuth setup, delivery and analytics in Strapi. The plugin is MIT-licensed and open source.
 
 [![NPM Version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Strapi Version](<https://img.shields.io/badge/Strapi-5.57%2B%20(tested%205.61)-blue.svg>)](https://strapi.io)
 
-> The plugin does not require a license key or paid plan.
+MagicMail adds a mail desk to the Strapi admin. You connect one or more sending accounts (Gmail, Microsoft 365, Yahoo, any SMTP server, SendGrid or Mailgun), decide with routing rules which account sends which email, design templates, and see what was delivered, opened and clicked.
+
+It plugs into the Strapi email service you already use. Code that calls `strapi.plugin('email').service('email').send()`, Strapi's own password-reset mail and every Users & Permissions mail go through MagicMail without changes.
+
+MagicMail sends **email only**. It is MIT-licensed, has no license key, tiers or usage limits.
+
+**At a glance**
+
+- 6 providers: Gmail, Microsoft 365 and Yahoo with OAuth 2.0, SMTP (optional DKIM), SendGrid, Mailgun
+- Routing rules by email type, recipient, subject, template or a custom value, with a fallback account
+- Hourly and daily quotas per account, reserved atomically, with safe failover
+- Template designer: visual editor (Unlayer) or plain HTML/text, Mustache variables, versions, import/export
+- Delivery log with privacy-friendly open and click tracking and configurable retention
+- Credentials encrypted with AES-256-GCM; secrets never reach the browser
+- Admin UI in English, German, French, Spanish and Portuguese, light and dark mode
+
+## Contents
+
+- [Screenshots](#screenshots)
+- [Quick start](#quick-start)
+- [Sending email](#sending-email)
+- [Provider setup](#provider-setup)
+- [Routing rules and quotas](#routing-rules-and-quotas)
+- [Templates and the visual editor](#templates-and-the-visual-editor)
+- [Tracking, privacy and retention](#tracking-privacy-and-retention)
+- [Content API](#content-api)
+- [Admin API](#admin-api)
+- [Permissions](#permissions)
+- [Configuration reference](#configuration-reference)
+- [Troubleshooting](#troubleshooting)
+- [Upgrading to 4.0.0](#upgrading-to-400)
+- [Development](#development)
 
 ---
 
-## 🌟 Why MagicMail?
+## Screenshots
 
-MagicMail brings multi-account email management to Strapi v5:
+The screenshots show synthetic demo data (`example.test` addresses) on Strapi 5.61.
 
-- **100% Free & Open Source** - Every feature included, no license key, tiers or limits (MIT)
-- **6 Email Providers** - Gmail, Microsoft 365, Yahoo (OAuth 2.0), SMTP (any Nodemailer-compatible server), SendGrid, Mailgun
-- **OAuth 2.0 Authentication** - No mailbox passwords for Gmail, Microsoft and Yahoo
-- **Smart Routing Rules** - Route emails by type, recipient, subject, template or a custom value
-- **Automatic Failover** - Quotas and safe failover across accounts
-- **Admin UI** - Accounts, routing, templates, analytics and settings in the Strapi admin panel (light and dark mode, 5 languages)
-- **Configured in the admin** - Accounts and credentials live encrypted in the database; production only needs one encryption key
-- **Drop-in for the Strapi email service** - `strapi.plugin('email')` and `sendTemplatedEmail()` are routed through MagicMail
-- **Compliance headers** - `List-Unsubscribe` (RFC 8058 One-Click for https URLs), `Auto-Submitted`, `Precedence: bulk`
-- **Hardened by default** - TLS 1.2+ for SMTP, AES-256-GCM credential encryption, HTML sanitising, privacy-friendly tracking
+### Email accounts
 
----
+![Email accounts list with usage, quotas and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/EmailAccountDashboard.png)
+_Accounts with status, provider, priority, today's usage against the daily limit, and test/edit/delete actions._
 
-## 📸 Screenshots
+### Account wizard
 
-### Email Accounts Dashboard
+![Add email account wizard, provider step](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Emailaddccount1.png)
+_Four steps: provider, details, credentials, settings. OAuth providers connect in a popup._
 
-![Email Accounts Dashboard](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/EmailAccountDashboard.png)
-_Manage email accounts with live stats and quota usage_
+### Routing rules
 
-### Add Email Account - Step 1
+![Routing rules list in evaluation order](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/RoutingEmailTemplates.png)
+_Rules in evaluation order. Rules that point to a missing or inactive account are flagged._
 
-![Add Account Step 1](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Emailaddccount1.png)
-_Choose from 6 email providers, three of them with OAuth 2.0_
+### Templates
 
-### Add Email Account - Step 2
+![Template list with categories, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Templates.png)
+_Templates with Reference ID, category and status; edit, download, code snippet, duplicate, test send and delete._
 
-![Add Account Step 2](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailaddaccount2.png)
-_Configure SMTP settings or connect with OAuth_
+### Template editor
 
-### Add Email Account - Step 3
+![Template editor with the visual designer](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailDesigner.png)
+_Template editor. For this screenshot the Unlayer canvas was replaced by a local stand-in, so no request went to Unlayer; the real editor looks different inside the canvas._
 
-![Add Account Step 3](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailaddaccount3.png)
-_Complete setup with rate limits and test the connection_
+### Analytics
 
-### Email Templates
+![Analytics with totals and the delivery log](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalytics.png)
+_Totals, delivery log with server-side search, opens and clicks per email._
 
-![Email Templates](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/Templates.png)
-_Create and manage email templates with the visual designer_
+### Plugin settings
 
-### Email Designer
+![Plugin settings for tracking and unsubscribe headers](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/pluginSettings.png)
+_Settings → MagicMail → Plugin Settings: link and open tracking, tracking base URL, unsubscribe header, default sender name._
 
-![Email Designer](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailDesigner.png)
-_Drag-and-drop email editor with preview_
+### Dark mode and mobile
 
-### Template Version History
+![Analytics in dark mode](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalyticsDark.png)
 
-![Version History](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailVersionHistory.png)
-_Track changes and restore previous template versions_
-
-### Template Send Test
-
-![Send Test](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailTemplateSendTest.png)
-_Test your templates before sending to production_
-
-### Routing Rules & Templates
-
-![Routing Rules](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/RoutingEmailTemplates.png)
-_Define routing rules based on email type, recipient, subject, template or a custom value_
-
-### Email Analytics
-
-![Email Analytics](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/emailAnalytics.png)
-_Delivery logs, opens and clicks_
-
-### Code Integration
-
-![Code Snippet](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/codesnippet.png)
-_Copy-ready code snippets for every template_
+| Accounts at 390 px                                                                                         | Routing rules at 390 px                                                                                             |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ![Accounts on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/mobileAccounts.png) | ![Routing rules on a phone](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/pics/mobileRoutingRules.png) |
 
 ---
 
-## Quick Start
+## Quick start
 
 ### Requirements
 
-- Node.js `>=22.12.0 <=26.x.x` (the same range as Strapi 5.61)
+- Node.js `>=22.12.0 <=26.x.x`
 - Strapi `^5.57.0` (developed and tested against 5.61)
-- `@strapi/plugin-users-permissions` `^5.57.0` (present in every default Strapi app; the email log links to its users)
-- In every environment other than development/test: `MAGIC_MAIL_ENCRYPTION_KEY` (see [Configuration](#-configuration))
+- `@strapi/plugin-users-permissions` `^5.57.0` (part of every default Strapi app; the email log links to its users)
+- Outside development and test: the environment variable `MAGIC_MAIL_ENCRYPTION_KEY` (see [Environment variables](#environment-variables))
 
-### Installation
+### 1. Install
 
 ```bash
 npm install strapi-plugin-magic-mail
-# or
-yarn add strapi-plugin-magic-mail
 ```
 
-### Enable Plugin
+### 2. Enable
 
-Create or update `config/plugins.ts`:
-
-```typescript
-export default () => ({
+```javascript
+// config/plugins.js (or config/plugins.ts with export default)
+module.exports = () => ({
   'magic-mail': {
     enabled: true,
   },
 });
 ```
 
-### Build & Start
+### 3. Set the encryption key
+
+```bash
+# Generate once and keep it with your other secrets
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```env
+MAGIC_MAIL_ENCRYPTION_KEY=<the generated value>
+```
+
+Keep the key stable. Losing it makes the stored account credentials unreadable.
+
+### 4. Build and start
 
 ```bash
 npm run build
 npm run develop
 ```
 
-### Add Your First Email Account
+### 5. Add an account and send a test
 
-1. Open **Admin Panel → MagicMail → Email Accounts**
-2. Click **Add Account**
-3. Choose your provider (Gmail OAuth, SMTP, ...)
-4. Enter the credentials
-5. Click **Test** to verify the account
+1. Open **MagicMail → Email Accounts** in the admin and click **Add account**.
+2. Pick a provider and enter the details (see [Provider setup](#provider-setup)).
+3. Click the **Test** action on the account, enter your own address and choose **Direct test**.
 
-Upgrading from 3.x? Read [Upgrading to 4.0](#-upgrading-to-40) first.
+Every existing `strapi.plugin('email')` call now goes through MagicMail.
 
----
-
-## 📧 Supported Email Providers
-
-| Provider          | Type        | Authentication     | Transport                                  |
-| ----------------- | ----------- | ------------------ | ------------------------------------------ |
-| **Gmail**         | OAuth 2.0   | Google OAuth       | Gmail API                                  |
-| **Microsoft 365** | OAuth 2.0   | Microsoft Entra ID | Microsoft Graph `sendMail`                 |
-| **Yahoo Mail**    | OAuth 2.0   | Yahoo OAuth        | SMTP with XOAUTH2                          |
-| **SMTP**          | Credentials | Username/Password  | Nodemailer, any SMTP server, optional DKIM |
-| **SendGrid**      | API Key     | SendGrid v3 API    | HTTPS API                                  |
-| **Mailgun**       | API Key     | Mailgun API        | HTTPS API                                  |
-
-The `nodemailer` provider value is an alias of `smtp`.
+Upgrading from 3.x? Read [Upgrading to 4.0.0](#upgrading-to-400) first.
 
 ---
 
-## 💡 How to Send Emails
+## Sending email
 
-### Method 1: Strapi Native Email Service (Recommended)
+### Option 1: the Strapi email service (recommended)
 
-MagicMail wraps the **provider** of `@strapi/email`, so existing code needs no changes:
+MagicMail wraps the provider of `@strapi/email` at startup, so existing code keeps working:
 
 ```javascript
-// Works in any Strapi plugin or controller:
 await strapi.plugin('email').service('email').send({
   to: 'user@example.com',
-  subject: 'Welcome to Our Platform!',
-  text: 'Plain text version',
+  subject: 'Welcome to Example Shop',
+  text: 'Thanks for signing up!',
   html: '<h1>Welcome!</h1><p>Thanks for signing up!</p>',
 });
 ```
 
-Both `send()` and `sendTemplatedEmail()` are routed, including Strapi's admin password-reset mail and every users-permissions mail. MagicMail selects the account (routing rules, then priority), reserves quota, fails over when it is safe, logs the email and updates the statistics.
+Both `send()` and `sendTemplatedEmail()` are routed, including Strapi's admin password-reset email and the Users & Permissions emails. MagicMail picks the account (routing rules, then priority), reserves quota, fails over when that is safe, logs the email and updates the statistics.
 
-**Never lost:** when no active MagicMail account exists, or every eligible account is over its quota, the email goes out through the original Strapi email provider (logged as `strapi-email-provider`). Once a MagicMail account has attempted delivery, errors are returned to the caller and never re-sent through the original provider, so nothing is delivered twice. Direct `email-router` callers (Method 2) get the error instead of the fallback.
+**Fallback to the original provider.** When no MagicMail account is active, or every eligible account is over its quota, the email is sent through the Strapi email provider you configured before (logged with the account name `strapi-email-provider`). Once a MagicMail account has attempted delivery, an error is returned to the caller and the email is **not** sent again through the original provider, so nothing goes out twice.
 
-### Method 2: Direct MagicMail Service
+### Option 2: the MagicMail router service
 
-For explicit control over account selection:
+Use the router directly when you need its options, for example to force an account:
 
 ```javascript
 await strapi.plugin('magic-mail').service('email-router').send({
   to: 'customer@example.com',
-  subject: 'Order Confirmation',
-  html: '<h1>Your Order #12345</h1>',
-  accountName: 'SendGrid Marketing', // force this account (case-insensitive)
+  subject: 'Order confirmation',
+  html: '<h1>Your order #12345</h1>',
+  accountName: 'Transactional SMTP', // case-insensitive; never replaced by another account
   type: 'transactional',
   priority: 'high',
 });
+// → { success: true, accountUsed: 'Transactional SMTP', messageId: '<…>', emailId: '…' }
 ```
 
-An explicit `accountName` is never replaced by another account: if it is over quota or fails, the send fails.
+An explicit `accountName` is never swapped for another account: if that account is over quota or fails, the send fails. Router calls never use the Strapi-provider fallback; they get the error.
 
-### Method 3: Content API (HTTP)
+### Option 3: HTTP
 
 See [Content API](#content-api) for `POST /api/magic-mail/send` and `/send-message`.
 
-### Sending with Attachments
+### Send options
+
+The same fields work for the router, the Strapi email service and `POST /api/magic-mail/send`.
+
+| Field                                                | Description                                                                                                                                                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`, `cc`, `bcc`                                    | Address, array or comma-separated list (max. 100 `to`, 50 `cc`/`bcc`). Display names allowed                                                                                  |
+| `subject`, `text`, `html`                            | `subject` is required unless a template provides it; `text` or `html` is required. HTML is sanitised (no scripts, event handlers or `javascript:` URLs; email layout is kept) |
+| `from`                                               | Optional. Must be the sending account's address; only its display name is used                                                                                                |
+| `replyTo`                                            | A valid address                                                                                                                                                               |
+| `type`                                               | `transactional` (default), `marketing` or `notification`. Without `type`, a template's category is used                                                                       |
+| `priority`                                           | `normal` (default), `high` or `low`. `high` adds `X-Priority` and `Importance` headers                                                                                        |
+| `accountName`                                        | Force one account                                                                                                                                                             |
+| `templateId` / `templateReferenceId`, `templateData` | Render a MagicMail template by its Reference ID with Mustache data (`data` is accepted as an alias of `templateData`)                                                         |
+| `unsubscribeUrl`                                     | Per-email unsubscribe URL                                                                                                                                                     |
+| `enableTracking: false`, `skipLinkTracking: true`    | Disable open and click tracking, or only click tracking, for this email                                                                                                       |
+| `customField`                                        | Value matched by routing rules of type _Custom_                                                                                                                               |
+| `headers`                                            | Up to 20 custom headers: `X-*` (except MagicMail's own) plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To`, `References`. Others are dropped                       |
+| `attachments`                                        | Up to 20, 25 MB each, with `filename`, `content`, `contentType`, `encoding`, `cid`                                                                                            |
+| `userId`, `recipientName`                            | Stored on the email log                                                                                                                                                       |
+
+### Attachments
 
 ```javascript
 await strapi
@@ -200,90 +218,180 @@ await strapi
   .service('email')
   .send({
     to: 'customer@example.com',
-    subject: 'Invoice #12345',
-    html: '<h1>Invoice Attached</h1>',
+    subject: 'Invoice 12345',
+    html: '<h1>Your invoice is attached</h1>',
     attachments: [
       {
         filename: 'invoice.pdf',
         content: await fs.promises.readFile(invoicePath), // read the file yourself
         contentType: 'application/pdf',
       },
-      {
-        filename: 'receipt.pdf',
-        content: pdfBase64,
-        encoding: 'base64',
-        contentType: 'application/pdf',
-      },
+      { filename: 'receipt.pdf', content: pdfBase64, encoding: 'base64' },
     ],
   });
 ```
 
-Attachments must carry their `content` (Buffer, or a string with `encoding`). `path` and `href` attachments are rejected for every provider, so MagicMail never reads server files or fetches URLs on a caller's behalf. Inline images use `cid` and are sent inline by every provider. Limits: 20 attachments, 25 MB each.
+Attachments must carry their `content` (a Buffer, or a string with `encoding`). Attachments with `path` or `href` are rejected for every provider, so MagicMail never reads server files or fetches URLs for a caller. Inline images use `cid`.
 
-### Priority & Marketing Emails
+### Unsubscribe and bulk headers
 
-```javascript
-// High priority email (adds X-Priority and Importance headers)
-await strapi.plugin('magic-mail').service('email-router').send({
-  to: 'vip@example.com',
-  subject: 'Urgent: Action Required',
-  html: '<h1>Important Update</h1>',
-  priority: 'high',
-});
-
-// Marketing email with unsubscribe link
-await strapi.plugin('magic-mail').service('email-router').send({
-  to: 'subscriber@example.com',
-  subject: 'Weekly Newsletter',
-  html: '<h1>This Week</h1>',
-  type: 'marketing',
-  unsubscribeUrl: 'https://yoursite.com/unsubscribe?id=123',
-});
-```
-
-`List-Unsubscribe` is sent for marketing emails that have an unsubscribe URL, and for every email type when **Settings → Unsubscribe header** is on and a URL is available. A per-email `unsubscribeUrl` wins; the plugin-wide URL from the settings is only used while the toggle is on. `{{email}}` in the plugin-wide URL is replaced with the (URL-encoded) recipient for single-recipient emails. `List-Unsubscribe-Post: List-Unsubscribe=One-Click` is only added for `https` URLs. Marketing emails also get `Precedence: bulk`; notification emails get `Auto-Submitted: auto-generated`.
-
-### Send options
-
-| Field                                                | Description                                                                                                                                                                                    |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `to`, `cc`, `bcc`                                    | Address, array or comma-separated list (max. 100 `to`, 50 `cc`/`bcc`); display names allowed                                                                                                   |
-| `subject`, `text`, `html`                            | `subject` is required unless a template provides it; `text` or `html` is required. HTML is sanitised (scripts, event handlers and `javascript:` URLs are removed; email layout markup is kept) |
-| `from`                                               | Optional. Must be the sending account's address; only its display name is used. Any other address is replaced by the account address                                                           |
-| `replyTo`                                            | Valid address(es)                                                                                                                                                                              |
-| `type`                                               | `transactional` (default), `marketing` or `notification`. A template's category is used when `type` is omitted                                                                                 |
-| `priority`                                           | `normal` (default), `high` or `low`                                                                                                                                                            |
-| `accountName`                                        | Force one account                                                                                                                                                                              |
-| `templateId` / `templateReferenceId`, `templateData` | Render a MagicMail template with Mustache data                                                                                                                                                 |
-| `unsubscribeUrl`                                     | Per-email unsubscribe URL                                                                                                                                                                      |
-| `enableTracking: false`, `skipLinkTracking: true`    | Disable open+click or only click tracking for this email                                                                                                                                       |
-| `customField`                                        | Value matched by routing rules of type _Custom_                                                                                                                                                |
-| `headers`                                            | Up to 20 custom headers: `X-*` (except MagicMail's own) plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To`, `References`. Others are dropped                                        |
-| `userId`, `recipientName`                            | Stored on the email log                                                                                                                                                                        |
+- `List-Unsubscribe` is sent for marketing emails that have an unsubscribe URL, and for every email type while **Settings → Unsubscribe header** is on and a URL is available.
+- A per-email `unsubscribeUrl` wins. The plugin-wide URL from the settings is used only while the toggle is on; `{{email}}` in it is replaced with the URL-encoded recipient (single-recipient emails only).
+- `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) is only added for `https` URLs.
+- Marketing emails get `Precedence: bulk`; notification emails get `Auto-Submitted: auto-generated`.
 
 ---
 
-## 🎨 Email Designer Suite
+## Provider setup
 
-**Design emails visually with the integrated email designer.**
+### OAuth redirect URI
 
-### ✨ Features
+MagicMail builds the redirect URI from the `URL` environment variable if it is set (legacy override), otherwise from Strapi's `server.url` (or `server.absoluteUrl`):
 
-| Feature                                                                | Included |
-| ---------------------------------------------------------------------- | -------- |
-| **Visual Designer (Unlayer)**                                          | ✅       |
-| **Plain HTML/Text editing**                                            | ✅       |
-| **Unlimited Templates**                                                | ✅       |
-| **Mustache Variables**                                                 | ✅       |
-| **Import / Export**                                                    | ✅       |
-| **Template Versioning**                                                | ✅       |
-| **Users & Permissions templates** (reset password, email confirmation) | ✅       |
-| **Email Analytics**                                                    | ✅       |
+```
+<public URL>/magic-mail/oauth/<gmail|microsoft|yahoo>/callback
+```
 
-### 📧 Creating Email Templates
+The account wizard shows the exact value the server uses; register exactly that value with the provider. In production the URL must be public `https`; there is no `localhost` fallback. The `localhost:1337` URIs below are for local development.
 
-1. Go to **MagicMail → Email Templates**.
-2. Click **Create Template** and build the email in the visual designer (or the plain HTML/text tab).
+The authorization popup reports back to the admin origin (`admin.url`). If the admin runs on its own host, set `admin.url` to that absolute URL. OAuth flows are bound to the admin who started them and kept in process memory, so several Strapi instances behind a load balancer need sticky admin sessions.
+
+**Reconnecting an account** (revoked consent, expired refresh token): edit the account and use **Reconnect with &lt;provider&gt;** in the wizard. The provider must return the account's own mailbox. Access tokens are refreshed 60 seconds before they expire and once more if the provider rejects them; rotated refresh tokens are stored.
+
+### Gmail (OAuth 2.0)
+
+1. In the [Google Cloud Console](https://console.cloud.google.com) create or select a project and enable the **Gmail API**.
+2. Create an **OAuth client ID** of type _Web application_.
+3. Add the redirect URI, for example `http://localhost:1337/magic-mail/oauth/gmail/callback`.
+4. In MagicMail choose **Gmail**, paste the client ID and secret, click **Connect with Google** and sign in.
+
+Scopes: `https://www.googleapis.com/auth/gmail.send`, `https://www.googleapis.com/auth/userinfo.email`, `openid`. Mail is sent through the Gmail API.
+
+### Microsoft 365 (OAuth 2.0)
+
+1. In the [Azure portal](https://portal.azure.com) open **Microsoft Entra ID → App registrations → New registration**.
+2. Copy the **Application (client) ID** and the **Directory (tenant) ID**.
+3. Add a _Web_ redirect URI, for example `http://localhost:1337/magic-mail/oauth/microsoft/callback`.
+4. API permissions (Microsoft Graph, _Delegated_): `Mail.Send`, `User.Read`, `offline_access`, `openid`, `email`. Grant admin consent.
+5. Under **Certificates & secrets** create a client secret and copy its **Value** (not the secret ID).
+6. In MagicMail choose **Microsoft 365**, enter tenant ID, client ID and secret, click **Connect with Microsoft**.
+
+The tenant ID must be a GUID, a domain, `common`, `organizations` or `consumers`. Mail is sent through Microsoft Graph `sendMail`.
+
+### Yahoo Mail (OAuth 2.0)
+
+1. Create an app at [developer.yahoo.com/apps](https://developer.yahoo.com/apps).
+2. Redirect URI, for example `http://localhost:1337/magic-mail/oauth/yahoo/callback`.
+3. Permissions: **Mail (read/write)** and **OpenID Connect** (scopes `openid email mail-w`).
+4. In MagicMail choose **Yahoo Mail**, paste client ID and secret and click **Connect with Yahoo**.
+
+Mail is sent over SMTP with XOAUTH2.
+
+### SMTP
+
+| Field             | Example                                                      |
+| ----------------- | ------------------------------------------------------------ |
+| Host              | `smtp.example.com`                                           |
+| Port              | `587` (STARTTLS) or `465` (turn on _Use SSL/TLS encryption_) |
+| Username/password | Mailbox credentials or an app password                       |
+
+Common hosts: Gmail `smtp.gmail.com:587` (app password), Outlook.com `smtp-mail.outlook.com:587`, Microsoft 365 `smtp.office365.com:587`.
+
+TLS 1.2 or newer is required and certificates are verified. For a local mail catcher (Mailpit, MailHog) set `"allowInsecure": true` in the account config; it is honoured outside `NODE_ENV=production`, or for loopback hosts.
+
+Optional DKIM signing (account config):
+
+```json
+{
+  "dkim": {
+    "domainName": "example.com",
+    "keySelector": "default",
+    "privateKey": "-----BEGIN PRIVATE KEY-----\n..."
+  }
+}
+```
+
+Generate a key with `openssl genrsa -out dkim_private.pem 2048` and publish the public key as a TXT record at `default._domainkey.example.com`.
+
+The provider value `nodemailer` is an alias of `smtp`.
+
+### SendGrid
+
+1. In SendGrid go to **Settings → API Keys** and create a key with the **Mail Send** permission.
+2. In MagicMail choose **SendGrid** and paste the key. The sender address must be verified in SendGrid.
+
+### Mailgun
+
+1. In Mailgun copy your **Private API key** and your verified sending domain.
+2. In MagicMail choose **Mailgun** and enter the domain (for example `mg.example.com`) and the key.
+
+MagicMail calls Mailgun's US API endpoint (`api.mailgun.net`). Domains in Mailgun's EU region are not supported yet.
+
+### Provider comparison
+
+| Provider      | Authentication        | Transport                   | DKIM                 |
+| ------------- | --------------------- | --------------------------- | -------------------- |
+| Gmail         | OAuth 2.0             | Gmail API                   | by Google            |
+| Microsoft 365 | OAuth 2.0 (Entra ID)  | Microsoft Graph `sendMail`  | by Microsoft         |
+| Yahoo Mail    | OAuth 2.0             | SMTP with XOAUTH2           | by Yahoo             |
+| SMTP          | Username and password | Nodemailer, any SMTP server | optional (see above) |
+| SendGrid      | API key               | HTTPS API (v3)              | by SendGrid          |
+| Mailgun       | API key + domain      | HTTPS API (US region)       | by Mailgun           |
+
+All providers support attachments, inline images (`cid`) and custom headers.
+
+---
+
+## Routing rules and quotas
+
+Routing rules send an email through a specific account when it matches a condition. Manage them under **MagicMail → Routing Rules**.
+
+| Match type     | Matches when                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Email Type** | the email type equals the value (`transactional`, `marketing`, `notification`)                              |
+| **Recipient**  | any recipient matches: `@domain.com` = domain, `user@domain.com` = exact address, anything else = substring |
+| **Subject**    | the subject contains the value (case-insensitive)                                                           |
+| **Template**   | the template name or Reference ID equals the value                                                          |
+| **Custom**     | the email's `customField` equals the value                                                                  |
+
+Examples:
+
+| Rule                  | Match                              | Account            | Fallback           | Priority |
+| --------------------- | ---------------------------------- | ------------------ | ------------------ | -------- |
+| Password resets first | Subject contains `Password Reset`  | Transactional SMTP | Gmail Support      | 1000000  |
+| Marketing campaigns   | Email type `marketing`             | Marketing SendGrid |                    | 50       |
+| VIP customers         | Recipient `@vip-customers.example` | Gmail Support      | Transactional SMTP | 10       |
+
+**Order.** Rules are checked from the highest to the lowest priority (1 to 1,000,000); the first match wins. The admin list and `GET /magic-mail/routing-rules` show them in this order.
+
+**Account order for one email.** The matching rule's account, then the rule's fallback account, then the primary account, then the remaining active accounts by account priority (1 to 10, higher first). Accounts over their quota are skipped.
+
+**Failover.** Errors that guarantee the provider did not accept the message (connection or authentication failures, missing credentials, HTTP 401/403/429/500/502/503, SMTP envelope rejection) move on to the next account. Ambiguous errors such as timeouts are returned to the caller instead, so an email is never delivered twice.
+
+**Account references.** Rules reference accounts by name. Creating or editing a rule with an unknown account name returns 400. Renaming an account updates its rules; deleting an account deactivates the rules that target it and clears it where it is the fallback.
+
+**Quotas.** Each account can have an hourly and a daily limit (0 = unlimited). Quota is reserved atomically before dispatch, so concurrent sends cannot exceed it. Windows follow the clock hour and the calendar day in UTC; set `quotaTimezone` to use another IANA time zone.
+
+---
+
+## Templates and the visual editor
+
+Everything in the designer is included, with no tiers:
+
+| Feature                           | Included |
+| --------------------------------- | -------- |
+| **Visual Designer (Unlayer)**     | ✅       |
+| **Plain HTML/Text editing**       | ✅       |
+| **Unlimited Templates**           | ✅       |
+| **Mustache Variables**            | ✅       |
+| **Import / Export**               | ✅       |
+| **Template Versioning**           | ✅       |
+| **Users & Permissions templates** | ✅       |
+
+### Creating templates
+
+1. Go to **MagicMail → Email Templates** and click **Create template**.
+2. Build the email in the **Visual Designer** tab, or write HTML and text in the **Plain Text** tab.
 3. Use Mustache variables for dynamic content:
 
    ```html
@@ -291,11 +399,11 @@ await strapi.plugin('magic-mail').service('email-router').send({
    <p>Thanks for joining {{company.name}}</p>
    ```
 
-4. Save. Each template gets a unique numeric **Reference ID** (e.g. `100`) that you use when sending. The editor locks the Reference ID once the template exists.
+4. Save. Each template has a numeric **Reference ID** (for example `100`) that you use when sending. It cannot be changed after creation.
 
 The server fills `{{system.date}}`, `{{system.year}}` and `{{system.unsubscribe}}` (the email's unsubscribe URL); callers cannot override them.
 
-### 💌 Sending Templated Emails
+### Sending a template
 
 ```javascript
 await strapi
@@ -305,65 +413,49 @@ await strapi
     to: 'user@example.com',
     templateId: 100, // Reference ID
     templateData: {
-      user: { firstName: 'John', lastName: 'Doe' },
-      company: { name: 'ACME Corp', url: 'https://acme.example' },
+      user: { firstName: 'Ada' },
+      company: { name: 'Example Shop' },
     },
-  });
-
-// The Strapi email service accepts the same fields:
-await strapi
-  .plugin('email')
-  .service('email')
-  .send({
-    to: 'user@example.com',
-    templateId: 100,
-    templateData: { user: { firstName: 'Jane' } },
   });
 ```
 
-### 🎯 Template Categories
+`strapi.plugin('email').service('email').send()` accepts the same `templateId` and `templateData` fields. The template list also shows a ready-made code snippet per template.
 
-Templates have a category: `transactional`, `marketing`, `notification` or `custom`. The first three become the email `type` when the caller does not pass one, so a routing rule _Email Type = marketing_ also catches marketing templates.
+### Categories
 
-### 🔄 Template Versioning
+Templates have a category: `transactional`, `marketing`, `notification` or `custom`. The first three become the email `type` when the caller passes none, so a rule _Email Type = marketing_ also catches marketing templates.
 
-Version 1 is the created template; every save that changes the content (name, subject, design, HTML, text or tags) adds one version with the saved content. Saves that only toggle `isActive` or the category add no version. Restoring a version saves its content as a new version.
+### Versions, import and export
+
+- Version 1 is the created template. Every save that changes the content (name, subject, design, HTML, text or tags) adds a version with the saved content. Saves that only toggle `isActive` or the category add none. Restoring a version saves its content as a new version.
+- Export writes JSON (all templates, or the ones you select); import accepts MagicMail exports and exports of `strapi-plugin-email-designer-5`. The `isActive` state is kept.
 
 ```javascript
 const designer = strapi.plugin('magic-mail').service('email-designer');
 const versions = await designer.getVersions(templateDocumentId);
 await designer.restoreVersion(templateDocumentId, versionDocumentId);
+const exported = await designer.exportTemplates(); // or exportTemplates([documentId, ...])
+const results = await designer.importTemplates(exported);
 ```
 
-### 📦 Import/Export Templates
+### Users & Permissions templates
 
-```javascript
-const designer = strapi.plugin('magic-mail').service('email-designer');
+The **Core emails** tab edits the _Reset password_ and _Email address confirmation_ templates of Users & Permissions. This needs the _Users & Permissions → Email templates_ read/update permissions in addition to MagicMail's. Only `{{ URL }}`, `{{ SERVER_URL }}`, `{{ ADMIN_URL }}`, `{{ CODE }}`, `{{ TOKEN }}`, `{{ USER }}`, `{{ USER.email }}` and `{{ USER.username }}` are accepted; they are stored as `<%= KEY %>`, the syntax Users & Permissions fills in.
 
-// Export all templates (or pass an array of documentIds)
-const templates = await designer.exportTemplates();
-fs.writeFileSync('templates.json', JSON.stringify(templates, null, 2));
+### The visual editor (Unlayer) and privacy
 
-// Import (MagicMail and strapi-plugin-email-designer-5 export formats)
-const results = await designer.importTemplates(
-  JSON.parse(fs.readFileSync('templates.json', 'utf8'))
-);
-console.log(`Imported ${results.filter((r) => r.success).length} templates`);
-```
+The visual designer embeds the [Unlayer](https://unlayer.com) editor through `react-email-editor`. What that means for you:
 
-### 🎨 Visual Designer (Unlayer)
-
-The visual designer embeds the [Unlayer](https://unlayer.com) editor through `react-email-editor`. It runs hardened by default:
-
-- The loader URL is explicit (`https://editor.unlayer.com/embed.js?2`) and the editor build is pinned to an exact version (`1.524.0`).
+- The editor script loads from `https://editor.unlayer.com/embed.js?2` and the editor build is pinned (`1.524.0`). Unlayer serves the editor, so the browser of each editor user contacts Unlayer's servers.
 - No Unlayer `projectId` is sent unless you configure one.
-- No Unlayer image hosting, stock images, AI assistant, hosted image editor, "preview in browser" or third-party placeholder images. Images you add are uploaded to the **Strapi Media Library** (`POST /upload`), so editors also need the _Media Library → Create (upload)_ permission.
-- If the editor cannot load (blocked by CSP, offline), the page falls back to the plain HTML/text editor and explains why.
+- Disabled: Unlayer image hosting, stock images, the AI assistant, the hosted image editor, "preview in browser" and third-party placeholder images. New image blocks use an inline placeholder.
+- Images you add are uploaded to the **Strapi Media Library** (`POST /upload`), so editors also need _Media Library → Create (upload)_.
+- If the editor cannot load (CSP, offline, blocked), the page explains why and the **Plain Text** tab keeps working. You never need Unlayer to send templates.
 
-Optional settings (`config/plugins.js`):
+Optional overrides (`config/plugins.js`):
 
 ```javascript
-module.exports = {
+module.exports = () => ({
   'magic-mail': {
     config: {
       designer: {
@@ -373,12 +465,12 @@ module.exports = {
       },
     },
   },
-};
+});
 ```
 
-#### Content Security Policy for the visual designer
+### Content Security Policy for the visual editor
 
-Strapi's default `strapi::security` middleware blocks third-party scripts and frames. To use the visual designer, allow the Unlayer origin in `config/middlewares.js` (do **not** add `'unsafe-inline'` or `'unsafe-eval'`):
+Strapi's `strapi::security` middleware blocks third-party scripts and frames. To use the visual designer, allow the Unlayer origin in `config/middlewares.js`. Do **not** add `'unsafe-inline'` or `'unsafe-eval'`.
 
 ```javascript
 module.exports = [
@@ -392,279 +484,292 @@ module.exports = [
         directives: {
           'script-src': ["'self'", 'https://editor.unlayer.com'],
           'frame-src': ["'self'", 'https://editor.unlayer.com'],
-          // Media Library images shown inside the editor and the preview:
+          // Media Library images shown in the editor and the preview:
           'img-src': ["'self'", 'data:', 'blob:', 'https://your-media-host.example'],
         },
       },
     },
   },
-  // ...the remaining default middlewares
+  'strapi::cors',
+  'strapi::poweredBy',
+  'strapi::query',
+  'strapi::body',
+  'strapi::session',
+  'strapi::favicon',
+  'strapi::public',
 ];
 ```
 
-If you self-host `embed.js` via `designer.scriptUrl`, use that origin instead of `https://editor.unlayer.com` in `script-src` (the editor iframe still loads from `editor.unlayer.com`). The Unlayer script runs in the admin origin, so only allow it if you accept that trust; without these directives the plain HTML/text editor keeps working.
-
-### 📊 Template Statistics
-
-```javascript
-const stats = await strapi.plugin('magic-mail').service('email-designer').getStats();
-// { total, active, inactive, byCategory: [{ category, count }], maxTemplates: -1, remaining: -1 }
-```
-
-### Users & Permissions email templates
-
-The _Reset password_ and _Email address confirmation_ templates of Users & Permissions can be edited in MagicMail. This needs the _Users & Permissions → Email templates_ read/update permissions in addition to MagicMail's. Only `{{ URL }}`, `{{ SERVER_URL }}`, `{{ ADMIN_URL }}`, `{{ CODE }}`, `{{ TOKEN }}`, `{{ USER }}`, `{{ USER.email }}` and `{{ USER.username }}` are accepted; they are stored as `<%= KEY %>` for users-permissions.
+With `designer.scriptUrl` (self-hosted `embed.js`) put that origin into `script-src` instead; the editor iframe still loads from `editor.unlayer.com`, so keep it in `frame-src`. The Unlayer script runs in the admin origin. Only allow it if you accept that trust.
 
 ---
 
-## 🎯 Smart Routing Rules
+## Tracking, privacy and retention
 
-Routing rules send emails through specific accounts based on conditions.
+Open tracking adds a 1×1 pixel; click tracking rewrites `<a href>` links to a redirect. Both are on by default (**Settings → MagicMail → Plugin Settings**) and can be turned off per email with `enableTracking: false` or `skipLinkTracking: true`.
 
-| Match type     | Matches when                                                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Email Type** | the email type equals the value (`transactional`, `marketing`, `notification`)                              |
-| **Recipient**  | any recipient matches: `@domain.com` = domain, `user@domain.com` = exact address, anything else = substring |
-| **Subject**    | the subject contains the value (case-insensitive)                                                           |
-| **Template**   | the template name or Reference ID equals the value                                                          |
-| **Custom**     | the email's `customField` equals the value (service calls and the Content API `/send`)                      |
+**Public URL.** Tracking URLs use the _Tracking base URL_ setting, then `server.url`, then `server.absoluteUrl`, plus your REST prefix (`api.rest.prefix`, default `/api`), for example `https://cms.example.com/api/magic-mail/track/click/...`. In production a loopback host (`localhost`, `127.0.0.1`, `0.0.0.0`) is never used: without a public URL, emails are sent **untracked** and one warning is logged.
 
-### Examples
+**Never tracked.** Authentication and one-time-token links (password reset, confirmation, magic links, OAuth, parameters such as `token`, `code`, `key`, `signature`, `session`, long random values), `mailto:` and `tel:` links, and links beyond `maxLinksPerEmail` (100). Emails sent through the Content API are click-tracked only for hosts in `tracking.allowedLinkHosts` (none by default).
 
-```
-Match Type: Email Type      Match Value: marketing         Target: SendGrid Marketing   Priority: 10
-Match Type: Recipient       Match Value: @vip-customers.com Target: Priority SMTP  Fallback: Gmail OAuth  Priority: 9
-Match Type: Subject         Match Value: Password Reset    Target: Transactional SMTP   Priority: 8
-```
+**What is stored.** Open and click events store the IP truncated to /24 (IPv4) or /48 (IPv6) and at most 512 characters of user agent; no location. Only Koa's `request.ip` is used, so behind a reverse proxy enable [`server.proxy`](https://docs.strapi.io/cms/configurations/server), otherwise every recipient shares the proxy's address.
 
-### Rule priority and failover
+**Retention.** Every 6 hours MagicMail deletes events older than `tracking.eventRetentionDays` (90) and tracked links older than `tracking.linkTtlDays` (180; expired links then show the fallback page). `tracking.logRetentionDays` optionally deletes old email logs with their events and links. Logs contain personal data (recipient addresses); you can also delete them with **Analytics → Clear All** or with `DELETE /magic-mail/analytics/emails?olderThan=<ISO date>`.
 
-Rules are evaluated from **highest to lowest priority** (1 to 1,000,000; the admin list and `GET /magic-mail/routing-rules` show them in this order). Accounts are tried in this order: the matching rule's account, the rule's fallback account, the primary account, then the remaining active accounts by account priority (1-10, higher first). Accounts over their quota are skipped.
+**Rate limit.** The tracking routes allow 300 requests per minute and IP. Above that, opens and clicks are no longer recorded but recipients still get the pixel and the redirect; only above 3,000 per minute is a plain-text 429 returned.
 
-Errors that guarantee the provider did not accept the message (connection or authentication failures, missing credentials, HTTP 401/403/429/500/502/503, SMTP envelope rejection) move on to the next account. Ambiguous errors such as timeouts are returned to the caller to avoid duplicate delivery.
+**Signing.** Tracking hashes are signed with `MAGIC_MAIL_TRACKING_SECRET`, falling back to `MAGIC_MAIL_ENCRYPTION_KEY`. To rotate, keep the old values in `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS` (comma-separated) while old emails matter.
 
-Rules reference accounts by name. Creating or editing a rule with an unknown account name is rejected. Renaming an account updates the rules that use it; deleting an account deactivates rules that target it and clears it as fallback.
-
-### Quotas
-
-Each account can have an hourly and a daily limit (0 = unlimited). Quota is reserved atomically before dispatch, so concurrent sends cannot exceed it. Windows follow the clock hour and calendar day in UTC; set `quotaTimezone` (IANA name) in the plugin config to change this.
-
----
-
-## 🔐 Provider Setup Guides
-
-**OAuth redirect URI.** MagicMail builds the redirect URI from the `URL` environment variable if set (legacy override), otherwise from Strapi's `server.url` (`server.absoluteUrl`): `<public URL>/magic-mail/oauth/<gmail|microsoft|yahoo>/callback`. The account wizard shows the exact value the server uses. In production the URL must be public `https`; there is no `localhost` fallback. The `localhost` URIs below are for local development.
-
-The authorization popup reports back to the admin panel origin (`admin.url`); if the admin is served from its own host, set `admin.url` to that absolute URL. OAuth flows are bound to the admin who started them and kept in process memory, so horizontally scaled deployments need sticky admin sessions.
-
-**Re-authorizing an account** (revoked consent, expired refresh token): start the flow with `GET /magic-mail/oauth/<provider>/auth?accountId=<documentId>` and finish it with `POST /magic-mail/oauth/reconnect/<documentId>`; the provider must return the account's own mailbox. Access tokens are refreshed automatically 60 seconds before they expire and once more if the provider rejects them; rotated refresh tokens are stored.
-
-### Gmail OAuth Setup
-
-**1. Google Cloud Console**
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a new project or select an existing one
-3. Enable the Gmail API
-4. Create an OAuth 2.0 Client ID (Web application)
-5. Add the redirect URI: `http://localhost:1337/magic-mail/oauth/gmail/callback`
-6. Copy the Client ID and Client Secret
-
-**2. In MagicMail**
-
-1. Choose "Gmail OAuth"
-2. Paste Client ID and Client Secret
-3. Click "Connect with Google" and authorize in the popup
-
-**Scopes requested:** `https://www.googleapis.com/auth/gmail.send`, `https://www.googleapis.com/auth/userinfo.email`, `openid`
-
-### Microsoft 365 OAuth Setup
-
-**1. Azure Portal**
-
-1. Go to [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID → App registrations → New registration**
-2. Account type: **Accounts in this organizational directory only**
-3. Copy the **Application (client) ID** and the **Directory (tenant) ID**
-
-**2. Add the redirect URI** (platform _Web_)
-
-```
-http://localhost:1337/magic-mail/oauth/microsoft/callback
-```
-
-**3. API permissions** (Microsoft Graph, _Delegated_): `Mail.Send`, `User.Read`, `offline_access`, `openid`, `email`. Grant admin consent.
-
-**4. Client secret:** _Certificates & secrets → New client secret_, copy the **Value** (not the Secret ID).
-
-**5. In MagicMail:** choose "Microsoft OAuth", enter Tenant ID, Client ID and Client Secret, click "Connect with Microsoft". Tenant IDs must be a GUID, a domain, `common`, `organizations` or `consumers`.
-
-### Yahoo Mail OAuth Setup
-
-1. Go to [developer.yahoo.com/apps](https://developer.yahoo.com/apps) and create an app
-2. Redirect URI: `http://localhost:1337/magic-mail/oauth/yahoo/callback`
-3. API permissions: **Mail (read/write)** and **OpenID Connect** (scopes `openid email mail-w`)
-4. In MagicMail choose "Yahoo Mail OAuth", paste Client ID and Client Secret and click "Connect with Yahoo"
-
-### SMTP Setup (Universal)
-
-```
-Host: smtp.example.com
-Port: 587 (STARTTLS) or 465 (implicit TLS)
-Username: your-email@domain.com
-Password: your-password (or an app password)
-```
-
-- **Gmail:** `smtp.gmail.com:587` (use an App Password)
-- **Outlook.com:** `smtp-mail.outlook.com:587`
-- **Microsoft 365:** `smtp.office365.com:587`
-
-TLS 1.2 or newer is required and certificates are verified. For a local mail catcher (Mailpit, MailHog) set `"allowInsecure": true` in the SMTP account config; it is honoured outside `NODE_ENV=production`, or for loopback hosts.
-
-**Optional DKIM signing** (account config):
-
-```json
-{
-  "dkim": {
-    "domainName": "yourdomain.com",
-    "keySelector": "default",
-    "privateKey": "-----BEGIN PRIVATE KEY-----\n..."
-  }
-}
-```
-
-Generate a 2048-bit key (`openssl genrsa -out dkim_private.pem 2048`) and publish the public key as `default._domainkey.yourdomain.com` TXT.
-
-### SendGrid Setup
-
-1. [app.sendgrid.com](https://app.sendgrid.com) → Settings → API Keys → Create API Key with the **Mail Send** scope
-2. In MagicMail choose "SendGrid" and paste the API key
-
-### Mailgun Setup
-
-1. [app.mailgun.com](https://app.mailgun.com) → API Security → copy the **Private API Key**; Sending → Domains → copy your verified domain
-2. In MagicMail choose "Mailgun", enter the domain (e.g. `mg.yourdomain.com`) and the API key
-
----
-
-## 🛡️ Security
-
-### Credentials
-
-- **AES-256-GCM** encryption for all account credentials and OAuth tokens, with an HKDF-derived, purpose-bound key (format `v1:`)
-- **Secrets never leave the server**: the edit form receives a fixed placeholder (`********`). Changing the provider, host, port, user, OAuth client/tenant, Mailgun domain or `allowInsecure` requires entering the secrets again.
-- Key rotation with `MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS` (decrypt only; saving an account re-encrypts it)
-
-### Transport
-
-- TLS 1.2+ and certificate verification for SMTP
-- HTTPS for every API provider
-- Message-ID generated per email (RFC 5322)
-
-### Content
-
-- HTML is sanitised before sending (no scripts, event handlers or `javascript:` URLs)
-- Recipients, sender, reply-to and headers are validated; header injection is stripped
-- No file-path or URL attachments
-- A warning is logged for subjects longer than 200 characters
-
-### Deliverability
-
-MagicMail does not validate SPF, DKIM or DMARC for you; they depend on your DNS and provider. OAuth providers, SendGrid and Mailgun sign mail themselves; for SMTP add DKIM as shown above. `from` is always aligned with the sending account to keep DMARC alignment.
-
----
-
-## 🔑 Permissions
-
-MagicMail registers four admin actions (Settings → Administration Panel → Roles → Plugins → MagicMail):
-
-| Action                         | Grants                                                                                                           |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `plugin::magic-mail.access`    | The MagicMail menu entry and page. No API access by itself.                                                      |
-| `plugin::magic-mail.read`      | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link. |
-| `plugin::magic-mail.manage`    | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup.                            |
-| `plugin::magic-mail.test-send` | Send test emails (account test, Strapi-service test, template test). Rate limited to 10 per minute per admin.    |
-
-Typical roles: read-only = `access` + `read`; editor = `access` + `read` + `manage`; tester = `access` + `read` + `test-send`. Editing the users-permissions templates also needs the users-permissions email-template permissions. Details: [docs/permission-migration.md](./docs/permission-migration.md).
+Mention open and click tracking in your privacy notice.
 
 ---
 
 ## Content API
 
-| Method | Path                                                            | Auth      | Purpose                                                                                           |
-| ------ | --------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
-| `POST` | `/api/magic-mail/send`                                          | API token | Send an email through the router (all [send options](#send-options))                              |
-| `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, `templateId`, `templateData` |
-| `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                                               |
-| `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click tracking redirect                                                                           |
+| Method | Path                                                            | Auth      | Purpose                                                                       |
+| ------ | --------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| `POST` | `/api/magic-mail/send`                                          | API token | Send through the router with all [send options](#send-options)                |
+| `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, template |
+| `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                           |
+| `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click redirect                                                                |
 
-**Authentication.** The send routes accept **API tokens only** by default. Create a _Custom_ API token (Settings → API Tokens) that allows only `magic-mail` → `send` / `sendMessage`. Never enable them for the _Public_ or _Authenticated_ role. To let users-permissions roles send as well (the pre-4.0 behaviour):
+### The API token rule
+
+The send routes accept **API tokens only**. Create a _Custom_ token under **Settings → API Tokens** that allows only **Magic-mail → controller → `send`** (and `sendMessage` if you use it). Never enable these actions for the _Public_ or _Authenticated_ role: a users-permissions request is rejected with 403 even if the role has the permission.
+
+To let users-permissions roles send as well (the pre-4.0 behaviour):
 
 ```javascript
 // config/plugins.js
-module.exports = {
+module.exports = () => ({
   'magic-mail': {
-    config: {
-      contentApi: { allowUserRoles: true },
-    },
+    config: { contentApi: { allowUserRoles: true } },
   },
-};
+});
 ```
 
-With user roles allowed, the email log is always attributed to the authenticated user. With an API token, `userId` must reference an existing users-permissions user. The request body is validated strictly: unknown fields return 400.
+With user roles allowed, the email log is always attributed to the authenticated user and a body `userId` is ignored. With an API token, `userId` must be the id or documentId of an existing users-permissions user (else 400).
 
-**Rate limit.** Both send routes share a budget of 60 requests per minute per caller. Counters live in process memory, so each Strapi instance counts separately.
+The body is validated strictly: unknown fields, `path`/`href` attachments and invalid addresses return 400. Both send routes share a budget of 60 requests per minute per token (in process memory, so each Strapi instance counts separately).
 
-**Click tracking** of Content-API emails is limited to the hosts in `tracking.allowedLinkHosts` (none by default).
+### Example: send
 
-### Admin API
+```bash
+curl -X POST https://cms.example.com/api/magic-mail/send \
+  -H "Authorization: Bearer $MAGIC_MAIL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "customer@example.com",
+    "templateId": 100,
+    "templateData": { "user": { "firstName": "Ada" } },
+    "type": "transactional"
+  }'
+```
 
-All admin routes live under `/magic-mail` and require an authenticated administrator plus the action shown. Routes: `accounts` (CRUD, `/:id/test`, `/test-strapi-service`), `routing-rules` (CRUD), `oauth/<provider>/auth`, `oauth/create-account`, `oauth/reconnect/:accountId`, `designer/*` (templates, versions, render, export, import, stats, `editor-config`, users-permissions templates, download, duplicate, test-send), `analytics/*` (stats, email logs, user activity, delete) and `settings`. `GET` routes need `read`, changes need `manage`, test sends need `test-send`. The OAuth callbacks are public and protected by a signed, single-use state bound to the admin who started the flow.
+```json
+{
+  "success": true,
+  "accountUsed": "Transactional SMTP",
+  "messageId": "<…@example.com>",
+  "emailId": "…"
+}
+```
+
+### Example: send-message
+
+```bash
+curl -X POST https://cms.example.com/api/magic-mail/send-message \
+  -H "Authorization: Bearer $MAGIC_MAIL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "customer@example.com", "subject": "Your code", "message": "Your code is 123456." }'
+```
+
+The response has the same shape as `/send`.
+
+### Errors
+
+Errors use Strapi's envelope:
+
+```json
+{
+  "data": null,
+  "error": { "status": 400, "name": "ValidationError", "message": "…", "details": {} }
+}
+```
+
+| Status | When                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------- |
+| 400    | Invalid or unknown fields, invalid addresses, `userId` of a missing user                            |
+| 401    | Invalid or expired token                                                                            |
+| 403    | No token, a token without the action, or a users-permissions caller while `allowUserRoles` is false |
+| 429    | More than 60 send requests per minute (`TooManyRequestsError`, `Retry-After` header)                |
+| 500    | Delivery failed (no account could send, or the provider rejected the email)                         |
 
 ---
 
-## 🔧 Configuration
+## Admin API
+
+All admin routes live under `/magic-mail` on the Strapi server (not `/api`), require an authenticated administrator (admin JWT) and the capability shown. The admin UI uses them; you can call them with an admin token for automation.
+
+| Area          | Routes                                                                                                                                                                                                                                                                | Capability                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Accounts      | `GET /accounts`, `GET /accounts/:accountId`                                                                                                                                                                                                                           | `read`                                                        |
+|               | `POST /accounts`, `PUT /accounts/:accountId`, `DELETE /accounts/:accountId`                                                                                                                                                                                           | `manage`                                                      |
+|               | `POST /accounts/:accountId/test`, `POST /test-strapi-service`                                                                                                                                                                                                         | `test-send`                                                   |
+| Routing rules | `GET /routing-rules`, `GET /routing-rules/:ruleId`                                                                                                                                                                                                                    | `read`                                                        |
+|               | `POST /routing-rules`, `PUT /routing-rules/:ruleId`, `DELETE /routing-rules/:ruleId`                                                                                                                                                                                  | `manage`                                                      |
+| OAuth         | `GET /oauth/<gmail\|microsoft\|yahoo>/auth`, `POST /oauth/create-account`, `POST /oauth/reconnect/:accountId`                                                                                                                                                         | `manage`                                                      |
+|               | `GET /oauth/<provider>/callback`                                                                                                                                                                                                                                      | public, signed single-use state                               |
+| Templates     | `GET /designer/templates`, `GET /designer/templates/:id`, `GET /designer/templates/:id/versions`, `GET /designer/templates/:id/download`, `POST /designer/render/:templateReferenceId`, `POST /designer/export`, `GET /designer/stats`, `GET /designer/editor-config` | `read`                                                        |
+|               | `POST /designer/templates`, `PUT`/`DELETE /designer/templates/:id`, `POST /designer/templates/:id/duplicate`, `POST /designer/import`, version restore/delete routes                                                                                                  | `manage`                                                      |
+|               | `POST /designer/templates/:id/test-send`                                                                                                                                                                                                                              | `test-send`                                                   |
+|               | `GET`/`PUT /designer/core/:coreEmailType`                                                                                                                                                                                                                             | `read`/`manage` + users-permissions email-template permission |
+| Analytics     | `GET /analytics/stats`, `GET /analytics/emails`, `GET /analytics/emails/:emailId`, `GET /analytics/users/:userId`                                                                                                                                                     | `read`                                                        |
+|               | `DELETE /analytics/emails/:emailId`, `DELETE /analytics/emails`                                                                                                                                                                                                       | `manage`                                                      |
+|               | `GET /analytics/debug` (only with `MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT=true`, never in production)                                                                                                                                                                       | `read`                                                        |
+| Settings      | `GET /settings` / `PUT /settings`                                                                                                                                                                                                                                     | `read` / `manage`                                             |
+
+Test sends (`/accounts/:accountId/test`, `/test-strapi-service`, `/designer/templates/:id/test-send`) are limited to 10 per minute per admin.
+
+### Example: create a routing rule
+
+```http
+POST /magic-mail/routing-rules
+Authorization: Bearer <admin JWT>
+Content-Type: application/json
+
+{
+  "name": "Marketing campaigns",
+  "matchType": "emailType",
+  "matchValue": "marketing",
+  "accountName": "Marketing SendGrid",
+  "fallbackAccountName": "Transactional SMTP",
+  "priority": 50,
+  "isActive": true
+}
+```
+
+```json
+{
+  "data": {
+    "documentId": "…",
+    "name": "Marketing campaigns",
+    "matchType": "emailType",
+    "priority": 50,
+    "…": "…"
+  },
+  "message": "Routing rule created successfully"
+}
+```
+
+`matchType` is one of `emailType`, `recipient`, `subject`, `template`, `custom`. An unknown `accountName` or `fallbackAccountName` returns 400.
+
+### Example: list accounts
+
+```http
+GET /magic-mail/accounts
+```
+
+```json
+{
+  "data": [
+    {
+      "documentId": "…",
+      "name": "Transactional SMTP",
+      "provider": "smtp",
+      "fromEmail": "noreply@example.com",
+      "isActive": true,
+      "isPrimary": true,
+      "priority": 9,
+      "dailyLimit": 500,
+      "hourlyLimit": 0,
+      "emailsSentToday": 128,
+      "totalEmailsSent": 18342
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+Credentials are never returned. `GET /accounts/:accountId` returns `********` for each stored secret; send that exact value back in `PUT` to keep a secret. Changing provider, `host`, `port`, `user`, `clientId`, `tenantId`, `domain` or `allowInsecure` requires the secrets again (400 otherwise, with the fields in `details.config`).
+
+### Example: delivery log
+
+```http
+GET /magic-mail/analytics/emails?search=order&deliveryStatus=sent&page=1&pageSize=25
+```
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "emailId": "…",
+      "recipient": "user01@example.com",
+      "subject": "Your order #1001 has shipped",
+      "deliveryStatus": "sent",
+      "openCount": 0,
+      "clickCount": 0
+    }
+  ],
+  "pagination": { "page": 1, "pageSize": 25, "pageCount": 1, "total": 1 }
+}
+```
+
+`search` looks in recipient, subject and template name; `pageSize` is capped at 100.
+
+---
+
+## Permissions
+
+MagicMail registers four admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
+
+| Action                         | Grants                                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `plugin::magic-mail.access`    | The MagicMail menu entry and page. No API access by itself                                                      |
+| `plugin::magic-mail.read`      | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link |
+| `plugin::magic-mail.manage`    | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                            |
+| `plugin::magic-mail.test-send` | Send test emails (account test, Strapi-service test, template test); 10 per minute per admin                    |
+
+Typical roles:
+
+- **Read-only:** `access` + `read`
+- **Editor:** `access` + `read` + `manage`
+- **Tester:** `access` + `read` + `test-send`
+
+Editing the Users & Permissions templates also needs the users-permissions email-template permissions; uploading images in the visual editor needs _Media Library → Create (upload)_. Details: [docs/permission-migration.md](./docs/permission-migration.md).
+
+---
+
+## Configuration reference
 
 ### Environment variables
 
-```env
-# Required outside development/test: credential encryption key (32+ bytes).
-# Keep it stable across deploys and backups.
-# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-MAGIC_MAIL_ENCRYPTION_KEY=...
-
-# Optional - previous key during a rotation (decrypt only).
-MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS=...
-
-# Optional - OAuth state signing secret (default: derived from the encryption key)
-MAGIC_MAIL_OAUTH_STATE_SECRET=...
-
-# Optional - open/click tracking hash secret (default: derived from the encryption key);
-# previous values, comma-separated, stay valid during a rotation.
-MAGIC_MAIL_TRACKING_SECRET=...
-MAGIC_MAIL_TRACKING_SECRET_PREVIOUS=
-
-# Optional - legacy override of the OAuth callback base URL (default: server.url)
-URL=https://cms.example.com
-
-# Optional - enables GET /magic-mail/analytics/debug outside production
-MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT=false
-```
+| Variable                              | Required                                                 | Purpose                                                                         |
+| ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `MAGIC_MAIL_ENCRYPTION_KEY`           | yes, unless `NODE_ENV` is unset, `development` or `test` | Credential encryption key (32+ bytes). Keep it stable and backed up             |
+| `MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS`  | no                                                       | Previous key during a rotation (decrypt only; saving an account re-encrypts it) |
+| `MAGIC_MAIL_OAUTH_STATE_SECRET`       | no                                                       | OAuth state signing secret (default: derived from the encryption key)           |
+| `MAGIC_MAIL_TRACKING_SECRET`          | no                                                       | Tracking hash secret (default: derived from the encryption key)                 |
+| `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS` | no                                                       | Comma-separated old tracking secrets that stay valid                            |
+| `URL`                                 | no                                                       | Legacy override of the OAuth callback base URL (default: `server.url`)          |
+| `MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT`    | no                                                       | `true` enables `GET /magic-mail/analytics/debug` outside production             |
 
 Without `MAGIC_MAIL_ENCRYPTION_KEY`, a development key derived from `ADMIN_JWT_SECRET`/`APP_KEYS` is used only when `NODE_ENV` is unset, `development` or `test`; rotating those secrets then makes stored credentials unreadable. Any other environment (for example `staging`) refuses to start without the key.
 
-Set Strapi's `server.url` to your public URL (used for OAuth redirects and tracking links), and enable `server.proxy` behind a reverse proxy.
+Also set Strapi's `server.url` to your public URL (OAuth redirects, tracking links) and `server.proxy: true` behind a reverse proxy.
 
 ### Plugin config
 
-All keys are optional and validated at startup:
+All keys are optional and validated at startup (an invalid value stops Strapi with a clear message):
 
 ```javascript
 // config/plugins.js
-module.exports = {
+module.exports = () => ({
   'magic-mail': {
     enabled: true,
     config: {
-      debug: false, // info/debug logs (warnings and errors are always logged)
+      debug: false, // info/debug logs; warnings and errors are always logged
       contentApi: {
         allowUserRoles: false, // true = users-permissions roles may use the send routes
       },
@@ -672,7 +777,7 @@ module.exports = {
       tracking: {
         eventRetentionDays: 90, // raw open/click events; 0 = keep forever
         linkTtlDays: 180, // tracked links redirect this long; 0 = forever
-        logRetentionDays: 0, // email logs (with events/links); 0 = keep forever
+        logRetentionDays: 0, // email logs (with events and links); 0 = keep forever
         maxLinksPerEmail: 100, // further links stay untracked
         allowedLinkHosts: [], // e.g. ['example.com'] (subdomains included)
         anonymizeIp: true, // store /24 (IPv4) or /48 (IPv6) only
@@ -684,256 +789,128 @@ module.exports = {
       },
     },
   },
-};
+});
 ```
 
-### Admin settings (MagicMail → Settings)
+`allowedLinkHosts` empty means: every host may be click-tracked for admin, service and native sends, and **no** host for Content-API sends. When the list is set, it applies to all sends.
 
-| Setting                       | Default | Effect                                                                     |
-| ----------------------------- | ------- | -------------------------------------------------------------------------- |
-| Link tracking / Open tracking | on      | Rewrite links / add the open pixel                                         |
-| Tracking base URL             | empty   | Public base for tracking URLs (else `server.url`)                          |
-| Default from name             | empty   | Display name when neither the account nor the caller sets one              |
-| Default from email            | empty   | Reference only; emails are always sent from the selected account's address |
-| Unsubscribe header            | on      | Send `List-Unsubscribe` for every email type and use the plugin-wide URL   |
-| Unsubscribe URL               | empty   | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient         |
+### Admin settings
 
-`trackingFallbackUrl` (where expired or unknown tracking links redirect) can be set through `PUT /magic-mail/settings`.
+**Settings → MagicMail → Plugin Settings**, stored in the database (`GET`/`PUT /magic-mail/settings`):
 
-### Account settings
+| Setting                       | Default | Effect                                                                      |
+| ----------------------------- | ------- | --------------------------------------------------------------------------- |
+| Link tracking / Open tracking | on      | Rewrite links / add the open pixel                                          |
+| Tracking base URL             | empty   | Public base for tracking URLs (else `server.url`)                           |
+| Default from name             | empty   | Display name when neither the account nor the caller sets one               |
+| Default from email            | empty   | Reference only; emails always go out from the selected account's address    |
+| Unsubscribe header            | on      | Send `List-Unsubscribe` for every email type and use the plugin-wide URL    |
+| Unsubscribe URL               | empty   | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient          |
+| `trackingFallbackUrl` (API)   | empty   | Where expired or unknown tracking links redirect; empty shows a static page |
 
-Each account has: name (unique), description, provider, from email/name, reply-to, encrypted credentials (SMTP password, API key, OAuth tokens, optional DKIM), daily and hourly limit (0 = unlimited), priority (1-10, higher preferred), active flag and primary flag.
+### Account fields
 
----
+Name (unique), description, provider, from email and name, reply-to, encrypted credentials (SMTP password, API key, OAuth tokens, optional DKIM key), daily and hourly limit (0 = unlimited), priority (1 to 10, higher preferred), active and primary flags.
 
-## 🎨 Service API Reference
+### Service API
 
 ```javascript
-// Send (see "Send options")
-await strapi.plugin('magic-mail').service('email-router').send({ to, subject, html });
+const router = strapi.plugin('magic-mail').service('email-router');
+await router.send({ to, subject, html });
 
-// Accounts
 const accounts = await strapi.plugin('magic-mail').service('account-manager').getAllAccounts();
 
 // Test one account (also works for inactive accounts)
 await strapi
   .plugin('magic-mail')
   .service('account-manager')
-  .testAccount(accountDocumentId, 'test@example.com', {
-    priority: 'high',
-    type: 'marketing',
-    unsubscribeUrl: 'https://example.com/unsubscribe',
-  });
+  .testAccount(accountDocumentId, 'you@example.com', { priority: 'high', type: 'marketing' });
 
-// Templates
 const designer = strapi.plugin('magic-mail').service('email-designer');
-const rendered = await designer.renderTemplate(100, { user: { firstName: 'Test' } });
+const rendered = await designer.renderTemplate(100, { user: { firstName: 'Ada' } });
+const stats = await designer.getStats(); // { total, active, inactive, byCategory, ... }
 ```
 
 ---
 
-## 🧪 Testing Your Setup
+## Troubleshooting
 
-### Test via Admin UI
+**Email not received**
 
-1. Go to **Email Accounts** and click **Test** on an account
-2. Enter a recipient and optional CC, priority, email type and unsubscribe URL
-3. Choose **Test Direct** (send through this account) or **Test Strapi Service** (send through `strapi.plugin('email')`, which verifies the interception; only for active accounts)
+1. Look for `[magic-mail]` warnings and errors in the Strapi log (always logged; set `debug: true` for details).
+2. Check the account: active, the **Test** action succeeds, today's usage is below the limit.
+3. Check **Analytics**: the log shows status, the account used and, for failures, the error.
+4. Check the spam folder; new senders often land there.
 
-### Verify headers
+**"Could not connect to the mail server"** on an SMTP test: check host, port and TLS (`587` STARTTLS, `465` with _Use SSL/TLS encryption_). Self-signed certificates are rejected unless `allowInsecure` is set on a non-production or loopback host.
 
-Open the received email's source ("Show original" in Gmail, "View source" elsewhere) and look for:
+**OAuth popup fails or reports a redirect mismatch**
 
-```
-X-Mailer: MagicMail/1.0
-X-Priority: 1 (Highest)
-Importance: high
-List-Unsubscribe: <https://...>
-Message-ID: <...>
-```
+- Register exactly the redirect URI the wizard shows.
+- Production: `server.url` must be public `https`.
+- Admin on its own host: set `admin.url`.
+- Microsoft: all five delegated permissions with admin consent, correct tenant ID, client secret not expired.
+- Several Strapi instances: use sticky admin sessions.
 
----
+**Edit wizard says "Stored credentials cannot be decrypted"**: the encryption key changed. Set the old key in `MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS`, or enter the secrets again.
 
-## 📈 Analytics & Monitoring
+**Content API returns 403**: use an API token with the `send`/`sendMessage` action; users-permissions roles are rejected unless `contentApi.allowUserRoles` is true.
 
-### Dashboard
+**Content API returns 400**: the response `details` name the field. Common causes: unknown fields (for example `phoneNumber` or `channel` from 3.x), `path` attachments, a `from` that is not the account's address.
 
-- Emails sent today and in total, active accounts, quota usage per account
-- Delivery log with server-side search (recipient, subject, template), delivery status filter and paging
-- Opens and clicks per email
+**Links are not tracked**: set _Tracking base URL_ or `server.url` to a public URL; for Content-API sends add the link hosts to `tracking.allowedLinkHosts`. Authentication links are never tracked.
 
-### Open & Click Tracking
+**Visual designer does not load**: add `https://editor.unlayer.com` to `script-src` and `frame-src` (see [Content Security Policy](#content-security-policy-for-the-visual-editor)). The **Plain Text** tab works without it.
 
-Open tracking adds a 1x1 pixel, click tracking rewrites `<a href>` links to a redirect. Both are on by default (Settings) and can be disabled per email with `enableTracking: false` or `skipLinkTracking: true`.
+**DMARC failures with a custom domain**: publish SPF (for example `v=spf1 include:_spf.google.com ~all`), add DKIM (provider or SMTP DKIM config) and a DMARC record. MagicMail always sends from the account's address, which keeps alignment.
 
-**Public URL.** Tracking URLs are built from the _Tracking base URL_ setting, then `server.url`, then `server.absoluteUrl`, plus your REST prefix (`api.rest.prefix`, default `/api`), e.g. `https://cms.example.com/api/magic-mail/track/click/...`. In production a loopback host (`localhost`, `127.0.0.1`, `0.0.0.0`) is never used: without a public URL, emails are sent **untracked** and one warning is logged.
-
-**What is never tracked.** Authentication and one-time-token links (password reset, confirmation, magic links, OAuth, parameters such as `token`, `loginToken`, `code`, `key`, `signature`, `session`, long random values), `mailto:`/`tel:` links, and links above `maxLinksPerEmail`. Content-API emails are click-tracked only for hosts in `tracking.allowedLinkHosts`.
-
-**Privacy and retention.** Open/click events store the IP truncated to /24 (IPv4) or /48 (IPv6) and the user agent (max. 512 characters); no location. Only Koa's `request.ip` is used, so behind a reverse proxy enable [`server.proxy`](https://docs.strapi.io/cms/configurations/server) or every recipient shares the proxy's address. Events older than `eventRetentionDays` and links older than `linkTtlDays` are deleted every 6 hours; `logRetentionDays` optionally deletes old email logs. Your privacy notice should mention open/click tracking.
-
-**Rate limit.** The tracking routes allow 300 requests per minute and IP. Above that, opens and clicks are no longer recorded, but recipients still get the pixel and are still redirected; only above 3,000 per minute is a 429 returned.
-
-**Tracking secret.** Tracking hashes are signed with `MAGIC_MAIL_TRACKING_SECRET`, falling back to `MAGIC_MAIL_ENCRYPTION_KEY`. To rotate it, put the old value in `MAGIC_MAIL_TRACKING_SECRET_PREVIOUS` until old mails no longer matter.
-
-### Email Logging
-
-Every email gets a log entry with recipient, subject, account, template, type, status (`pending`, `sent`, `failed`), timestamps, the attempted accounts and, for failures, the error. Logs contain personal data (recipient addresses); delete them with `DELETE /magic-mail/analytics/emails[?olderThan=ISO-date]` or `tracking.logRetentionDays`.
-
-```javascript
-const logs = await strapi.documents('plugin::magic-mail.email-log').findMany({
-  filters: { status: 'sent' },
-  sort: [{ createdAt: 'desc' }],
-  limit: 100,
-});
-```
+**"Too many requests"**: the send routes allow 60 requests per minute per token, test sends 10 per minute per admin. Also check provider limits (for example Gmail 500/day for free accounts, 2,000/day for Workspace).
 
 ---
 
-## 🔄 Integration with Email Designer 5
+## Upgrading to 4.0.0
 
-MagicMail works with [strapi-plugin-email-designer-5](https://www.npmjs.com/package/strapi-plugin-email-designer-5): that plugin sends through `strapi.plugin('email').service('email')`, which MagicMail intercepts, so its emails are routed, quota-checked and logged like any other. MagicMail can also import its template exports.
+4.0.0 is a major release with security and correctness changes. **Back up the database first**: credentials are re-encrypted in a format 3.x cannot read, and two legacy routing-rule columns are dropped. The full list with migration notes is in [CHANGELOG.md](./CHANGELOG.md).
 
----
+Breaking changes and what to do:
 
-## 🚨 Troubleshooting
-
-### Email not received
-
-1. Check the Strapi log for `[magic-mail]` warnings and errors (always logged; set `debug: true` for details).
-2. Check the account: active, test button, quota not exhausted.
-3. Check the spam folder; new senders often land there.
-4. OAuth accounts: re-authorize if the refresh token was revoked.
-
-### DMARC failures (custom domains)
-
-1. SPF record, e.g. `v=spf1 include:_spf.google.com ~all`
-2. DKIM: add the private key to the SMTP account config and the public key to DNS
-3. DMARC record, e.g. `v=DMARC1; p=quarantine; rua=mailto:dmarc@yourdomain.com`
-
-### Rate limit errors
-
-- Raise the account's daily/hourly limits, add accounts, or route load with rules
-- Check provider limits (e.g. Gmail 500/day for free accounts, 2,000/day for Workspace)
-
-### OAuth connection issues
-
-- Redirect URI must match exactly (see the account wizard)
-- Microsoft: all five delegated permissions granted with admin consent, correct tenant ID, client secret not expired
-- Behind a separate admin host: set `admin.url`
-- Production: `server.url` must be public `https`
-
-### Visual designer does not load
-
-Allow `https://editor.unlayer.com` in `script-src` and `frame-src` (see [Content Security Policy](#content-security-policy-for-the-visual-designer)). The plain HTML/text editor works without it.
+1. **Node.js 22.12+** and **`@strapi/plugin-users-permissions`** are required. Peer ranges are `^5.57.0`.
+2. **Encryption key everywhere but development/test.** Set `MAGIC_MAIL_ENCRYPTION_KEY` for staging too. The constant fallback key is gone.
+3. **Email only.** The non-email messaging routes and service methods are removed; `/send` no longer accepts `phoneNumber`, `/send-message` no longer accepts `channel` (400 for unknown fields).
+4. **Content API needs API tokens.** Switch callers to an API token, or set `contentApi.allowUserRoles: true`. `userId` must reference an existing user.
+5. **Admin capabilities.** Grant `read`, `manage` and `test-send` in addition to `access` ([permission guide](./docs/permission-migration.md)).
+6. **Attachments:** replace `path`/`href` with `content`.
+7. **`from` and headers:** `from` must be the sending account's address; custom headers must be `X-*` or one of the allowed names.
+8. **Explicit `accountName` is never replaced**; a template's category now sets the email type when `type` is omitted.
+9. **Tracking needs a public URL.** Set _Tracking base URL_ or `server.url`; Content-API emails are click-tracked only for `tracking.allowedLinkHosts`; links expire after 180 days, events after 90 days, IPs are truncated.
+10. **Secrets:** the placeholder is `********`; changing host, user, provider or OAuth client requires the secret again.
+11. **OAuth:** in production the redirect URI comes from `server.url` (public `https`). Authorizations in progress during the upgrade must be restarted.
+12. **Users & Permissions templates** need the users-permissions email-template permissions and only accept the listed placeholders.
+13. **Visual designer:** add the CSP directives and the Media Library upload permission.
+14. **Removed:** provider `ses` (never had an adapter), two legacy messaging columns of the routing-rule table (names in the changelog), the admin keep-alive polling.
 
 ---
 
-## 🏗️ Architecture
+## Development
 
-```
-magic-mail/
-├── admin/src/
-│   ├── index.js                     # menu, settings link, permissions, translations
-│   ├── components/                  # AddAccountModal, AccountWizard/*, shared/* (dialogs, search, headings)
-│   ├── hooks/                       # RBAC, i18n, formatters, unsaved-changes guard, clipboard
-│   ├── pages/
-│   │   ├── App.jsx                  # tabs: accounts, routing, templates, analytics
-│   │   ├── HomePage.jsx, Accounts/  # email accounts
-│   │   ├── RoutingRules.jsx, Routing/
-│   │   ├── EmailDesigner/           # template list, editor (Unlayer + plain), versions, test send
-│   │   ├── Analytics.jsx
-│   │   └── PluginSettings.jsx
-│   ├── translations/                # en, de, fr, es, pt
-│   └── utils/                       # theme tokens, validation helpers
-└── server/src/
-    ├── bootstrap.js                 # wraps the @strapi/email provider, maintenance timers
-    ├── config/                      # plugin config defaults + validator
-    ├── content-types/               # email-account, email-log, email-event, email-link,
-    │                                # email-template, email-template-version, routing-rule, plugin-settings
-    ├── controllers/, routes/        # admin + content API
-    ├── middlewares/rate-limit.js
-    ├── policies/                    # api-token-only
-    ├── services/                    # email-router, account-manager, oauth, email-designer,
-    │                                # analytics, plugin-settings
-    ├── utils/                       # encryption, oauth-state, tracking-url-policy, logger, DTOs
-    └── validation.js                # zod schemas for every request
+```bash
+npm ci --ignore-scripts
+npm run lint
+npm run format:check
+npm test
+npm run build
+npm run verify
+npm run verify:runtime
 ```
 
-### Data flow
+`npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change. Pull requests run the same checks on Node 22 and 24.
 
-```
-strapi.plugin('email').send / sendTemplatedEmail / email-router.send / Content API
-  → validation + template rendering
-  → routing rules → candidate accounts → atomic quota reservation
-  → provider adapter (SMTP / Gmail / Graph / Yahoo / SendGrid / Mailgun)
-  → safe failover on non-delivery errors
-  → email log, statistics, tracking
-  (native mail with no usable account → original Strapi email provider)
-```
+- **Bug?** [Open an issue](https://github.com/Schero94/Magic-Mail/issues)
+- **Idea?** [Start a discussion](https://github.com/Schero94/Magic-Mail/discussions)
 
----
+### Dependency audits
 
-## 🔌 Email Provider Comparison
-
-| Feature                 | Gmail OAuth    | Microsoft OAuth | Yahoo OAuth | SMTP     | SendGrid                | Mailgun  |
-| ----------------------- | -------------- | --------------- | ----------- | -------- | ----------------------- | -------- |
-| **Auth Method**         | OAuth 2.0      | OAuth 2.0       | OAuth 2.0   | Password | API Key                 | API Key  |
-| **Attachments**         | ✅             | ✅              | ✅          | ✅       | ✅                      | ✅       |
-| **Inline images (cid)** | ✅             | ✅              | ✅          | ✅       | ✅                      | ✅       |
-| **Custom Headers**      | ✅             | ✅              | ✅          | ✅       | ✅                      | ✅       |
-| **DKIM**                | Provider       | Provider        | Provider    | Optional | Provider                | Provider |
-| **Best For**            | Personal/Small | Enterprise      | Personal    | Custom   | Transactional/Marketing | Bulk/Dev |
-
----
-
-## 🌍 Production Deployment
-
-1. Set `MAGIC_MAIL_ENCRYPTION_KEY` (and keep a backup of it).
-2. Set `server.url` to the public `https` URL; behind a proxy also `server.proxy: true`.
-3. Register the production redirect URIs with your OAuth apps:
-   ```
-   https://cms.example.com/magic-mail/oauth/gmail/callback
-   https://cms.example.com/magic-mail/oauth/microsoft/callback
-   https://cms.example.com/magic-mail/oauth/yahoo/callback
-   ```
-4. Add the CSP directives if you use the visual designer.
-5. Grant admin roles only the MagicMail actions they need, and use scoped API tokens for the Content API.
-6. Review tracking retention and mention open/click tracking in your privacy notice.
-
----
-
-## 🚀 Upgrading to 4.0
-
-4.0 is a major release with security and correctness fixes that change behaviour. **Back up the database first**: credentials are re-encrypted in a format 3.x cannot read, and two legacy routing-rule columns are dropped.
-
-Main steps (full list with migration notes in [CHANGELOG.md](./CHANGELOG.md) under _Unreleased_):
-
-1. Use Node.js 22.12+ and make sure `@strapi/plugin-users-permissions` is installed.
-2. Set `MAGIC_MAIL_ENCRYPTION_KEY` in every non-development environment (staging too).
-3. Content API: switch callers to API tokens, or set `contentApi.allowUserRoles: true`. `/send-message` no longer accepts `channel`, and `/send` no longer accepts `phoneNumber` (unknown fields return 400). The non-email messaging routes were removed.
-4. Attachments: replace `path`/`href` with `content`.
-5. Set `server.url` (or the _Tracking base URL_) to your public URL, otherwise emails are sent untracked; review `tracking.*` retention and `allowedLinkHosts`.
-6. Admin roles: grant `read`/`manage`/`test-send` in addition to `access` ([permission guide](./docs/permission-migration.md)).
-7. Users & Permissions templates: grant the users-permissions email-template permissions to editors.
-8. After changing an account's host, user, provider or OAuth client, enter its secret again.
-9. Visual designer: add the CSP directives and the Media Library upload permission.
-
----
-
-## 🤝 Contributing
-
-- **Found a bug?** [Open an issue](https://github.com/Schero94/Magic-Mail/issues)
-- **Have an idea?** [Start a discussion](https://github.com/Schero94/Magic-Mail/discussions)
-- **Code:** fork, create a branch, run `npm test`, `npm run build`, `npm run verify` and `npm run verify:runtime`, then open a pull request (CI runs the same checks).
-
-For local development, `npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change.
-
----
-
-## Dependency audits
-
-Run `npm audit` from the Strapi project root to check the complete installed dependency tree. npm applies dependency overrides from the root project manifest, not from this plugin's manifest.
+Run `npm audit` from your Strapi project root to check the complete installed tree; npm applies overrides from the root project only.
 
 Known host-side advisory: `npm audit --omit=dev` in this repository reports GHSA-mrhx-c7xc-m3w5 (zod < 4.6.6) inside `@strapi/utils`, which the Strapi host provides. MagicMail validates every request with its own patched zod (`^4.6.7`) and bounds all collections, so the advisory is not reachable through MagicMail inputs. It disappears once your Strapi version ships a fixed zod.
 
@@ -941,28 +918,6 @@ Known host-side advisory: `npm audit --omit=dev` in this repository reports GHSA
 
 ## License
 
-**MIT License** - Copyright © 2025 Schero D. See [LICENSE](./LICENSE).
+MIT License, Copyright © 2025 Schero D. See [LICENSE](./LICENSE).
 
-MagicMail is fully free and open source. Every feature is available to everyone with no license key, tier, activation or usage limit.
-
----
-
-## 🙏 Credits
-
-- [Strapi v5](https://strapi.io) - Headless CMS
-- [Nodemailer](https://nodemailer.com) - SMTP client
-- [Unlayer](https://unlayer.com) / [react-email-editor](https://github.com/unlayer/react-email-editor) - Visual email editor
-- [Heroicons](https://heroicons.com) - Icons
-- [styled-components](https://styled-components.com) - CSS-in-JS
-
----
-
-## 💬 Support
-
-- 📖 [Documentation](https://github.com/Schero94/Magic-Mail#readme)
-- 🐛 [Report Issues](https://github.com/Schero94/Magic-Mail/issues)
-- 💡 [Feature Requests](https://github.com/Schero94/Magic-Mail/discussions)
-
----
-
-**Made for the Strapi Community**
+Built with [Strapi](https://strapi.io), [Nodemailer](https://nodemailer.com), [Unlayer](https://unlayer.com) / [react-email-editor](https://github.com/unlayer/react-email-editor), [Heroicons](https://heroicons.com) and [styled-components](https://styled-components.com).

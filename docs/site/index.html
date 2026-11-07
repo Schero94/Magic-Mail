@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Magic-Mail is an email management plugin for Strapi 5 with multi-account routing, templates, analytics, and OAuth account setup."
+      content="MagicMail is a Strapi 5 plugin for email accounts, routing rules, templates and delivery analytics, with OAuth for Gmail, Microsoft 365 and Yahoo."
     />
-    <title>MagicMail | Email for Strapi 5</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>MagicMail | Email accounts, routing and templates for Strapi 5</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./site.css" />
+    <link rel="stylesheet" href="./site-extra.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -30,27 +32,29 @@
     <div class="hero-wrap" id="top">
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-copy">
-          <span class="eyebrow">Strapi plugin · email delivery</span>
-          <h1 id="page-title">Email accounts and delivery, managed in Strapi.</h1>
+          <span class="eyebrow">Strapi 5 plugin · email only</span>
+          <h1 id="page-title">Email accounts, routing and templates in Strapi.</h1>
           <p>
-            Magic-Mail is a Strapi 5 plugin for managing email accounts, routing rules, templates,
-            and delivery analytics. It handles email only.
+            Connect Gmail, Microsoft 365, Yahoo, SMTP, SendGrid or Mailgun, decide which account
+            sends which email, design templates and follow delivery, opens and clicks. Your existing
+            <code>strapi.plugin('email')</code> calls keep working.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#install">Install the plugin</a>
-            <a class="button" href="https://github.com/Schero94/Magic-Mail">View source</a>
+            <a class="button" href="https://github.com/Schero94/Magic-Mail#readme">Read the docs</a>
           </div>
-          <div class="badges" aria-label="Compatibility and license">
-            <span class="badge">Strapi ^5.57.0 (tested 5.61)</span>
-            <span class="badge">Node.js 22.12 to 26.x</span>
-            <span class="badge">MIT</span>
-          </div>
+          <ul class="badges" aria-label="Compatibility and license">
+            <li class="badge">Strapi ^5.57.0 (tested 5.61)</li>
+            <li class="badge">Node.js 22.12 to 26.x</li>
+            <li class="badge">MIT, no license key</li>
+          </ul>
         </div>
       </section>
     </div>
 
     <main class="layout" id="main-content" tabindex="-1">
       <nav class="side-nav" aria-label="Page sections">
+        <a href="#gallery">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#install">Install</a>
         <a href="#configuration">Configuration</a>
@@ -60,40 +64,210 @@
       </nav>
 
       <div class="content">
-        <section class="section" id="features" aria-labelledby="features-title">
-          <h2 id="features-title">Features</h2>
+        <div class="callout status-callout">
+          <strong>Maintenance status:</strong> actively maintained. The screens and documentation on
+          this page describe the 4.0.0 line, which is ready but not yet published; the latest
+          version on npm is 3.1.0. See <a href="#releases">Releases</a> before you upgrade.
+        </div>
+
+        <section class="section" id="gallery" aria-labelledby="gallery-title">
+          <h2 id="gallery-title">Screenshots</h2>
           <p class="section-lead">
-            Magic-Mail provides email account management and delivery tools in the Strapi admin.
+            All screenshots show synthetic data (<code>example.test</code> addresses) on an isolated
+            Strapi 5.61 host. Select an image to open it at full size.
+          </p>
+
+          <h3 class="sub-title">Light mode, desktop</h3>
+          <div class="gallery">
+            <figure class="shot shot-wide">
+              <a href="./img/accounts.webp"
+                ><img
+                  src="./img/accounts.webp"
+                  width="1440"
+                  height="900"
+                  alt="Email accounts: stat cards for emails today (187), total sent (30,648) and active accounts (3 of 4), a search field with account and provider filters, and a table of four accounts with status, provider, priority, usage today against the daily limit, total sent, last used and edit, test and delete actions."
+              /></a>
+              <figcaption>Email accounts</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/account-wizard.webp"
+                ><img
+                  src="./img/account-wizard.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Add email account dialog, step 1 of 4: OAuth providers Gmail, Microsoft 365 and Yahoo Mail, and custom providers SMTP (selected), SendGrid and Mailgun."
+              /></a>
+              <figcaption>Account wizard</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/routing-rules.webp"
+                ><img
+                  src="./img/routing-rules.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Routing rules in evaluation order with a warning that two rules use a missing or inactive account; each row shows status, rule name, match type, match value, target and fallback account, and priority."
+              /></a>
+              <figcaption>Routing rules</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/templates.webp"
+                ><img
+                  src="./img/templates.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Template list with Custom templates and Core emails tabs, search, import and export, and rows with Reference ID, name, category, status and actions."
+              /></a>
+              <figcaption>Templates</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/template-editor.webp"
+                ><img
+                  src="./img/template-editor.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Template editor for Welcome email: Reference ID 100, name, subject with a user.firstName variable, category, active toggle, Visual Designer and Plain Text tabs, and the design canvas."
+              /></a>
+              <figcaption>Template editor (Unlayer canvas stubbed locally)</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/analytics.webp"
+                ><img
+                  src="./img/analytics.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Analytics: totals for sent (45), opened (25), clicked (10) and bounced (4), and the delivery log with recipient, subject, delivery status, template, time, opens and clicks."
+              /></a>
+              <figcaption>Analytics</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/settings.webp"
+                ><img
+                  src="./img/settings.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Plugin settings in Strapi's settings area: link tracking with tracking base URL and a per-email override hint, open tracking, and unsubscribe settings."
+              /></a>
+              <figcaption>Plugin settings</figcaption>
+            </figure>
+          </div>
+
+          <h3 class="sub-title">Dark mode</h3>
+          <div class="gallery">
+            <figure class="shot shot-wide">
+              <a href="./img/analytics-dark.webp"
+                ><img
+                  src="./img/analytics-dark.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="The analytics view in the Strapi dark theme."
+              /></a>
+              <figcaption>Analytics in dark mode</figcaption>
+            </figure>
+          </div>
+
+          <h3 class="sub-title">Mobile, 390 px</h3>
+          <div class="gallery gallery-mobile">
+            <figure class="shot">
+              <a href="./img/mobile-accounts.webp"
+                ><img
+                  src="./img/mobile-accounts.webp"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  alt="Email accounts on a phone: the header, stat cards in two columns, the Add account button and stacked filters."
+              /></a>
+              <figcaption>Accounts</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/mobile-routing-rules.webp"
+                ><img
+                  src="./img/mobile-routing-rules.webp"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  alt="Routing rules on a phone as cards with match type, priority, match value, target account and fallback."
+              /></a>
+              <figcaption>Routing rules</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="section" id="features" aria-labelledby="features-title">
+          <h2 id="features-title">Features by screen</h2>
+          <p class="section-lead">
+            Everything lives in the Strapi admin under <strong>MagicMail</strong>, in five
+            languages, light and dark.
           </p>
           <div class="card-grid">
             <article class="card">
-              <h3>Email accounts and routing rules</h3>
+              <h3>Email accounts</h3>
               <p>
-                Configure email accounts and route messages by type, recipient, subject, template or
-                a custom value, with quotas and safe failover. Supported providers: Gmail, Microsoft
-                365 and Yahoo (OAuth 2.0), SMTP, SendGrid and Mailgun.
+                Six providers: Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server
+                (optional DKIM), SendGrid and Mailgun. Hourly and daily quotas, priority, a primary
+                account, a direct test send and a test through the Strapi email service.
               </p>
             </article>
             <article class="card">
-              <h3>Templates and analytics</h3>
+              <h3>Account wizard</h3>
               <p>
-                Design templates in the visual editor or as plain HTML/text, keep versions, and
-                review delivery logs with privacy-friendly open and click tracking (truncated IPs,
-                configurable retention).
+                Four steps: provider, details, credentials, settings. OAuth connects in a popup and
+                shows the exact redirect URI to register. Secrets are encrypted and never shown
+                again; existing OAuth accounts can be reconnected.
               </p>
             </article>
             <article class="card">
-              <h3>OAuth account setup</h3>
+              <h3>Routing rules</h3>
               <p>
-                Start Gmail, Microsoft, and Yahoo account authorization from the admin interface.
+                Match by email type, recipient, subject, template or a custom value, with a fallback
+                account. Rules run from the highest priority down; rules pointing to a missing or
+                inactive account are flagged. Failover only retries when the provider certainly did
+                not accept the email.
               </p>
             </article>
             <article class="card">
-              <h3>Drop-in for the Strapi email service</h3>
+              <h3>Templates</h3>
               <p>
-                Mail sent with <code>strapi.plugin('email')</code>, including
-                <code>sendTemplatedEmail()</code>, is routed through MagicMail. Without a usable
-                account it falls back to the original Strapi email provider.
+                Reference IDs, categories, Mustache variables, versions with restore, import and
+                export (also from email-designer-5), duplicates, test sends, code snippets, and the
+                Users &amp; Permissions reset and confirmation emails.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Template editor</h3>
+              <p>
+                A visual designer (Unlayer, pinned build, no Unlayer project, image hosting, stock
+                images or AI) with uploads to the Media Library, or plain HTML and text, which works
+                without any third-party script.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Analytics</h3>
+              <p>
+                Delivery log with server-side search, status filter and paging; opens and clicks per
+                email; delete one log or clear all. Open and click tracking stores truncated IPs
+                only and expires after configurable retention.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Plugin settings</h3>
+              <p>
+                Link and open tracking, the public tracking base URL, a default sender name, and the
+                <code>List-Unsubscribe</code> header with an optional plugin-wide URL.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Drop-in for the email service</h3>
+              <p>
+                <code>strapi.plugin('email')</code>, including <code>sendTemplatedEmail()</code>, is
+                routed through MagicMail. Without a usable account the original Strapi email
+                provider sends instead, and nothing is ever sent twice.
               </p>
             </article>
           </div>
@@ -102,85 +276,160 @@
         <section class="section" id="install" aria-labelledby="install-title">
           <h2 id="install-title">Install</h2>
           <p class="section-lead">
-            The package declares Strapi <code>^5.57.0</code> and
-            <code>@strapi/plugin-users-permissions</code> <code>^5.57.0</code> as peer dependencies
-            and requires Node.js <code>&gt;=22.12.0 &lt;=26.x.x</code>. Upgrading from 3.x? Follow
-            the 4.0 migration steps in the changelog first.
+            Requires Node.js <code>&gt;=22.12.0 &lt;=26.x.x</code>, Strapi <code>^5.57.0</code> and
+            <code>@strapi/plugin-users-permissions</code> <code>^5.57.0</code> (part of every
+            default Strapi app).
           </p>
-          <div class="code-card">
-            <div class="code-label"><span>Terminal</span><span>npm</span></div>
-            <pre><code>npm install strapi-plugin-magic-mail
-npm run build</code></pre>
-          </div>
-          <p>Enable the plugin in your Strapi configuration:</p>
-          <div class="code-card">
-            <div class="code-label"><span>config/plugins.ts</span></div>
-            <pre><code>export default () =&gt; ({
-  'magic-mail': {
-    enabled: true,
-  },
+          <ol class="steps">
+            <li>
+              <p>Install the package.</p>
+              <div class="code-card">
+                <div class="code-label"><span>Terminal</span></div>
+                <pre><code>npm install strapi-plugin-magic-mail</code></pre>
+              </div>
+            </li>
+            <li>
+              <p>Enable it.</p>
+              <div class="code-card">
+                <div class="code-label"><span>config/plugins.js</span></div>
+                <pre><code>module.exports = () =&gt; ({
+  'magic-mail': { enabled: true },
 });</code></pre>
-          </div>
+              </div>
+            </li>
+            <li>
+              <p>Set the encryption key (required outside development and test).</p>
+              <div class="code-card">
+                <div class="code-label"><span>Terminal</span></div>
+                <pre><code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# then: MAGIC_MAIL_ENCRYPTION_KEY=&lt;value&gt; in your environment</code></pre>
+              </div>
+            </li>
+            <li>
+              <p>
+                Build and start (<code>npm run build</code>, <code>npm run develop</code>), open
+                <strong>MagicMail → Email Accounts</strong>, add an account and send a direct test.
+              </p>
+            </li>
+          </ol>
+          <p>
+            Upgrading from 3.x? Follow
+            <a href="https://github.com/Schero94/Magic-Mail#upgrading-to-400"
+              >the 4.0.0 migration steps</a
+            >
+            first.
+          </p>
         </section>
 
         <section class="section" id="configuration" aria-labelledby="configuration-title">
           <h2 id="configuration-title">Configuration</h2>
           <p class="section-lead">
-            After enabling the plugin, open MagicMail in the Strapi admin to add an email account
-            and configure routing rules, templates, and plugin settings.
+            Accounts, rules, templates and settings are managed in the admin. The plugin config only
+            holds deployment choices; every key is optional and validated at startup.
           </p>
+          <div class="code-card">
+            <div class="code-label"><span>config/plugins.js</span><span>defaults</span></div>
+            <pre><code>module.exports = () =&gt; ({
+  'magic-mail': {
+    config: {
+      debug: false,
+      contentApi: { allowUserRoles: false },
+      quotaTimezone: 'UTC',
+      tracking: {
+        eventRetentionDays: 90,
+        linkTtlDays: 180,
+        logRetentionDays: 0,
+        maxLinksPerEmail: 100,
+        allowedLinkHosts: [],
+        anonymizeIp: true,
+      },
+      designer: { projectId: null, scriptUrl: null, version: null },
+    },
+  },
+});</code></pre>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                Environment variables
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Variable</th>
+                  <th scope="col">Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>MAGIC_MAIL_ENCRYPTION_KEY</code></td>
+                  <td>
+                    Credential encryption key, 32+ bytes. Required unless <code>NODE_ENV</code> is
+                    unset, <code>development</code> or <code>test</code>. Keep it stable.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS</code></td>
+                  <td>Old key during a rotation (decrypt only).</td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_MAIL_TRACKING_SECRET</code>, <code>…_PREVIOUS</code></td>
+                  <td>Tracking hash secret and old values that stay valid.</td>
+                </tr>
+                <tr>
+                  <td><code>MAGIC_MAIL_OAUTH_STATE_SECRET</code></td>
+                  <td>OAuth state signing secret (default: derived from the encryption key).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div class="callout">
-            Enter provider credentials when you add an account in the admin. In every environment
-            other than development and test, set <code>MAGIC_MAIL_ENCRYPTION_KEY</code> to a secret
-            of at least 32 bytes. Keep it stable: changing the key without
-            <code>MAGIC_MAIL_ENCRYPTION_KEY_PREVIOUS</code> makes stored credentials unreadable. Set
-            Strapi's <code>server.url</code> to your public https URL for OAuth redirects and
-            tracking links.
+            Set Strapi's <code>server.url</code> to your public https URL: OAuth redirect URIs and
+            tracking links are built from it, and in production MagicMail never falls back to
+            localhost. Behind a reverse proxy also set <code>server.proxy: true</code>.
           </div>
           <p>
-            Optional plugin config covers Content API access
-            (<code>contentApi.allowUserRoles</code>), quota time zone, tracking retention and link
-            allowlist, and the visual designer (<code>designer.projectId</code>,
-            <code>scriptUrl</code>, <code>version</code>). The visual designer needs
-            <code>https://editor.unlayer.com</code> in the <code>script-src</code> and
-            <code>frame-src</code> CSP directives; the plain HTML editor works without it.
-          </p>
-          <p>
-            See the
-            <a href="https://github.com/Schero94/Magic-Mail#readme">README setup guide</a> for
-            provider-specific configuration and callback URLs.
+            The visual designer needs <code>https://editor.unlayer.com</code> in the
+            <code>script-src</code> and <code>frame-src</code> CSP directives of
+            <code>strapi::security</code> (no <code>'unsafe-inline'</code> or
+            <code>'unsafe-eval'</code>). The plain HTML and text editor works without it. Provider
+            guides, the full CSP block and every option are in the
+            <a href="https://github.com/Schero94/Magic-Mail#configuration-reference">README</a>.
           </p>
         </section>
 
         <section class="section" id="security" aria-labelledby="security-title">
-          <h2 id="security-title">Security and permissions</h2>
+          <h2 id="security-title">Security and privacy</h2>
           <p class="section-lead">
-            Each admin API route requires an authenticated administrator plus
+            Each admin route requires an authenticated administrator plus
             <code>plugin::magic-mail.read</code>, <code>.manage</code> or <code>.test-send</code>;
-            <code>.access</code> only controls navigation.
+            <code>.access</code> only shows the menu entry.
           </p>
           <ul>
             <li>
-              Email send routes accept API tokens only (users-permissions roles only with
-              <code>contentApi.allowUserRoles</code>), validate request data strictly, and share a
-              per-caller in-memory rate limit of 60 requests per minute.
+              Account credentials and OAuth tokens are encrypted with AES-256-GCM (HKDF-derived
+              key). The browser only ever receives the placeholder <code>********</code>.
             </li>
             <li>
-              OAuth callback routes are public because providers redirect to them. The callback flow
-              checks signed, single-use state bound to the admin who started it.
+              The Content API send routes accept API tokens only (users-permissions roles only with
+              <code>contentApi.allowUserRoles</code>), validate every field strictly and share a
+              limit of 60 requests per minute per token.
             </li>
             <li>
-              Account credentials and OAuth tokens are encrypted with AES-256-GCM and never returned
-              to the browser.
+              HTML is sanitised, <code>from</code> is pinned to the sending account, headers are
+              allowlisted, and file-path or URL attachments are rejected.
             </li>
             <li>
-              Open and click tracking routes are public for email-client compatibility, never track
-              authentication links, store truncated IPs only and have a separate in-memory rate
-              limit.
+              SMTP requires TLS 1.2+ with certificate checks. OAuth callbacks are public but use a
+              signed, single-use state bound to the admin who started the flow.
             </li>
             <li>
-              Rate-limit counters are local to each server process, not shared across multiple
-              Strapi instances.
+              Tracking stores IPs truncated to /24 or /48, no location, and deletes events after 90
+              days and links after 180 days. Authentication links are never tracked; Content-API
+              mail is click-tracked only for allowlisted hosts.
+            </li>
+            <li>
+              Test sends are limited to 10 per minute per admin. Rate-limit counters are kept per
+              Strapi process.
             </li>
           </ul>
         </section>
@@ -188,10 +437,14 @@ npm run build</code></pre>
         <section class="section" id="api" aria-labelledby="api-title">
           <h2 id="api-title">API</h2>
           <p class="section-lead">
-            Content API routes use the <code>/api/magic-mail</code> prefix.
+            Content API routes live under <code>/api/magic-mail</code>; admin routes under
+            <code>/magic-mail</code> use the admin session and the capabilities above.
           </p>
           <div class="table-wrap">
             <table>
+              <caption>
+                Content API
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Method</th>
@@ -203,56 +456,86 @@ npm run build</code></pre>
                 <tr>
                   <td><code>POST</code></td>
                   <td><code>/send</code></td>
-                  <td>Send an email through the Magic-Mail router (API token).</td>
+                  <td>Send through the router with all send options (API token).</td>
                 </tr>
                 <tr>
                   <td><code>POST</code></td>
                   <td><code>/send-message</code></td>
-                  <td>Send a simple email: recipients, subject and message (API token).</td>
+                  <td>Simple email: recipients, subject, message or template (API token).</td>
                 </tr>
                 <tr>
                   <td><code>GET</code></td>
                   <td><code>/track/open/:emailId/:recipientHash</code></td>
-                  <td>Record an email open.</td>
+                  <td>Open-tracking pixel (public).</td>
                 </tr>
                 <tr>
                   <td><code>GET</code></td>
                   <td><code>/track/click/:emailId/:linkHash/:recipientHash</code></td>
-                  <td>Record a tracked click and redirect.</td>
+                  <td>Click redirect (public).</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <div class="code-card">
+            <div class="code-label"><span>Request</span><span>API token</span></div>
+            <pre><code>curl -X POST https://cms.example.com/api/magic-mail/send \
+  -H "Authorization: Bearer $MAGIC_MAIL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "customer@example.com", "templateId": 100,
+        "templateData": { "user": { "firstName": "Ada" } } }'</code></pre>
+          </div>
+          <div class="code-card">
+            <div class="code-label"><span>Response</span><span>200</span></div>
+            <pre><code>{ "success": true, "accountUsed": "Transactional SMTP",
+  "messageId": "&lt;…@example.com&gt;", "emailId": "…" }</code></pre>
+          </div>
           <p>
-            Admin routes cover accounts, OAuth setup, routing rules, templates, analytics, and
-            plugin settings. They require the admin permissions described above. See the
-            <a href="https://github.com/Schero94/Magic-Mail">route definitions and README</a> for
-            details.
+            Admin routes cover accounts, OAuth, routing rules, templates and versions, analytics and
+            settings. The
+            <a href="https://github.com/Schero94/Magic-Mail#admin-api">README lists every route</a>
+            with its capability and request and response examples.
           </p>
         </section>
 
         <section class="section" id="releases" aria-labelledby="releases-title">
-          <h2 id="releases-title">Releases and testing</h2>
+          <h2 id="releases-title">Releases and maintenance</h2>
           <p class="section-lead">
-            Releases use semantic-release on pushes to <code>main</code>. Conventional Commits
-            determine version changes. A read-only job runs tests, builds the plugin and verifies
-            its exports and server bundle; only then does a separate release job use GitHub OIDC to
-            publish to npm with provenance. Actions are pinned by commit SHA and dependencies are
-            installed without lifecycle scripts.
+            Status checked on 7 November 2026. Releases are cut by semantic-release from
+            Conventional Commits on <code>main</code>.
           </p>
+          <div class="status-grid">
+            <article class="card status-card status-good">
+              <h3>Published: 3.1.0</h3>
+              <p>The current <code>latest</code> version on npm.</p>
+            </article>
+            <article class="card status-card status-open">
+              <h3>Next: 4.0.0</h3>
+              <p>A major release with breaking changes:</p>
+              <ul>
+                <li>API tokens for the Content API, capability-based admin permissions</li>
+                <li>Email only, new tracking privacy defaults, Node.js 22.12+</li>
+                <li>Credential re-encryption: back up the database first</li>
+              </ul>
+            </article>
+          </div>
           <p>
-            Before the first release, configure npm Trusted Publishing for
-            <code>Schero94/Magic-Mail</code> and <code>.github/workflows/release.yml</code>. No
-            long-lived npm write token is used.
+            Every pull request runs lint, format check, tests, build, export and server-bundle
+            verification, <code>npm pack --dry-run</code> and a production audit on Node.js 22 and
+            24. The release workflow verifies in a read-only job and publishes from a separate job
+            through npm Trusted Publishing with provenance; actions are pinned by commit SHA and
+            dependencies install without lifecycle scripts.
           </p>
           <div class="link-list">
             <a href="https://github.com/Schero94/Magic-Mail/releases">Release history</a>
+            <a href="https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md">Changelog</a>
             <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>
-            <a href="https://github.com/Schero94/Magic-Mail">Source and issue tracker</a>
+            <a href="https://github.com/Schero94/Magic-Mail/issues">Issue tracker</a>
           </div>
           <div class="code-card">
             <div class="code-label"><span>Local checks</span></div>
             <pre><code>npm ci --ignore-scripts
+npm run lint
+npm run format:check
 npm test
 npm run build
 npm run verify
@@ -263,7 +546,7 @@ npm run verify:runtime</code></pre>
     </main>
 
     <footer class="footer">
-      <p>Magic-Mail is distributed under the MIT License.</p>
+      <p>MagicMail is distributed under the MIT License. It sends email only.</p>
       <p>
         <a href="https://github.com/Schero94/Magic-Mail">GitHub repository</a> ·
         <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>
