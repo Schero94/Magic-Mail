@@ -569,6 +569,74 @@ module.exports = {
       },
     },
 
+    // ─────────────────────── Bounce monitoring ───────────────────────
+    {
+      method: 'GET',
+      path: '/accounts/:accountId/bounce-monitor',
+      handler: 'bounceMonitor.status',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Bounce monitoring status of an account (codes only)',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/accounts/:accountId/bounce-monitor/test',
+      handler: 'bounceMonitor.test',
+      config: {
+        policies: adminPolicy('manage'),
+        middlewares: [
+          {
+            name: `plugin::${PLUGIN_ID}.rate-limit`,
+            config: { bucket: 'admin-bounce-monitor', max: 10, window: 60_000 },
+          },
+        ],
+        description: 'Test the mailbox connection used for bounce monitoring',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/accounts/:accountId/bounce-monitor/check',
+      handler: 'bounceMonitor.check',
+      config: {
+        policies: adminPolicy('manage'),
+        middlewares: [
+          {
+            name: `plugin::${PLUGIN_ID}.rate-limit`,
+            config: { bucket: 'admin-bounce-monitor', max: 10, window: 60_000 },
+          },
+        ],
+        description: 'Check the mailbox for bounces now',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/suppressions',
+      handler: 'bounceMonitor.listSuppressed',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Hard-bounced addresses (masked)',
+      },
+    },
+    {
+      method: 'DELETE',
+      path: '/suppressions/:documentId',
+      handler: 'bounceMonitor.removeSuppressed',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Remove an address from the suppression list',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/suppressions/remove-address',
+      handler: 'bounceMonitor.removeSuppressedAddress',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Remove an address from the suppression list by its full address',
+      },
+    },
+
     // ─────────────────────── Plugin Settings ───────────────────────
     {
       method: 'GET',

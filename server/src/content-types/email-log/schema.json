@@ -58,7 +58,7 @@
     },
     "deliveryStatus": {
       "type": "enumeration",
-      "enum": ["pending", "sent", "failed"]
+      "enum": ["pending", "sent", "failed", "bounced", "deferred"]
     },
     "deliveredAt": {
       "type": "datetime"
@@ -66,6 +66,11 @@
     "providerMessageId": {
       "type": "string",
       "maxLength": 255
+    },
+    "messageIdLocal": {
+      "type": "string",
+      "maxLength": 64,
+      "private": true
     },
     "firstOpenedAt": {
       "type": "datetime"
@@ -87,6 +92,13 @@
     },
     "bounceReason": {
       "type": "text"
+    },
+    "bouncedAt": {
+      "type": "datetime"
+    },
+    "bounceSource": {
+      "type": "string",
+      "maxLength": 32
     },
     "complained": {
       "type": "boolean",

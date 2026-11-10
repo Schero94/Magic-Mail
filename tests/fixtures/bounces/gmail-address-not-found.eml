@@ -1,0 +1,46 @@
+Return-Path: <>
+Received: by 2002:a05:6000:1:b0:1 with SMTP id x; Mon, 10 Nov 2026 03:23:01 -0800 (PST)
+From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
+To: noreply@sender.example
+Subject: Delivery Status Notification (Failure)
+Auto-Submitted: auto-replied
+Message-ID: <dsn-1@mx.google.com>
+Date: Mon, 10 Nov 2026 03:23:01 -0800 (PST)
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="000000000000a1b2c3"; report-type=delivery-status
+
+--000000000000a1b2c3
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+Die Adresse wurde nicht gefunden
+Ihre Nachricht wurde nicht an pool-user-1@nowhere.test zugestellt, da die D=
+omain nowhere.test nicht gefunden werden konnte.
+
+--000000000000a1b2c3
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; googlemail.com
+Received-From-MTA: dns; noreply@sender.example
+Arrival-Date: Mon, 10 Nov 2026 03:23:00 -0800 (PST)
+X-Original-Message-ID: <a1b2c3d4e5f6a7b8c9d0e1f2@sender.example>
+
+Final-Recipient: rfc822; pool-user-1@nowhere.test
+Action: failed
+Status: 5.1.2
+Diagnostic-Code: smtp; DNS Error: DNS type 'mx' lookup of nowhere.test responded with code NXDOMAIN Domain name not found: nowhere.test
+Last-Attempt-Date: Mon, 10 Nov 2026 03:23:01 -0800 (PST)
+
+--000000000000a1b2c3
+Content-Type: message/rfc822
+
+Message-ID: <a1b2c3d4e5f6a7b8c9d0e1f2@sender.example>
+X-MagicMail-Outbox: qxq9ilna62s28w7z4ickgfqx
+From: Sender <noreply@sender.example>
+To: pool-user-1@nowhere.test
+Subject: Ihre Bestaetigung
+Date: Mon, 10 Nov 2026 03:22:59 -0800
+Content-Type: text/plain; charset="UTF-8"
+
+Sehr geehrte Damen und Herren
+--000000000000a1b2c3--

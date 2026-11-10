@@ -1,0 +1,24 @@
+From: Mail Delivery System <Mailer-Daemon@smtp.sender.example>
+To: noreply@sender.example
+Subject: Mail delivery failed: returning message to sender
+X-Failed-Recipients: gone@receiver.example
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=us-ascii
+
+This message was created automatically by mail delivery software.
+
+A message that you sent could not be delivered to one or more of its
+recipients. This is a permanent error. The following address(es) failed:
+
+  gone@receiver.example
+    host mx.receiver.example [192.0.2.10]
+    SMTP error from remote mail server after RCPT TO:<gone@receiver.example>:
+    550 5.1.1 User unknown
+
+------ This is a copy of the message, including all the headers. ------
+
+Message-ID: <11223344556677889900aabb@sender.example>
+X-MagicMail-Outbox: abcDEF123
+From: noreply@sender.example
+To: gone@receiver.example
+Subject: Hi

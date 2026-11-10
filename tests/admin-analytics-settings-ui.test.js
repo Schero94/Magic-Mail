@@ -148,6 +148,11 @@ test('UI-M03: settings are normalised from the API and only changed keys are sav
     enableUnsubscribeHeader: true,
     queueFailedSends: false,
     queueMaxAttempts: 3,
+    bounceMonitorIntervalMinutes: 5,
+    suppressHardBounces: false,
+    checkRecipientDomains: true,
+    verifyRecipientMx: false,
+    allowReservedRecipientDomains: null,
   });
   assert.equal(
     'trackingFallbackUrl' in loaded,
@@ -246,7 +251,7 @@ test('UI-10/UI-M05/FUN-18: Analytics pages and searches on the server and shows 
   const src = read(ANALYTICS);
   assert.match(
     src,
-    /buildEmailLogsUrl\(\{ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm \}\)/
+    /buildEmailLogsUrl\(\{\s*page,\s*pageSize: LOGS_PAGE_SIZE,\s*search: searchTerm,\s*deliveryStatus: deliveryFilter,\s*\}\)/
   );
   assert.doesNotMatch(
     src,
@@ -292,7 +297,7 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
   );
   assert.equal(
     (src.match(/<Field\.Error \/>/g) ?? []).length,
-    5,
+    6,
     'every text and number input shows its validation error'
   );
 });

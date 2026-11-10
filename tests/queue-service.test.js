@@ -145,6 +145,37 @@ test(
 );
 
 test(
+  'a queued mail keeps the Message-ID of its inline attempts (bounce matching)',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    try {
+      const inlineLocal = 'abcdef0123456789abcdef01';
+      const result = await ctx.queue.enqueue(
+        { ...fixtures.preparedMessage('ok', 2), __messageIdLocal: inlineLocal },
+        { emailLog: { documentId: 'log2', emailId: 'email-2' }, source: 'service' }
+      );
+      const raw = await ctx.knex(fixtures.OUTBOX_TABLE).first();
+      assert.equal(raw.message_id_local, inlineLocal);
+      await drain(ctx.queue);
+      const deliveries = receivedFor(result.outboxId);
+      assert.equal(deliveries.length, 1);
+      assert.match(deliveries[0].messageId, new RegExp(`^<${inlineLocal}@example\\.test>$`));
+
+      // An invalid local part is never trusted; a fresh random one is used.
+      await ctx.queue.enqueue(
+        { ...fixtures.preparedMessage('ok', 3), __messageIdLocal: 'BAD id<>' },
+        { emailLog: { documentId: 'log3', emailId: 'email-3' }, source: 'service' }
+      );
+      const second = await ctx.knex(fixtures.OUTBOX_TABLE).orderBy('id', 'desc').first();
+      assert.match(second.message_id_local, /^[a-f0-9]{24}$/);
+    } finally {
+      await ctx.close();
+    }
+  }
+);
+
+test(
   'transient failures retry with 1m/5m backoff and keep the Message-ID',
   { skip: !hasSqlite },
   async () => {

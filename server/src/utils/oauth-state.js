@@ -254,7 +254,10 @@ const normalizeUserId = (userId) =>
  * @param {boolean} [params.usePKCE=true]
  * @returns {Promise<{state: string, codeChallenge: string|null, codeChallengeMethod: string|null}>}
  */
-async function createState(strapi, { clientId, provider, userId, accountId, usePKCE = true }) {
+async function createState(
+  strapi,
+  { clientId, provider, userId, accountId, usePKCE = true, bounceRead = false }
+) {
   if (!clientId) throw new Error('clientId is required');
 
   const nonce = crypto.randomBytes(16).toString('hex');
@@ -268,6 +271,8 @@ async function createState(strapi, { clientId, provider, userId, accountId, useP
     timestamp,
     nonce,
     pkce: usePKCE,
+    // Admin asked for mailbox read access (bounce monitoring).
+    ...(bounceRead ? { br: 1 } : {}),
   };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto

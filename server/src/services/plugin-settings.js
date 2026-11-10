@@ -25,6 +25,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   // Send queue (outbox): capture sends that failed after failover, off by default.
   queueFailedSends: false,
   queueMaxAttempts: 3,
+  // Bounce monitoring and recipient checks.
+  bounceMonitorIntervalMinutes: 5,
+  suppressHardBounces: false,
+  checkRecipientDomains: true,
+  // null: allowed outside production, rejected in production.
+  allowReservedRecipientDomains: null,
+  verifyRecipientMx: false,
 });
 
 /**

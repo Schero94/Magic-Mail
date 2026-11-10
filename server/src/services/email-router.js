@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
@@ -7,6 +8,7 @@ const { normalizeMessageId } = require('../utils/message-id');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
 const coordination = require('../utils/coordination');
+const { checkRecipientDomains } = require('../utils/recipient-domains');
 const {
   classifyDeliveryError,
   combineOutcome,
@@ -1074,6 +1076,17 @@ module.exports = ({ strapi }) => ({
     data.replyTo = resolveReplyTo(data.replyTo);
     data.attachments = normalizeAttachments(data.attachments);
     this.validateEmailSecurity(data);
+    await this.assertRecipientsDeliverable(data, pluginSettings);
+
+    // One stable Message-ID local part for every attempt of this mail (inline
+    // failover and outbox retries): bounce reports return the Message-ID, so
+    // mailbox bounce monitoring can match them to the delivery log.
+    if (
+      typeof data.__messageIdLocal !== 'string' ||
+      !/^[a-z0-9]{8,64}$/.test(data.__messageIdLocal)
+    ) {
+      data.__messageIdLocal = crypto.randomBytes(12).toString('hex');
+    }
 
     // Send queue: `queue: true` stores the prepared message for the worker;
     // 'auto' (default) captures failed sends when the owner enabled it.
@@ -1291,6 +1304,62 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Rejects recipients that can not receive mail before anything is sent:
+   * reserved or test domains (RFC 2606/6761), well-known typo domains, the
+   * hard-bounce suppression list and, optionally, domains without MX/A.
+   *
+   * @param {object} data - prepared email (to/cc/bcc)
+   * @param {object} settings - plugin settings
+   * @returns {Promise<void>}
+   * @throws {Error} code INVALID_RECIPIENT_DOMAIN / RECIPIENT_DOMAIN_TYPO /
+   *   MAGIC_MAIL_RECIPIENT_SUPPRESSED (permanent, never failed over or queued)
+   */
+  async assertRecipientsDeliverable(data, settings = {}) {
+    const addresses = [
+      ...listAddresses(data.to),
+      ...listAddresses(data.cc),
+      ...listAddresses(data.bcc),
+    ];
+    const problem = await checkRecipientDomains(addresses, {
+      enabled: settings.checkRecipientDomains !== false,
+      // Unset: test domains are allowed outside production (development
+      // hosts), rejected in production.
+      allowReserved:
+        typeof settings.allowReservedRecipientDomains === 'boolean'
+          ? settings.allowReservedRecipientDomains
+          : process.env.NODE_ENV !== 'production',
+      verifyMx: settings.verifyRecipientMx === true,
+    });
+    if (problem) {
+      const error = validationError(
+        problem.code === 'RECIPIENT_DOMAIN_TYPO'
+          ? `The recipient domain looks like a typo of ${problem.suggestion}`
+          : 'The recipient domain can not receive email',
+        problem.code
+      );
+      error.code = problem.code;
+      error.details = {
+        reason: problem.code,
+        ...(problem.suggestion ? { suggestion: problem.suggestion } : {}),
+      };
+      throw error;
+    }
+    if (settings.suppressHardBounces === true) {
+      const monitor = strapi.plugin('magic-mail').service('bounce-monitor');
+      for (const address of addresses.slice(0, 200)) {
+        if (await monitor.isSuppressed(address)) {
+          const error = validationError(
+            'A recipient is on the suppression list after a hard bounce',
+            'MAGIC_MAIL_RECIPIENT_SUPPRESSED'
+          );
+          error.code = 'MAGIC_MAIL_RECIPIENT_SUPPRESSED';
+          throw error;
+        }
+      }
+    }
+  },
+
+  /**
    * Bare, lower-cased recipient addresses (used by the queue for hashing).
    * @param {*} value
    * @returns {string[]}
@@ -1407,6 +1476,7 @@ module.exports = ({ strapi }) => ({
         templateName: data.templateName || renderedTemplate?.templateName || null,
         accountId: null,
         accountName: null,
+        messageIdLocal: data.__messageIdLocal,
         metadata: {
           type: data.type,
           priority: data.priority,
@@ -2192,7 +2262,8 @@ module.exports = ({ strapi }) => ({
           config.clientId,
           config.clientSecret,
           config.tenantId,
-          oauthRefreshBounds(emailData)
+          // Keep Mail.Read (bounce monitoring) in refreshed access tokens.
+          { ...oauthRefreshBounds(emailData), grantedScope: oauth.scope }
         );
     };
 

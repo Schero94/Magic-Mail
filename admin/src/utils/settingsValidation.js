@@ -17,7 +17,20 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   // Send queue (outbox): capture failed sends, and the retries per mail.
   queueFailedSends: false,
   queueMaxAttempts: 3,
+  // Bounce monitoring and pre-send recipient checks.
+  bounceMonitorIntervalMinutes: 5,
+  suppressHardBounces: false,
+  checkRecipientDomains: true,
+  verifyRecipientMx: false,
+  // null = automatic (allowed outside production), true = allow, false = reject.
+  allowReservedRecipientDomains: null,
 });
+
+/** Settings whose value may be null (tri-state booleans). */
+const NULLABLE_BOOLEANS = new Set(['allowReservedRecipientDomains']);
+
+/** Server range of bounceMonitorIntervalMinutes (Zod schema pluginSettings.update). */
+export const BOUNCE_INTERVAL_RANGE = Object.freeze({ min: 1, max: 60 });
 
 /** Server range of queueMaxAttempts (Zod schema pluginSettings.update). */
 export const QUEUE_MAX_ATTEMPTS_RANGE = Object.freeze({ min: 1, max: 10 });
@@ -39,7 +52,9 @@ export const normalizeSettings = (data) => {
   for (const key of SETTINGS_KEYS) {
     const fallback = SETTINGS_DEFAULTS[key];
     const value = source[key];
-    if (typeof fallback === 'boolean') {
+    if (NULLABLE_BOOLEANS.has(key)) {
+      result[key] = typeof value === 'boolean' ? value : null;
+    } else if (typeof fallback === 'boolean') {
       result[key] = typeof value === 'boolean' ? value : fallback;
     } else if (typeof fallback === 'number') {
       result[key] = Number.isInteger(value) ? value : fallback;
@@ -104,7 +119,7 @@ const checkUrl = (value, protocols) => {
 /**
  * Validates the editable settings.
  * @param {typeof SETTINGS_DEFAULTS} settings
- * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'|'invalidRange'>>}
+ * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'|'invalidRange'|'invalidInterval'>>}
  *   error codes per field (empty object = valid)
  */
 export const validateSettings = (settings) => {
@@ -132,6 +147,18 @@ export const validateSettings = (settings) => {
     attempts > QUEUE_MAX_ATTEMPTS_RANGE.max
   ) {
     errors.queueMaxAttempts = 'invalidRange';
+  }
+
+  const interval =
+    settings && 'bounceMonitorIntervalMinutes' in settings
+      ? settings.bounceMonitorIntervalMinutes
+      : SETTINGS_DEFAULTS.bounceMonitorIntervalMinutes;
+  if (
+    !Number.isInteger(interval) ||
+    interval < BOUNCE_INTERVAL_RANGE.min ||
+    interval > BOUNCE_INTERVAL_RANGE.max
+  ) {
+    errors.bounceMonitorIntervalMinutes = 'invalidInterval';
   }
 
   return errors;

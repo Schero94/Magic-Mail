@@ -581,6 +581,12 @@ module.exports = ({ strapi }) => ({
         accountName: data.accountName || null,
         sentAt: new Date(),
         deliveryStatus: 'pending',
+        // Local part of the Message-ID every send path sets: bounce reports
+        // return it, so mailbox bounce monitoring can find this log.
+        messageIdLocal:
+          typeof data.messageIdLocal === 'string' && /^[a-z0-9]{8,64}$/.test(data.messageIdLocal)
+            ? data.messageIdLocal
+            : null,
         metadata,
       },
     });
@@ -800,10 +806,15 @@ module.exports = ({ strapi }) => ({
     if (filters.templateId) {
       where.templateId = filters.templateId;
     }
-    if (filters.deliveryStatus) {
+    const conditions = [];
+    if (filters.deliveryStatus === 'bounced') {
+      // Webhook bounces (older rows) set only `bounced`; mailbox bounces both.
+      conditions.push({ $or: [{ deliveryStatus: 'bounced' }, { bounced: true }] });
+    } else if (filters.deliveryStatus) {
       where.deliveryStatus = filters.deliveryStatus;
     }
     const search = typeof filters.search === 'string' ? filters.search.trim().slice(0, 500) : '';
+    if (conditions.length) where.$and = conditions;
     if (search) {
       where.$or = [
         { recipient: { $containsi: search } },

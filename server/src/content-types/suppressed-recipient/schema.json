@@ -1,0 +1,53 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_suppressed_recipients",
+  "info": {
+    "singularName": "suppressed-recipient",
+    "pluralName": "suppressed-recipients",
+    "displayName": "Suppressed Recipient",
+    "description": "Addresses that hard-bounced; sends to them are blocked while suppression is on"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "addressHash": {
+      "type": "string",
+      "maxLength": 64,
+      "required": true,
+      "unique": true,
+      "private": true
+    },
+    "maskedAddress": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "reasonCode": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "accountId": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "bounceCount": {
+      "type": "integer",
+      "default": 1
+    },
+    "lastBouncedAt": {
+      "type": "datetime"
+    }
+  }
+}

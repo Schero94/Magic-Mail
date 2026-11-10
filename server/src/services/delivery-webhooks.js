@@ -343,7 +343,13 @@ module.exports = ({ strapi }) => ({
     if (log) {
       const data =
         event.kind === 'bounced'
-          ? { bounced: true, bounceReason: event.reasonCode }
+          ? {
+              bounced: true,
+              bounceReason: event.reasonCode,
+              bouncedAt: now,
+              bounceSource: provider,
+              deliveryStatus: 'bounced',
+            }
           : { complained: true, complainedAt: now };
       await strapi.documents(EMAIL_LOG_UID).update({ documentId: log.documentId, data });
       await strapi.documents(EMAIL_EVENT_UID).create({

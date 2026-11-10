@@ -250,12 +250,19 @@ const AddAccountModal = ({
     oauthState: authorization?.state ?? null,
   });
 
-  const startOAuth = () =>
+  // Mailbox read access is requested only when bounce monitoring reads via the
+  // provider API (Gmail API, Microsoft Graph); sending alone never needs it.
+  const wantsBounceRead =
+    formData.bounceEnabled === true &&
+    ((provider === 'gmail-oauth' && formData.bounceMode !== 'imap') ||
+      provider === 'microsoft-oauth');
+  const startOAuth = (bounceRead = wantsBounceRead) =>
     isEditMode
-      ? oauth.start(provider, { accountId })
+      ? oauth.start(provider, { accountId, bounceRead })
       : oauth.start(provider, {
           clientId: formData.oauthClientId.trim(),
           tenantId: formData.microsoftTenantId.trim(),
+          bounceRead,
         });
 
   const handleSubmit = async () => {
@@ -473,12 +480,21 @@ const AddAccountModal = ({
             credentialsUnreadable={credentialsUnreadable}
             isAuthorized={Boolean(authorization)}
             isStarting={oauth.isStarting}
-            onConnect={startOAuth}
+            onConnect={() => startOAuth()}
             serverRedirectUris={oauth.serverRedirectUris}
             accountId={accountId}
           />
         )}
-        {currentStep === 4 && <SettingsStep form={formData} onChange={handleChange} />}
+        {currentStep === 4 && (
+          <SettingsStep
+            form={formData}
+            onChange={handleChange}
+            provider={provider}
+            accountId={accountId}
+            isEditMode={isEditMode}
+            onGrantRead={() => startOAuth(true)}
+          />
+        )}
       </Flex>
     );
   };

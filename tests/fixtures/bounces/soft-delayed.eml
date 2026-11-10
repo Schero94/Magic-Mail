@@ -1,0 +1,28 @@
+From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
+To: noreply@sender.example
+Subject: Delivery Status Notification (Delay)
+Content-Type: multipart/report; boundary="soft1"; report-type=delivery-status
+Auto-Submitted: auto-replied
+
+--soft1
+Content-Type: text/plain; charset="UTF-8"
+
+Message temporarily not delivered.
+
+--soft1
+Content-Type: message/delivery-status
+
+Reporting-MTA: dns; googlemail.com
+
+Final-Recipient: rfc822; full@receiver.example
+Action: delayed
+Status: 4.2.2
+Diagnostic-Code: smtp; 452 4.2.2 The email account that you tried to reach is over quota
+Will-Retry-Until: Wed, 12 Nov 2026 03:23:00 -0800 (PST)
+
+--soft1
+Content-Type: text/rfc822-headers
+
+Message-ID: <99887766554433221100ffee@sender.example>
+
+--soft1--

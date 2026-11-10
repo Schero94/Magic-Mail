@@ -65,6 +65,32 @@
       "min": 1,
       "max": 10,
       "configurable": false
+    },
+    "bounceMonitorIntervalMinutes": {
+      "type": "integer",
+      "default": 5,
+      "min": 1,
+      "max": 60,
+      "configurable": false
+    },
+    "suppressHardBounces": {
+      "type": "boolean",
+      "default": false,
+      "configurable": false
+    },
+    "checkRecipientDomains": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    },
+    "allowReservedRecipientDomains": {
+      "type": "boolean",
+      "configurable": false
+    },
+    "verifyRecipientMx": {
+      "type": "boolean",
+      "default": false,
+      "configurable": false
     }
   }
 }

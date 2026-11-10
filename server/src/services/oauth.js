@@ -80,6 +80,27 @@ function getPublicBaseUrl(strapi) {
  */
 const expiryFrom = (tokens) => new Date(Date.now() + (Number(tokens?.expires_in) || 3600) * 1000);
 
+/** Read scopes added only when the admin grants bounce monitoring access. */
+const GMAIL_BOUNCE_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const GRAPH_BOUNCE_SCOPE = 'https://graph.microsoft.com/Mail.Read';
+const GRAPH_SEND_SCOPES =
+  'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access';
+
+/**
+ * Microsoft token-endpoint scope: sending scopes, plus Mail.Read when the
+ * stored or requested grant includes it (a refresh with fewer scopes would
+ * return an access token without mailbox read access).
+ *
+ * @param {string|undefined} grantedScope
+ * @param {boolean} [bounceRead]
+ * @returns {string}
+ */
+function graphTokenScope(grantedScope, bounceRead = false) {
+  const hasRead =
+    bounceRead || /(^|\s|\/)mail\.read(write)?(\s|$)/i.test(String(grantedScope || ''));
+  return hasRead ? `${GRAPH_SEND_SCOPES} ${GRAPH_BOUNCE_SCOPE}` : GRAPH_SEND_SCOPES;
+}
+
 module.exports = ({ strapi }) => ({
   /**
    * Returns the redirect URI registered with the OAuth provider. The admin
@@ -117,6 +138,8 @@ module.exports = ({ strapi }) => ({
       'https://www.googleapis.com/auth/gmail.send',
       'https://www.googleapis.com/auth/userinfo.email',
       'openid',
+      // Read access only when the admin grants it for bounce monitoring.
+      ...(options.bounceRead ? [GMAIL_BOUNCE_SCOPE] : []),
     ].join(' ');
 
     let authUrl =
@@ -127,6 +150,7 @@ module.exports = ({ strapi }) => ({
       `scope=${encodeURIComponent(scopes)}&` +
       `access_type=offline&` +
       `prompt=consent&` +
+      (options.bounceRead ? 'include_granted_scopes=true&' : '') +
       `state=${encodeURIComponent(state)}`;
 
     if (options.codeChallenge) {
@@ -208,6 +232,7 @@ module.exports = ({ strapi }) => ({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: expiryFrom(tokens),
+      scope: typeof tokens.scope === 'string' ? tokens.scope.slice(0, 2000) : undefined,
     };
   },
 
@@ -272,6 +297,7 @@ module.exports = ({ strapi }) => ({
       'offline_access',
       'openid',
       'email',
+      ...(options.bounceRead ? [GRAPH_BOUNCE_SCOPE] : []),
     ].join(' ');
 
     let authUrl =
@@ -322,8 +348,7 @@ module.exports = ({ strapi }) => ({
       client_secret: clientSecret,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
-      scope:
-        'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+      scope: graphTokenScope(null, options.bounceRead === true),
     };
     if (options.codeVerifier) {
       bodyParams.code_verifier = options.codeVerifier;
@@ -404,6 +429,7 @@ module.exports = ({ strapi }) => ({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       expiresAt: expiryFrom(tokens),
+      scope: typeof tokens.scope === 'string' ? tokens.scope.slice(0, 2000) : undefined,
     };
   },
 
@@ -434,8 +460,7 @@ module.exports = ({ strapi }) => ({
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: 'refresh_token',
-        scope:
-          'https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+        scope: graphTokenScope(options.grantedScope),
       }),
     });
 
@@ -628,6 +653,8 @@ module.exports = ({ strapi }) => ({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken || previous?.refreshToken,
       expiresAt: tokens.expiresAt,
+      // Granted scopes (exchange only): bounce monitoring checks for read access.
+      ...(tokens.scope ? { scope: tokens.scope } : {}),
     });
   },
 
@@ -640,8 +667,8 @@ module.exports = ({ strapi }) => ({
    * @param {string|null} codeVerifier - PKCE verifier
    * @returns {Promise<{email: string, accessToken: string, refreshToken?: string, expiresAt: Date}>}
    */
-  async exchangeCode(provider, code, config, codeVerifier) {
-    const options = { codeVerifier: codeVerifier || undefined };
+  async exchangeCode(provider, code, config, codeVerifier, { bounceRead = false } = {}) {
+    const options = { codeVerifier: codeVerifier || undefined, bounceRead };
     if (provider === 'gmail') {
       return this.exchangeGoogleCode(code, config.clientId, config.clientSecret, options);
     }

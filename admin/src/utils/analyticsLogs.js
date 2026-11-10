@@ -20,12 +20,20 @@ export const MAX_CLEAR_ROUNDS = 100;
 export const normalizeSearch = (value) =>
   typeof value === 'string' ? value.trim().slice(0, MAX_SEARCH_LENGTH) : '';
 
+/** Delivery status filter values accepted by the server. */
+export const DELIVERY_FILTERS = Object.freeze(['sent', 'bounced', 'deferred', 'failed', 'pending']);
+
 /**
- * Builds the email log list URL with server-side paging and search.
- * @param {{page?: number, pageSize?: number, search?: string}} [options]
+ * Builds the email log list URL with server-side paging, search and status.
+ * @param {{page?: number, pageSize?: number, search?: string, deliveryStatus?: string}} [options]
  * @returns {string}
  */
-export const buildEmailLogsUrl = ({ page = 1, pageSize = LOGS_PAGE_SIZE, search = '' } = {}) => {
+export const buildEmailLogsUrl = ({
+  page = 1,
+  pageSize = LOGS_PAGE_SIZE,
+  search = '',
+  deliveryStatus = '',
+} = {}) => {
   const params = new URLSearchParams();
   const safePage = Number.isInteger(page) && page > 0 ? page : 1;
   const safeSize =
@@ -34,6 +42,7 @@ export const buildEmailLogsUrl = ({ page = 1, pageSize = LOGS_PAGE_SIZE, search 
   params.set('pageSize', String(safeSize));
   const term = normalizeSearch(search);
   if (term) params.set('search', term);
+  if (DELIVERY_FILTERS.includes(deliveryStatus)) params.set('deliveryStatus', deliveryStatus);
   return `/magic-mail/analytics/emails?${params.toString()}`;
 };
 

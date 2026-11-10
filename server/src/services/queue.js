@@ -275,7 +275,12 @@ module.exports = ({ strapi }) => {
     const notAfter = notAfterFixed
       ? options.notAfter.getTime()
       : created + cfg.maxAgeHours * 3_600_000;
-    const messageIdLocal = crypto.randomBytes(12).toString('hex');
+    // Keep the Message-ID of the inline attempts (bounce matching, receiver
+    // de-duplication); a fresh one only for messages that never had one.
+    const messageIdLocal =
+      typeof data.__messageIdLocal === 'string' && /^[a-z0-9]{8,64}$/.test(data.__messageIdLocal)
+        ? data.__messageIdLocal
+        : crypto.randomBytes(12).toString('hex');
     const encrypted = encryptPayload(
       {
         ...payload,

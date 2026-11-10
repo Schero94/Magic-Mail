@@ -304,7 +304,13 @@ test('SendGrid webhook stores bounces/complaints and emits events without person
     assert.deepEqual(result, { status: 200, processed: 2 });
     assert.deepEqual(strapi.updates[0], {
       documentId: 'log1',
-      data: { bounced: true, bounceReason: 'SENDGRID_BOUNCE_500' },
+      data: {
+        bounced: true,
+        bounceReason: 'SENDGRID_BOUNCE_500',
+        bouncedAt: strapi.updates[0].data.bouncedAt,
+        bounceSource: 'sendgrid',
+        deliveryStatus: 'bounced',
+      },
     });
     assert.equal(strapi.updates[1].data.complained, true);
     assert.deepEqual(
@@ -540,7 +546,13 @@ test('send paths report real provider ids or none, never synthetic ones', () => 
   assert.match(router, /providerMessageId: normalizeMessageId\(routing\.result\?\.messageId\)/);
   const log = require('../server/src/content-types/email-log/schema.json');
   assert.equal(log.attributes.providerMessageId.maxLength, 255);
-  assert.deepEqual(log.attributes.deliveryStatus.enum, ['pending', 'sent', 'failed']);
+  assert.deepEqual(log.attributes.deliveryStatus.enum, [
+    'pending',
+    'sent',
+    'failed',
+    'bounced',
+    'deferred',
+  ]);
   assert.equal(log.attributes.complained.type, 'boolean');
 });
 
@@ -551,7 +563,10 @@ test('webhook secrets are encrypted, masked and the UI shows bounce/complaint ba
   );
   assert.match(accountManager, /'webhookSigningKey'/);
   const ui = fs.readFileSync(path.join(ROOT, 'admin/src/pages/Analytics.jsx'), 'utf8');
-  assert.match(ui, /feedback\.bounced === true\) return \{ label: 'Bounced', tone: 'danger' \}/);
+  assert.match(
+    ui,
+    /feedback\.bounced === true \|\| deliveryStatus === 'bounced'\) \{\s*return \{ label: 'Bounced', tone: 'danger' \}/
+  );
   assert.match(
     ui,
     /feedback\.complained === true\) return \{ label: 'Complaint', tone: 'danger' \}/

@@ -5,6 +5,8 @@ import {
   Flex,
   Loader,
   NumberInput,
+  SingleSelect,
+  SingleSelectOption,
   Switch,
   TextInput,
   Field,
@@ -22,7 +24,9 @@ import {
   EyeIcon,
   EnvelopeIcon,
   InboxStackIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
+import { SuppressionList } from '../components/SuppressionList';
 import styled, { keyframes, css } from 'styled-components';
 import { GradientButton, TertiaryButton } from '../components/StyledButtons';
 import { PluginPageTitle } from '../components/shared/Headings';
@@ -30,6 +34,7 @@ import { UnsavedChangesDialog } from '../components/shared/UnsavedChangesDialog'
 import { motionSafe } from '../components/shared/motion';
 import { accent, color, fontSize } from '../utils/theme';
 import {
+  BOUNCE_INTERVAL_RANGE,
   QUEUE_MAX_ATTEMPTS_RANGE,
   SETTINGS_DEFAULTS,
   diffSettings,
@@ -277,6 +282,11 @@ const errorMessage = (t, code) => {
       return t('settings.errors.invalidRange', 'Enter a whole number from {min} to {max}', {
         min: QUEUE_MAX_ATTEMPTS_RANGE.min,
         max: QUEUE_MAX_ATTEMPTS_RANGE.max,
+      });
+    case 'invalidInterval':
+      return t('settings.errors.invalidRange', 'Enter a whole number from {min} to {max}', {
+        min: BOUNCE_INTERVAL_RANGE.min,
+        max: BOUNCE_INTERVAL_RANGE.max,
       });
     default:
       return undefined;
@@ -841,6 +851,173 @@ const PluginSettingsContent = () => {
               <Field.Error />
             </Field.Root>
           </SettingRow>
+        </SectionContent>
+      </SettingsSection>
+
+      {/* Bounces and recipient checks */}
+      <SettingsSection tag="section" aria-labelledby="mm-settings-bounces">
+        <SectionHeader alignItems="center">
+          <SectionIcon $bgColor="rgba(220, 38, 38, 0.12)" $tone="danger">
+            <ShieldExclamationIcon aria-hidden="true" />
+          </SectionIcon>
+          <Flex direction="column" alignItems="flex-start" gap={1}>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-bounces">
+              {t('settings.bounces.title', 'Bounces and recipient checks')}
+            </Typography>
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'settings.bounces.subtitle',
+                'Catch undeliverable addresses before sending, and learn about bounces after sending'
+              )}
+            </Typography>
+          </Flex>
+        </SectionHeader>
+        <SectionContent>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>
+                {t('settings.bounces.domains.label', 'Check recipient domains')}
+              </SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.bounces.domains.description',
+                  'Rejects well-known typo domains such as googelmail.com (with a suggestion) and reserved test domains such as .test or .invalid before sending.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.checkRecipientDomains}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('checkRecipientDomains', checked)}
+                aria-label={t('settings.bounces.domains.label', 'Check recipient domains')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="allowReservedRecipientDomains"
+              width="100%"
+              hint={t(
+                'settings.bounces.reserved.hint',
+                'Automatic allows test domains outside production (NODE_ENV) and rejects them in production.'
+              )}
+            >
+              <Field.Label>
+                {t('settings.bounces.reserved.label', 'Test domains (.test, .invalid, .example)')}
+              </Field.Label>
+              <SingleSelect
+                value={
+                  settings.allowReservedRecipientDomains === true
+                    ? 'allow'
+                    : settings.allowReservedRecipientDomains === false
+                      ? 'reject'
+                      : 'auto'
+                }
+                disabled={!canManage}
+                onChange={(value) =>
+                  handleChange(
+                    'allowReservedRecipientDomains',
+                    value === 'allow' ? true : value === 'reject' ? false : null
+                  )
+                }
+              >
+                <SingleSelectOption value="auto">
+                  {t('settings.bounces.reserved.auto', 'Automatic')}
+                </SingleSelectOption>
+                <SingleSelectOption value="allow">
+                  {t('settings.bounces.reserved.allow', 'Allow')}
+                </SingleSelectOption>
+                <SingleSelectOption value="reject">
+                  {t('settings.bounces.reserved.reject', 'Reject')}
+                </SingleSelectOption>
+              </SingleSelect>
+              <Field.Hint />
+            </Field.Root>
+          </SettingRow>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>
+                {t('settings.bounces.mx.label', 'Look up mail servers (MX)')}
+              </SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.bounces.mx.description',
+                  'Rejects recipient domains without a mail server. Needs DNS access; lookups time out after 3 seconds and are cached for an hour.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.verifyRecipientMx}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('verifyRecipientMx', checked)}
+                aria-label={t('settings.bounces.mx.label', 'Look up mail servers (MX)')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>
+                {t('settings.bounces.suppress.label', 'Block hard-bounced recipients')}
+              </SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.bounces.suppress.description',
+                  'After a permanent bounce, further emails to that address are rejected until the entry is removed from the list below.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.suppressHardBounces}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('suppressHardBounces', checked)}
+                aria-label={t('settings.bounces.suppress.label', 'Block hard-bounced recipients')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="bounceMonitorIntervalMinutes"
+              width="100%"
+              error={errorMessage(t, errors.bounceMonitorIntervalMinutes)}
+              hint={t(
+                'settings.bounces.interval.hint',
+                'How often mailboxes with bounce monitoring are read ({min} to {max} minutes). Turn monitoring on per account.',
+                { min: BOUNCE_INTERVAL_RANGE.min, max: BOUNCE_INTERVAL_RANGE.max }
+              )}
+            >
+              <Field.Label>
+                {t('settings.bounces.interval.label', 'Bounce check interval (minutes)')}
+              </Field.Label>
+              <NumberInput
+                value={settings.bounceMonitorIntervalMinutes}
+                onValueChange={(value) => handleChange('bounceMonitorIntervalMinutes', value)}
+                step={1}
+                disabled={!canManage}
+              />
+              <Field.Hint />
+              <Field.Error />
+            </Field.Root>
+          </SettingRow>
+          <Box paddingTop={4}>
+            <Typography variant="sigma" tag="h3" textColor="neutral600">
+              {t('settings.bounces.list.title', 'Suppressed recipients')}
+            </Typography>
+            <Box paddingTop={3}>
+              <SuppressionList canManage={canManage} />
+            </Box>
+          </Box>
         </SectionContent>
       </SettingsSection>
 

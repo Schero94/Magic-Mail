@@ -73,7 +73,7 @@ const GuideStep = ({ number, children }) => (
 );
 
 /** Text input for a secret; explains how stored (masked) secrets are kept. */
-const SecretField = ({
+export const SecretField = ({
   name,
   label,
   value,

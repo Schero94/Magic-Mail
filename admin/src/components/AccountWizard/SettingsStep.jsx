@@ -2,15 +2,23 @@ import { Box, Divider, Field, Flex, NumberInput, Switch, Typography } from '@str
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { FormSection, SwitchCard } from './styles';
 import { LIMIT_MAX, validateLimits } from './wizardState';
+import { BounceMonitorFields } from './BounceMonitorFields';
 
 const LABEL_STYLE = { fontSize: '15px' };
 
 /**
- * Step 4: rate limits, priority, active and primary flags.
+ * Step 4: rate limits, priority, active and primary flags, bounce monitoring.
  *
- * @param {{form: Record<string, any>, onChange: (field: string, value: unknown) => void}} props
+ * @param {{
+ *   form: Record<string, any>,
+ *   onChange: (field: string, value: unknown) => void,
+ *   provider?: string,
+ *   accountId?: string|null,
+ *   isEditMode?: boolean,
+ *   onGrantRead?: () => void,
+ * }} props
  */
-export const SettingsStep = ({ form, onChange }) => {
+export const SettingsStep = ({ form, onChange, provider, accountId, isEditMode, onGrantRead }) => {
   const { t } = useMagicMailIntl();
   const errors = validateLimits(form);
   const limitError = t(
@@ -180,6 +188,15 @@ export const SettingsStep = ({ form, onChange }) => {
             </Box>
           </Flex>
         </SwitchCard>
+
+        <BounceMonitorFields
+          form={form}
+          onChange={onChange}
+          provider={provider}
+          accountId={accountId}
+          isEditMode={isEditMode}
+          onGrantRead={onGrantRead}
+        />
       </Flex>
     </FormSection>
   );
