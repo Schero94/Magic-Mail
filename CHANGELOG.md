@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Fixed
+
+* **queue:** an admin "Retry now" keeps a deadline the sender set (`send(…, { notAfter })`, for example a Magic Link login link's expiry). Before, a retry extended `notAfter` to at least now + `queue.maxAgeHours`, so a captured login mail could still go out after the link had expired. Once that deadline has passed, the retry answers `409 DEADLINE_PASSED` and the admin shows "The sender set a deadline for this mail and it has passed. It can only be discarded." Rows without a sender deadline behave as before. New private outbox column `notAfterFixed`, created on start.
+
 ## [4.4.1](https://github.com/Schero94/Magic-Mail/compare/v4.4.0...v4.4.1) (2026-11-07)
 
 
@@ -35,7 +41,7 @@
 
 * **multi-instance:** coordinate replicas and pm2 workers through the database ([d43071a](https://github.com/Schero94/Magic-Mail/commit/d43071a71d1af58a5667efd94e9a2986c461e985))
 
-## [Unreleased]
+## 4.4.1 details (written as "Unreleased" before the 4.4.1 release)
 
 ### Fixed
 

@@ -270,10 +270,11 @@ module.exports = ({ strapi }) => {
     }
     const idempotencyKeyHash = hashKey(options.keyScope || options.source, options.idempotencyKey);
     const created = now();
-    const notAfter =
-      options.notAfter instanceof Date && Number.isFinite(options.notAfter.getTime())
-        ? options.notAfter.getTime()
-        : created + cfg.maxAgeHours * 3_600_000;
+    const notAfterFixed =
+      options.notAfter instanceof Date && Number.isFinite(options.notAfter.getTime());
+    const notAfter = notAfterFixed
+      ? options.notAfter.getTime()
+      : created + cfg.maxAgeHours * 3_600_000;
     const messageIdLocal = crypto.randomBytes(12).toString('hex');
     const encrypted = encryptPayload(
       {
@@ -290,6 +291,7 @@ module.exports = ({ strapi }) => {
       maxAttempts: options.maxAttempts,
       nextAttemptAt: options.nextAttemptAt ?? created,
       notAfter,
+      notAfterFixed,
       leaseToken: null,
       leaseUntil: null,
       claimedBy: null,
@@ -1019,7 +1021,7 @@ module.exports = ({ strapi }) => {
      * @param {string} documentId
      * @param {{confirmDuplicateRisk?: boolean, adminId?: number}} options
      * @returns {Promise<object>} updated DTO
-     * @throws {Error} NOT_FOUND, MAGIC_MAIL_CONFIRMATION_REQUIRED, PAYLOAD_PURGED, STATE_CHANGED
+     * @throws {Error} NOT_FOUND, MAGIC_MAIL_CONFIRMATION_REQUIRED, PAYLOAD_PURGED, DEADLINE_PASSED, STATE_CHANGED
      * @sideeffect Updates the row; the worker may send the message again
      */
     async retry(documentId, { confirmDuplicateRisk = false, adminId } = {}) {
@@ -1039,6 +1041,15 @@ module.exports = ({ strapi }) => {
         );
       }
       const at = now();
+      // A deadline set by the sender (for example a login link's expiry) is
+      // final: an admin retry never sends the mail after it.
+      if (row.notAfterFixed && row.notAfter && at >= row.notAfter) {
+        throw queueError(
+          'DEADLINE_PASSED',
+          'The sender set a deadline for this mail and it has passed',
+          409
+        );
+      }
       const ok = await store.conditionalUpdate(strapi, documentId, [row.status], {
         status: 'pending',
         phase: 'queued',
@@ -1054,7 +1065,9 @@ module.exports = ({ strapi }) => {
         claimedBy: null,
         resolvedBy: Number.isInteger(adminId) ? adminId : null,
         resolvedAt: new Date(at),
-        notAfter: Math.max(row.notAfter || 0, at + config().maxAgeHours * 3_600_000),
+        notAfter: row.notAfterFixed
+          ? row.notAfter
+          : Math.max(row.notAfter || 0, at + config().maxAgeHours * 3_600_000),
       });
       if (!ok) throw queueError('STATE_CHANGED', 'The message was changed meanwhile', 409);
       const updated = await store.findByDocumentId(strapi, documentId);

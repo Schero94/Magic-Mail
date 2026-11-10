@@ -745,6 +745,7 @@
   "queue.markSent.success": "Mail als gesendet markiert.",
   "queue.error.stateChanged": "Die Mail wurde inzwischen geändert. Die Liste wurde aktualisiert.",
   "queue.error.payloadPurged": "Der Inhalt der Mail wurde bereits gelöscht. Sie kann nur noch verworfen werden.",
+  "queue.error.deadlinePassed": "Für diese Mail gilt eine Frist des Absenders, die abgelaufen ist. Sie kann nur verworfen werden.",
   "queue.error.action": "Die Aktion konnte nicht ausgeführt werden.",
   "queue.column.recipient": "Empfänger",
   "queue.column.subject": "Betreff",

@@ -50,6 +50,7 @@ const ATTRIBUTES = Object.freeze([
   'maxAttempts',
   'nextAttemptAt',
   'notAfter',
+  'notAfterFixed',
   'leaseToken',
   'leaseUntil',
   'claimedBy',

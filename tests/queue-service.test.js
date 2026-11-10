@@ -1008,3 +1008,31 @@ test(
     }
   }
 );
+
+test(
+  'a sender deadline is final: retry never extends it and is refused after it passed',
+  { skip: !hasSqlite },
+  async () => {
+    const ctx = await setup();
+    try {
+      const deadline = new Date(ctx.now() + 15 * 60_000);
+      const { outboxId } = await ctx.queue.enqueue(fixtures.preparedMessage('dropafter', 41), {
+        emailLog: null,
+        source: 'service',
+        notAfter: deadline,
+      });
+      await drain(ctx.queue);
+      const retried = await ctx.queue.retry(outboxId, { confirmDuplicateRisk: true, adminId: 1 });
+      assert.equal(retried.status, 'pending');
+      const row = await store.findByDocumentId(ctx.strapi, outboxId);
+      assert.equal(row.notAfter, deadline.getTime(), 'retry keeps the sender deadline');
+      await drain(ctx.queue);
+      ctx.advance(16 * 60_000);
+      await assert.rejects(ctx.queue.retry(outboxId, { confirmDuplicateRisk: true, adminId: 1 }), {
+        code: 'DEADLINE_PASSED',
+      });
+    } finally {
+      await ctx.close();
+    }
+  }
+);
