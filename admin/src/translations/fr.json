@@ -745,6 +745,7 @@
   "queue.markSent.success": "E-mail marqué comme envoyé.",
   "queue.error.stateChanged": "L'e-mail a été modifié entre-temps. La liste a été actualisée.",
   "queue.error.payloadPurged": "Le contenu de l'e-mail a déjà été supprimé. Il peut seulement être abandonné.",
+  "queue.error.deadlinePassed": "L'expéditeur a fixé une date limite pour ce message et elle est dépassée. Il ne peut qu'être supprimé.",
   "queue.error.action": "L'action n'a pas pu être effectuée.",
   "queue.column.recipient": "Destinataire",
   "queue.column.subject": "Objet",

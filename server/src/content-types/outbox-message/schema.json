@@ -63,6 +63,10 @@
     "notAfter": {
       "type": "biginteger"
     },
+    "notAfterFixed": {
+      "type": "boolean",
+      "default": false
+    },
     "leaseToken": {
       "type": "string",
       "maxLength": 32

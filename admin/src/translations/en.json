@@ -745,6 +745,7 @@
   "queue.markSent.success": "Mail marked as sent.",
   "queue.error.stateChanged": "The mail was changed meanwhile. The list was refreshed.",
   "queue.error.payloadPurged": "The mail content was already removed. It can only be discarded.",
+  "queue.error.deadlinePassed": "The sender set a deadline for this mail and it has passed. It can only be discarded.",
   "queue.error.action": "The action could not be completed.",
   "queue.column.recipient": "Recipient",
   "queue.column.subject": "Subject",

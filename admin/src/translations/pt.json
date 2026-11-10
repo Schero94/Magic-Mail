@@ -745,6 +745,7 @@
   "queue.markSent.success": "E-mail marcado como enviado.",
   "queue.error.stateChanged": "O e-mail foi alterado entretanto. A lista foi atualizada.",
   "queue.error.payloadPurged": "O conteúdo do e-mail já foi removido. Ele só pode ser descartado.",
+  "queue.error.deadlinePassed": "O remetente definiu um prazo para este e-mail e ele já passou. Ele só pode ser descartado.",
   "queue.error.action": "Não foi possível concluir a ação.",
   "queue.column.recipient": "Destinatário",
   "queue.column.subject": "Assunto",

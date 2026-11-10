@@ -176,8 +176,13 @@ const OutboxView = () => {
                 'queue.error.payloadPurged',
                 'The mail content was already removed. It can only be discarded.'
               )
-            : apiErrorMessage(error) ||
-              t('queue.error.action', 'The action could not be completed.');
+            : code === 'DEADLINE_PASSED'
+              ? t(
+                  'queue.error.deadlinePassed',
+                  'The sender set a deadline for this mail and it has passed. It can only be discarded.'
+                )
+              : apiErrorMessage(error) ||
+                t('queue.error.action', 'The action could not be completed.');
       toggleNotification({ type: 'danger', message });
       if (code) {
         setPending(null);

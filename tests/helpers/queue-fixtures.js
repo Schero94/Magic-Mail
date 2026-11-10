@@ -38,6 +38,7 @@ async function createOutboxTable(knex) {
     t.integer('max_attempts');
     t.bigInteger('next_attempt_at');
     t.bigInteger('not_after');
+    t.boolean('not_after_fixed').defaultTo(false);
     t.string('lease_token', 32);
     t.bigInteger('lease_until');
     t.string('claimed_by', 64);
