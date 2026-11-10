@@ -1,3 +1,10 @@
+# [4.5.0](https://github.com/Schero94/Magic-Mail/compare/v4.4.2...v4.5.0) (2026-11-10)
+
+
+### Features
+
+* **bounces:** monitor sending mailboxes for bounce reports ([#10](https://github.com/Schero94/Magic-Mail/issues/10)) ([c92d1c3](https://github.com/Schero94/Magic-Mail/commit/c92d1c360c467f33024d155601efec3b712c292c))
+
 ## [Unreleased]
 
 ### Added
