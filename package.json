@@ -137,7 +137,8 @@
     },
     "@semantic-release/github": {
       "undici": "^7.30.2"
-    }
+    },
+    "nodemailer": "$nodemailer"
   },
   "strapi": {
     "kind": "plugin",
