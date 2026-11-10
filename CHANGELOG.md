@@ -1,3 +1,10 @@
+## [4.4.2](https://github.com/Schero94/Magic-Mail/compare/v4.4.1...v4.4.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **queue:** keep the sender deadline when an admin retries a queued mail ([#9](https://github.com/Schero94/Magic-Mail/issues/9)) ([6e62d62](https://github.com/Schero94/Magic-Mail/commit/6e62d62c217d6112ec9d5560da232667c0184655))
+
 ## [Unreleased]
 
 ### Fixed
