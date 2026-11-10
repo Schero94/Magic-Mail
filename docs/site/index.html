@@ -96,6 +96,7 @@
         <a href="#gallery">Screenshots</a>
         <a href="#install">Install</a>
         <a href="#outbox">Retries and outbox</a>
+        <a href="#bounces">Bounces</a>
         <a href="#instances">Several instances</a>
         <a href="#configuration">Configuration</a>
         <a href="#security">Security</a>
@@ -157,6 +158,13 @@
               <p>
                 Signed SendGrid and Mailgun bounce and complaint webhooks mark the delivery log and
                 emit <code>magic-mail.delivery.*</code> events for other plugins.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Bounce monitoring</h3>
+              <p>
+                Reads bounce reports from SMTP, Gmail and Microsoft 365 mailboxes, marks the mail as
+                bounced or deferred, and rejects typo and test domains before sending.
               </p>
             </article>
             <article class="card">
@@ -463,6 +471,59 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
             MagicMail never sends a queued mail after <code>notAfter</code>.
             <a href="https://github.com/Schero94/Magic-Mail#retries-and-the-outbox"
               >Full outbox guide</a
+            >.
+          </p>
+        </section>
+
+        <section class="section" id="bounces" aria-labelledby="bounces-title">
+          <h2 id="bounces-title">Bounce monitoring</h2>
+          <p class="section-lead">
+            Off by default. Turn it on per account in the wizard. MagicMail reads the bounce reports
+            that land in the sending mailbox and updates the delivery log.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <caption>
+                How each account type reports bounces
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Account</th>
+                  <th scope="col">Read via</th>
+                  <th scope="col">Owner step</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>SMTP</td>
+                  <td>IMAP with the SMTP login</td>
+                  <td>Turn it on</td>
+                </tr>
+                <tr>
+                  <td>Gmail / Google Workspace</td>
+                  <td>Gmail API or IMAP with app password</td>
+                  <td>Grant read access, or create an app password</td>
+                </tr>
+                <tr>
+                  <td>Microsoft 365</td>
+                  <td>Microsoft Graph</td>
+                  <td>Grant <code>Mail.Read</code> (admin consent in some tenants)</td>
+                </tr>
+                <tr>
+                  <td>SendGrid, Mailgun</td>
+                  <td>Signed webhooks</td>
+                  <td>Save the webhook key</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Reports are matched by the original <code>Message-ID</code>. <code>5.x.x</code> marks
+            the mail as bounced, <code>4.x.x</code> as deferred. Only reason codes are stored, never
+            message content. Before sending, typo domains such as <code>googelmail.com</code> and
+            reserved test domains are rejected.
+            <a href="https://github.com/Schero94/Magic-Mail#bounce-monitoring-mailbox"
+              >Bounce monitoring guide</a
             >.
           </p>
         </section>

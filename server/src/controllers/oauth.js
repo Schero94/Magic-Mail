@@ -102,9 +102,14 @@ async function startFlow(ctx, provider) {
       userId: adminUserId(ctx),
       accountId,
       usePKCE: true,
+      bounceRead: Boolean(query.bounceRead) && provider !== 'yahoo',
     });
 
-    const pkce = { codeChallenge, codeChallengeMethod };
+    const pkce = {
+      codeChallenge,
+      codeChallengeMethod,
+      bounceRead: Boolean(query.bounceRead) && provider !== 'yahoo',
+    };
     let authUrl;
     if (provider === 'gmail') authUrl = oauthService.getGmailAuthUrl(clientId, state, pkce);
     else if (provider === 'microsoft')
@@ -168,13 +173,13 @@ async function consumeState(ctx, { state, provider, clientId, accountId }) {
  * @returns {Promise<object>} token data with email
  * @throws {errors.ApplicationError}
  */
-async function exchange(provider, code, config, codeVerifier) {
+async function exchange(provider, code, config, codeVerifier, { bounceRead = false } = {}) {
   let tokenData;
   try {
     tokenData = await strapi
       .plugin('magic-mail')
       .service('oauth')
-      .exchangeCode(provider, code, config, codeVerifier);
+      .exchangeCode(provider, code, config, codeVerifier, { bounceRead });
   } catch (err) {
     strapi.log.error(
       `[magic-mail] ${provider} OAuth token exchange failed: ${err?.name || 'Error'}`
@@ -238,13 +243,15 @@ module.exports = {
         throw new errors.ValidationError('Tenant ID is required for Microsoft OAuth');
       }
 
-      const { codeVerifier } = await consumeState(ctx, {
+      const { codeVerifier, payload } = await consumeState(ctx, {
         state,
         provider,
         clientId: config.clientId,
         accountId: null,
       });
-      const tokenData = await exchange(provider, code, config, codeVerifier);
+      const tokenData = await exchange(provider, code, config, codeVerifier, {
+        bounceRead: payload?.br === 1,
+      });
 
       const account = await strapi
         .plugin('magic-mail')
@@ -280,13 +287,15 @@ module.exports = {
       const { provider, code, state } = validate('oauth.reconnect', ctx.request.body);
       const { account, config } = await loadOAuthAccount(accountId, provider);
 
-      const { codeVerifier } = await consumeState(ctx, {
+      const { codeVerifier, payload } = await consumeState(ctx, {
         state,
         provider,
         clientId: config.clientId,
         accountId: account.documentId,
       });
-      const tokenData = await exchange(provider, code, config, codeVerifier);
+      const tokenData = await exchange(provider, code, config, codeVerifier, {
+        bounceRead: payload?.br === 1,
+      });
 
       let updated;
       try {

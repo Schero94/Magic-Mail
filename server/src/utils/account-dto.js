@@ -32,7 +32,22 @@ const SAFE_FIELDS = [
   'updatedAt',
   'publishedAt',
   'locale',
+  // Non-secret bounce monitoring settings (the IMAP password lives in `config`).
+  'bounceMonitor',
 ];
+
+/**
+ * Bounce monitoring status without cursor or secrets.
+ *
+ * @param {object} account
+ * @returns {object|null}
+ */
+function bounceStatus(account) {
+  if (!account || typeof account !== 'object') return null;
+  // Lazy: the service module pulls in the IMAP client only when used.
+  const { statusFor } = require('../services/bounce-monitor');
+  return statusFor(account);
+}
 
 /**
  * Picks the allowlisted, non-secret account fields.
@@ -59,6 +74,7 @@ function pickSafeAccountFields(account) {
 function toAccountListDTO(account) {
   return {
     ...pickSafeAccountFields(account),
+    bounceMonitorStatus: bounceStatus(account),
     hasCredentials: !!(account && account.config),
     hasOAuth: !!(account && account.oauth),
   };
@@ -77,6 +93,7 @@ function toAccountListDTO(account) {
 function toAccountEditDTO(account, maskedConfig, extra = {}) {
   return {
     ...pickSafeAccountFields(account),
+    bounceMonitorStatus: bounceStatus(account),
     config: maskedConfig && typeof maskedConfig === 'object' ? maskedConfig : {},
     hasOAuth: !!(account && account.oauth),
     ...extra,

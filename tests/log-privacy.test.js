@@ -301,3 +301,33 @@ test('shared controller error handler logs only a safe error class', () => {
     /JSON\.stringify\(err\.details\)|strapi\.log\.(?:error|warn)\([^\n]*,\s*err\s*\)/
   );
 });
+
+test('Strapi errors keep their 4xx status when the host has another @strapi/utils copy', () => {
+  const { handleControllerError } = require('../server/src/validation');
+  const createError = require('http-errors');
+  const previous = global.strapi;
+  global.strapi = { log: { warn() {}, error() {}, info() {}, debug() {} } };
+  try {
+    // A ValidationError-shaped error that is not an instance of core's class.
+    const foreign = Object.assign(new Error('The recipient domain can not receive email'), {
+      name: 'ValidationError',
+      details: { reason: 'INVALID_RECIPIENT_DOMAIN' },
+    });
+    assert.throws(
+      () => handleControllerError({}, foreign, 'x'),
+      (thrown) => thrown === foreign
+    );
+    assert.equal(foreign.status, 400);
+    // Core's fallback (formatInternalError) keeps status, name and details.
+    const rendered = createError(foreign);
+    assert.equal(rendered.status, 400);
+    assert.equal(rendered.expose, true);
+    assert.equal(rendered.details.reason, 'INVALID_RECIPIENT_DOMAIN');
+
+    const missing = Object.assign(new Error('Not found'), { name: 'NotFoundError' });
+    assert.throws(() => handleControllerError({}, missing, 'x'));
+    assert.equal(missing.status, 404);
+  } finally {
+    global.strapi = previous;
+  }
+});

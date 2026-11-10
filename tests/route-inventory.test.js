@@ -18,6 +18,7 @@ const expected = {
   'content-send': 2,
   tracking: 2,
   webhooks: 2,
+  'bounce-monitor': 6,
 };
 
 const category = (scope, route) => {
@@ -27,6 +28,8 @@ const category = (scope, route) => {
     if (['/send', '/send-message'].includes(route.path)) return 'content-send';
     return 'unaccounted';
   }
+  if (route.path.includes('/bounce-monitor') || route.path.startsWith('/suppressions'))
+    return 'bounce-monitor';
   if (route.path === '/test-strapi-service' || route.path.startsWith('/accounts'))
     return 'accounts';
   if (route.path.startsWith('/routing-rules')) return 'routing-rules';

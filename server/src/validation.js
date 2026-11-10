@@ -200,6 +200,41 @@ const configRecord = z.record(
   ])
 );
 
+// Per-account bounce monitoring (non-secret part; the IMAP password is
+// `config.imapPass`, encrypted with the other account secrets).
+const bounceMonitorInput = z
+  .object({
+    enabled: z.boolean(),
+    mode: z.enum(['imap', 'gmail', 'graph']).optional(),
+    folder: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine(
+        (value) => ![...value].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127),
+        {
+          message: 'Folder names can not contain control characters',
+        }
+      )
+      .optional(),
+    moveProcessed: z.boolean().optional(),
+    imap: z
+      .object({
+        host: z
+          .string()
+          .max(253)
+          .regex(/^$|^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/)
+          .optional(),
+        port: z.number().int().min(1).max(65535).optional(),
+        secure: z.boolean().optional(),
+        user: z.string().max(320).optional(),
+        useSmtpLogin: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 /** Caller-chosen send queue de-duplication key. */
 const idempotencyKey = z
   .string()
@@ -234,6 +269,7 @@ const schemas = {
       priority: z.number().int().min(1).max(10).optional(),
       dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
       hourlyLimit: z.number().int().min(0).max(1_000_000).optional(),
+      bounceMonitor: bounceMonitorInput.optional(),
     })
     .strict(),
 
@@ -252,6 +288,7 @@ const schemas = {
       priority: z.number().int().min(1).max(10).optional(),
       dailyLimit: z.number().int().min(0).max(1_000_000).optional(),
       hourlyLimit: z.number().int().min(0).max(1_000_000).optional(),
+      bounceMonitor: bounceMonitorInput.optional(),
     })
     .strict(),
 
@@ -278,6 +315,8 @@ const schemas = {
   // existing account with its stored app credentials.
   'oauth.auth': z.object({
     clientId: z.string().min(1).max(512).optional(),
+    // "1": also request mailbox read access for bounce monitoring.
+    bounceRead: z.enum(['1', 'true']).optional(),
     tenantId: tenantId.optional(),
     accountId: z
       .string()
@@ -461,11 +500,20 @@ const schemas = {
       userId: z.string().max(255).optional(),
       templateId: z.coerce.number().int().positive().optional(),
       search: z.string().max(500).optional(),
-      deliveryStatus: z.enum(['pending', 'sent', 'failed']).optional(),
+      deliveryStatus: z.enum(['pending', 'sent', 'failed', 'bounced', 'deferred']).optional(),
       page: z.coerce.number().int().min(1).max(1_000_000).optional(),
       pageSize: z.coerce.number().int().min(1).max(100).optional(),
     })
     .strict(),
+
+  'suppressions.list': z
+    .object({
+      page: z.coerce.number().int().min(1).max(1_000_000).optional(),
+      pageSize: z.coerce.number().int().min(1).max(100).optional(),
+    })
+    .strict(),
+
+  'suppressions.removeAddress': z.object({ email: emailString }).strict(),
 
   'pluginSettings.update': z.object({
     enableLinkTracking: z.boolean().optional(),
@@ -482,6 +530,12 @@ const schemas = {
     // Send queue: capture failed sends and retry them (opt-in).
     queueFailedSends: z.boolean().optional(),
     queueMaxAttempts: z.number().int().min(1).max(10).optional(),
+    // Bounce monitoring and pre-send recipient checks.
+    bounceMonitorIntervalMinutes: z.number().int().min(1).max(60).optional(),
+    suppressHardBounces: z.boolean().optional(),
+    checkRecipientDomains: z.boolean().optional(),
+    allowReservedRecipientDomains: z.boolean().nullable().optional(),
+    verifyRecipientMx: z.boolean().optional(),
   }),
 
   // ── Content-API send payloads ───────────────────────────────────────────
@@ -725,6 +779,17 @@ function validate(schemaName, body) {
   return result.data;
 }
 
+/** HTTP status of Strapi error classes (mirrors @strapi/core formatApplicationError). */
+const STRAPI_ERROR_STATUS = Object.freeze({
+  UnauthorizedError: 401,
+  ForbiddenError: 403,
+  PolicyError: 403,
+  NotFoundError: 404,
+  PayloadTooLargeError: 413,
+  RateLimitError: 429,
+  NotImplementedError: 501,
+});
+
 /**
  * Uniform controller error handler for every MagicMail controller.
  *
@@ -787,6 +852,18 @@ function handleControllerError(ctx, err, logPrefix, fallbackMessage) {
 
   if (isStrapiError) {
     strapi.log.warn(`${logPrefix}: ${err.name}`);
+    // When the host resolves a different @strapi/utils copy than @strapi/core
+    // (for example 5.61.1 hoisted next to core's nested 5.61.0), core's
+    // `instanceof ApplicationError` check fails and the error would render
+    // as 500. A numeric `status` lets core's http-errors fallback keep the
+    // intended 4xx with the same name, message and details.
+    if (typeof err.status !== 'number') {
+      Object.defineProperty(err, 'status', {
+        value: STRAPI_ERROR_STATUS[err.name] || 400,
+        configurable: true,
+        writable: true,
+      });
+    }
     throw err;
   }
 

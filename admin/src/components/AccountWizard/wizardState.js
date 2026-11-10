@@ -82,6 +82,27 @@ export const createEmptyForm = () => ({
   microsoftTenantId: '',
   oauthClientId: '',
   oauthClientSecret: '',
+  // Bounce monitoring (reads bounce reports from the sending mailbox).
+  bounceEnabled: false,
+  bounceMode: '',
+  imapHost: '',
+  imapPort: 993,
+  imapSecure: true,
+  imapUser: '',
+  imapPass: '',
+  imapUseSmtpLogin: true,
+  imapFolder: 'INBOX',
+  bounceMoveProcessed: false,
+});
+
+/** Bounce monitoring modes per provider (first = default); see server MODES. */
+export const BOUNCE_MODES = Object.freeze({
+  smtp: ['imap'],
+  'gmail-oauth': ['gmail', 'imap'],
+  'microsoft-oauth': ['graph'],
+  'yahoo-oauth': ['imap'],
+  sendgrid: [],
+  mailgun: [],
 });
 
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -127,8 +148,77 @@ export const accountToForm = (account = {}) => {
     microsoftTenantId: stringOr(config.tenantId),
     oauthClientId: stringOr(config.clientId),
     oauthClientSecret: stringOr(config.clientSecret),
+    ...bounceToForm(account, config),
   };
 };
+
+/**
+ * Bounce monitoring settings of an account as form values.
+ * @param {Record<string, any>} account
+ * @param {Record<string, any>} config - masked config
+ */
+const bounceToForm = (account, config) => {
+  const monitor =
+    account?.bounceMonitor && typeof account.bounceMonitor === 'object'
+      ? account.bounceMonitor
+      : {};
+  const imap = monitor.imap && typeof monitor.imap === 'object' ? monitor.imap : {};
+  const modes = BOUNCE_MODES[account?.provider] || [];
+  return {
+    bounceEnabled: monitor.enabled === true,
+    bounceMode: modes.includes(monitor.mode) ? monitor.mode : modes[0] || '',
+    imapHost: stringOr(imap.host),
+    imapPort: numberOr(imap.port, 993),
+    imapSecure: imap.secure !== false,
+    imapUser: stringOr(imap.user),
+    imapPass: stringOr(config.imapPass),
+    imapUseSmtpLogin: account?.provider === 'smtp' ? imap.useSmtpLogin !== false : false,
+    imapFolder: stringOr(monitor.folder) || 'INBOX',
+    bounceMoveProcessed: monitor.moveProcessed === true,
+  };
+};
+
+/**
+ * Body part `bounceMonitor` for create/update, or undefined when the provider
+ * reports bounces through webhooks.
+ * @param {string} provider
+ * @param {Record<string, any>} form
+ */
+export const buildBounceMonitor = (provider, form) => {
+  const modes = BOUNCE_MODES[provider] || [];
+  if (!modes.length) return undefined;
+  const mode = modes.includes(form.bounceMode) ? form.bounceMode : modes[0];
+  return {
+    enabled: form.bounceEnabled === true,
+    mode,
+    folder: (form.imapFolder || 'INBOX').trim() || 'INBOX',
+    moveProcessed: mode === 'imap' && form.bounceMoveProcessed === true,
+    imap: {
+      host: (form.imapHost || '').trim(),
+      port: Number.isInteger(form.imapPort) ? form.imapPort : 993,
+      secure: form.imapSecure !== false,
+      user: (form.imapUser || '').trim(),
+      useSmtpLogin: provider === 'smtp' && form.imapUseSmtpLogin !== false,
+    },
+  };
+};
+
+/**
+ * IMAP secrets and identity stored in the encrypted config. Sent only while
+ * IMAP bounce monitoring is on; otherwise the stored values stay unchanged.
+ * @param {string} provider
+ * @param {Record<string, any>} form
+ */
+const imapConfig = (provider, form) =>
+  (BOUNCE_MODES[provider] || []).includes('imap') &&
+  form.bounceEnabled === true &&
+  buildBounceMonitor(provider, form)?.mode === 'imap'
+    ? {
+        imapHost: (form.imapHost || '').trim(),
+        imapUser: (form.imapUser || '').trim(),
+        imapPass: form.imapPass || '',
+      }
+    : {};
 
 const filled = (value) => typeof value === 'string' && value.trim() !== '';
 
@@ -222,6 +312,7 @@ export const buildConfig = (provider, form) => {
         user: form.user.trim(),
         pass: form.pass,
         secure: form.secure === true,
+        ...imapConfig(provider, form),
       };
     case 'sendgrid':
       return {
@@ -237,7 +328,11 @@ export const buildConfig = (provider, form) => {
       };
     case 'gmail-oauth':
     case 'yahoo-oauth':
-      return { clientId: form.oauthClientId.trim(), clientSecret: form.oauthClientSecret };
+      return {
+        clientId: form.oauthClientId.trim(),
+        clientSecret: form.oauthClientSecret,
+        ...imapConfig(provider, form),
+      };
     case 'microsoft-oauth':
       return {
         clientId: form.oauthClientId.trim(),
@@ -283,6 +378,8 @@ export const buildAccountPayload = (
   if (!(oauth && isEditMode && credentialsUnreadable)) {
     payload.config = buildConfig(provider, form);
   }
+  const bounceMonitor = buildBounceMonitor(provider, form);
+  if (bounceMonitor) payload.bounceMonitor = bounceMonitor;
   return payload;
 };
 
@@ -309,14 +406,23 @@ export const buildOAuthCreatePayload = (provider, form, code, state) => ({
  * @param {{clientId?: string, tenantId?: string, accountId?: string|number|null}} params
  * @returns {string|null} query string, or null when nothing can be started
  */
-export const buildOAuthAuthQuery = (provider, { clientId, tenantId, accountId } = {}) => {
+export const buildOAuthAuthQuery = (
+  provider,
+  { clientId, tenantId, accountId, bounceRead = false } = {}
+) => {
   if (!OAUTH_API_PROVIDER[provider]) return null;
+  // Mailbox read access for bounce monitoring (Gmail, Microsoft only).
+  const read =
+    bounceRead && (provider === 'gmail-oauth' || provider === 'microsoft-oauth') ? '1' : null;
   if (accountId !== undefined && accountId !== null && String(accountId) !== '') {
-    return new URLSearchParams({ accountId: String(accountId) }).toString();
+    const query = new URLSearchParams({ accountId: String(accountId) });
+    if (read) query.set('bounceRead', read);
+    return query.toString();
   }
   if (!clientId) return null;
   const query = new URLSearchParams({ clientId });
   if (provider === 'microsoft-oauth' && tenantId) query.set('tenantId', tenantId);
+  if (read) query.set('bounceRead', read);
   return query.toString();
 };
 

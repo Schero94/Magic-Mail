@@ -134,6 +134,15 @@ module.exports = async ({ strapi }) => {
     log.error('[BOOTSTRAP] Send queue worker could not start:', err?.name || 'Error');
   }
 
+  // Bounce monitoring: one tick per minute in every process; each account is
+  // polled by one process per interval (database lease). Idle unless an
+  // account has bounce monitoring turned on.
+  try {
+    registerTimer(strapi.plugin('magic-mail').service('bounce-monitor').start());
+  } catch (err) {
+    log.error('[BOOTSTRAP] Bounce monitoring could not start:', err?.name || 'Error');
+  }
+
   // Roles that could read or manage Magic Mail before the outbox existed get
   // the matching outbox permission once (super admins get it from Strapi).
   try {

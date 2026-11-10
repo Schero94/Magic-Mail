@@ -3,12 +3,16 @@ import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
 import { useFormatters } from '../hooks/useFormatters';
+import { bounceReasonText } from '../utils/bounceReasons';
 import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
   Button,
+  Field,
   Flex,
   Loader,
+  SingleSelect,
+  SingleSelectOption,
   Tbody,
   Td,
   Th,
@@ -39,6 +43,7 @@ import {
   FilterActions,
   FilterBar,
   FilterSearch,
+  FilterSelect,
   LoadErrorState,
   StatusBadge,
   StyledTable,
@@ -47,6 +52,7 @@ import {
 import { motionSafe, reducedMotion } from '../components/shared/motion';
 import { accent, brand, color, fontSize, theme } from '../utils/theme';
 import {
+  DELIVERY_FILTERS,
   LOGS_PAGE_SIZE,
   apiErrorMessage,
   buildEmailLogsUrl,
@@ -59,16 +65,20 @@ import {
  * Presents a stored delivery state with a neutral fallback for legacy logs.
  * The English label doubles as the default message of its translation key.
  *
- * @param {'pending'|'sent'|'failed'|null|undefined} deliveryStatus
+ * @param {'pending'|'sent'|'failed'|'bounced'|'deferred'|null|undefined} deliveryStatus
  * @param {string|null|undefined} deliveredAt Provider acceptance time for legacy log rows.
- * @param {{bounced?: boolean, complained?: boolean}} [feedback] Signed provider webhook results.
- *   A bounce or complaint arrives after acceptance and wins over "Sent".
+ * @param {{bounced?: boolean, complained?: boolean}} [feedback] Webhook or mailbox bounce results.
+ *   A bounce or complaint arrives after acceptance and wins over "Sent"; a
+ *   soft bounce (4.x.x, the provider still retries) shows as "Deferred".
  * @returns {{label: string, tone: 'danger'|'warning'|'success'|null}}
  *   `tone` is an accent colour (readable in light and dark mode); null = neutral text.
  */
 const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt, feedback = {}) => {
-  if (feedback.bounced === true) return { label: 'Bounced', tone: 'danger' };
+  if (feedback.bounced === true || deliveryStatus === 'bounced') {
+    return { label: 'Bounced', tone: 'danger' };
+  }
   if (feedback.complained === true) return { label: 'Complaint', tone: 'danger' };
+  if (deliveryStatus === 'deferred') return { label: 'Deferred', tone: 'warning' };
   if (deliveryStatus === 'failed') return { label: 'Failed', tone: 'danger' };
   if (deliveryStatus === 'pending') return { label: 'Pending', tone: 'warning' };
   if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', tone: null };
@@ -78,10 +88,20 @@ const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt, feedback = {
 const DELIVERY_LABEL_KEYS = {
   Bounced: 'analytics.delivery.bounced',
   Complaint: 'analytics.delivery.complained',
+  Deferred: 'analytics.delivery.deferred',
   Failed: 'analytics.delivery.failed',
   Pending: 'analytics.delivery.pending',
   Unverified: 'analytics.delivery.unverified',
   Sent: 'analytics.delivery.sent',
+};
+
+/** Default labels of the delivery status filter (translation fallbacks). */
+const DELIVERY_FILTER_LABELS = {
+  sent: 'Sent',
+  bounced: 'Bounced',
+  deferred: 'Deferred',
+  failed: 'Failed',
+  pending: 'Pending',
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -410,6 +430,7 @@ const Analytics = () => {
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
+  const [deliveryFilter, setDeliveryFilter] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [statsReloadKey, setStatsReloadKey] = useState(0);
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -421,7 +442,7 @@ const Analytics = () => {
 
   // The logs are loading until the request for the current page, search term
   // and reload counter has settled; the first settle ends the initial loader.
-  const logsQueryKey = JSON.stringify([page, searchTerm, reloadKey]);
+  const logsQueryKey = JSON.stringify([page, searchTerm, deliveryFilter, reloadKey]);
   const [settledLogsKey, setSettledLogsKey] = useState(null);
   const logsLoading = settledLogsKey !== logsQueryKey;
   const initialLoading = settledLogsKey === null;
@@ -466,7 +487,12 @@ const Analytics = () => {
     const loadLogs = async () => {
       try {
         const response = await get(
-          buildEmailLogsUrl({ page, pageSize: LOGS_PAGE_SIZE, search: searchTerm })
+          buildEmailLogsUrl({
+            page,
+            pageSize: LOGS_PAGE_SIZE,
+            search: searchTerm,
+            deliveryStatus: deliveryFilter,
+          })
         );
         if (ignore) return;
         const rows = response.data?.data || [];
@@ -474,7 +500,7 @@ const Analytics = () => {
         setEmailLogs(rows);
         setPagination(nextPagination);
         setLogsError(null);
-        if (!searchTerm) setTotalLogs(nextPagination?.total ?? rows.length);
+        if (!searchTerm && !deliveryFilter) setTotalLogs(nextPagination?.total ?? rows.length);
         const clamped = clampPage(page, nextPagination?.pageCount);
         if (clamped !== page) setPage(clamped);
       } catch (error) {
@@ -494,7 +520,7 @@ const Analytics = () => {
     return () => {
       ignore = true;
     };
-  }, [get, page, searchTerm, logsQueryKey, t, toggleNotification]);
+  }, [get, page, searchTerm, deliveryFilter, logsQueryKey, t, toggleNotification]);
 
   // Clear All removes its own button once the emptied list has loaded; focus
   // then moves to the search field instead of falling back to <body>.
@@ -661,10 +687,23 @@ const Analytics = () => {
       bounced: log.bounced,
       complained: log.complained,
     });
+    const reason =
+      (delivery.label === 'Bounced' || delivery.label === 'Deferred') &&
+      typeof log.bounceReason === 'string' &&
+      /^[A-Z0-9_]{2,64}$/.test(log.bounceReason)
+        ? log.bounceReason
+        : null;
     return (
-      <StatusBadge $tone={delivery.tone ?? 'neutral'}>
-        {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}
-      </StatusBadge>
+      <Flex direction="column" alignItems="flex-start" gap={1}>
+        <StatusBadge $tone={delivery.tone ?? 'neutral'}>
+          {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}
+        </StatusBadge>
+        {reason ? (
+          <Typography variant="pi" textColor="neutral600" title={bounceReasonText(t, reason)}>
+            {bounceReasonText(t, reason)}
+          </Typography>
+        ) : null}
+      </Flex>
     );
   };
 
@@ -752,6 +791,27 @@ const Analytics = () => {
             onChange={setSearchInput}
           />
         </FilterSearch>
+        <FilterSelect>
+          <Field.Root name="deliveryFilter">
+            <Field.Label>{t('analytics.filter.label', 'Delivery status')}</Field.Label>
+            <SingleSelect
+              value={deliveryFilter}
+              onChange={(value) => {
+                setDeliveryFilter(DELIVERY_FILTERS.includes(value) ? value : '');
+                setPage(1);
+              }}
+            >
+              <SingleSelectOption value="">
+                {t('analytics.filter.all', 'All statuses')}
+              </SingleSelectOption>
+              {DELIVERY_FILTERS.map((value) => (
+                <SingleSelectOption key={value} value={value}>
+                  {t(`analytics.filter.${value}`, DELIVERY_FILTER_LABELS[value])}
+                </SingleSelectOption>
+              ))}
+            </SingleSelect>
+          </Field.Root>
+        </FilterSelect>
         {canManage && hasAnyLogs && (
           <FilterActions>
             <Button

@@ -13,6 +13,9 @@ const affectedFiles = [
       'settings.enableOpenTracking',
       'settings.enableUnsubscribeHeader',
       'settings.queueFailedSends',
+      'settings.checkRecipientDomains',
+      'settings.verifyRecipientMx',
+      'settings.suppressHardBounces',
     ],
   },
   {

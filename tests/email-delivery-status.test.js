@@ -48,7 +48,13 @@ test('analytics UI labels failed attempts instead of presenting every log as sen
 
 test('new analytics logs start pending and legacy rows need acceptance evidence', async () => {
   const contentType = require('../server/src/content-types/email-log/schema.json');
-  assert.deepEqual(contentType.attributes.deliveryStatus.enum, ['pending', 'sent', 'failed']);
+  assert.deepEqual(contentType.attributes.deliveryStatus.enum, [
+    'pending',
+    'sent',
+    'failed',
+    'bounced',
+    'deferred',
+  ]);
   assert.equal(Object.hasOwn(contentType.attributes.deliveryStatus, 'default'), false);
 
   let created;
@@ -65,6 +71,21 @@ test('new analytics logs start pending and legacy rows need acceptance evidence'
   });
   await analytics.createEmailLog({ to: 'recipient@example.invalid', subject: 'Audit fixture' });
   assert.equal(created.deliveryStatus, 'pending');
+  assert.equal(created.messageIdLocal, null, 'no Message-ID local part without one');
+
+  // The log stores the Message-ID local part so mailbox bounce reports match it.
+  await analytics.createEmailLog({
+    to: 'recipient@example.invalid',
+    subject: 'Audit fixture',
+    messageIdLocal: 'a1b2c3d4e5f6a7b8c9d0e1f2',
+  });
+  assert.equal(created.messageIdLocal, 'a1b2c3d4e5f6a7b8c9d0e1f2');
+  await analytics.createEmailLog({
+    to: 'recipient@example.invalid',
+    subject: 'Audit fixture',
+    messageIdLocal: '<injected@x>',
+  });
+  assert.equal(created.messageIdLocal, null, 'malformed local parts are dropped');
 });
 
 test('provider rejection records the attempt as failed without incrementing sent counters', async () => {

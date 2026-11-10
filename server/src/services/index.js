@@ -8,6 +8,7 @@ const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
 const deliveryWebhooks = require('./delivery-webhooks');
 const queue = require('./queue');
+const bounceMonitor = require('./bounce-monitor');
 
 module.exports = {
   'email-router': emailRouter,
@@ -18,4 +19,5 @@ module.exports = {
   'plugin-settings': pluginSettings,
   'delivery-webhooks': deliveryWebhooks,
   queue,
+  'bounce-monitor': bounceMonitor,
 };

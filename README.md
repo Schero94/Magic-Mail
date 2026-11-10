@@ -563,7 +563,47 @@ const events = await strapi
   .getDeliveryEvents([messageId]); // [{ messageId, bounced, complained, reasonCode }]
 ```
 
-The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook.
+The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook; use [bounce monitoring](#bounce-monitoring-mailbox) for them.
+
+### Bounce monitoring (mailbox)
+
+SMTP, Gmail, Microsoft 365 and Yahoo accounts have no webhook. Their bounces arrive later as a report in the sending mailbox ("Address not found", "Undeliverable", "Mail delivery failed"). MagicMail can read those reports and mark the matching email as **Bounced** or **Deferred**. It is off by default and turned on per account in the account wizard (step **Settings → Bounce monitoring**).
+
+| Account                  | How MagicMail reads bounces                                | What the owner does                                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SMTP                     | IMAP, by default with the SMTP login                       | Turn it on. Enter an IMAP host if it is not the SMTP host with `smtp.` replaced by `imap.`.                                                                            |
+| Gmail / Google Workspace | Gmail API (`gmail.readonly`) **or** IMAP with app password | API: click **Grant read access for bounce monitoring** and approve the new scope. IMAP: enable IMAP for the mailbox and create an app password (needs 2-step sign-in). |
+| Microsoft 365 / Outlook  | Microsoft Graph (`Mail.Read`)                              | Click **Grant read access** and approve `Mail.Read`. In tenants without user consent, an admin grants it once in Entra ID.                                             |
+| Yahoo                    | IMAP with app password                                     | Create a Yahoo app password and enter it.                                                                                                                              |
+| SendGrid, Mailgun        | Webhooks (see above)                                       | Nothing new.                                                                                                                                                           |
+
+**How it works.**
+
+- Every send path (inline, failover and outbox retries) sets one stable `Message-ID` per mail. It is stored on the email log, and bounce reports return it.
+- A worker checks each enabled mailbox every 5 minutes (**Plugin Settings → Bounce check interval**, 1 to 60). A database lease makes sure only one Strapi instance reads a mailbox at a time.
+- Each run reads only new messages: IMAP remembers `UIDVALIDITY` and the last UID, Gmail the `historyId`, Graph the last received time. The first run looks back 3 days. One run reads at most 500 headers and downloads at most 100 reports of up to 1 MB. IMAP connections time out after 15 seconds and idle sockets after 60; API calls after 20 seconds.
+- Reports are parsed as RFC 3464 delivery status notifications (Gmail, Exchange, Postfix and others). Exim-style bounces without a status part are recognised through `X-Failed-Recipients`. Auto-replies and normal mail are ignored.
+- A report is matched to the email log by the original `Message-ID`, then by the `X-MagicMail-Outbox` header, and only then by recipient and account within 7 days (marked as a weak match).
+- `5.x.x` sets the log to **Bounced**. `4.x.x` (for example `4.4.1`, a domain that does not answer yet) sets it to **Deferred**, and the final `5.x.x` report later turns it into **Bounced**.
+- Only reason codes such as `DNS_NXDOMAIN` or `SMTP_550_5_1_1` are stored. Message bodies, diagnostic text and full addresses are never stored or logged. Each report is processed once.
+- The mailbox is opened read-only. With **Move processed bounce reports** turned on (IMAP only), handled reports go to the folder `Magic Mail/Bounces`.
+
+**For other plugins.** Mailbox bounces emit the same events as the webhooks, `magic-mail.delivery.bounced` and `magic-mail.delivery.deferred`, with `{ provider: 'mailbox', messageId, reasonCode }`. `messageId` has no angle brackets, as in the webhook events: the provider id when the provider returned one (Gmail API), otherwise the `Message-ID` MagicMail set.
+
+**In the admin.** The account wizard shows the last check, the result and the totals, with **Test connection** and **Check now**. **Analytics** filters the delivery log by **Bounced** or **Deferred** and shows the reason under the badge.
+
+### Recipient checks before sending
+
+These run before any provider is contacted and answer with `400 ValidationError`. Such a send is never failed over or queued.
+
+| Check                                                                                                         | Default                                   | Error `details.reason`                             |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------- |
+| Well-known typo domains (`googelmail.com`, `gmial.com`, `gmx.ed`, `web.ed`, `t-onlien.de`, `outlok.com`, ...) | on                                        | `RECIPIENT_DOMAIN_TYPO`, with `details.suggestion` |
+| Reserved test domains (`.test`, `.invalid`, `.example`, `.localhost`, `example.com/.net/.org`)                | rejected in production, allowed otherwise | `INVALID_RECIPIENT_DOMAIN`                         |
+| Domain without mail server (MX lookup, 3 s timeout, 1 h cache; DNS errors let the mail through)               | off                                       | `INVALID_RECIPIENT_DOMAIN`                         |
+| Suppression list (addresses with a permanent bounce)                                                          | off                                       | `MAGIC_MAIL_RECIPIENT_SUPPRESSED`                  |
+
+The suppression list stores a keyed hash of the address plus a masked form (`j***@example.com`). Entries are listed and removed in **Plugin Settings → Bounces and recipient checks**.
 
 ---
 
@@ -642,13 +682,13 @@ Errors use Strapi's envelope:
 }
 ```
 
-| Status | When                                                                                                |
-| ------ | --------------------------------------------------------------------------------------------------- |
-| 400    | Invalid or unknown fields, invalid addresses, `userId` of a missing user                            |
-| 401    | Invalid or expired token                                                                            |
-| 403    | No token, a token without the action, or a users-permissions caller while `allowUserRoles` is false |
-| 429    | More than 60 send requests per minute (`TooManyRequestsError`, `Retry-After` header)                |
-| 500    | Delivery failed (no account could send, or the provider rejected the email)                         |
+| Status | When                                                                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | Invalid or unknown fields, invalid addresses, `userId` of a missing user, a recipient domain that fails the [recipient checks](#recipient-checks-before-sending) |
+| 401    | Invalid or expired token                                                                                                                                         |
+| 403    | No token, a token without the action, or a users-permissions caller while `allowUserRoles` is false                                                              |
+| 429    | More than 60 send requests per minute (`TooManyRequestsError`, `Retry-After` header)                                                                             |
+| 500    | Delivery failed (no account could send, or the provider rejected the email)                                                                                      |
 
 ---
 
@@ -675,6 +715,8 @@ All admin routes live under `/magic-mail` on the Strapi server (not `/api`), req
 | Outbox        | `GET /outbox`, `GET /outbox/:documentId`, `GET /analytics/queue-stats`                                                                                                                                                                                                | `queue.read`                                                  |
 |               | `POST /outbox/:documentId/retry`, `POST /outbox/:documentId/discard`, `POST /outbox/:documentId/mark-sent`, `DELETE /outbox`                                                                                                                                          | `queue.manage`                                                |
 | Settings      | `GET /settings` / `PUT /settings`                                                                                                                                                                                                                                     | `read` / `manage`                                             |
+| Bounces       | `GET /accounts/:accountId/bounce-monitor`, `GET /suppressions`                                                                                                                                                                                                        | `read`                                                        |
+|               | `POST /accounts/:accountId/bounce-monitor/test`, `POST /accounts/:accountId/bounce-monitor/check` (10 per minute), `DELETE /suppressions/:documentId`, `POST /suppressions/remove-address`                                                                            | `manage`                                                      |
 
 Test sends (`/accounts/:accountId/test`, `/test-strapi-service`, `/designer/templates/:id/test-send`) are limited to 10 per minute per admin.
 
@@ -876,17 +918,22 @@ module.exports = () => ({
 
 **Settings → MagicMail → Plugin Settings**, stored in the database (`GET`/`PUT /magic-mail/settings`):
 
-| Setting                       | Default | Effect                                                                                     |
-| ----------------------------- | ------- | ------------------------------------------------------------------------------------------ |
-| Link tracking / Open tracking | on      | Rewrite links / add the open pixel                                                         |
-| Tracking base URL             | empty   | Public base for tracking URLs (else `server.url`)                                          |
-| Default from name             | empty   | Display name when neither the account nor the caller sets one                              |
-| Default from email            | empty   | Reference only; emails always go out from the selected account's address                   |
-| Unsubscribe header            | on      | Send `List-Unsubscribe` for every email type and use the plugin-wide URL                   |
-| Unsubscribe URL               | empty   | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient                         |
-| `trackingFallbackUrl` (API)   | empty   | Where expired or unknown tracking links redirect; empty shows a static page                |
-| Queue failed sends            | off     | Store sends that failed after failover and retry them ([details](#retries-and-the-outbox)) |
-| Retries per mail              | 3       | Retries after the first try, 1 to 10                                                       |
+| Setting                       | Default   | Effect                                                                                     |
+| ----------------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| Link tracking / Open tracking | on        | Rewrite links / add the open pixel                                                         |
+| Tracking base URL             | empty     | Public base for tracking URLs (else `server.url`)                                          |
+| Default from name             | empty     | Display name when neither the account nor the caller sets one                              |
+| Default from email            | empty     | Reference only; emails always go out from the selected account's address                   |
+| Unsubscribe header            | on        | Send `List-Unsubscribe` for every email type and use the plugin-wide URL                   |
+| Unsubscribe URL               | empty     | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient                         |
+| `trackingFallbackUrl` (API)   | empty     | Where expired or unknown tracking links redirect; empty shows a static page                |
+| Queue failed sends            | off       | Store sends that failed after failover and retry them ([details](#retries-and-the-outbox)) |
+| Retries per mail              | 3         | Retries after the first try, 1 to 10                                                       |
+| Check recipient domains       | on        | Reject typo and reserved test domains ([details](#recipient-checks-before-sending))        |
+| Test domains                  | automatic | Automatic: allowed outside production, rejected in production; or always allow / reject    |
+| Look up mail servers (MX)     | off       | Reject domains without a mail server                                                       |
+| Block hard-bounced recipients | off       | Reject sends to addresses on the suppression list                                          |
+| Bounce check interval         | 5         | Minutes between mailbox checks, 1 to 60 ([details](#bounce-monitoring-mailbox))            |
 
 ### Account fields
 

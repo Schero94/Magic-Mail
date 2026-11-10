@@ -105,6 +105,13 @@
     "quotaDayKey": {
       "type": "string",
       "private": true
+    },
+    "bounceMonitor": {
+      "type": "json"
+    },
+    "bounceMonitorState": {
+      "type": "json",
+      "private": true
     }
   }
 }

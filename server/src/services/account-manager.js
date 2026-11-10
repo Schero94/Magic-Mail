@@ -29,7 +29,37 @@ const SECRET_MASK = '********';
  */
 const IDENTITY_FIELDS = ['host', 'port', 'user', 'clientId', 'tenantId', 'domain', 'allowInsecure'];
 
+/**
+ * IMAP identity (bounce monitoring). Changing it requires the IMAP password
+ * again, but not the sending credentials.
+ */
+const IMAP_IDENTITY_FIELDS = ['imapHost', 'imapUser'];
+
 const ROUTING_RULE_UID = 'plugin::magic-mail.routing-rule';
+
+/**
+ * Rejects a bounce monitoring mode the provider does not support (SendGrid
+ * and Mailgun report bounces through webhooks).
+ *
+ * @param {string} provider - effective provider
+ * @param {object|undefined} bounceMonitor
+ * @throws {errors.ValidationError}
+ */
+const assertBounceMode = (provider, bounceMonitor) => {
+  if (!bounceMonitor) return;
+  const { MODES } = require('./bounce-monitor');
+  const modes = MODES[provider] || [];
+  if (bounceMonitor.enabled && modes.length === 0) {
+    throw new errors.ValidationError('Bounce monitoring is not available for this provider', {
+      bounceMonitor: ['This provider reports bounces through its webhook'],
+    });
+  }
+  if (bounceMonitor.mode && !modes.includes(bounceMonitor.mode)) {
+    throw new errors.ValidationError('Unsupported bounce monitoring mode', {
+      bounceMonitor: [`mode: must be one of ${modes.join(', ') || 'none'}`],
+    });
+  }
+};
 
 /**
  * Rejects an unsupported Mailgun `config.region`. Only "us" and "eu" are
@@ -104,11 +134,13 @@ module.exports = ({ strapi }) => ({
       priority = 1,
       dailyLimit = 0,
       hourlyLimit = 0,
+      bounceMonitor,
     } = accountData;
 
     strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
 
     assertMailgunRegion(provider, config);
+    assertBounceMode(provider, bounceMonitor);
 
     // Encrypt sensitive config data
     const encryptedConfig = config ? encryptCredentials(config) : null;
@@ -132,6 +164,7 @@ module.exports = ({ strapi }) => ({
           dailyLimit,
           hourlyLimit,
           isActive,
+          bounceMonitor: bounceMonitor || null,
           emailsSentToday: 0,
           emailsSentThisHour: 0,
           totalEmailsSent: 0,
@@ -174,6 +207,7 @@ module.exports = ({ strapi }) => ({
       priority,
       dailyLimit,
       hourlyLimit,
+      bounceMonitor,
     } = accountData;
 
     const previousName = existingAccount.name;
@@ -188,6 +222,7 @@ module.exports = ({ strapi }) => ({
     }
 
     assertMailgunRegion(provider ?? existingAccount.provider, config);
+    assertBounceMode(provider ?? existingAccount.provider, bounceMonitor);
 
     let encryptedConfig = existingAccount.config;
     if (config) {
@@ -224,7 +259,16 @@ module.exports = ({ strapi }) => ({
       priority,
       dailyLimit,
       hourlyLimit,
+      bounceMonitor,
     };
+    // Turning monitoring on again or changing its mode starts a fresh cursor.
+    if (
+      bounceMonitor &&
+      (bounceMonitor.mode !== existingAccount.bounceMonitor?.mode ||
+        (bounceMonitor.enabled && !existingAccount.bounceMonitor?.enabled))
+    ) {
+      data.bounceMonitorState = null;
+    }
     for (const key of Object.keys(data)) {
       if (data[key] === undefined) delete data[key];
     }
@@ -429,6 +473,7 @@ module.exports = ({ strapi }) => ({
     'accessToken',
     'access_token',
     'webhookSigningKey',
+    'imapPass',
   ],
 
   /** The constant secret placeholder (see SECRET_MASK). */
@@ -517,6 +562,16 @@ module.exports = ({ strapi }) => ({
     const identityChanged =
       providerChanged || this._changedIdentityFields(existingPlain || {}, incoming).length > 0;
     const keepSecrets = !identityChanged && !unreadable;
+    const imapIdentityChanged = IMAP_IDENTITY_FIELDS.some(
+      (key) =>
+        key in incoming &&
+        String(incoming[key] ?? '')
+          .trim()
+          .toLowerCase() !==
+          String((existingPlain || {})[key] ?? '')
+            .trim()
+            .toLowerCase()
+    );
     const missing = [];
 
     const out = { ...stored };
@@ -538,7 +593,8 @@ module.exports = ({ strapi }) => ({
         }
         out[key] = nested;
       } else if (this._isMask(value)) {
-        if (keepSecrets && stored[key]) out[key] = stored[key];
+        const keep = keepSecrets && !(key === 'imapPass' && imapIdentityChanged);
+        if (keep && stored[key]) out[key] = stored[key];
         else missing.push(key);
       } else {
         out[key] = value;

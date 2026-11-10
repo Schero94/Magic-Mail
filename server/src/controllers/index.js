@@ -9,6 +9,7 @@ const analytics = require('./analytics');
 const pluginSettings = require('./plugin-settings');
 const deliveryWebhooks = require('./delivery-webhooks');
 const outbox = require('./outbox');
+const bounceMonitor = require('./bounce-monitor');
 
 module.exports = {
   controller,
@@ -20,4 +21,5 @@ module.exports = {
   pluginSettings,
   deliveryWebhooks,
   outbox,
+  bounceMonitor,
 };

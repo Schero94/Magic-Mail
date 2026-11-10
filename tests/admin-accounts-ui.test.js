@@ -568,7 +568,7 @@ test('UI-M02/FUN-15: edit mode reconnects through the stored account instead of 
   const modal = readFileSync(path.join(ROOT, 'admin/src/components/AddAccountModal.jsx'), 'utf8');
   assert.match(
     modal,
-    /oauth\.start\(provider, \{ accountId \}\)/,
+    /oauth\.start\(provider, \{ accountId, bounceRead \}\)/,
     'edit mode starts the flow with the account id'
   );
   assert.match(

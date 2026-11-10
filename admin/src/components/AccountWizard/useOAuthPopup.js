@@ -87,9 +87,14 @@ export const useOAuthPopup = ({ get, onEvent }) => {
    *   `accountId` reconnects an existing account with its stored app credentials.
    */
   const start = useCallback(
-    async (provider, { clientId, tenantId, accountId }) => {
+    async (provider, { clientId, tenantId, accountId, bounceRead = false }) => {
       const apiProvider = OAUTH_API_PROVIDER[provider];
-      const queryString = buildOAuthAuthQuery(provider, { clientId, tenantId, accountId });
+      const queryString = buildOAuthAuthQuery(provider, {
+        clientId,
+        tenantId,
+        accountId,
+        bounceRead,
+      });
       if (!apiProvider || !queryString) return;
 
       reset();
