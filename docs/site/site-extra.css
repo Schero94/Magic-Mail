@@ -393,3 +393,10 @@ th code {
     box-shadow: none;
   }
 }
+
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+}

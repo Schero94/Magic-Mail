@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/icon.svg" alt="MagicMail icon" width="96" height="96" />
+</p>
+
 # MagicMail for Strapi 5
 
 Send every Strapi email through the right account: several SMTP and API accounts, routing rules, quotas, failover that never doubles a mail, an outbox with retries, templates and delivery tracking, all inside the Strapi admin.
