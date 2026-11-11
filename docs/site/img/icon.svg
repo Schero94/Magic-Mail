@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Magic Mail">
+<defs><linearGradient id="g" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#E8364F"/><stop offset="1" stop-color="#FF8A4C"/></linearGradient></defs>
+<rect width="512" height="512" rx="112" fill="url(#g)"/>
+<rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="6"/>
+<g fill="none" stroke="#fff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+<rect x="88" y="140" width="272" height="196" rx="36"/>
+<path d="m114 168 110 84 110-84"/>
+<circle cx="364" cy="352" r="84" fill="#fff" stroke="url(#g)" stroke-width="28" paint-order="stroke"/>
+<path d="M366 314a38 38 0 1 1-38 38" stroke="url(#g)" stroke-width="22"/>
+<path d="M338 314 370 294v40Z" fill="url(#g)" stroke="url(#g)" stroke-width="8"/>
+</g>
+<path d="M388 64Q400.0 112.0 448 124Q400.0 136.0 388 184Q376.0 136.0 328 124Q376.0 112.0 388 64Z" fill="#fff" stroke="url(#g)" stroke-width="28" stroke-linejoin="round" paint-order="stroke"/>
+</svg>
