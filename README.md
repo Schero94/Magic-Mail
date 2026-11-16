@@ -93,7 +93,7 @@ Keep the encryption key stable: without it the stored account credentials cannot
 
 | MagicMail | Strapi                                     | Node.js                                       | Databases                                                                                |
 | --------- | ------------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 4.x       | `^5.57.0` (acceptance host: Strapi 5.61.0) | `>=22.12.0 <=26.x.x` (CI runs Node 22 and 24) | PostgreSQL, MySQL 8, SQLite. Several processes: PostgreSQL tested, MySQL not load-tested |
+| 4.x       | `^5.57.0` (acceptance host: Strapi 5.62.0) | `>=22.12.0 <=26.x.x` (CI runs Node 22 and 24) | PostgreSQL, MySQL 8, SQLite. Several processes: PostgreSQL tested, MySQL not load-tested |
 | 3.1       | `^5.57.0`                                  | `>=20.19.0 <=26.x.x`                          | as Strapi                                                                                |
 
 - Peer dependencies: `@strapi/strapi`, `@strapi/plugin-users-permissions` (every default Strapi app has it; the email log links to its users), `react`, `react-dom`, `react-router-dom` and `styled-components` as in a `create-strapi-app` project. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers, which the Strapi admin provides.
