@@ -9,6 +9,11 @@
  *   ADMIN_PASSWORD - Admin password (required)
  *   STRAPI_URL     - Base URL (default: http://localhost:1337)
  *   TEST_EMAIL     - Test recipient email
+ *   MAGIC_MAIL_TEST_NO_EGRESS - Set to "true" on a host whose outbound network
+ *                    is blocked: tests that need a real SMTP connection are
+ *                    reported as skipped instead of failed
+ *   MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT - Set to "true" when the host enables the
+ *                    analytics debug endpoint; otherwise its 403 is expected
  */
 
 // Try to load .env file if available
@@ -372,6 +377,13 @@ async function testCreateOAuthAccount() {
 async function testStrapiEmailService() {
   logSection('TEST 7: Strapi Email Service Integration');
 
+  // This test sends a real email through the configured SMTP account. On a
+  // host with outbound network blocked it can only fail with ESOCKET.
+  if (process.env.MAGIC_MAIL_TEST_NO_EGRESS === 'true') {
+    logWarning('Skipped: needs outbound SMTP (MAGIC_MAIL_TEST_NO_EGRESS=true)');
+    return null;
+  }
+
   // Get test email from environment or use default
   const testEmail = process.env.TEST_EMAIL || 'test@example.com';
 
@@ -522,7 +534,7 @@ async function testEmailLogs() {
   logSection('TEST 11: Email Logs');
 
   try {
-    const response = await fetch(`${BASE_URL}/magic-mail/analytics/emails?_limit=10`, {
+    const response = await fetch(`${BASE_URL}/magic-mail/analytics/emails?pageSize=10`, {
       headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
 
@@ -936,7 +948,7 @@ async function testDesignerStats() {
 async function testCoreTemplate() {
   logSection('ENDPOINT: Core Email Template');
   try {
-    const response = await fetch(`${BASE_URL}/magic-mail/designer/core/user-address-confirmation`, {
+    const response = await fetch(`${BASE_URL}/magic-mail/designer/core/email-confirmation`, {
       headers: { Authorization: `Bearer ${ADMIN_JWT}` },
     });
     if (response.ok) {
@@ -965,6 +977,14 @@ async function testAnalyticsDebug() {
     });
     if (response.ok) {
       logSuccess('Analytics debug endpoint accessible');
+      return true;
+    }
+    // The endpoint is opt-in: it answers 403 unless the host sets
+    // MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT=true outside production.
+    if (response.status === 403 && process.env.MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT !== 'true') {
+      logSuccess(
+        'Analytics debug returned 403 (expected: MAGIC_MAIL_ENABLE_DEBUG_ENDPOINT not set)'
+      );
       return true;
     }
     logError(`Analytics debug failed: ${response.status}`);
