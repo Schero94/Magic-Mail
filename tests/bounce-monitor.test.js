@@ -461,6 +461,9 @@ test('Microsoft Graph: Inbox since the cursor, MIME of bounces only', async () =
     ],
   });
   monitor.setTestHooks({
+    // Fixed clock: the fixture messages are dated 2026-11-10 and the first poll looks back
+    // three days, so a real clock makes this test fail once that window has passed.
+    clock: () => Date.parse('2026-11-11T00:00:00Z'),
     fetch: async (url) => {
       if (url.includes('/$value')) {
         downloads.push(url);
