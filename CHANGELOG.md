@@ -1,3 +1,29 @@
+## [Unreleased]
+
+### Fixed
+
+* **webhooks:** SendGrid batches between 512 KiB and 768 KB were rejected with `413` on every retry. The webhook body limit is now 1 MiB by default (SendGrid posts batches of up to 768 KB) and configurable with `webhooks.maxBodyBytes` (64 KiB to 5 MiB, validated at startup). Both `413` checks (declared length and streamed size) stay.
+* **webhooks:** batches with more than 1000 events were cut before filtering and still answered `200`, so later bounces were lost. Every event of a batch is processed now; the body limit bounds the work.
+* **webhooks:** a SendGrid `blocked` event (a block, not a bad address) was recorded as a hard bounce. It now sets the final status `blocked` (shown as **Failed** with `SENDGRID_BLOCKED_x00`), keeps `bounced` false and emits `magic-mail.delivery.blocked` instead of `.bounced`.
+* **webhooks:** every SendGrid `dropped` event was recorded as a hard bounce. Only the reasons `Bounced Address` and `Invalid` are bounces now; `Spam Reporting Address` is a complaint, `Unsubscribed Address` and `Group Unsubscribe` are unsubscribes, and every other reason sets **Failed** with an allowlisted code such as `SENDGRID_DROPPED_INVALID_TEMPLATE` (`SENDGRID_DROPPED_OTHER` for unknown reasons) and emits `magic-mail.delivery.dropped`.
+* **suppression:** hard bounces reported by the SendGrid and Mailgun webhooks never reached the suppression list, so failover to another account kept mailing dead addresses. With **Block hard-bounced recipients** on, they are added now (source `sendgrid` / `mailgun`, keyed hash and masked address only). Mailgun failures with reason `suppress-*` or `old` are not added. Complaints are added only with the new plugin config `webhooks.suppressComplaints: true`. A failing suppression write is logged and the webhook still answers `200`.
+* **analytics:** the bounce counter and bounce rate were always 0, because bounced mail (status `bounced`) fell out of the "accepted" filter. Accepted mail is now status `sent`, `bounced`, `deferred` or `blocked`, or a legacy row without status but with `deliveredAt`; bounced is accepted mail with status `bounced` or the `bounced` flag. Covered by a test on Strapi's real query engine (SQLite).
+* **webhooks:** a bounce or complaint for one cc/bcc recipient marked the whole multi-recipient mail. Only events for the email log's primary recipient change the log; others are stored as email events with a masked address and `primary: false`. Mailbox bounce monitoring follows the same rule.
+* **webhooks:** SendGrid events whose `sg_message_id` is missing (delayed or asynchronous bounces) were dropped silently. MagicMail now tries the `magicmail_id` custom argument (a log id of the same account, `/^[A-Za-z0-9]{1,64}$/`, also Mailgun `v:magicmail_id`) and the `smtp-id`, and counts and logs unmatched events without personal data. SendGrid message ids that contain dots now match as well.
+
+### Added
+
+* **webhooks:** SendGrid `deferred` and Mailgun temporary failures set **Deferred**; SendGrid and Mailgun `delivered` set the new `deliveryConfirmedAt` and move a deferred mail back to **Sent**. Events are applied in provider-timestamp order; bounced, blocked and failed are never downgraded. `deliveredAt` stays the time the provider accepted the mail.
+* **webhooks:** SendGrid `unsubscribe` / `group_unsubscribe` and Mailgun `unsubscribed` set `unsubscribed` and `unsubscribedAt`; SendGrid `group_resubscribe` clears it. New events `magic-mail.delivery.unsubscribed`, `.resubscribed`, `.deferred`, `.delivered`, `.blocked`, `.dropped`; every delivery event payload gains `primary`.
+* **docs:** `docs/live-webhook-checks.md`, steps to check the webhooks against real SendGrid and Mailgun accounts.
+
+### Migration
+
+* New optional columns are created on start: email log `deliveryConfirmedAt` and `lastDeliveryEventAt`. No column is dropped or renamed. Enumerations are plain string columns in Strapi 5 (SQLite, PostgreSQL, MySQL), so the new values (`deliveryStatus` `blocked`; email event types `delivered`, `blocked`, `dropped`, `resubscribe`) need no database change, and existing rows, including legacy rows without a status, keep their values.
+* Code that switches on `deliveryStatus` or email event types should handle the new values. Listeners on `magic-mail.delivery.bounced` no longer receive SendGrid blocks and sender-side drops; listen to `.blocked` / `.dropped` if needed.
+* Analytics counts bounced, deferred and blocked mail as sent, so **Sent**, the open rate and the bounce rate change for existing data.
+* To receive the new outcomes, select the optional events in SendGrid (deferred, delivered, unsubscribe, group unsubscribe, group resubscribe) or Mailgun (Temporary Failure, Delivered, Unsubscribes). Without them nothing changes.
+
 # [4.5.0](https://github.com/Schero94/Magic-Mail/compare/v4.4.2...v4.5.0) (2026-11-10)
 
 

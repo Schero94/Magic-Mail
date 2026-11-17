@@ -26,7 +26,7 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Routing rules.** Choose the account by email type, recipient, subject, template or a custom value, with a fallback account per rule.
 - **Quotas and safe failover.** Hourly and daily limits per account, reserved atomically. When an account fails, the next one is tried only if the error proves the provider did not take the mail, so a mail is never delivered twice by failover.
 - **Outbox with retries.** Opt-in per send or for every failed send: 3 retries by default (after 1, 5 and 15 minutes, configurable from 1 to 10), idempotency keys, and an Outbox tab where you retry, discard or mark uncertain mails as sent.
-- **Delivery webhooks.** Signed SendGrid and Mailgun bounce and complaint webhooks update the delivery log and emit events other plugins can listen to.
+- **Delivery webhooks.** Signed SendGrid and Mailgun webhooks record bounces, blocks, complaints, deferrals, deliveries and unsubscribes on the delivery log, feed the suppression list and emit events other plugins can listen to.
 - **Templates.** A visual editor (Unlayer) or plain HTML and text, Mustache variables, versions with restore, import and export, plus the Users & Permissions reset and confirmation mails.
 - **Analytics.** A delivery log with server-side search, open and click tracking with truncated IPs and configurable retention.
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
@@ -542,23 +542,43 @@ Mention open and click tracking in your privacy notice.
 
 ## Bounces and complaints
 
-SendGrid and Mailgun can tell MagicMail when a message bounced or a recipient marked it as spam. The webhooks are off until you save a verification key on the account.
+SendGrid and Mailgun can tell MagicMail what happened to a message after they accepted it: a bounce, a spam complaint, a temporary failure, the final delivery or an unsubscribe. The webhooks are off until you save a verification key on the account.
 
 **SendGrid**
 
-1. In SendGrid open **Settings → Mail Settings → Event Webhook**, enable **Signed Event Webhook** and copy the verification key.
+1. In SendGrid open **Settings → Mail Settings → Webhook Settings → Event Webhooks** and create (or edit) the webhook. Enable **Signed Event Webhook** and copy the verification key.
 2. Edit the SendGrid account in MagicMail, paste the key into **Signed Event Webhook verification key** and save.
-3. Copy the **Webhook URL** shown in the wizard (`https://<your-strapi>/api/magic-mail/webhooks/sendgrid/<accountId>`) into the SendGrid Event Webhook and select **Bounced**, **Dropped** and **Spam Reports**.
+3. Copy the **Webhook URL** shown in the wizard (`https://<your-strapi>/api/magic-mail/webhooks/sendgrid/<accountId>`) into the **Post URL** and, under **Actions to be posted**, select the bounce (includes blocks), dropped and spam report events. Optional: deferred and delivered (one more request per mail), and unsubscribe, group unsubscribe and group resubscribe (sent only when SendGrid subscription tracking or unsubscribe groups are in use).
 
 **Mailgun**
 
 1. In Mailgun copy the **HTTP webhook signing key** (**Settings → API Security**).
 2. Edit the Mailgun account in MagicMail, paste it into **HTTP webhook signing key** and save.
-3. Add the **Webhook URL** (`https://<your-strapi>/api/magic-mail/webhooks/mailgun/<accountId>`) in Mailgun for **Permanent Failure** and **Spam Complaints**.
+3. Add the **Webhook URL** (`https://<your-strapi>/api/magic-mail/webhooks/mailgun/<accountId>`) in Mailgun for **Permanent Failure** and **Spam Complaints**. Optional: **Temporary Failure**, **Delivered** and **Unsubscribes** (only sent when unsubscribe tracking is on for the domain).
 
-**What happens.** Every request is verified with the provider signature (SendGrid ECDSA over the raw body, Mailgun HMAC-SHA256) and a one-hour timestamp window; replays are ignored. A bounce sets the email log to **Bounced** with a reason code such as `MAILGUN_BOUNCE_550`, a complaint to **Complaint**. Provider messages and addresses are not stored. Temporary failures are ignored because the provider keeps retrying.
+**What happens.** Every request is verified with the provider signature (SendGrid ECDSA over the raw body, Mailgun HMAC-SHA256) and a one-hour timestamp window; replays are ignored. Request bodies up to 1 MiB are accepted (SendGrid posts batches of up to 768 KB; change it with [`webhooks.maxBodyBytes`](#plugin-config)); larger ones get `413`. Every event of a batch is processed in the order of the provider timestamps.
 
-**For other plugins.** MagicMail emits `magic-mail.delivery.bounced` and `magic-mail.delivery.complained` on `strapi.eventHub` with `{ provider, messageId, reasonCode }`; `messageId` is the id `send()` returned. You can also ask:
+| Provider event                                                                                                                                                                  | Email log                                                                                                          | Event (`strapi.eventHub`)          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| SendGrid `bounce` (type `bounce`), SendGrid `dropped` with reason `Bounced Address` or `Invalid`, Mailgun `failed` + `permanent`                                                | **Bounced**, `bounced: true`, code such as `SENDGRID_BOUNCE_500`, `SENDGRID_DROPPED_INVALID`, `MAILGUN_BOUNCE_550` | `magic-mail.delivery.bounced`      |
+| SendGrid `bounce` with type `blocked` (a block, not a bad address; SendGrid does not document a retry)                                                                          | final status `blocked`, shown as **Failed** with `SENDGRID_BLOCKED_x00`; `bounced` stays false                     | `magic-mail.delivery.blocked`      |
+| SendGrid `dropped` for a sender-side reason (`Invalid SMTPAPI header`, `Invalid Template`, `Template Render Failure`, `Domain is not allowed`, `Expired`, or an unknown reason) | **Failed**, code `SENDGRID_DROPPED_<REASON>` (unknown reasons: `SENDGRID_DROPPED_OTHER`)                           | `magic-mail.delivery.dropped`      |
+| SendGrid `spamreport`, SendGrid `dropped` with reason `Spam Reporting Address`, Mailgun `complained`                                                                            | `complained: true` (a drop also sets **Failed**)                                                                   | `magic-mail.delivery.complained`   |
+| SendGrid `unsubscribe` / `group_unsubscribe`, SendGrid `dropped` with reason `Unsubscribed Address` / `Group Unsubscribe`, Mailgun `unsubscribed`                               | `unsubscribed: true`, `unsubscribedAt` (a drop also sets **Failed**)                                               | `magic-mail.delivery.unsubscribed` |
+| SendGrid `group_resubscribe`                                                                                                                                                    | `unsubscribed: false` (only when newer than the unsubscribe)                                                       | `magic-mail.delivery.resubscribed` |
+| SendGrid `deferred`, Mailgun `failed` + `temporary`                                                                                                                             | **Deferred**, code such as `MAILGUN_DEFERRED_421`                                                                  | `magic-mail.delivery.deferred`     |
+| SendGrid `delivered`, Mailgun `delivered`                                                                                                                                       | `deliveryConfirmedAt` set; a **Deferred** mail returns to **Sent**                                                 | `magic-mail.delivery.delivered`    |
+
+Rules:
+
+- `deliveredAt` is the time the provider **accepted** the mail (the send call returned). `deliveryConfirmedAt` is the time the receiving server accepted it, known only with the optional `delivered` events.
+- Bounced, blocked and failed are final: a later deferred, delivered or block never changes them, and a deferred older than the last applied event is recorded but ignored. A hard bounce always wins.
+- A mail with several recipients has one email log, keyed to the first `to` address. Only events for that address change the log. Events for cc, bcc and further recipients are stored as email events with a masked address (`j***@example.com`) and `primary: false`.
+- With **Block hard-bounced recipients** on (Plugin Settings), hard bounces add the address to the [suppression list](#recipient-checks-before-sending) with source `sendgrid` or `mailgun`, so routing and failover to any other account skip it too. Mailgun failures with reason `suppress-*` (Mailgun's own list blocked the send) or `old` are not added. Complaints are added only with the plugin config `webhooks.suppressComplaints: true`; unsubscribes never are, because your app owns consent.
+- Events are matched to the email log by the provider message id. SendGrid delayed or asynchronous bounces carry no message id; MagicMail then tries the `magicmail_id` custom argument (the email log id, when the send path sets it) and the `smtp-id`. Events that match no log are counted and logged as a number only, never with addresses.
+- Only codes are stored, never provider texts or addresses of the primary recipient; the address is already on the email log.
+
+**For other plugins.** MagicMail emits the events in the table on `strapi.eventHub` with `{ provider, messageId, reasonCode, primary }`; `messageId` is the id `send()` returned, `primary` is `false` for a cc/bcc recipient and `null` when no email log matched. You can also ask:
 
 ```js
 const events = await strapi
@@ -568,6 +588,8 @@ const events = await strapi
 ```
 
 The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook; use [bounce monitoring](#bounce-monitoring-mailbox) for them.
+
+**Checking the webhooks against your real accounts.** [docs/live-webhook-checks.md](./docs/live-webhook-checks.md) lists the steps: the providers' test buttons, a real bounce to a mailbox that does not exist, and what MagicMail should show afterwards.
 
 ### Bounce monitoring (mailbox)
 
@@ -592,7 +614,7 @@ SMTP, Gmail, Microsoft 365 and Yahoo accounts have no webhook. Their bounces arr
 - Only reason codes such as `DNS_NXDOMAIN` or `SMTP_550_5_1_1` are stored. Message bodies, diagnostic text and full addresses are never stored or logged. Each report is processed once.
 - The mailbox is opened read-only. With **Move processed bounce reports** turned on (IMAP only), handled reports go to the folder `Magic Mail/Bounces`.
 
-**For other plugins.** Mailbox bounces emit the same events as the webhooks, `magic-mail.delivery.bounced` and `magic-mail.delivery.deferred`, with `{ provider: 'mailbox', messageId, reasonCode }`. `messageId` has no angle brackets, as in the webhook events: the provider id when the provider returned one (Gmail API), otherwise the `Message-ID` MagicMail set.
+**For other plugins.** Mailbox bounces emit the same events as the webhooks, `magic-mail.delivery.bounced` and `magic-mail.delivery.deferred`, with `{ provider: 'mailbox', messageId, reasonCode, primary }`. A report for a cc/bcc recipient of a matched mail is recorded as an event with `primary: false` and leaves the log unchanged; the address is still suppressed. `messageId` has no angle brackets, as in the webhook events: the provider id when the provider returned one (Gmail API), otherwise the `Message-ID` MagicMail set.
 
 **In the admin.** The account wizard shows the last check, the result and the totals, with **Test connection** and **Check now**. **Analytics** filters the delivery log by **Bounced** or **Deferred** and shows the reason under the badge.
 
@@ -605,7 +627,7 @@ These run before any provider is contacted and answer with `400 ValidationError`
 | Well-known typo domains (`googelmail.com`, `gmial.com`, `gmx.ed`, `web.ed`, `t-onlien.de`, `outlok.com`, ...) | on                                        | `RECIPIENT_DOMAIN_TYPO`, with `details.suggestion` |
 | Reserved test domains (`.test`, `.invalid`, `.example`, `.localhost`, `example.com/.net/.org`)                | rejected in production, allowed otherwise | `INVALID_RECIPIENT_DOMAIN`                         |
 | Domain without mail server (MX lookup, 3 s timeout, 1 h cache; DNS errors let the mail through)               | off                                       | `INVALID_RECIPIENT_DOMAIN`                         |
-| Suppression list (addresses with a permanent bounce)                                                          | off                                       | `MAGIC_MAIL_RECIPIENT_SUPPRESSED`                  |
+| Suppression list (permanent bounces from mailbox monitoring and SendGrid/Mailgun webhooks)                    | off                                       | `MAGIC_MAIL_RECIPIENT_SUPPRESSED`                  |
 
 The suppression list stores a keyed hash of the address plus a masked form (`j***@example.com`). Entries are listed and removed in **Plugin Settings → Bounces and recipient checks**.
 
@@ -619,8 +641,8 @@ The suppression list stores a keyed hash of the address plus a masked form (`j**
 | `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, template |
 | `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                           |
 | `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click redirect                                                                |
-| `POST` | `/api/magic-mail/webhooks/sendgrid/:accountId`                  | signature | SendGrid bounce and complaint events ([details](#bounces-and-complaints))     |
-| `POST` | `/api/magic-mail/webhooks/mailgun/:accountId`                   | signature | Mailgun bounce and complaint events ([details](#bounces-and-complaints))      |
+| `POST` | `/api/magic-mail/webhooks/sendgrid/:accountId`                  | signature | SendGrid delivery events ([details](#bounces-and-complaints))                 |
+| `POST` | `/api/magic-mail/webhooks/mailgun/:accountId`                   | signature | Mailgun delivery events ([details](#bounces-and-complaints))                  |
 
 ### The API token rule
 
@@ -892,6 +914,10 @@ module.exports = () => ({
       queue: {
         worker: true, // see "Retries and the outbox" for every key
       },
+      webhooks: {
+        maxBodyBytes: 1024 * 1024, // largest delivery-webhook body, 64 KiB to 5 MiB
+        suppressComplaints: false, // also suppress spam complainers
+      },
     },
   },
 });
@@ -915,6 +941,8 @@ module.exports = () => ({
 | `rateLimit.redis`             | Redis client                        | none                                         | ioredis or node-redis v4+ client for `store: 'redis'`                                               |
 | `rateLimit.redisPrefix`       | string                              | `'magic-mail:rl:'`                           | Key prefix in Redis                                                                                 |
 | `queue.*`                     | object                              | see [Retries and the outbox](#configuration) | Outbox worker, retries, limits and retention                                                        |
+| `webhooks.maxBodyBytes`       | integer, 65536 to 5242880           | `1048576` (1 MiB)                            | Largest SendGrid/Mailgun webhook body; larger requests get `413`. SendGrid batches reach 768 KB     |
+| `webhooks.suppressComplaints` | boolean                             | `false`                                      | Also add spam complaints to the suppression list (needs **Block hard-bounced recipients**)          |
 
 `allowedLinkHosts` empty means: every host may be click-tracked for admin, service and native sends, and **no** host for Content-API sends. When the list is set, it applies to all sends.
 
@@ -1213,7 +1241,7 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 - **Content API.** The send routes accept API tokens only (users-permissions roles only with `contentApi.allowUserRoles`), reject unknown fields, file-path and URL attachments, and share 60 requests per minute per token across all instances. Never enable them for the _Public_ role.
 - **What goes out.** HTML is sanitised, `from` is pinned to the sending account's address, custom headers are allowlisted, and SMTP requires TLS 1.2 or newer with certificate checks (unless `allowInsecure` is set on a non-production or loopback host).
 - **OAuth.** Callbacks are public but use a signed, single-use state with PKCE, bound to the admin who started the flow and stored in the database.
-- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and provider messages and addresses are not stored.
+- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and bodies are capped (1 MiB by default). Provider messages are not stored. Addresses are stored only as a keyed hash plus a masked form (suppression list) or a masked form (events for cc/bcc recipients).
 - **Tracking.** Open and click events keep IPs truncated to /24 or /48 and no location, and expire after 90 days (links after 180 days). Authentication links are never tracked. Mention tracking in your privacy notice.
 - **Outbox.** Queued mails are stored encrypted and deleted once sent or discarded; the admin API and the Outbox tab never show mail content. `forgetRecipient(address)` removes a recipient's queued mails.
 - **Logs.** MagicMail's log lines carry error names and codes, not recipient addresses or message content.
@@ -1254,6 +1282,14 @@ The three coordination tables (`magic_mail_claims`, `magic_mail_rate_limits`, `m
 **Visual designer does not load**: add `https://editor.unlayer.com` to `script-src` and `frame-src` (see [Content Security Policy](#content-security-policy-for-the-visual-editor)). The **Plain Text** tab works without it.
 
 **DMARC failures with a custom domain**: publish SPF (for example `v=spf1 include:_spf.google.com ~all`), add DKIM (provider or SMTP DKIM config) and a DMARC record. MagicMail always sends from the account's address, which keeps alignment.
+
+**Bounces from SendGrid or Mailgun do not show up**
+
+- The account needs the verification key (SendGrid) or signing key (Mailgun); without it every request gets `401`.
+- The URL must reach Strapi from the internet over https, with the account's id and your REST prefix.
+- A `413` in the access log means a batch was larger than `webhooks.maxBodyBytes`.
+- A warning `N delivery event(s) matched no email log` means events arrived for mail MagicMail did not send or whose log was deleted (also the providers' test events).
+- Step-by-step checks with the providers' test buttons and a real bounce: [docs/live-webhook-checks.md](./docs/live-webhook-checks.md).
 
 **"Too many requests"**: the send routes allow 60 requests per minute per token, test sends 10 per minute per admin. Also check provider limits (for example Gmail 500/day for free accounts, 2,000/day for Workspace).
 
@@ -1298,6 +1334,7 @@ The full list is in [CHANGELOG.md](./CHANGELOG.md). Upgrade one minor or major a
 
 1. **Stricter failover.** A send whose account fails with HTTP 500/502/504, a network error after the request was sent, or an SMTP connection lost or timed out after the server's `354` reply now throws instead of trying the next account, because that provider may already have delivered it. SMTP `4xx` replies (also `451` after DATA) and HTTP 408 now fail over. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.
 2. **Packaging.** `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers instead of dependencies, and `@strapi/utils` is a dependency. Nothing to do in a standard Strapi project; the admin build uses Strapi's own copies.
+3. **Delivery webhooks.** New optional columns are created on start (email log `deliveryConfirmedAt`, `lastDeliveryEventAt`); no column is dropped or renamed. `deliveryStatus` gains the value `blocked` and email events gain `delivered`, `blocked`, `dropped` and `resubscribe`; code that switches on them should handle the new values. A SendGrid block or a sender-side drop is no longer recorded as a hard bounce and no longer emits `magic-mail.delivery.bounced`: listen to `magic-mail.delivery.blocked` / `.dropped` if you need them. Analytics now counts bounced, deferred and blocked mail as sent, so **Sent** and the bounce rate change for existing data. See [Bounces and complaints](#bounces-and-complaints) for the optional events to enable.
 
 ### Upgrading to 4.4
 
