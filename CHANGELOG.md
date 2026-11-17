@@ -1,3 +1,19 @@
+## [Unreleased]
+
+### Fixed
+
+* **Mailgun domain is checked when you save the account.** Before, a domain such as `https://mg.example.com/` was saved and every mail then failed. Now `https://`, trailing slashes, spaces and capital letters are removed automatically, and a value that is still not a domain name (for example `mg.example.com/v3`) is shown as an error in the account form. API clients get `400 ValidationError` for it.
+* **Failed account tests now say what to fix:** wrong or deleted API key, missing Mail Send permission, unverified sender address, wrong Mailgun region or unknown domain, a sandbox recipient that is not authorized yet, message too large, or provider rate limit. The test response adds `hintCode` and `hint`; `message` stays the same.
+* **Keys pasted with extra spaces work.** API keys and webhook keys are trimmed when you save, and Mailgun webhooks verify again if the signing key was saved with spaces around it.
+
+### Changed
+
+* **Clearer setup help in the account wizard** (all five languages): SendGrid asks for a key with only the Mail Send permission and reminds you to verify the sender; Mailgun recommends a Domain Sending Key that can only send mail and explains that sandbox domains only deliver to authorized recipients.
+
+### Migration
+
+* No action needed. A Mailgun account whose domain was saved with `https://` or a trailing slash is repaired the next time you save it. If a stored domain is still invalid, the account form shows the error on the Credentials step.
+
 ## [4.5.1](https://github.com/Schero94/Magic-Mail/compare/v4.5.0...v4.5.1) (2026-11-17)
 
 

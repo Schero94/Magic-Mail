@@ -30,8 +30,15 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
 - **Admin in five languages.** English, German, French, Spanish and Portuguese, in light and dark mode.
 
+## What's new
+
+- **Mailgun domains are checked when you save the account.** A pasted `https://` or trailing slash is removed for you; a value that is not a domain name is flagged right in the form instead of failing later when mail is sent.
+- **Failed account tests say what to fix:** wrong API key, missing Mail Send permission, unverified sender, wrong Mailgun region, or a sandbox recipient that is not authorized yet.
+- **Clearer key setup:** the wizard recommends keys that can only send mail (SendGrid Custom Access with Mail Send, Mailgun Domain Sending Key).
+
 ## Contents
 
+- [What's new](#whats-new)
 - [Screenshots](#screenshots)
 - [Quick start](#quick-start)
 - [Compatibility](#compatibility)
