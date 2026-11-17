@@ -1,5 +1,7 @@
 # Live checks for the SendGrid and Mailgun webhooks
 
+Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). How the webhooks map events: [Bounces and complaints](./delivery.md#bounces-and-complaints).
+
 The unit tests replay the providers' published sample events with locally
 generated signatures. They cannot prove how your real SendGrid or Mailgun
 account behaves. This page lists the checks you can run yourself against a

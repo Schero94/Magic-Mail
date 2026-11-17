@@ -10,7 +10,11 @@ const editorSource = fs.readFileSync(
   path.join(root, 'admin/src/pages/EmailDesigner/EditorPage.jsx'),
   'utf8'
 );
-const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+// The template feature table moved from the README to the sending guide.
+const readme = [
+  fs.readFileSync(path.join(root, 'README.md'), 'utf8'),
+  fs.readFileSync(path.join(root, 'docs/sending.md'), 'utf8'),
+].join('\n');
 
 test('template editor back button uses a theme-aware icon color', () => {
   const editorStyles = fs.readFileSync(

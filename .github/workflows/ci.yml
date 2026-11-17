@@ -1,10 +1,17 @@
 # Runs the full verification (lint, format check, tests, build, package and runtime
-# verification) for every pull request and for manual runs on Node 22 and 24.
+# verification) on Node 22, 24 and 26 for every pull request, every push to main
+# (the README badge shows the main result), a weekly run that catches dependency
+# drift, and manual runs. A separate job installs the declared peer floor
+# (Strapi 5.57.0 with Design System 2.2.4) and runs the tests and build against it.
 # Read-only token, SHA-pinned actions, no dependency lifecycle scripts.
 name: CI
 
 on:
   pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 5 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +19,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled; runs on main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -21,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22', '24']
+        node: ['22', '24', '26']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,6 +67,48 @@ jobs:
 
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=critical
+
+  # peerDependencies accept @strapi/strapi and @strapi/plugin-users-permissions
+  # ^5.57.0 and the Design System ^2.2.4, while the devDependencies install the
+  # newest versions. This job replaces them with the floor so the declared range
+  # is tested, not assumed.
+  peer-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Install the peer floor (Strapi 5.57.0, Design System 2.2.4)
+        run: >-
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          @strapi/strapi@5.57.0 @strapi/plugin-users-permissions@5.57.0 @strapi/utils@5.57.0
+          @strapi/design-system@2.2.4 @strapi/icons@2.2.4
+
+      - name: Show the installed floor
+        run: node -p "['@strapi/strapi','@strapi/utils','@strapi/design-system'].map((p) => p + '@' + require('./node_modules/' + p + '/package.json').version).join(' ')"
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify package exports and server bundle
+        run: |
+          npm run verify
+          npm run verify:runtime
 
   # 8 Node processes against one SQLite file and one PostgreSQL database
   # (tests/multi-instance.test.js). Only better-sqlite3 runs its install

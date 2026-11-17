@@ -199,7 +199,8 @@
           <h2 id="gallery-title">Screenshots</h2>
           <p class="section-lead">
             Synthetic data (<code>example.test</code> addresses) on an isolated Strapi 5.61 host.
-            Select an image to open it at full size.
+            The six README images were re-captured on Strapi 5.62.0. Select an image to open it at
+            full size.
           </p>
           <div class="gallery">
             <figure class="shot shot-wide">
@@ -408,10 +409,12 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
             </table>
           </div>
           <p>
-            The packed plugin installs without plugin warnings into a fresh
-            <code>create-strapi-app@5.61</code> project with yarn 1, npm 11 and pnpm. Upgrading?
-            Read the
-            <a href="https://github.com/Schero94/Magic-Mail#migration-notes">migration notes</a>.
+            The packed plugin installs with npm into a Strapi 5.62.0 project without plugin warnings
+            (yarn 1 and pnpm were checked on Strapi 5.61). Upgrading? Read the
+            <a
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md#migration-notes"
+              >migration notes</a
+            >.
           </p>
         </section>
 
@@ -471,7 +474,8 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
             Queued mails are encrypted in the database and deleted when sent or discarded. Login and
             one-time-code mails should use <code>queue: false</code> or a <code>notAfter</code>;
             MagicMail never sends a queued mail after <code>notAfter</code>.
-            <a href="https://github.com/Schero94/Magic-Mail#retries-and-the-outbox"
+            <a
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#retries-and-the-outbox"
               >Full outbox guide</a
             >.
           </p>
@@ -524,7 +528,8 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
             the mail as bounced, <code>4.x.x</code> as deferred. Only reason codes are stored, never
             message content. Before sending, typo domains such as <code>googelmail.com</code> and
             reserved test domains are rejected.
-            <a href="https://github.com/Schero94/Magic-Mail#bounce-monitoring-mailbox"
+            <a
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#bounce-monitoring-mailbox"
               >Bounce monitoring guide</a
             >.
           </p>
@@ -556,7 +561,7 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
           </ul>
           <p>
             <a
-              href="https://github.com/Schero94/Magic-Mail#running-several-instances-railway-replicas-pm2-cluster"
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md#running-several-instances-railway-replicas-pm2-cluster"
               >Setup guide with pm2 and Railway examples</a
             >.
           </p>
@@ -657,7 +662,8 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
             Set Strapi's <code>server.url</code> to your public https URL: OAuth redirect URIs and
             tracking links are built from it, and in production MagicMail never falls back to
             localhost. Every option is in the
-            <a href="https://github.com/Schero94/Magic-Mail#configuration-reference"
+            <a
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md#configuration-reference"
               >configuration reference</a
             >.
           </div>
@@ -773,8 +779,10 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
           <p>
             Admin routes cover accounts, OAuth, routing rules, templates and versions, analytics,
             the outbox and settings. The
-            <a href="https://github.com/Schero94/Magic-Mail#admin-api">README lists every route</a>
-            with its permission and examples.
+            <a href="https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md#admin-api"
+              >API reference</a
+            >
+            lists every route with its permission and examples.
           </p>
         </section>
 
@@ -841,7 +849,10 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
           <div class="link-list">
             <a href="https://github.com/Schero94/Magic-Mail/releases">Release history</a>
             <a href="https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md">Changelog</a>
-            <a href="https://github.com/Schero94/Magic-Mail#migration-notes">Migration notes</a>
+            <a
+              href="https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md#migration-notes"
+              >Migration notes</a
+            >
             <a href="https://www.npmjs.com/package/strapi-plugin-magic-mail">npm package</a>
             <a href="https://github.com/Schero94/Magic-Mail/issues">Issue tracker</a>
           </div>

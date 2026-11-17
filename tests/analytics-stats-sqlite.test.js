@@ -31,11 +31,20 @@ const hasSqlite = () => {
   }
 };
 
-const { Database } = require('@strapi/database');
-// Not in @strapi/core's exports map: loaded by path, as Strapi itself does at boot.
-const { transformContentTypesToModels } = require(
-  path.join(ROOT, 'node_modules/@strapi/core/dist/utils/transform-content-types-to-models.js')
-);
+/**
+ * Strapi's database layer and its content-type to model transform. Loaded
+ * lazily so a host without the native SQLite build only skips the test.
+ * The transform is not in @strapi/core's exports map: it is loaded by path,
+ * as Strapi itself uses it at boot.
+ *
+ * @returns {{Database: Function, transformContentTypesToModels: Function}}
+ */
+const loadStrapiDatabase = () => ({
+  Database: require('@strapi/database').Database,
+  transformContentTypesToModels: require(
+    path.join(ROOT, 'node_modules/@strapi/core/dist/utils/transform-content-types-to-models.js')
+  ).transformContentTypesToModels,
+});
 
 const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 
@@ -60,6 +69,7 @@ const releasedSchema = () =>
   });
 
 const openDb = async (file, schema) => {
+  const { Database, transformContentTypesToModels } = loadStrapiDatabase();
   const db = new Database({
     connection: {
       client: 'sqlite',

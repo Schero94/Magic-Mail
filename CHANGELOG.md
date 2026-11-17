@@ -24,6 +24,13 @@
 * Analytics counts bounced, deferred and blocked mail as sent, so **Sent**, the open rate and the bounce rate change for existing data.
 * To receive the new outcomes, select the optional events in SendGrid (deferred, delivered, unsubscribe, group unsubscribe, group resubscribe) or Mailgun (Temporary Failure, Delivered, Unsubscribes). Without them nothing changes.
 
+## [4.5.1](https://github.com/Schero94/Magic-Mail/compare/v4.5.0...v4.5.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **readme:** make images and links work on the Strapi marketplace ([#18](https://github.com/Schero94/Magic-Mail/issues/18)) ([883e2d9](https://github.com/Schero94/Magic-Mail/commit/883e2d9035111e4f451553e47b539395850746f0))
+
 # [4.5.0](https://github.com/Schero94/Magic-Mail/compare/v4.4.2...v4.5.0) (2026-11-10)
 
 

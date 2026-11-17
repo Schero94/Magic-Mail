@@ -45,7 +45,9 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: '@strapi/*'
         update-types: ['version-update:semver-major']
-      # Keep the Design System on the version the Strapi admin ships (2.2.x).
+      # The Design System and icons follow the version the current Strapi admin
+      # ships (devDependency ^2.3.1); the peer floor ^2.2.4 is tested in CI
+      # (job peer-floor), so only manual, reviewed bumps move these.
       - dependency-name: '@strapi/design-system'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: '@strapi/icons'
