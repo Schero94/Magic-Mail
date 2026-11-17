@@ -1,3 +1,10 @@
+## [4.5.1](https://github.com/Schero94/Magic-Mail/compare/v4.5.0...v4.5.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **readme:** make images and links work on the Strapi marketplace ([#18](https://github.com/Schero94/Magic-Mail/issues/18)) ([883e2d9](https://github.com/Schero94/Magic-Mail/commit/883e2d9035111e4f451553e47b539395850746f0))
+
 # [4.5.0](https://github.com/Schero94/Magic-Mail/compare/v4.4.2...v4.5.0) (2026-11-10)
 
 
