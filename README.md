@@ -8,10 +8,10 @@ Send every Strapi email through the right account: several SMTP and API accounts
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
 [![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
-[![CI](https://img.shields.io/github/actions/workflow/status/Schero94/Magic-Mail/ci.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI build status](https://img.shields.io/github/actions/workflow/status/Schero94/Magic-Mail/ci.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Schero94/Magic-Mail/blob/main/LICENSE)
 [![Strapi 5.57+](https://img.shields.io/badge/Strapi-5.57%2B-4945FF.svg)](https://github.com/Schero94/Magic-Mail#compatibility)
-[![Docs](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/Magic-Mail/)
+[![Documentation site](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/Magic-Mail/)
 
 Live docs: https://schero94.github.io/Magic-Mail/
 
