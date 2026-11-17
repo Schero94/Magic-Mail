@@ -63,10 +63,10 @@ test('README starts with the six-badge row in the shared order', () => {
     [
       'npm version',
       'npm downloads',
-      'CI',
+      'CI build status',
       `License: ${pkg.license}`,
       `Strapi ${strapiFloor()}+`,
-      'Docs',
+      'Documentation site',
     ]
   );
 });
