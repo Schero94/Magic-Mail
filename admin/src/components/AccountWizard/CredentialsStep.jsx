@@ -462,7 +462,10 @@ const MailgunDomainField = ({ form, onChange, isEditMode }) => {
           autoComplete="off"
           spellCheck={false}
           onChange={(e) => onChange('mailgunDomain', e.target.value)}
-          onBlur={() => setLeft(true)}
+          // Deferred to the next task: showing the error swaps the hint node
+          // while focus is between elements, and the modal's focus trap would
+          // then pull focus to the dialog instead of the next field.
+          onBlur={() => setTimeout(() => setLeft(true), 0)}
         />
         <Field.Hint />
         <Field.Error />
