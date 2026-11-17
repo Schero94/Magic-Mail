@@ -111,6 +111,10 @@ test('no messaging-transport residue in decoded schemas, translations, sources, 
     ...listFiles('.dev'),
     ...listFiles('.agents'),
     ...listFiles('docs/site'),
+    ...fs
+      .readdirSync(path.join(root, 'docs'))
+      .filter((file) => file.endsWith('.md'))
+      .map((file) => `docs/${file}`),
     'README.md',
   ].filter((file) => /\.(js|jsx|mjs|ts|tsx|json|md|html)$/.test(file));
   for (const file of textFiles) {
