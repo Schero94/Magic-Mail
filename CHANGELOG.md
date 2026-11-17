@@ -5,7 +5,7 @@
 
 * **bounces:** monitor sending mailboxes for bounce reports ([#10](https://github.com/Schero94/Magic-Mail/issues/10)) ([c92d1c3](https://github.com/Schero94/Magic-Mail/commit/c92d1c360c467f33024d155601efec3b712c292c))
 
-## [Unreleased]
+## 4.5.0 details (written before the release)
 
 ### Added
 
