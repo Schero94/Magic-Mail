@@ -7,7 +7,7 @@ const { verifySendGridSignature, verifyMailgunSignature } = require('../utils/we
 const coordination = require('../utils/coordination');
 
 /**
- * Signed bounce / complaint webhooks (SendGrid, Mailgun).
+ * Signed delivery webhooks (SendGrid Event Webhook, Mailgun webhooks).
  *
  * - Off unless the account stores a verification secret
  *   (`config.webhookPublicKey` for SendGrid, `config.webhookSigningKey` for
@@ -20,11 +20,22 @@ const coordination = require('../utils/coordination');
  *   acknowledged without work. A failed item releases its claim so the
  *   provider's next retry is processed. The in-memory map is a first-level
  *   cache in front of the table.
- * - Only bounce and complaint events are stored: on the email log
- *   (`bounced`/`complained`, sanitized reason code) plus one email event.
- * - `magic-mail.delivery.bounced` / `magic-mail.delivery.complained` are
- *   emitted on `strapi.eventHub` with `{ provider, messageId, reasonCode }`.
- *   No addresses, subjects or provider texts leave this service.
+ * - Outcomes (see README "Bounces and complaints"):
+ *   bounced (hard bounce), blocked (SendGrid block, final), dropped (SendGrid
+ *   drop for a sender-side reason, final), deferred, delivered, complained,
+ *   unsubscribed, resubscribed. Each is stored on the email log (primary
+ *   recipient only) plus one email event, and emitted on `strapi.eventHub` as
+ *   `magic-mail.delivery.<outcome>` with
+ *   `{ provider, messageId, reasonCode, primary }`.
+ * - Events are applied in provider-timestamp order; a final state (bounced,
+ *   blocked, failed) is never downgraded and an older deferred never
+ *   overrides a newer delivery.
+ * - Hard bounces (and, with `webhooks.suppressComplaints`, complaints) feed
+ *   the suppression list while "Block hard-bounced recipients" is on. Only a
+ *   keyed hash and a masked address are stored.
+ * - No address, subject or provider text is logged or emitted. Secondary
+ *   recipients (cc, bcc, further to) appear only as a masked address in the
+ *   email event metadata.
  */
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
@@ -33,14 +44,70 @@ const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 
 const PROVIDERS = new Set(['sendgrid', 'mailgun']);
 const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
+/** Log documentId sent as SendGrid custom_args / Mailgun v: variable `magicmail_id`. */
+const MAGICMAIL_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
 const EVENT_ID_PATTERN = /^[\x21-\x7e]{1,128}$/;
-const MAX_EVENTS_PER_REQUEST = 1000;
 const MAX_LOOKUP_IDS = 100;
+/** Provider timestamps outside [2000-01-01, now + 1 day] are ignored. */
+const MIN_EVENT_TIME_MS = Date.UTC(2000, 0, 1);
+const MAX_EVENT_SKEW_MS = 24 * 3600_000;
 
 const SEEN_TTL_MS = 2 * 60 * 60 * 1000;
 const SEEN_MAX = 20_000;
 /** @type {Map<string, number>} key -> expiresAt */
 const seen = new Map();
+
+/**
+ * @typedef {'bounced'|'complained'|'blocked'|'dropped'|'deferred'|'delivered'|'unsubscribed'|'resubscribed'} DeliveryKind
+ */
+
+/**
+ * @typedef {object} DeliveryEvent
+ * @property {string|null} eventId Provider event id (de-duplication).
+ * @property {string|null} messageId Provider message id as reported.
+ * @property {string|null} [smtpId] SendGrid `smtp-id` (fallback lookup).
+ * @property {unknown} [magicmailId] `magicmail_id` custom argument / user variable (fallback lookup).
+ * @property {DeliveryKind} kind
+ * @property {string} reasonCode Sanitized, allowlisted code such as `SENDGRID_BOUNCE_500`.
+ * @property {string|null} [recipient] Lower-cased event recipient; memory only, never stored.
+ * @property {number|null} [occurredAt] Provider event time in ms.
+ * @property {'bounce'|'complaint'|null} [suppress] Whether the outcome may feed the suppression list.
+ * @property {boolean} [notDelivered] SendGrid drop: the mail never left the provider.
+ */
+
+/** Email event type per outcome. */
+const EVENT_TYPES = Object.freeze({
+  bounced: 'bounce',
+  complained: 'complaint',
+  blocked: 'blocked',
+  dropped: 'dropped',
+  deferred: 'deferred',
+  delivered: 'delivered',
+  unsubscribed: 'unsubscribe',
+  resubscribed: 'resubscribe',
+});
+
+/** States a later event never changes. */
+const FINAL_STATUSES = new Set(['bounced', 'blocked', 'failed']);
+
+/**
+ * SendGrid drop reasons, exactly as listed under "Dropped" on
+ * https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event.
+ * Unknown reasons become `dropped` with code SENDGRID_DROPPED_OTHER, so a
+ * wording change on SendGrid's side cannot produce a false hard bounce.
+ */
+const SENDGRID_DROP_REASONS = Object.freeze({
+  'Bounced Address': { kind: 'bounced', suppress: 'bounce' },
+  Invalid: { kind: 'bounced', suppress: 'bounce' },
+  'Spam Reporting Address': { kind: 'complained', suppress: 'complaint' },
+  'Unsubscribed Address': { kind: 'unsubscribed' },
+  'Group Unsubscribe': { kind: 'unsubscribed' },
+  'Invalid SMTPAPI header': { kind: 'dropped' },
+  'Invalid Template': { kind: 'dropped' },
+  'Template Render Failure': { kind: 'dropped' },
+  'Domain is not allowed': { kind: 'dropped' },
+  Expired: { kind: 'dropped' },
+});
 
 /**
  * @param {string} key - Mailgun token or provider event id
@@ -121,77 +188,329 @@ function reasonCode(provider, kind, smtpCode) {
 }
 
 /**
- * Maps a SendGrid event batch to delivery events.
- * bounce (type bounce|blocked) and dropped -> bounced; spamreport -> complained.
+ * Lower-cased event recipient, or null when it is not a plausible address.
+ * Kept in memory only (comparison with the log, suppression hash, mask).
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+function normalizeRecipient(value) {
+  if (typeof value !== 'string') return null;
+  const address = value.trim().toLowerCase();
+  if (address.length < 3 || address.length > 254) return null;
+  if (!/^[^\s@]+@[^\s@]+$/.test(address)) return null;
+  return address;
+}
+
+/**
+ * Provider event time (Unix seconds, SendGrid integer, Mailgun float) in ms.
+ *
+ * @param {unknown} value
+ * @param {number} [now]
+ * @returns {number|null} null when missing or implausible
+ */
+function eventTime(value, now = Date.now()) {
+  const seconds = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return null;
+  const ms = Math.round(seconds * 1000);
+  if (ms < MIN_EVENT_TIME_MS || ms > now + MAX_EVENT_SKEW_MS) return null;
+  return ms;
+}
+
+/**
+ * Masks an address for event metadata ("j***@example.com").
+ *
+ * @param {string} address
+ * @returns {string}
+ */
+function maskAddress(address) {
+  const [local, domain] = String(address).split('@');
+  if (!domain) return '***';
+  return `${local.slice(0, 1)}***@${domain}`.slice(0, 120);
+}
+
+/**
+ * Maps one SendGrid event object to a delivery event.
+ *
+ * Source: https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event
+ * - bounce, type bounce: hard bounce (permanent) -> bounced, suppressible.
+ * - bounce, type blocked: "a temporary delivery denial"; SendGrid does not
+ *   document a retry, so it is a final non-delivery -> blocked.
+ * - dropped: by `reason` (SENDGRID_DROP_REASONS); never delivered.
+ * - spamreport -> complained; deferred; delivered; unsubscribe and
+ *   group_unsubscribe -> unsubscribed; group_resubscribe -> resubscribed.
+ * Other events (processed, open, click, ...) are ignored.
+ *
+ * @param {Record<string, unknown>} event
+ * @returns {DeliveryEvent|null}
+ */
+function mapSendGridEvent(event) {
+  const type = event.event;
+  /** @type {Partial<DeliveryEvent>|null} */
+  let mapped = null;
+  if (type === 'bounce') {
+    const status = /^([45])\.\d+\.\d+$/.exec(String(event.status || ''));
+    const blocked = event.type === 'blocked';
+    mapped = {
+      kind: blocked ? 'blocked' : 'bounced',
+      reasonCode: reasonCode(
+        'sendgrid',
+        blocked ? 'blocked' : 'bounce',
+        status ? `${status[1]}00` : null
+      ),
+      suppress: blocked ? null : 'bounce',
+    };
+  } else if (type === 'dropped') {
+    const reason = typeof event.reason === 'string' ? event.reason : '';
+    const known = Object.hasOwn(SENDGRID_DROP_REASONS, reason)
+      ? SENDGRID_DROP_REASONS[reason]
+      : null;
+    mapped = {
+      kind: known ? known.kind : 'dropped',
+      reasonCode: `SENDGRID_DROPPED_${known ? codePart(reason) : 'OTHER'}`,
+      suppress: known?.suppress || null,
+      notDelivered: true,
+    };
+  } else if (type === 'spamreport') {
+    mapped = {
+      kind: 'complained',
+      reasonCode: reasonCode('sendgrid', 'spamreport'),
+      suppress: 'complaint',
+    };
+  } else if (type === 'deferred') {
+    mapped = { kind: 'deferred', reasonCode: reasonCode('sendgrid', 'deferred') };
+  } else if (type === 'delivered') {
+    mapped = { kind: 'delivered', reasonCode: reasonCode('sendgrid', 'delivered') };
+  } else if (type === 'unsubscribe' || type === 'group_unsubscribe') {
+    mapped = { kind: 'unsubscribed', reasonCode: reasonCode('sendgrid', type) };
+  } else if (type === 'group_resubscribe') {
+    mapped = { kind: 'resubscribed', reasonCode: reasonCode('sendgrid', type) };
+  }
+  if (!mapped) return null;
+  return {
+    eventId: typeof event.sg_event_id === 'string' ? event.sg_event_id : null,
+    messageId: typeof event.sg_message_id === 'string' ? event.sg_message_id : null,
+    smtpId: typeof event['smtp-id'] === 'string' ? event['smtp-id'] : null,
+    magicmailId: event.magicmail_id,
+    recipient: normalizeRecipient(event.email),
+    occurredAt: eventTime(event.timestamp),
+    suppress: null,
+    notDelivered: false,
+    ...mapped,
+  };
+}
+
+/**
+ * Maps a SendGrid event batch to delivery events. The whole array is
+ * processed (the raw-body limit bounds its size); events of other types are
+ * skipped before any work is done.
  *
  * @param {unknown} payload - parsed JSON body (array of events)
- * @returns {Array<{eventId: string|null, messageId: string|null, kind: 'bounced'|'complained', reasonCode: string}>}
+ * @returns {DeliveryEvent[]}
  */
 function parseSendGridEvents(payload) {
   if (!Array.isArray(payload)) return [];
   const out = [];
-  for (const event of payload.slice(0, MAX_EVENTS_PER_REQUEST)) {
+  for (const event of payload) {
     if (!event || typeof event !== 'object') continue;
-    const type = event.event;
-    let kind = null;
-    let reason = null;
-    if (type === 'bounce') {
-      kind = 'bounced';
-      const status = /^([45])\.\d+\.\d+$/.exec(String(event.status || ''));
-      reason = reasonCode(
-        'sendgrid',
-        event.type === 'blocked' ? 'blocked' : 'bounce',
-        status ? `${status[1]}00` : null
-      );
-    } else if (type === 'dropped') {
-      kind = 'bounced';
-      reason = reasonCode('sendgrid', 'dropped');
-    } else if (type === 'spamreport') {
-      kind = 'complained';
-      reason = reasonCode('sendgrid', 'spamreport');
-    }
-    if (!kind) continue;
-    out.push({
-      eventId: typeof event.sg_event_id === 'string' ? event.sg_event_id : null,
-      messageId: typeof event.sg_message_id === 'string' ? event.sg_message_id : null,
-      kind,
-      reasonCode: reason,
-    });
+    const mapped = mapSendGridEvent(event);
+    if (mapped) out.push(mapped);
   }
   return out;
 }
 
 /**
  * Maps one Mailgun webhook (`event-data`) to a delivery event.
- * failed + severity permanent -> bounced; complained -> complained.
- * Temporary failures are ignored (Mailgun keeps retrying).
+ *
+ * Sources: https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhooks
+ * (event types) and the Mailgun API bundle `EventSeverityType` (temporary =
+ * Mailgun retries, permanent = no retry).
+ * - failed + permanent -> bounced; suppressible unless the reason is
+ *   `suppress-*` (Mailgun's own list already blocked it) or `old`.
+ * - failed + temporary -> deferred.
+ * - complained, unsubscribed, delivered.
  *
  * @param {unknown} eventData
- * @returns {Array<{eventId: string|null, messageId: string|null, kind: 'bounced'|'complained', reasonCode: string}>}
+ * @returns {DeliveryEvent[]}
  */
 function parseMailgunEvent(eventData) {
   if (!eventData || typeof eventData !== 'object') return [];
   const headers = eventData.message && eventData.message.headers;
-  const messageId =
-    headers && typeof headers['message-id'] === 'string' ? headers['message-id'] : null;
-  const eventId = typeof eventData.id === 'string' ? eventData.id : null;
+  const variables =
+    eventData['user-variables'] && typeof eventData['user-variables'] === 'object'
+      ? eventData['user-variables']
+      : {};
+  const base = {
+    eventId: typeof eventData.id === 'string' ? eventData.id : null,
+    messageId: headers && typeof headers['message-id'] === 'string' ? headers['message-id'] : null,
+    smtpId: null,
+    magicmailId: variables.magicmail_id,
+    recipient: normalizeRecipient(eventData.recipient),
+    occurredAt: eventTime(eventData.timestamp),
+    suppress: null,
+    notDelivered: false,
+  };
+  const smtp = eventData['delivery-status'] && eventData['delivery-status'].code;
   if (eventData.event === 'failed' && eventData.severity === 'permanent') {
-    const smtp = eventData['delivery-status'] && eventData['delivery-status'].code;
+    const reason = typeof eventData.reason === 'string' ? eventData.reason : '';
+    const suppressible = !reason.startsWith('suppress-') && reason !== 'old';
     return [
       {
-        eventId,
-        messageId,
+        ...base,
         kind: 'bounced',
-        reasonCode: reasonCode('mailgun', eventData.reason || 'failed', smtp),
+        reasonCode: reasonCode('mailgun', reason || 'failed', smtp),
+        suppress: suppressible ? 'bounce' : null,
       },
     ];
   }
+  if (eventData.event === 'failed' && eventData.severity === 'temporary') {
+    return [{ ...base, kind: 'deferred', reasonCode: reasonCode('mailgun', 'deferred', smtp) }];
+  }
   if (eventData.event === 'complained') {
     return [
-      { eventId, messageId, kind: 'complained', reasonCode: reasonCode('mailgun', 'complained') },
+      {
+        ...base,
+        kind: 'complained',
+        reasonCode: reasonCode('mailgun', 'complained'),
+        suppress: 'complaint',
+      },
     ];
   }
+  if (eventData.event === 'unsubscribed') {
+    return [{ ...base, kind: 'unsubscribed', reasonCode: reasonCode('mailgun', 'unsubscribed') }];
+  }
+  if (eventData.event === 'delivered') {
+    return [{ ...base, kind: 'delivered', reasonCode: reasonCode('mailgun', 'delivered') }];
+  }
   return [];
+}
+
+/**
+ * Sorts events by provider time (stable; events without a time keep their
+ * position after the timed ones), so one batch is applied in event order.
+ *
+ * @param {DeliveryEvent[]} events
+ * @returns {DeliveryEvent[]}
+ */
+function orderEvents(events) {
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => {
+      const ta = a.event.occurredAt ?? Number.POSITIVE_INFINITY;
+      const tb = b.event.occurredAt ?? Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      return a.index - b.index;
+    })
+    .map(({ event }) => event);
+}
+
+/**
+ * Lookup candidates from a SendGrid `smtp-id` (`<x-message-id@host>`): the
+ * local part is the X-Message-Id the send API returned.
+ *
+ * @param {unknown} smtpId
+ * @returns {string[]}
+ */
+function smtpIdCandidates(smtpId) {
+  const id = normalizeMessageId(smtpId);
+  if (!id) return [];
+  const local = id.split('@')[0];
+  return local && local !== id ? [local, id] : [id];
+}
+
+/** @param {unknown} value @returns {number|null} */
+const toMs = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const ms = value instanceof Date ? value.getTime() : Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : null;
+};
+
+/**
+ * Whether the event concerns the log's primary recipient (`email-log.recipient`).
+ * Events without a recipient are treated as primary (single-recipient logs,
+ * async bounces).
+ *
+ * @param {{recipient?: string|null}} log
+ * @param {string|null|undefined} recipient
+ * @returns {boolean}
+ */
+function isPrimaryRecipient(log, recipient) {
+  if (!recipient) return true;
+  const primary = String(log.recipient || '')
+    .trim()
+    .toLowerCase();
+  return !primary || primary === recipient;
+}
+
+/**
+ * Log fields for one primary-recipient outcome, honouring event order:
+ * final states (bounced, blocked, failed) are never downgraded, a hard bounce
+ * always wins, and deferred/delivered only move the status when the event is
+ * not older than the last delivery event already applied.
+ *
+ * @param {DeliveryEvent} event
+ * @param {Record<string, any>} log - current log row
+ * @param {Date} at - provider event time (or receipt time)
+ * @param {string} provider
+ * @returns {Record<string, unknown>|null} fields to update, or null for none
+ */
+function logUpdateFor(event, log, at, provider) {
+  const status = log.deliveryStatus ?? null;
+  const time = at.getTime();
+  const last = toMs(log.lastDeliveryEventAt);
+  const newer = last === null || time >= last;
+  const lastDeliveryEventAt = new Date(Math.max(time, last ?? time));
+  const failure = { bounceReason: event.reasonCode, bounceSource: provider };
+  switch (event.kind) {
+    case 'bounced':
+      return {
+        bounced: true,
+        bouncedAt: at,
+        deliveryStatus: 'bounced',
+        lastDeliveryEventAt,
+        ...failure,
+      };
+    case 'blocked':
+    case 'dropped':
+      if (status === 'bounced') return null;
+      return {
+        deliveryStatus: event.kind === 'blocked' ? 'blocked' : 'failed',
+        lastDeliveryEventAt,
+        ...failure,
+      };
+    case 'deferred':
+      if (FINAL_STATUSES.has(status) || !newer) return null;
+      return { deliveryStatus: 'deferred', lastDeliveryEventAt: at, ...failure };
+    case 'delivered': {
+      const data = {};
+      if (!log.deliveryConfirmedAt) data.deliveryConfirmedAt = at;
+      if (!FINAL_STATUSES.has(status) && newer) {
+        data.deliveryStatus = 'sent';
+        data.lastDeliveryEventAt = at;
+        if (status === 'deferred') data.bounceReason = null;
+      }
+      return Object.keys(data).length ? data : null;
+    }
+    case 'complained':
+    case 'unsubscribed': {
+      const data =
+        event.kind === 'complained'
+          ? { complained: true, complainedAt: at }
+          : { unsubscribed: true, ...(log.unsubscribed === true ? {} : { unsubscribedAt: at }) };
+      if (event.notDelivered && status !== 'bounced') {
+        Object.assign(data, { deliveryStatus: 'failed', lastDeliveryEventAt, ...failure });
+      }
+      return data;
+    }
+    case 'resubscribed': {
+      const unsubscribedAt = toMs(log.unsubscribedAt);
+      if (log.unsubscribed !== true) return null;
+      if (unsubscribedAt !== null && time < unsubscribedAt) return null;
+      return { unsubscribed: false };
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -206,29 +525,52 @@ function parseJson(raw) {
   }
 }
 
+const LOG_FIELDS = [
+  'id',
+  'documentId',
+  'providerMessageId',
+  'recipient',
+  'accountId',
+  'deliveryStatus',
+  'deliveryConfirmedAt',
+  'lastDeliveryEventAt',
+  'bounced',
+  'unsubscribed',
+  'unsubscribedAt',
+];
+
 module.exports = ({ strapi }) => ({
   /**
    * Verifies and processes one webhook request.
    *
+   * The signature is checked over the raw body before anything is parsed.
+   * Every relevant event of a batch is processed (no event cap; the raw-body
+   * limit bounds the work), in provider-timestamp order. A valid request
+   * always answers 200, also when events match no email log (counted and
+   * logged without personal data), so the provider does not retry it for 24 h.
+   *
    * @param {{provider: string, accountId: string, rawBody: Buffer|undefined, headers: Record<string, string|undefined>}} input
-   * @returns {Promise<{status: 200|400|401, processed: number}>}
+   * @returns {Promise<{status: 200|400|401, processed: number, unmatched: number}>}
    *   401 for unknown account, missing secret or bad signature (indistinguishable on purpose).
+   * @throws {Error} When the database fails while recording; the controller answers 500 and the provider retries.
+   * @sideeffect Updates email logs, creates email events, may add suppression rows, emits eventHub events, writes de-duplication claims.
    */
   async handleWebhook({ provider, accountId, rawBody, headers }) {
+    const rejected = (status) => ({ status, processed: 0, unmatched: 0 });
     if (!PROVIDERS.has(provider) || !ACCOUNT_ID_PATTERN.test(String(accountId || ''))) {
-      return { status: 401, processed: 0 };
+      return rejected(401);
     }
-    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) return { status: 400, processed: 0 };
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) return rejected(400);
 
     const account = await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId: accountId });
-    if (!account || account.provider !== provider) return { status: 401, processed: 0 };
+    if (!account || account.provider !== provider) return rejected(401);
 
     let config;
     try {
       config = decryptCredentials(account.config) || {};
     } catch {
       strapi.log.warn('[magic-mail] Delivery webhook: account credentials are unreadable');
-      return { status: 401, processed: 0 };
+      return rejected(401);
     }
 
     let events;
@@ -240,13 +582,13 @@ module.exports = ({ strapi }) => ({
         signature: headers['x-twilio-email-event-webhook-signature'],
         timestamp: headers['x-twilio-email-event-webhook-timestamp'],
       });
-      if (!valid) return { status: 401, processed: 0 };
+      if (!valid) return rejected(401);
       const payload = parseJson(rawBody);
-      if (payload === undefined) return { status: 400, processed: 0 };
+      if (payload === undefined) return rejected(400);
       events = parseSendGridEvents(payload);
     } else {
       const payload = parseJson(rawBody);
-      if (!payload || typeof payload !== 'object') return { status: 400, processed: 0 };
+      if (!payload || typeof payload !== 'object') return rejected(400);
       const signature = payload.signature || {};
       const valid = verifyMailgunSignature({
         signingKey: config.webhookSigningKey,
@@ -254,42 +596,66 @@ module.exports = ({ strapi }) => ({
         token: signature.token,
         signature: signature.signature,
       });
-      if (!valid) return { status: 401, processed: 0 };
+      if (!valid) return rejected(401);
       // Replayed token: already processed, acknowledge without work.
       replayKey = `mailgun-token:${signature.token}`;
-      if (wasSeen(replayKey)) return { status: 200, processed: 0 };
+      if (wasSeen(replayKey)) return { status: 200, processed: 0, unmatched: 0 };
       events = parseMailgunEvent(payload['event-data']);
     }
 
     let replayClaim;
     if (replayKey) {
       replayClaim = await claimOnce(strapi, replayKey);
-      if (replayClaim === null) return { status: 200, processed: 0 };
+      if (replayClaim === null) return { status: 200, processed: 0, unmatched: 0 };
     }
 
+    const context = { accountId, unmatched: 0, settings: null };
     let processed = 0;
     try {
-      for (const event of events) {
-        if (await this.recordEvent(provider, event)) processed += 1;
+      for (const event of orderEvents(events)) {
+        if (await this.recordEvent(provider, event, context)) processed += 1;
       }
     } catch (error) {
       await releaseClaim(strapi, replayKey, replayClaim);
       throw error;
     }
     if (replayKey) remember(replayKey);
-    return { status: 200, processed };
+    if (context.unmatched > 0) {
+      strapi.log.warn(
+        `[magic-mail] Delivery webhook (${provider}): ${context.unmatched} delivery event(s) matched no email log`
+      );
+    }
+    return { status: 200, processed, unmatched: context.unmatched };
   },
 
   /**
-   * Stores one verified bounce/complaint and emits the matching eventHub event.
+   * Stores one verified delivery event and emits the matching eventHub event.
+   *
+   * The log is found by provider message id, then by the `magicmail_id`
+   * custom argument (a log documentId of the webhook's own account), then by
+   * the SendGrid `smtp-id`. An event without any of these is counted as
+   * unmatched and skipped.
    *
    * @param {string} provider
-   * @param {{eventId: string|null, messageId: string|null, kind: 'bounced'|'complained', reasonCode: string}} event
-   * @returns {Promise<boolean>} true when the event was new
+   * @param {DeliveryEvent} event
+   * @param {{accountId?: string, unmatched?: number, settings?: Promise<object>|null}} [context]
+   *   Per-request state; `unmatched` is incremented in place.
+   * @returns {Promise<boolean>} true when the event was new and recorded or emitted
+   * @sideeffect See handleWebhook.
    */
-  async recordEvent(provider, event) {
-    const candidates = messageIdCandidates(provider, event.messageId);
-    if (candidates.length === 0) return false;
+  async recordEvent(provider, event, context = {}) {
+    const lookup = {
+      candidates: messageIdCandidates(provider, event.messageId),
+      smtpCandidates: provider === 'sendgrid' ? smtpIdCandidates(event.smtpId) : [],
+      magicmailId:
+        typeof event.magicmailId === 'string' && MAGICMAIL_ID_PATTERN.test(event.magicmailId)
+          ? event.magicmailId
+          : null,
+    };
+    if (!lookup.candidates.length && !lookup.smtpCandidates.length && !lookup.magicmailId) {
+      context.unmatched = (context.unmatched || 0) + 1;
+      return false;
+    }
 
     const eventId =
       event.eventId && EVENT_ID_PATTERN.test(event.eventId) ? `${provider}:${event.eventId}` : null;
@@ -315,7 +681,7 @@ module.exports = ({ strapi }) => ({
     }
 
     try {
-      return await this._applyEvent(provider, event, candidates, eventId);
+      return await this._applyEvent(provider, event, lookup, eventId, context);
     } catch (error) {
       if (eventId) await releaseClaim(strapi, `event:${eventId}`, eventClaim);
       throw error;
@@ -323,47 +689,98 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Finds the email log of an event (see recordEvent for the order).
+   *
+   * @private
+   * @param {{candidates: string[], smtpCandidates: string[], magicmailId: string|null}} lookup
+   * @param {string|undefined} accountId - webhook account; binds the magicmail_id lookup
+   * @returns {Promise<Record<string, any>|null>}
+   */
+  async _findLog(lookup, accountId) {
+    const byIds = async (ids) => {
+      if (!ids.length) return null;
+      const rows = await strapi.db.query(EMAIL_LOG_UID).findMany({
+        where: { providerMessageId: { $in: ids } },
+        select: LOG_FIELDS,
+        limit: ids.length,
+      });
+      // Prefer the longest (most specific) candidate.
+      for (const id of ids) {
+        const row = rows.find((candidate) => candidate.providerMessageId === id);
+        if (row) return row;
+      }
+      return null;
+    };
+    const byMessageId = await byIds(lookup.candidates);
+    if (byMessageId) return byMessageId;
+    if (lookup.magicmailId && accountId) {
+      const byDocumentId = await strapi.db.query(EMAIL_LOG_UID).findOne({
+        where: { documentId: lookup.magicmailId, accountId },
+        select: LOG_FIELDS,
+      });
+      if (byDocumentId) return byDocumentId;
+    }
+    return byIds(lookup.smtpCandidates);
+  },
+
+  /**
    * Writes one verified, de-duplicated event and emits it on the eventHub.
+   *
+   * Only an event for the log's primary recipient changes log-level fields;
+   * other recipients get an email event with a masked address and
+   * `primary: false`. A failing suppression write or eventHub listener is
+   * logged and does not fail the webhook.
    *
    * @private
    * @param {string} provider
-   * @param {{messageId: string|null, kind: 'bounced'|'complained', reasonCode: string}} event
-   * @param {string[]} candidates - normalized provider message ids
+   * @param {DeliveryEvent} event
+   * @param {{candidates: string[], smtpCandidates: string[], magicmailId: string|null}} lookup
    * @param {string|null} eventId
+   * @param {{accountId?: string, unmatched?: number, settings?: Promise<object>|null}} context
    * @returns {Promise<boolean>}
    */
-  async _applyEvent(provider, event, candidates, eventId) {
-    const log = await strapi.db.query(EMAIL_LOG_UID).findOne({
-      where: { providerMessageId: { $in: candidates } },
-      select: ['id', 'documentId', 'providerMessageId'],
-    });
-    const messageId = log?.providerMessageId || candidates[candidates.length - 1];
-    const now = new Date();
+  async _applyEvent(provider, event, lookup, eventId, context) {
+    const log = await this._findLog(lookup, context.accountId);
+    const at = new Date(event.occurredAt ?? Date.now());
+    const messageId =
+      log?.providerMessageId ||
+      lookup.candidates[lookup.candidates.length - 1] ||
+      lookup.smtpCandidates[0] ||
+      null;
+    const primary = log ? isPrimaryRecipient(log, event.recipient) : null;
 
     if (log) {
-      const data =
-        event.kind === 'bounced'
-          ? {
-              bounced: true,
-              bounceReason: event.reasonCode,
-              bouncedAt: now,
-              bounceSource: provider,
-              deliveryStatus: 'bounced',
-            }
-          : { complained: true, complainedAt: now };
-      await strapi.documents(EMAIL_LOG_UID).update({ documentId: log.documentId, data });
+      if (primary) {
+        const data = logUpdateFor(event, log, at, provider);
+        if (data)
+          await strapi.documents(EMAIL_LOG_UID).update({ documentId: log.documentId, data });
+      }
       await strapi.documents(EMAIL_EVENT_UID).create({
         data: {
           emailLog: log.documentId,
-          type: event.kind === 'bounced' ? 'bounce' : 'complaint',
-          timestamp: now,
+          type: EVENT_TYPES[event.kind],
+          timestamp: at,
           providerEventId: eventId,
-          metadata: { provider, reasonCode: event.reasonCode },
+          metadata: {
+            provider,
+            reasonCode: event.reasonCode,
+            primary,
+            ...(primary ? {} : { recipient: maskAddress(event.recipient) }),
+          },
         },
       });
+    } else {
+      context.unmatched = (context.unmatched || 0) + 1;
     }
 
     if (eventId) remember(`event:${eventId}`);
+
+    if (event.suppress) {
+      const address = log && primary ? log.recipient : event.recipient;
+      await this._suppress(provider, event, address, context);
+    }
+
+    if (!log && !messageId) return false;
     try {
       // eventHub.emit awaits every listener; a failing listener must not
       // turn the provider's delivery into an error (it would retry forever).
@@ -371,11 +788,53 @@ module.exports = ({ strapi }) => ({
         provider,
         messageId,
         reasonCode: event.reasonCode,
+        primary,
       });
     } catch (error) {
       strapi.log.warn(`[magic-mail] Delivery event listener failed: ${error?.name || 'Error'}`);
     }
     return true;
+  },
+
+  /**
+   * Adds the address of a hard bounce (or, with `webhooks.suppressComplaints`,
+   * a complaint) to the suppression list while the admin setting "Block
+   * hard-bounced recipients" is on. Never throws.
+   *
+   * @private
+   * @param {string} provider
+   * @param {DeliveryEvent} event
+   * @param {string|null|undefined} address
+   * @param {{accountId?: string, settings?: Promise<object>|null}} context
+   * @returns {Promise<void>}
+   * @sideeffect Upserts one suppressed-recipient row (keyed hash + masked address).
+   */
+  async _suppress(provider, event, address, context) {
+    if (typeof address !== 'string' || !address.includes('@')) return;
+    try {
+      if (!context.settings) {
+        context.settings = Promise.resolve()
+          .then(() => strapi.plugin('magic-mail').service('plugin-settings').getSettings())
+          .then((value) => value || {})
+          .catch(() => ({}));
+      }
+      const settings = await context.settings;
+      if (settings.suppressHardBounces !== true) return;
+      if (event.suppress === 'complaint') {
+        const webhooks = strapi.config?.get?.('plugin::magic-mail.webhooks') || {};
+        if (webhooks.suppressComplaints !== true) return;
+      }
+      await strapi.plugin('magic-mail').service('bounce-monitor').suppressAddress({
+        address,
+        reasonCode: event.reasonCode,
+        source: provider,
+        accountId: context.accountId,
+      });
+    } catch (error) {
+      strapi.log.warn(
+        `[magic-mail] Delivery webhook: suppression failed (${error?.name || 'Error'})`
+      );
+    }
   },
 
   /**
@@ -411,6 +870,8 @@ module.exports.__test__ = {
   parseSendGridEvents,
   parseMailgunEvent,
   reasonCode,
+  orderEvents,
+  logUpdateFor,
   wasSeen,
   remember,
   resetSeen: () => seen.clear(),

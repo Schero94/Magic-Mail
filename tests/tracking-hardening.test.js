@@ -823,7 +823,7 @@ test('FUN-18: email log search covers template names, filters by delivery status
     ['recipient', 'subject', 'recipientName', 'templateName']
   );
   assert.equal(captured.filters.$or[0].recipient.$containsi, 'welcome');
-  assert.equal(captured.filters.deliveryStatus, 'failed');
+  assert.deepEqual(captured.filters.deliveryStatus, { $in: ['failed', 'blocked'] });
   assert.equal(captured.limit, 100);
   assert.equal(captured.start, 200);
   assert.equal(result.pagination.pageSize, 100);
