@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.6.2](https://github.com/Schero94/Magic-Mail/compare/v4.6.1...v4.6.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* keep display names intact when parsing recipient lists ([#25](https://github.com/Schero94/Magic-Mail/issues/25)) ([0769739](https://github.com/Schero94/Magic-Mail/commit/076973919d4619f333ddce20ed3bb0a7a5e56407))
+
 
 ### Fixed
 
