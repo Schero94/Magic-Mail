@@ -255,6 +255,7 @@
   "accounts.test.hint.mailgunUnauthorized": "Mailgun a refusé la clé API. Vérifiez la clé et la région : un domaine créé dans la région UE nécessite la région UE.",
   "accounts.test.hint.rateLimited": "Le fournisseur limite les requêtes. Patientez un instant, puis réessayez.",
   "accounts.test.hint.sendgridForbidden": "SendGrid a refusé la requête. Vérifiez que la clé API dispose de l’autorisation Mail Send et que l’adresse d’expéditeur est une Sender Identity vérifiée.",
+  "accounts.test.hint.sendgridMissingMailSend": "La clé API SendGrid est valide mais ne dispose pas de l’autorisation Mail Send. Accordez l’accès Mail Send à la clé ou créez une clé qui en dispose.",
   "accounts.test.hint.sendgridPayloadTooLarge": "SendGrid a refusé le message, car il est trop volumineux. Réduisez la taille du contenu et des pièces jointes.",
   "accounts.test.hint.sendgridUnauthorized": "SendGrid a refusé la clé API. Vérifiez que la clé a été copiée entièrement et n’a pas été supprimée.",
   "accounts.test.mode": "Mode de test",
@@ -924,5 +925,9 @@
   "suppressions.empty.description": "Les destinataires apparaissent ici après un rebond permanent.",
   "suppressions.pagination": "Pages de la liste de blocage",
   "suppressions.confirm.title": "Retirer de la liste de blocage ?",
-  "suppressions.confirm.body": "Les e-mails vers {address} seront de nouveau envoyés. À faire uniquement si l'adresse a été corrigée."
+  "suppressions.confirm.body": "Les e-mails vers {address} seront de nouveau envoyés. À faire uniquement si l'adresse a été corrigée.",
+  "accountModal.sendgrid.regionHint": "Choisissez EU uniquement pour un sous-utilisateur régional EU. Les comptes EU sont appelés via api.eu.sendgrid.com, tous les autres via api.sendgrid.com.",
+  "accountModal.sendgrid.region": "Région SendGrid",
+  "accountModal.sendgrid.regionGlobal": "Mondiale (api.sendgrid.com)",
+  "accountModal.sendgrid.regionEu": "EU (api.eu.sendgrid.com)"
 }

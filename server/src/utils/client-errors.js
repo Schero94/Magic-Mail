@@ -80,6 +80,8 @@ const PROVIDER_HINTS = Object.freeze({
     'SendGrid rejected the API key. Check that the key was copied completely and has not been deleted.',
   SENDGRID_FORBIDDEN:
     'SendGrid refused the request. Check that the API key has the Mail Send permission and that the From address is a verified Sender Identity.',
+  SENDGRID_MISSING_MAIL_SEND:
+    'The SendGrid API key is valid but does not have the Mail Send permission. Give the key Mail Send access or create a key that has it.',
   SENDGRID_PAYLOAD_TOO_LARGE:
     'SendGrid rejected the message as too large. Reduce the size of the content and attachments.',
   MAILGUN_UNAUTHORIZED:
@@ -130,17 +132,28 @@ function providerStatusFromError(error) {
  * Mailgun 400/403 map to the sandbox hint only when the account's domain is
  * known to be a sandbox domain; otherwise no cause is guessed.
  *
+ * SendGrid answers 401 both for a wrong key and for a valid key without the
+ * Mail Send scope. `sendgridKeyCheck` (utils/sendgrid-key-check.js, a
+ * read-only GET /v3/scopes) tells them apart: `missing-mail-send` gives
+ * SENDGRID_MISSING_MAIL_SEND, `invalid` gives SENDGRID_UNAUTHORIZED; any
+ * other value keeps the status mapping.
+ *
  * @param {unknown} error - Error thrown by the provider adapter
- * @param {{mailgunDomain?: unknown}} [context] - Mailgun domain of the account, when known
+ * @param {{mailgunDomain?: unknown, sendgridKeyCheck?: unknown}} [context] - Mailgun domain
+ *   of the account and the SendGrid key check result, when known
  * @returns {{code: keyof typeof PROVIDER_HINTS, message: string}|null}
  */
-function providerErrorHint(error, { mailgunDomain } = {}) {
+function providerErrorHint(error, { mailgunDomain, sendgridKeyCheck } = {}) {
   const provider = providerFromError(error);
   const status = providerStatusFromError(error);
   if (!provider || !status) return null;
   let code = null;
   if (status === 429) code = 'PROVIDER_RATE_LIMITED';
-  else if (provider === 'sendgrid') {
+  else if (provider === 'sendgrid' && (status === 401 || status === 403)) {
+    if (sendgridKeyCheck === 'missing-mail-send') code = 'SENDGRID_MISSING_MAIL_SEND';
+    else if (sendgridKeyCheck === 'invalid') code = 'SENDGRID_UNAUTHORIZED';
+    else code = status === 401 ? 'SENDGRID_UNAUTHORIZED' : 'SENDGRID_FORBIDDEN';
+  } else if (provider === 'sendgrid') {
     code =
       {
         401: 'SENDGRID_UNAUTHORIZED',
@@ -161,7 +174,7 @@ function providerErrorHint(error, { mailgunDomain } = {}) {
  * The extra fields are additive; clients that read only `message` keep working.
  *
  * @param {unknown} error
- * @param {{mailgunDomain?: unknown}} [context]
+ * @param {{mailgunDomain?: unknown, sendgridKeyCheck?: unknown}} [context]
  * @returns {{message: string, hintCode?: string, hint?: string}}
  */
 function toClientSendResult(error, context) {

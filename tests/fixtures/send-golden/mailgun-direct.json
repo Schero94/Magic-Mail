@@ -1,0 +1,17 @@
+{
+  "url": "https://api.eu.mailgun.net/v3/mg.example.test/messages",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>"
+  },
+  "body": {
+    "formData": [
+      ["from", "\"Golden Sender\" <noreply@mailgun.example.test>"],
+      ["to", "ada@example.test"],
+      ["subject", "Direct"],
+      ["text", "Direct body"],
+      ["h:X-Mailer", "MagicMail/1.0"],
+      ["h:X-Email-Type", "transactional"]
+    ]
+  }
+}

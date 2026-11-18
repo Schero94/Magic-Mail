@@ -3,8 +3,15 @@
 const { errors } = require('@strapi/utils');
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
-const { toClientSendResult, describeErrorForLog } = require('../utils/client-errors');
+const {
+  toClientSendResult,
+  describeErrorForLog,
+  providerFromError,
+  providerStatusFromError,
+} = require('../utils/client-errors');
+const { checkSendGridKeyScopes } = require('../utils/sendgrid-key-check');
 const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
+const { SENDGRID_REGIONS, resolveSendGridRegion } = require('../utils/sendgrid-region');
 const { normalizeMailgunDomain, isValidMailgunDomain } = require('../utils/mailgun-domain');
 const coordination = require('../utils/coordination');
 
@@ -77,6 +84,23 @@ const assertMailgunRegion = (provider, config) => {
   throw new errors.ValidationError(`Mailgun region must be one of: ${MAILGUN_REGIONS.join(', ')}`, {
     config: [`region: must be one of ${MAILGUN_REGIONS.join(', ')}`],
   });
+};
+
+/**
+ * Rejects an unsupported SendGrid `config.region` ("us" global, "eu" for EU
+ * regional subusers). An omitted region keeps the global endpoint.
+ *
+ * @param {string} provider - effective provider of the account
+ * @param {object|undefined|null} config - incoming plain config
+ * @throws {errors.ValidationError}
+ */
+const assertSendGridRegion = (provider, config) => {
+  if (provider !== 'sendgrid' || !config || !('region' in config)) return;
+  if (resolveSendGridRegion(config.region)) return;
+  throw new errors.ValidationError(
+    `SendGrid region must be one of: ${SENDGRID_REGIONS.join(', ')}`,
+    { config: [`region: must be one of ${SENDGRID_REGIONS.join(', ')}`] }
+  );
 };
 
 /** API provider config fields that are trimmed on save (ACC-MG-04). */
@@ -184,6 +208,7 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
 
     assertMailgunRegion(provider, accountData.config);
+    assertSendGridRegion(provider, accountData.config);
     assertBounceMode(provider, bounceMonitor);
     const config = normalizeApiProviderConfig(provider, accountData.config, {
       requireDomain: true,
@@ -277,6 +302,7 @@ module.exports = ({ strapi }) => ({
     }
 
     assertMailgunRegion(provider ?? existingAccount.provider, accountData.config);
+    assertSendGridRegion(provider ?? existingAccount.provider, accountData.config);
     assertBounceMode(provider ?? existingAccount.provider, bounceMonitor);
     const config = normalizeApiProviderConfig(
       provider ?? existingAccount.provider,
@@ -456,7 +482,23 @@ module.exports = ({ strapi }) => ({
           mailgunDomain = undefined;
         }
       }
-      return { success: false, ...toClientSendResult(error, { mailgunDomain }) };
+      // SendGrid answers 401 for a wrong key and for a key without Mail Send:
+      // one read-only GET /v3/scopes tells them apart (never throws).
+      let sendgridKeyCheck;
+      const status = providerStatusFromError(error);
+      if (
+        account.provider === 'sendgrid' &&
+        providerFromError(error) === 'sendgrid' &&
+        (status === 401 || status === 403) &&
+        account.config
+      ) {
+        try {
+          sendgridKeyCheck = await checkSendGridKeyScopes(decryptCredentials(account.config));
+        } catch {
+          sendgridKeyCheck = undefined;
+        }
+      }
+      return { success: false, ...toClientSendResult(error, { mailgunDomain, sendgridKeyCheck }) };
     }
   },
 

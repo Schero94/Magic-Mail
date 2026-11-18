@@ -82,23 +82,16 @@ function mailboxes(value) {
 }
 
 for (const { label, cc, expected } of CASES) {
-  test(`SendGrid receives the right addresses: ${label}`, async () => {
-    // SendGrid sends bare addresses in this release (names are not passed
-    // on), so only the addresses are compared.
+  test(`SendGrid keeps display names: ${label}`, async () => {
     const restoreKey = withEncryptionKey();
     const fetchFake = fakeFetch();
     try {
       const { router } = createHarness([accountFor('sendgrid')]);
       await router.send({ to: TO, cc, subject: 'Names', text: 'x' });
       const p = fetchFake.calls.at(-1).json.personalizations[0];
-      assert.deepEqual(
-        p.to.map((entry) => entry.email),
-        TO_EXPECTED.map((m) => m.address)
-      );
-      assert.deepEqual(
-        p.cc.map((entry) => entry.email),
-        expected.map((m) => m.address)
-      );
+      const asMailbox = (entry) => ({ name: entry.name || '', address: entry.email });
+      assert.deepEqual(p.to.map(asMailbox), TO_EXPECTED);
+      assert.deepEqual(p.cc.map(asMailbox), expected);
     } finally {
       fetchFake.restore();
       restoreKey();

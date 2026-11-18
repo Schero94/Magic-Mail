@@ -33,6 +33,10 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 
 ## What's new
 
+- **SendGrid EU regional subusers:** choose region **EU** in the account to send through `api.eu.sendgrid.com` ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#sendgrid)).
+- **Fewer provider rejections:** duplicate recipients, SendGrid-reserved headers and oversized messages are handled before the request, with a clear error instead of a bare HTTP status.
+- **No double tracking:** when MagicMail tracks opens and clicks, SendGrid and Mailgun tracking is switched off for that mail, so links are wrapped once.
+- **Mailgun metadata:** email type and priority as variables plus a tag, so Mailgun logs and webhooks can be filtered.
 - **Mailgun domains are checked when you save the account.** A pasted `https://` or trailing slash is removed for you; a value that is not a domain name is flagged right in the form instead of failing later when mail is sent.
 - **Failed account tests say what to fix:** wrong API key, missing Mail Send permission, unverified sender, wrong Mailgun region, or a sandbox recipient that is not authorized yet.
 - **Clearer key setup:** the wizard recommends keys that can only send mail (SendGrid Custom Access with Mail Send, Mailgun Domain Sending Key).
@@ -251,6 +255,8 @@ npm run build
 npm run verify
 npm run verify:runtime
 ```
+
+`npm run test:live` runs the opt-in suite against the real SendGrid and Mailgun APIs (SendGrid sandbox mode and Mailgun test mode, nothing is delivered; Mailgun bills test-mode messages). It reads `~/.config/magic-mail-live/.env` with `SENDGRID_API_KEY`, `SENDGRID_FROM`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and optionally `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`; without the file every live test is skipped. Never commit that file.
 
 `npm run test:admin` renders every admin entry point (the five sections of the MagicMail page with their dialogs, the template editor, the Plugin Settings page) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 

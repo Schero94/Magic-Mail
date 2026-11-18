@@ -1,0 +1,44 @@
+{
+  "url": "https://api.eu.mailgun.net/v3/mg.example.test/messages",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>"
+  },
+  "body": {
+    "formData": [
+      ["from", "\"Golden Sender\" <noreply@mailgun.example.test>"],
+      ["to", "ada@example.test, bob@example.test"],
+      ["cc", "carol@example.test"],
+      ["bcc", "dave@example.test"],
+      ["subject", "Golden order 42"],
+      [
+        "html",
+        "<p>Hello</p><a href=\"https://track.example.test/c/1\">Shop</a><img src=\"cid:logo\" /><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />"
+      ],
+      ["text", "Hello\nShop https://shop.example.test/a?x=1"],
+      ["h:Reply-To", "support@example.test"],
+      ["h:X-Campaign", "golden"],
+      ["h:List-Id", "<news.example.test>"],
+      ["h:X-Mailer", "MagicMail/1.0"],
+      ["h:X-Email-Type", "transactional"],
+      [
+        "attachment",
+        {
+          "blob": "text/plain",
+          "size": 12,
+          "filename": "receipt.txt",
+          "base64": "cmVjZWlwdCBib2R5"
+        }
+      ],
+      [
+        "inline",
+        {
+          "blob": "image/png",
+          "size": 68,
+          "filename": "logo",
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        }
+      ]
+    ]
+  }
+}

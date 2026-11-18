@@ -958,14 +958,20 @@ module.exports = ({ strapi }) => ({
    * @param {string} html
    * @param {string} emailId
    * @param {string} recipientHash
-   * @param {{openTracking?: boolean, linkTracking?: boolean, settings?: object}} [options]
+   * When `options.applied` is given, its `opens` / `clicks` flags are set to
+   * true for the parts that really changed the HTML (pixel injected, at least
+   * one link rewritten), so the send path can switch off the provider's own
+   * tracking for exactly those parts.
+   *
+   * @param {{openTracking?: boolean, linkTracking?: boolean, settings?: object, applied?: {opens?: boolean, clicks?: boolean}}} [options]
    * @returns {Promise<string>}
+   * @sideeffect Sets `options.applied.opens` / `.clicks` when given.
    */
   async addTracking(
     html,
     emailId,
     recipientHash,
-    { openTracking = true, linkTracking = true, settings } = {}
+    { openTracking = true, linkTracking = true, settings, applied } = {}
   ) {
     let pluginSettings = settings;
     if (!pluginSettings) {
@@ -979,9 +985,16 @@ module.exports = ({ strapi }) => ({
     const endpoint = resolveTrackingEndpoint(strapi, pluginSettings);
     if (!endpoint) return html;
     let result = html;
-    if (linkTracking)
+    if (linkTracking) {
+      const before = result;
       result = await this.rewriteLinksForTracking(result, emailId, recipientHash, { endpoint });
-    if (openTracking) result = this.injectTrackingPixel(result, emailId, recipientHash, endpoint);
+      if (applied && result !== before) applied.clicks = true;
+    }
+    if (openTracking) {
+      const before = result;
+      result = this.injectTrackingPixel(result, emailId, recipientHash, endpoint);
+      if (applied && result !== before) applied.opens = true;
+    }
     return result;
   },
 

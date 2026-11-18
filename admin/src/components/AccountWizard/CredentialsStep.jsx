@@ -1008,6 +1008,33 @@ export const CredentialsStep = ({
               <MailgunDomainField form={form} onChange={onChange} isEditMode={isEditMode} />
             )}
 
+            {provider === 'sendgrid' && (
+              <FullWidthField>
+                <Field.Root
+                  hint={t(
+                    'accountModal.sendgrid.regionHint',
+                    'Use EU only for an EU regional subuser. EU accounts are called through api.eu.sendgrid.com, all others through api.sendgrid.com.'
+                  )}
+                  required
+                  name="sendgridRegion"
+                >
+                  <Field.Label>{t('accountModal.sendgrid.region', 'SendGrid region')}</Field.Label>
+                  <SingleSelect
+                    value={form.sendgridRegion}
+                    onChange={(value) => onChange('sendgridRegion', value)}
+                  >
+                    <SingleSelectOption value="us">
+                      {t('accountModal.sendgrid.regionGlobal', 'Global (api.sendgrid.com)')}
+                    </SingleSelectOption>
+                    <SingleSelectOption value="eu">
+                      {t('accountModal.sendgrid.regionEu', 'EU (api.eu.sendgrid.com)')}
+                    </SingleSelectOption>
+                  </SingleSelect>
+                  <Field.Hint />
+                </Field.Root>
+              </FullWidthField>
+            )}
+
             {provider === 'mailgun' && (
               <FullWidthField>
                 <Field.Root

@@ -1,3 +1,31 @@
+## [Unreleased]
+
+### Added
+
+* **SendGrid EU regional subusers.** A SendGrid account now has a region: **Global** (default, `api.sendgrid.com`) or **EU** (`api.eu.sendgrid.com`). If your SendGrid key belongs to an EU regional subuser, open the account, choose region **EU** and save. Existing accounts keep the global host; nothing changes for them. An unknown region is rejected when the account is saved.
+* **Mailgun sends carry Magic Mail metadata.** Each Mailgun mail gets the variables `magicmail_email_type`, `magicmail_priority` and `magicmail_id` (the email log id) and one tag with the email type (`transactional`, `marketing` or `notification`), so you can filter Mailgun's logs and webhooks by type. SendGrid mails carry `magicmail_id` as a custom argument. Mailgun shows variables to recipients in the `X-Mailgun-Variables` header; they contain no personal data.
+
+### Fixed
+
+* **Duplicate recipients no longer make SendGrid reject the whole email.** SendGrid refuses a mail when an address appears twice in to, cc or bcc. Magic Mail now sends every address once (the first occurrence wins, compared without case) and drops a cc or bcc list that only repeated other addresses. Other providers are unchanged (Mailgun ignores duplicates itself).
+* **SendGrid keeps recipient names.** `Ada Lovelace <ada@example.com>` arrives as "Ada Lovelace" instead of the bare address.
+* **The SendGrid connection test names a missing Mail Send permission.** SendGrid answers a key without the Mail Send permission with the same 401 as a wrong key, so the test used to say "SendGrid rejected the API key". After a 401 or 403 the test now makes one read-only call (`GET /v3/scopes`): a valid key without Mail Send gets its own hint (`SENDGRID_MISSING_MAIL_SEND`), a wrong key keeps the old one. Nothing from SendGrid's answer is shown.
+* **Oversized emails are rejected before upload with a clear message.** SendGrid accepts less than 30 MB and Mailgun 25 MB per message. Magic Mail now checks the size before calling the provider and answers with a validation error (`MAGIC_MAIL_MESSAGE_TOO_LARGE`) instead of uploading the whole mail and getting a vague rejection. All attachments of one email together may be at most 40 MB raw with every provider (each file stays limited to 25 MB). A provider's own "too large" answer (HTTP 413) gets the same code.
+* **Magic Mail turns off Mailgun's and SendGrid's own open/click tracking when it tracks itself, so links are no longer wrapped twice** and opens are not counted twice. Only the part Magic Mail really applied is switched off; when Magic Mail does not track (tracking off, no public URL), the provider's tracking settings apply as before.
+* **Clear error when headers are too large for Mailgun.** Mailgun allows 16 KB for all headers and options of one message. A Mailgun message above that is now refused before sending with `MAGIC_MAIL_MESSAGE_TOO_LARGE` instead of a bare Mailgun 400. Custom headers are still sent exactly as before; nothing is dropped or shortened.
+* **SendGrid's reserved headers are filtered.** A caller header `X-SG-ID` or `X-SG-EID` used to make SendGrid reject the mail; Magic Mail now drops them like its own reserved headers.
+* **Clearer provider failures.** Failed SendGrid and Mailgun calls now carry the provider and, for SendGrid, the names of the rejected fields (for example `personalizations.0.cc`), never the provider's message text (it can contain addresses). The error message stays `SendGrid API request failed: <status>`. The server log names the region. When SendGrid answers 429 with a reset time, a queued retry waits at least until then.
+
+### Verification
+
+* SendGrid: every change above was tested live against the real SendGrid API in sandbox mode on 2026-11-18 (sending, account check, webhooks). The EU host could not be tested live (no EU subuser).
+* Mailgun: the changes are verified against Mailgun's official OpenAPI specification and with tests, but not yet against the live Mailgun API. Please report anything unexpected.
+
+### Migration
+
+* If you use a SendGrid EU regional subuser, set that account's region to **EU**.
+* If you listen to SendGrid or Mailgun webhooks yourself, you will see the new `magicmail_*` custom arguments / variables and the Mailgun tag.
+
 ## [4.6.3](https://github.com/Schero94/Magic-Mail/compare/v4.6.2...v4.6.3) (2026-11-18)
 
 

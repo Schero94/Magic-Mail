@@ -255,6 +255,7 @@
   "accounts.test.hint.mailgunUnauthorized": "Mailgun rejected the API key. Check the key and the region: a domain created in the EU region needs the EU region.",
   "accounts.test.hint.rateLimited": "The provider is rate limiting requests. Wait a moment and try again.",
   "accounts.test.hint.sendgridForbidden": "SendGrid refused the request. Check that the API key has the Mail Send permission and that the From address is a verified Sender Identity.",
+  "accounts.test.hint.sendgridMissingMailSend": "The SendGrid API key is valid but does not have the Mail Send permission. Give the key Mail Send access or create a key that has it.",
   "accounts.test.hint.sendgridPayloadTooLarge": "SendGrid rejected the message as too large. Reduce the size of the content and attachments.",
   "accounts.test.hint.sendgridUnauthorized": "SendGrid rejected the API key. Check that the key was copied completely and has not been deleted.",
   "accounts.test.mode": "Test mode",
@@ -924,5 +925,9 @@
   "suppressions.empty.description": "Recipients appear here after a permanent bounce.",
   "suppressions.pagination": "Suppression list pages",
   "suppressions.confirm.title": "Remove from the suppression list?",
-  "suppressions.confirm.body": "Emails to {address} are sent again. Only do this when the address was fixed."
+  "suppressions.confirm.body": "Emails to {address} are sent again. Only do this when the address was fixed.",
+  "accountModal.sendgrid.regionHint": "Use EU only for an EU regional subuser. EU accounts are called through api.eu.sendgrid.com, all others through api.sendgrid.com.",
+  "accountModal.sendgrid.region": "SendGrid region",
+  "accountModal.sendgrid.regionGlobal": "Global (api.sendgrid.com)",
+  "accountModal.sendgrid.regionEu": "EU (api.eu.sendgrid.com)"
 }

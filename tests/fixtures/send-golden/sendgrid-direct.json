@@ -1,0 +1,41 @@
+{
+  "url": "https://api.sendgrid.com/v3/mail/send",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "json": {
+      "personalizations": [
+        {
+          "to": [
+            {
+              "email": "ada@example.test"
+            }
+          ]
+        }
+      ],
+      "from": {
+        "email": "noreply@sendgrid.example.test",
+        "name": "Golden Sender"
+      },
+      "subject": "Direct",
+      "content": [
+        {
+          "type": "text/plain",
+          "value": "Direct body"
+        }
+      ],
+      "custom_args": {
+        "magicmail_version": "1.0",
+        "email_type": "transactional",
+        "priority": "normal"
+      },
+      "headers": {
+        "X-Mailer": "MagicMail/1.0",
+        "X-Email-Type": "transactional"
+      }
+    }
+  }
+}
