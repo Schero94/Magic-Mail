@@ -1,4 +1,10 @@
-## [Unreleased]
+# [4.6.0](https://github.com/Schero94/Magic-Mail/compare/v4.5.1...v4.6.0) (2026-11-18)
+
+
+### Features
+
+* **webhooks:** record delivery outcomes, feed suppression and fix bounce analytics ([#21](https://github.com/Schero94/Magic-Mail/issues/21)) ([92e09e3](https://github.com/Schero94/Magic-Mail/commit/92e09e348bb57f50c6378dc5c377f99713c55332))
+
 
 ### Added
 
