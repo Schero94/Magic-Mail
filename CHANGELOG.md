@@ -9,7 +9,6 @@
 
 * **Duplicate recipients no longer make SendGrid reject the whole email.** SendGrid refuses a mail when an address appears twice in to, cc or bcc. Magic Mail now sends every address once (the first occurrence wins, compared without case) and drops a cc or bcc list that only repeated other addresses. Other providers are unchanged (Mailgun ignores duplicates itself).
 * **SendGrid keeps recipient names.** `Ada Lovelace <ada@example.com>` arrives as "Ada Lovelace" instead of the bare address.
-* **Recipient names with commas, quotes or angle brackets arrive unchanged with every provider.** `"Doe, Jane" <jane@example.com>` in to, cc or bcc used to be split at the comma and partly lower-cased, so the recipient saw the name "doe,  Jane" (SMTP, Gmail, Outlook, Yahoo, SendGrid and Mailgun alike). Addresses are now read with the same RFC 5322 parser the transports use; only the address is lower-cased, never the name.
 * **The SendGrid connection test names a missing Mail Send permission.** SendGrid answers a key without the Mail Send permission with the same 401 as a wrong key, so the test used to say "SendGrid rejected the API key". After a 401 or 403 the test now makes one read-only call (`GET /v3/scopes`): a valid key without Mail Send gets its own hint (`SENDGRID_MISSING_MAIL_SEND`), a wrong key keeps the old one. Nothing from SendGrid's answer is shown.
 * **Oversized emails are rejected before upload with a clear message.** SendGrid accepts less than 30 MB and Mailgun 25 MB per message. Magic Mail now checks the size before calling the provider and answers with a validation error (`MAGIC_MAIL_MESSAGE_TOO_LARGE`) instead of uploading the whole mail and getting a vague rejection. All attachments of one email together may be at most 40 MB raw with every provider (each file stays limited to 25 MB). A provider's own "too large" answer (HTTP 413) gets the same code.
 * **Magic Mail turns off Mailgun's and SendGrid's own open/click tracking when it tracks itself, so links are no longer wrapped twice** and opens are not counted twice. Only the part Magic Mail really applied is switched off; when Magic Mail does not track (tracking off, no public URL), the provider's tracking settings apply as before.
@@ -21,6 +20,18 @@
 
 * If you use a SendGrid EU regional subuser, set that account's region to **EU**.
 * If you listen to SendGrid or Mailgun webhooks yourself, you will see the new `magicmail_*` custom arguments / variables and the Mailgun tag.
+
+## [4.6.2](https://github.com/Schero94/Magic-Mail/compare/v4.6.1...v4.6.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* keep display names intact when parsing recipient lists ([#25](https://github.com/Schero94/Magic-Mail/issues/25)) ([0769739](https://github.com/Schero94/Magic-Mail/commit/076973919d4619f333ddce20ed3bb0a7a5e56407))
+
+
+### Fixed
+
+* **Recipient names with commas, quotes or angle brackets arrive unchanged.** `"Doe, Jane" <jane@example.com>` in to, cc or bcc used to be split at the comma and partly lower-cased, so the recipient saw the name "doe,  Jane" (SMTP, Gmail, Outlook, Yahoo and Mailgun). Addresses are now read with the same RFC 5322 parser the transports use; only the address is lower-cased, never the name. Bare address lists are normalised exactly as before.
 
 ## [4.6.1](https://github.com/Schero94/Magic-Mail/compare/v4.6.0...v4.6.1) (2026-11-18)
 
@@ -106,6 +117,12 @@
 ### Bug Fixes
 
 * **queue:** keep the sender deadline when an admin retries a queued mail ([#9](https://github.com/Schero94/Magic-Mail/issues/9)) ([6e62d62](https://github.com/Schero94/Magic-Mail/commit/6e62d62c217d6112ec9d5560da232667c0184655))
+
+## 4.4.2 details (written before the release)
+
+### Fixed
+
+* **queue:** an admin "Retry now" keeps a deadline the sender set (`send(…, { notAfter })`, for example a Magic Link login link's expiry). Before, a retry extended `notAfter` to at least now + `queue.maxAgeHours`, so a captured login mail could still go out after the link had expired. Once that deadline has passed, the retry answers `409 DEADLINE_PASSED` and the admin shows "The sender set a deadline for this mail and it has passed. It can only be discarded." Rows without a sender deadline behave as before. New private outbox column `notAfterFixed`, created on start.
 
 ## [4.4.1](https://github.com/Schero94/Magic-Mail/compare/v4.4.0...v4.4.1) (2026-11-07)
 
