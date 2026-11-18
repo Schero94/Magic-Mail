@@ -1,0 +1,50 @@
+{
+  "transport": {
+    "host": "smtp.example.test",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "u",
+      "pass": "p"
+    },
+    "requireTLS": true,
+    "tls": {
+      "rejectUnauthorized": true,
+      "minVersion": "TLSv1.2"
+    },
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "transactionLog": true,
+    "logger": true
+  },
+  "options": {
+    "from": {
+      "name": "Golden Sender",
+      "address": "noreply@smtp.example.test"
+    },
+    "to": "ada@example.test",
+    "replyTo": [
+      {
+        "name": "",
+        "address": "support@example.test"
+      }
+    ],
+    "subject": "Welcome Ada <Lovelace> & friends",
+    "text": "HELLO \n\nada@example.test\n\nOneTwo & three<strong>raw</strong>\nShop [https://shop.example.test/a?x=1]",
+    "html": "<html><body><h1>Hello Ada &lt;Lovelace&gt;</h1><p>ada@example.test</p><li>One</li><li>Two &amp; three</li><div><strong>raw</strong></div><a href=\"https://track.example.test/c/1\">Shop</a></body></html><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />",
+    "attachments": [],
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "date": "<DATE>",
+    "messageId": "<<MSGID-LOCAL>@smtp.example.test>",
+    "headers": {
+      "X-Campaign": "golden",
+      "X-Mailer": "MagicMail/1.0",
+      "X-Email-Type": "transactional",
+      "X-Content-Type-Options": "nosniff",
+      "X-Entity-Ref-ID": "magicmail-<NOW>"
+    },
+    "encoding": "utf-8",
+    "textEncoding": "base64"
+  }
+}

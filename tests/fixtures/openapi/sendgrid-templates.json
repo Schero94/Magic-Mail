@@ -1,0 +1,411 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Twilio SendGrid Templates API",
+    "summary": "The Twilio SendGrid Templates API allows you to create and manage email templates to be delivered with SendGrid's sending APIs.",
+    "description": "The Twilio SendGrid Templates API allows you to create and manage email templates to be delivered with SendGrid's sending APIs. The templates you create will be available using a template ID that is passed to our sending APIs as part of the request. Each template may then have multiple versions associated with it. Whichever version is set as \"active\" at the time of the request will be sent to your recipients. This system allows you to update a single template's look and feel entirely without modifying your requests to our Mail Send API. For example, you could have a single template for welcome emails. That welcome template could then have a version for each season of the year that's themed appropriately and marked as active during the appropriate season. The template ID passed to our sending APIs never needs to change; you can just modify which version is active.\n\nThis API provides operations to create and manage your templates as well as their versions.\n\nEach user can create up to 300 different templates. Templates are specific to accounts and Subusers. Templates created on a parent account will not be accessible from the Subusers' accounts.",
+    "termsOfService": "https://www.twilio.com/legal/tos",
+    "contact": {
+      "name": "Twilio SendGrid Support",
+      "url": "https://support.sendgrid.com/hc/en-us"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://code.hq.twilio.com/twilio/sendgrid-oas/blob/main/LICENSE"
+    },
+    "version": "1.0.0",
+    "x-sendgrid": {
+      "libraryPackage": "templates"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.sendgrid.com",
+      "description": "for global users and subusers"
+    },
+    {
+      "url": "https://api.eu.sendgrid.com",
+      "description": "for EU regional subusers"
+    }
+  ],
+  "paths": {
+    "/v3/templates": {
+      "get": {
+        "operationId": "ListTemplate",
+        "summary": "Retrieve paged transactional templates.",
+        "tags": ["Templates"],
+        "description": "**This endpoint allows you to retrieve all transactional templates.**",
+        "parameters": [
+          {
+            "name": "generations",
+            "in": "query",
+            "description": "Comma-delimited list specifying which generations of templates to return. Options are `legacy`, `dynamic` or `legacy,dynamic`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "legacy",
+              "$ref": "#/components/schemas/Generations"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "The number of templates to be returned in each page of results",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "page_token",
+            "in": "query",
+            "description": "A token corresponding to a specific page of results, as provided by metadata",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/OnBehalfOf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "array",
+                      "description": "",
+                      "items": {
+                        "$ref": "#/components/schemas/TransactionalTemplatesTemplateLean"
+                      }
+                    },
+                    "_metadata": {
+                      "$ref": "#/components/schemas/Metadata"
+                    }
+                  }
+                },
+                "examples": {
+                  "response": {
+                    "value": {
+                      "result": [
+                        {
+                          "id": "fae7c985-eb92-4b47-9987-28ec29dbc698",
+                          "name": "example_name",
+                          "generation": "legacy",
+                          "updated_at": "2020-11-12 12:00:09",
+                          "versions": []
+                        }
+                      ],
+                      "_metadata": {
+                        "self": "https://api.sendgrid.com/v3/templates",
+                        "count": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "error_id": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/templates/{template_id}": {
+      "parameters": [
+        {
+          "name": "template_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "GetTemplate",
+        "summary": "Retrieve a single transactional template.",
+        "tags": ["Templates"],
+        "description": "**This endpoint allows you to retrieve a single transactional template.**",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OnBehalfOf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionalTemplate"
+                },
+                "examples": {
+                  "response": {
+                    "value": {
+                      "id": "40da60e6-66f3-4223-9406-ba58b7f55a62",
+                      "name": "Duis in dolor",
+                      "generation": "legacy",
+                      "updated_at": "2020-12-12 58:26:65",
+                      "versions": []
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Generations": {
+        "type": "string",
+        "enum": ["legacy", "dynamic", "legacy,dynamic"]
+      },
+      "TransactionalTemplatesTemplateLean": {
+        "title": "Transactional Templates: Template Lean",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the transactional template.",
+            "minLength": 36,
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name for the transactional template.",
+            "maxLength": 100
+          },
+          "generation": {
+            "type": "string",
+            "description": "Defines the generation of the template.",
+            "$ref": "#/components/schemas/Generation1"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date and time that this transactional template version was updated.",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2}) ((\\d{2}):(\\d{2}):(\\d{2}))$"
+          },
+          "versions": {
+            "type": "array",
+            "description": "The different versions of this transactional template.",
+            "items": {
+              "$ref": "#/components/schemas/TransactionalTemplatesVersionOutputLean"
+            }
+          }
+        },
+        "required": ["id", "name", "generation", "updated_at"],
+        "example": {
+          "id": "0c314114-a2b7-4523-8cbc-a293d7d19007",
+          "name": "example_name",
+          "generation": "legacy",
+          "updated_at": "2021-04-28 13:12:46",
+          "versions": []
+        }
+      },
+      "Metadata": {
+        "title": "_metadata",
+        "type": "object",
+        "properties": {
+          "prev": {
+            "type": "string",
+            "format": "uri"
+          },
+          "self": {
+            "type": "string",
+            "format": "uri"
+          },
+          "next": {
+            "type": "string",
+            "format": "uri"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TransactionalTemplate": {
+        "title": "Transactional Templates: Template",
+        "example": {
+          "id": "33feeff2-5069-43fe-8853-428651e5be79",
+          "name": "example_name",
+          "updated_at": "2021-04-28 13:12:46",
+          "warning": {
+            "message": "Sample warning message"
+          },
+          "generation": "legacy"
+        },
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the transactional template.",
+            "minLength": 36,
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name for the transactional template.",
+            "maxLength": 100
+          },
+          "generation": {
+            "type": "string",
+            "description": "Defines the generation of the template.",
+            "$ref": "#/components/schemas/Generation1"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date and time that this transactional template version was updated.",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2}) ((\\d{2}):(\\d{2}):(\\d{2}))$"
+          },
+          "versions": {
+            "type": "array",
+            "description": "The different versions of this transactional template.",
+            "items": {
+              "$ref": "#/components/schemas/TransactionalTemplatesVersionOutputLean"
+            }
+          },
+          "warning": {
+            "$ref": "#/components/schemas/TransactionalTemplateWarning"
+          }
+        },
+        "required": ["generation", "id", "name", "updated_at"]
+      },
+      "Generation1": {
+        "type": "string",
+        "enum": ["legacy", "dynamic"]
+      },
+      "TransactionalTemplatesVersionOutputLean": {
+        "title": "Transactional Templates: Version Output Lean",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID of the transactional template version.",
+            "format": "uuid"
+          },
+          "template_id": {
+            "type": "string",
+            "description": "ID of the transactional template."
+          },
+          "active": {
+            "type": "integer",
+            "description": "Set the version as the active version associated with the template. Only one version of a template can be active. The first version created for a template will automatically be set to Active.",
+            "$ref": "#/components/schemas/Active1"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the transactional template version.",
+            "maxLength": 100
+          },
+          "subject": {
+            "type": "string",
+            "description": "Subject of the new transactional template version.",
+            "maxLength": 255
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "The date and time that this transactional template version was updated."
+          },
+          "generate_plain_content": {
+            "type": "boolean",
+            "description": "If true, plain_content is always generated from html_content. If false, plain_content is not altered.",
+            "default": true
+          },
+          "html_content": {
+            "type": "string",
+            "description": "The HTML content of the Design."
+          },
+          "plain_content": {
+            "type": "string",
+            "description": "Plain text content of the Design."
+          },
+          "editor": {
+            "type": "string",
+            "description": "The editor used in the UI.",
+            "$ref": "#/components/schemas/Editor1"
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "description": "A Thumbnail preview of the template's html content."
+          }
+        }
+      },
+      "TransactionalTemplateWarning": {
+        "title": "Warning",
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Warning message for the user"
+          }
+        },
+        "example": {
+          "message": "A sample warning message."
+        }
+      },
+      "Active1": {
+        "type": "integer",
+        "enum": [0, 1]
+      },
+      "Editor1": {
+        "type": "string",
+        "enum": ["code", "design"]
+      }
+    },
+    "parameters": {
+      "OnBehalfOf": {
+        "name": "on-behalf-of",
+        "in": "header",
+        "description": "The `on-behalf-of` header allows you to make API calls from a parent account on behalf of the parent's Subusers or customer accounts. You will use the parent account's API key when using this header. When making a call on behalf of a customer account, the property value should be \"account-id\" followed by the customer account's ID (e.g., `on-behalf-of: account-id <account-id>`). When making a call on behalf of a Subuser, the property value should be the Subuser's username (e.g., `on-behalf-of: <subuser-username>`). See [**On Behalf Of**](https://docs.sendgrid.com/api-reference/how-to-use-the-sendgrid-v3-api/on-behalf-of) for more information.",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "x-magic-mail-source": {
+    "url": "https://raw.githubusercontent.com/twilio/sendgrid-oai/51a0dee5a218634f0775cdc589e3d728136674de/spec/json/tsg_templates_v3.json",
+    "sha256": "d38d9f0cd014ea2d2ac12738f155e969a8f81ca03d85bbcaa959048c15b05a3c",
+    "retrieved": "2026-11-17",
+    "operations": ["GET /v3/templates", "GET /v3/templates/{template_id}"]
+  }
+}

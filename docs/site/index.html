@@ -136,6 +136,7 @@
         <a href="#features">Features</a>
         <a href="#gallery">Screenshots</a>
         <a href="#install">Install</a>
+        <a href="#provider-templates">Provider templates</a>
         <a href="#outbox">Retries and outbox</a>
         <a href="#bounces">Bounces</a>
         <a href="#instances">Several instances</a>
@@ -169,6 +170,14 @@
                 Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server (optional DKIM),
                 SendGrid and Mailgun. Hourly and daily quotas, priorities, a primary account and
                 test sends. Credentials are encrypted with AES-256-GCM.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Provider templates</h3>
+              <p>
+                SendGrid dynamic templates and Mailgun templates appear read-only next to your own
+                templates, with preview, test send and the same template data your code already
+                passes. Routing, failover and logs stay in MagicMail.
               </p>
             </article>
             <article class="card">
@@ -238,10 +247,43 @@
           <h2 id="gallery-title">Screenshots</h2>
           <p class="section-lead">
             Synthetic data (<code>example.test</code> addresses) on an isolated Strapi 5.61 host.
-            The six README images were re-captured on Strapi 5.62.0. Select an image to open it at
-            full size.
+            The six README images and the provider-template images were captured on Strapi 5.62.0.
+            Select an image to open it at full size.
           </p>
           <div class="gallery">
+            <figure class="shot shot-wide">
+              <a href="./img/provider-templates.webp"
+                ><img
+                  src="./img/provider-templates.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Provider templates under the local templates: SendGrid and Mailgun templates with a provider badge, their key, the change date at the provider, the account that has each one and a status such as Ready or No active version."
+              /></a>
+              <figcaption>Provider templates</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/provider-template-dialog.webp"
+                ><img
+                  src="./img/provider-template-dialog.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Dialog of the SendGrid template Welcome email: provider and status badges, a sandboxed preview with placeholders, the detected variables and the buttons Copy as Magic Mail template and Send test."
+              /></a>
+              <figcaption>Provider template preview</figcaption>
+            </figure>
+            <figure class="shot">
+              <a href="./img/core-email-design.webp"
+                ><img
+                  src="./img/core-email-design.webp"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                  alt="Design dialog of the Reset password core email with the SendGrid template Password reset selected, the variables Magic Mail sends and the option to send the designer version if the provider template fails."
+              /></a>
+              <figcaption>Core email design</figcaption>
+            </figure>
             <figure class="shot shot-wide">
               <a href="./img/outbox.webp"
                 ><img
@@ -454,6 +496,41 @@ MAGIC_MAIL_ENCRYPTION_KEY=&lt;the generated value&gt;</code></pre>
               href="https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md#migration-notes"
               >migration notes</a
             >.
+          </p>
+        </section>
+
+        <section class="section" id="provider-templates" aria-labelledby="provider-templates-title">
+          <h2 id="provider-templates-title">Provider templates</h2>
+          <p class="section-lead">
+            Design in SendGrid or Mailgun, send through MagicMail. Nothing changes until a SendGrid
+            or Mailgun account exists.
+          </p>
+          <ol>
+            <li>
+              MagicMail reads SendGrid dynamic templates and Mailgun domain and account templates
+              with the stored key (read-only), and refreshes the list when it is older than 10
+              minutes.
+            </li>
+            <li>
+              Each template gets a stable key such as <code>sendgrid:welcome-email</code>. Open it
+              for a sandboxed preview, its variables, a test send or a copy as a MagicMail template.
+            </li>
+            <li>
+              Send it with the same data a local template gets:
+              <code>send({ to, providerTemplate: 'sendgrid:welcome-email', data })</code>. Only
+              accounts that have the template send it; a missing template is a clear error unless
+              you chose a fallback template.
+            </li>
+            <li>
+              Password reset and email confirmation can use a provider template too (Core emails →
+              Design), with <code>URL</code>, <code>TOKEN</code>/<code>CODE</code>, a limited
+              <code>USER</code> and a finished <code>url</code>.
+            </li>
+          </ol>
+          <p>
+            Every request is checked in CI against the official SendGrid and Mailgun OpenAPI
+            documents. A live suite runs the same flows against the real APIs in sandbox and test
+            mode with maintainer test accounts.
           </p>
         </section>
 

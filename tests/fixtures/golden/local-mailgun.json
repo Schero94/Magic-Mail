@@ -1,0 +1,53 @@
+{
+  "request": {
+    "url": "https://api.eu.mailgun.net/v3/mg.example.test/messages",
+    "method": "POST",
+    "headers": {
+      "Authorization": "<redacted>"
+    },
+    "body": {
+      "formData": [
+        ["from", "\"Golden Sender\" <noreply@mailgun.example.test>"],
+        ["to", "ada@example.test"],
+        ["subject", "Welcome Ada <Lovelace> & friends"],
+        [
+          "html",
+          "<html><body><h1>Hello Ada &lt;Lovelace&gt;</h1><p>ada@example.test</p><li>One</li><li>Two &amp; three</li><div><strong>raw</strong></div><a href=\"https://track.example.test/c/1\">Shop</a></body></html><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />"
+        ],
+        [
+          "text",
+          "HELLO \n\nada@example.test\n\nOneTwo & three<strong>raw</strong>\nShop [https://shop.example.test/a?x=1]"
+        ],
+        ["h:Reply-To", "support@example.test"],
+        ["h:X-Campaign", "golden"],
+        ["h:X-Mailer", "MagicMail/1.0"],
+        ["h:X-Email-Type", "transactional"],
+        ["o:tracking-opens", "no"],
+        ["o:tracking-clicks", "no"],
+        ["v:magicmail_email_type", "transactional"],
+        ["v:magicmail_priority", "normal"],
+        ["v:magicmail_id", "golddoc1"],
+        ["o:tag", "transactional"]
+      ]
+    }
+  },
+  "log": {
+    "to": "ada@example.test",
+    "userId": null,
+    "recipientName": null,
+    "subject": "Welcome Ada <Lovelace> & friends",
+    "templateId": null,
+    "templateReferenceId": "4242",
+    "templateName": "Golden welcome",
+    "accountId": null,
+    "accountName": null,
+    "messageIdLocal": "<MSGID-LOCAL>",
+    "metadata": {
+      "type": "transactional",
+      "priority": "normal",
+      "hasAttachments": false,
+      "tracking": true,
+      "source": "service"
+    }
+  }
+}

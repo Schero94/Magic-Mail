@@ -1,0 +1,81 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_provider_templates",
+  "info": {
+    "singularName": "provider-template",
+    "pluralName": "provider-templates",
+    "displayName": "Provider Template",
+    "description": "Read-only copy of a SendGrid or Mailgun template, one row per account that has it"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "maxLength": 120
+    },
+    "provider": {
+      "type": "enumeration",
+      "enum": ["sendgrid", "mailgun"],
+      "required": true
+    },
+    "accountDocumentId": {
+      "type": "string",
+      "required": true,
+      "maxLength": 64
+    },
+    "remoteScope": {
+      "type": "enumeration",
+      "enum": ["default", "domain", "account"],
+      "default": "default"
+    },
+    "remoteId": {
+      "type": "string",
+      "required": true,
+      "maxLength": 128
+    },
+    "name": {
+      "type": "string",
+      "required": true,
+      "maxLength": 200
+    },
+    "activeVersion": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "subject": {
+      "type": "text"
+    },
+    "updatedAtProvider": {
+      "type": "datetime"
+    },
+    "variables": {
+      "type": "json"
+    },
+    "previewHtml": {
+      "type": "text"
+    },
+    "previewText": {
+      "type": "text"
+    },
+    "lastSyncedAt": {
+      "type": "datetime"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["ok", "matchedByName", "unpublished", "missing"],
+      "default": "ok",
+      "required": true
+    }
+  }
+}

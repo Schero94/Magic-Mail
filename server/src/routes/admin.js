@@ -439,6 +439,98 @@ module.exports = {
       },
     },
 
+    // ─────────────────────── Provider templates (SendGrid / Mailgun) ───────────────────────
+    // Read-only at the provider. Sync reads with the stored account key and is
+    // rate limited per admin; nothing is written to SendGrid or Mailgun.
+    {
+      method: 'GET',
+      path: '/provider-templates',
+      handler: 'providerTemplates.list',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'List synced provider templates',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/provider-templates/sync',
+      handler: 'providerTemplates.sync',
+      config: {
+        policies: adminPolicy('read'),
+        middlewares: [
+          {
+            name: `plugin::${PLUGIN_ID}.rate-limit`,
+            config: { bucket: 'admin-provider-template-sync', max: 6, window: 60_000 },
+          },
+        ],
+        description: 'Sync SendGrid and Mailgun templates',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/provider-templates/:key',
+      handler: 'providerTemplates.findOne',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Get one provider template with preview',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/provider-templates/:key/test-send',
+      handler: 'providerTemplates.testSend',
+      config: {
+        policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
+        description: 'Send a provider template test email',
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/provider-templates/:key/settings',
+      handler: 'providerTemplates.updateSettings',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Set the local fallback template of a provider template',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/provider-templates/:key/copy',
+      handler: 'providerTemplates.copy',
+      config: {
+        policies: adminPolicy('manage'),
+        description: 'Copy a provider template as a Magic Mail template',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/designer/templates/:id/provider-html',
+      handler: 'providerTemplates.convertForProvider',
+      config: {
+        policies: adminPolicy('read'),
+        description: 'Convert a Magic Mail template for SendGrid or Mailgun',
+      },
+    },
+    {
+      method: 'GET',
+      path: '/designer/core-designs',
+      handler: 'providerTemplates.coreDesigns',
+      config: {
+        policies: adminPolicy('read', [USERS_PERMISSIONS_TEMPLATE_READ]),
+        description: 'Get the design choice of the core emails',
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/designer/core/:coreEmailType/design',
+      handler: 'providerTemplates.updateCoreDesign',
+      config: {
+        policies: adminPolicy('manage', [USERS_PERMISSIONS_TEMPLATE_UPDATE]),
+        description: 'Set the design of a core email',
+      },
+    },
+
     // ─────────────────────── Analytics & Tracking ───────────────────────
     {
       method: 'GET',

@@ -1,0 +1,55 @@
+{
+  "url": "https://api.sendgrid.com/v3/mail/send",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "json": {
+      "personalizations": [
+        {
+          "to": [
+            {
+              "email": "ada@example.test"
+            }
+          ]
+        }
+      ],
+      "from": {
+        "email": "noreply@sendgrid.example.test",
+        "name": "Golden Sender"
+      },
+      "subject": "Welcome Ada <Lovelace> & friends",
+      "content": [
+        {
+          "type": "text/plain",
+          "value": "HELLO \n\nada@example.test\n\nOneTwo & three<strong>raw</strong>\nShop [https://shop.example.test/a?x=1]"
+        },
+        {
+          "type": "text/html",
+          "value": "<html><body><h1>Hello Ada &lt;Lovelace&gt;</h1><p>ada@example.test</p><li>One</li><li>Two &amp; three</li><div><strong>raw</strong></div><a href=\"https://shop.example.test/a?x=1\">Shop</a></body></html>"
+        }
+      ],
+      "custom_args": {
+        "magicmail_version": "1.0",
+        "email_type": "marketing",
+        "priority": "high",
+        "magicmail_id": "golddoc1"
+      },
+      "headers": {
+        "X-Campaign": "golden",
+        "X-Mailer": "MagicMail/1.0",
+        "X-Email-Type": "marketing",
+        "X-Priority": "1 (Highest)",
+        "Importance": "high",
+        "List-Unsubscribe": "<https://example.test/unsub>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        "Precedence": "bulk"
+      },
+      "reply_to": {
+        "email": "support@example.test"
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ const pluginSettings = require('./plugin-settings');
 const deliveryWebhooks = require('./delivery-webhooks');
 const outbox = require('./outbox');
 const bounceMonitor = require('./bounce-monitor');
+const providerTemplates = require('./provider-templates');
 
 module.exports = {
   controller,
@@ -22,4 +23,5 @@ module.exports = {
   deliveryWebhooks,
   outbox,
   bounceMonitor,
+  providerTemplates,
 };

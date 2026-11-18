@@ -8,6 +8,7 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 - [Provider setup](#provider-setup)
 - [Routing rules and quotas](#routing-rules-and-quotas)
 - [Templates and the visual editor](#templates-and-the-visual-editor)
+- [Provider templates (SendGrid, Mailgun)](#provider-templates-sendgrid-mailgun)
 
 ## Sending email
 
@@ -176,7 +177,7 @@ The provider value `nodemailer` is an alias of `smtp`.
 
 ### SendGrid
 
-1. In SendGrid go to **Settings → API Keys → Create API Key**, choose **Custom Access** and grant only **Mail Send**. A Full Access key is not needed: MagicMail only sends mail.
+1. In SendGrid go to **Settings → API Keys → Create API Key**, choose **Custom Access** and grant only **Mail Send**. A Full Access key is not needed. Add **Template Engine → Read Access** only if you want to use [provider templates](#provider-templates-sendgrid-mailgun).
 2. In MagicMail choose **SendGrid** and paste the key. The From address must be a verified Sender Identity in SendGrid (single sender or authenticated domain).
 3. Choose the region. **Global** fits every account except EU regional subusers, which need **EU**.
 
@@ -385,3 +386,69 @@ module.exports = [
 ```
 
 With `designer.scriptUrl` (self-hosted `embed.js`) put that origin into `script-src` instead; the editor iframe still loads from `editor.unlayer.com`, so keep it in `frame-src`. The Unlayer script runs in the admin origin. Only allow it if you accept that trust.
+
+## Provider templates (SendGrid, Mailgun)
+
+If your team designs emails in SendGrid or Mailgun, MagicMail can send those templates while routing, failover, quotas and the delivery log stay in MagicMail. Nothing changes until a SendGrid or Mailgun account exists; then a **Provider templates** section appears under your templates.
+
+![Provider templates under the local templates: a SendGrid and a Mailgun template with provider badge, change date at the provider, the accounts that have it and the status](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/provider-templates.webp)
+
+**How it works**
+
+1. MagicMail reads the templates of every SendGrid and Mailgun account with the stored, encrypted API key: SendGrid dynamic templates, Mailgun templates of the account's sending domain and account-level Mailgun templates. It never writes to the provider. The list refreshes itself when it is older than 10 minutes; **Sync** refreshes it at once.
+2. Each template gets a key from its provider and name, for example `sendgrid:welcome-email` or `mailgun:newsletter-digest`. The key is the same in every environment, so code and settings do not change between staging and production. If the provider id of a template changes (for example after a database copy to another environment) but a template with the same name exists, MagicMail matches it by name and shows **Matched by name**.
+3. **Open** shows a sandboxed preview, the variables the template uses, a code example, **Send test** (to your own admin address unless you enter another one; it uses the same sample values as local template tests) and **Copy as Magic Mail template**.
+
+**Send from code**
+
+```javascript
+await strapi
+  .plugin('magic-mail')
+  .service('email-router')
+  .send({
+    to: 'user@example.com',
+    providerTemplate: 'sendgrid:welcome-email',
+    data: {
+      name: 'Ada',
+      user: { email: 'user@example.com' },
+      items: [{ title: 'First steps' }],
+    },
+  });
+```
+
+The `data` object is the one a local template gets: MagicMail sends it as SendGrid `dynamic_template_data` or Mailgun `t:variables`. Both providers use Handlebars with top-level keys, so `{{name}}`, `{{user.email}}` and `{{{html}}}` keep their names. Before sending, the data is converted to plain JSON: dates become ISO strings, functions and `undefined` are dropped, cycles and values such as `Map` or `BigInt` are rejected with a 400 that names the field, never the value.
+
+| Rule                            | Behaviour                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which accounts send             | Only accounts where the sync found the template. Routing rules, the primary account and failover work as usual among those accounts. An explicit `accountName` without the template is an error.                                                                                                                                                                      |
+| Subject                         | The template's subject. SendGrid always uses the template subject (use `{{subject}}` in it and pass `subject` in `data` for a per-mail subject). Mailgun uses `subject` when you pass one and the template's Subject header otherwise; a Mailgun template without a Subject header needs `subject`.                                                                   |
+| Sender                          | The MagicMail account's verified From, as for every other mail.                                                                                                                                                                                                                                                                                                       |
+| Missing or unpublished template | A clear error naming the template (`MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE`, `MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN`). No other body is sent.                                                                                                                                                                                                                        |
+| Fallback                        | Optional, per template: **Fallback template** in the dialog sends a local MagicMail template with the same `data` instead, but only when no provider accepted the message (missing template, provider refusal, no account available). An ambiguous error (for example a timeout after sending) never triggers it.                                                     |
+| Size limits                     | Mailgun accepts 16 KB for all send options (`t:variables` plus headers); SendGrid accepts messages under 30 MB. MagicMail also bounds template data to 1 MB. Larger mails fail before anything is sent with `MAGIC_MAIL_PROVIDER_TEMPLATE_TOO_LARGE`. For Mailgun the 16 KB also include the `v:magicmail_*` variables and `o:tag` that MagicMail adds to every send. |
+| Tracking                        | The provider renders the body, so MagicMail adds no open pixel or link tracking. Use the provider's tracking settings.                                                                                                                                                                                                                                                |
+| Log                             | The delivery log stores the template key and the variable names, never the values.                                                                                                                                                                                                                                                                                    |
+| Not available                   | The public Content API (`/api/magic-mail/send`) does not accept `providerTemplate`; the outbox does not queue provider-template mails in this release. Brevo, Amazon SES and SMTP/OAuth accounts have no provider templates.                                                                                                                                          |
+
+**Password reset and email confirmation**
+
+**Email Templates → Core emails → Design** chooses, per core email, the MagicMail designer (default) or a provider template. MagicMail then sends these variables (payload version 1; keys are only ever added):
+
+| Variable                                                                   | Value                                                                                                                     |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `URL`, `SERVER_URL`, `ADMIN_URL`, `TOKEN` (reset) or `CODE` (confirmation) | The same values Users & Permissions uses                                                                                  |
+| `USER` and `user`                                                          | `id`, `email`, `username` and, when present, `firstname` and `lastname`. Never the whole user.                            |
+| `url`                                                                      | The finished link: `URL` with `code=TOKEN` (reset) or `confirmation=CODE` (confirmation), built with `URL`/`searchParams` |
+| `baseUrl`, `serverUrl`, `adminUrl`, `token` or `code`                      | camelCase copies                                                                                                          |
+| `meta`                                                                     | `templateKey`, `payloadVersion: 1`, `coreEmailType`                                                                       |
+
+The dialog lists these names and warns about variables the template uses that MagicMail does not send. By default a failing provider template is reported as an error; tick **send the Magic Mail designer version instead** to fall back. When the chosen template is deleted or unpublished at the provider, the Core emails tab and the MagicMail dashboard show a red notice.
+
+**Convert for provider**
+
+The code snippets dialog of a local template has **Convert for SendGrid or Mailgun**: it shows the HTML and subject with Mustache logic translated to Handlebars (`{{#list}}` becomes `{{#if list}}` with a comment to use `{{#each}}` for lists, `{{^flag}}` becomes `{{#unless flag}}`, `{{.}}` becomes `{{this}}`) for you to paste into a provider template. **Copy as Magic Mail template** does the reverse for a provider template and lists everything that does not carry over (for example `{{#equal}}` or `{{else if}}`).
+
+**How this is verified**
+
+- Every request MagicMail builds for these features (template list with pagination, template detail, send with `template_id` and `dynamic_template_data`, Mailgun domain and account templates, send with `template` and `t:variables`, EU hosts) is validated in CI against the providers' official OpenAPI documents ([twilio/sendgrid-oai](https://github.com/twilio/sendgrid-oai), pinned by commit, and the [Mailgun API reference](https://documentation.mailgun.com/docs/mailgun/api-reference/send/mailgun/templates)), together with the responses of the fake SendGrid and Mailgun servers the integration tests use.
+- `npm run test:live` runs the same flows against the real SendGrid (sandbox mode, nothing delivered) and Mailgun (test mode, nothing delivered) APIs with your own test accounts; see [Contributing](https://github.com/Schero94/Magic-Mail#contributing). Live verification status: **pending** (no live run recorded yet).

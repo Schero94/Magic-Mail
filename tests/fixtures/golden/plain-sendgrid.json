@@ -1,0 +1,59 @@
+{
+  "url": "https://api.sendgrid.com/v3/mail/send",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "json": {
+      "personalizations": [
+        {
+          "to": [
+            {
+              "email": "a@example.test"
+            },
+            {
+              "email": "b@example.test"
+            }
+          ],
+          "cc": [
+            {
+              "email": "c@example.test"
+            }
+          ]
+        }
+      ],
+      "from": {
+        "email": "noreply@sendgrid.example.test",
+        "name": "Golden Sender"
+      },
+      "subject": "Plain",
+      "content": [
+        {
+          "type": "text/plain",
+          "value": "Plain body"
+        },
+        {
+          "type": "text/html",
+          "value": "<p>Plain body</p><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />"
+        }
+      ],
+      "custom_args": {
+        "magicmail_version": "1.0",
+        "email_type": "transactional",
+        "priority": "normal",
+        "magicmail_id": "golddoc1"
+      },
+      "headers": {
+        "X-Mailer": "MagicMail/1.0",
+        "X-Email-Type": "transactional"
+      },
+      "tracking_settings": {
+        "open_tracking": {
+          "enable": false
+        }
+      }
+    }
+  }
+}

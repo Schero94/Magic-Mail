@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useNavigate } from 'react-router-dom';
 import {
+  Box,
   Button,
   Divider,
   Flex,
@@ -25,6 +26,7 @@ import {
   PaperPlane,
   Pencil,
   Trash,
+  Palette,
   Upload,
   WarningCircle,
 } from '@strapi/icons';
@@ -66,6 +68,12 @@ import { TemplateCodeSnippetsModal } from './TemplateCodeSnippetsModal';
 import { TemplateTestSendModal } from './TemplateTestSendModal';
 import { downloadBlob } from './editorUtils';
 import { PAGE_SIZE_OPTIONS, filterTemplates, getCategoryVariant } from './templateListUtils';
+import { useProviderTemplates } from './providerTemplates/useProviderTemplates';
+import { ProviderTemplatesSection } from './providerTemplates/ProviderTemplatesSection';
+import { ProviderTemplateDialog } from './providerTemplates/ProviderTemplateDialog';
+import { CoreDesignDialog } from './providerTemplates/CoreDesignDialog';
+import { Notice } from './providerTemplates/Notice';
+import { providerName, statusInfo } from './providerTemplates/providerTemplateUtils';
 import {
   Container,
   EmptyButtonGroup,
@@ -122,6 +130,31 @@ const TemplateList = () => {
 
   const canExport = canRead;
   const canImport = canManage;
+
+  // Provider templates (SendGrid / Mailgun): everything below stays hidden
+  // until the overview reports at least one such account.
+  const providerTemplates = useProviderTemplates({ enabled: canRead });
+  const providerEnabled = providerTemplates.overview?.enabled === true;
+  const [openProviderKey, setOpenProviderKey] = useState(null);
+  const [coreDesigns, setCoreDesigns] = useState(null);
+  const [coreDesignFor, setCoreDesignFor] = useState(null);
+
+  // Core-mail design choices; a role without the users-permissions template
+  // permission gets a 403 and simply does not see the design column.
+  useEffect(() => {
+    if (!providerEnabled) return undefined;
+    let ignore = false;
+    get('/magic-mail/designer/core-designs')
+      .then((response) => {
+        if (!ignore) setCoreDesigns(response?.data?.data ?? null);
+      })
+      .catch(() => {
+        if (!ignore) setCoreDesigns(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [get, providerEnabled, providerTemplates.overview]);
 
   const coreEmailTypes = [
     {
@@ -733,7 +766,48 @@ const TemplateList = () => {
         <DataTable aria-label={t('templates.list.heading', 'Your templates')}>
           {renderTableBody()}
         </DataTable>
+
+        <ProviderTemplatesSection
+          overview={providerTemplates.overview}
+          loading={providerTemplates.loading}
+          error={providerTemplates.error}
+          syncing={providerTemplates.syncing}
+          onSync={providerTemplates.sync}
+          onRetry={providerTemplates.reload}
+          onOpen={(template) => setOpenProviderKey(template.key)}
+        />
       </TemplatesContainer>
+    );
+  };
+
+  const showDesignColumn = providerEnabled && coreDesigns !== null;
+  const unusableCoreDesigns = showDesignColumn
+    ? coreEmailTypes.filter((coreEmail) => coreDesigns[coreEmail.type]?.usable === false)
+    : [];
+
+  /** Design cell of a core email row: designer or provider template (+ problem badge). */
+  const renderCoreDesign = (coreEmail) => {
+    const design = coreDesigns?.[coreEmail.type];
+    if (!design || design.mode !== 'provider') {
+      return (
+        <Typography variant="omega" textColor="neutral800">
+          {t('templates.coreDesign.designerShort', 'Magic Mail designer')}
+        </Typography>
+      );
+    }
+    const status = statusInfo(design.status);
+    return (
+      <Flex direction="column" alignItems="flex-start" gap={1}>
+        <Typography variant="omega" textColor="neutral800">
+          {t('templates.coreDesign.providerShort', '{name} ({provider})', {
+            name: design.templateName ?? design.providerTemplate,
+            provider: providerName(design.provider),
+          })}
+        </Typography>
+        {design.usable ? null : (
+          <StatusBadge $tone={status.tone}>{t(status.id, status.label)}</StatusBadge>
+        )}
+      </Flex>
     );
   };
 
@@ -815,11 +889,33 @@ const TemplateList = () => {
               </Typography>
             </Flex>
 
+            {unusableCoreDesigns.length > 0 ? (
+              <Box marginBottom={4}>
+                <Notice
+                  tone="danger"
+                  role="alert"
+                  title={t(
+                    'templates.coreDesign.staleTitle',
+                    'A core email uses a provider template that is not available'
+                  )}
+                >
+                  {t(
+                    'templates.coreDesign.staleBody',
+                    '{names}: these emails fail until the template is available again and synced, or until you switch back to the Magic Mail designer.',
+                    { names: unusableCoreDesigns.map((coreEmail) => coreEmail.name).join(', ') }
+                  )}
+                </Notice>
+              </Box>
+            ) : null}
+
             <DataTable aria-label={t('templates.core.heading', 'Core email templates')}>
-              <StyledTable colCount={2} rowCount={coreEmailTypes.length + 1}>
+              <StyledTable colCount={showDesignColumn ? 3 : 2} rowCount={coreEmailTypes.length + 1}>
                 <Thead>
                   <Tr>
                     <Th>{t('templates.core.table.type', 'Email type')}</Th>
+                    {showDesignColumn ? (
+                      <Th>{t('templates.core.table.design', 'Design')}</Th>
+                    ) : null}
                     <Th>
                       <VisuallyHidden>{t('templates.table.actions', 'Actions')}</VisuallyHidden>
                     </Th>
@@ -841,8 +937,27 @@ const TemplateList = () => {
                           </Typography>
                         </Flex>
                       </Td>
+                      {showDesignColumn ? (
+                        <Td
+                          className="cell-wrap"
+                          data-label={t('templates.core.table.design', 'Design')}
+                        >
+                          {renderCoreDesign(coreEmail)}
+                        </Td>
+                      ) : null}
                       <Td data-label="">
                         <Flex gap={1} justifyContent="flex-end">
+                          {showDesignColumn && canManage ? (
+                            <IconButton
+                              label={t('templates.coreDesign.choose', 'Choose design of {name}', {
+                                name: coreEmail.name,
+                              })}
+                              variant="ghost"
+                              onClick={() => setCoreDesignFor(coreEmail)}
+                            >
+                              <Palette aria-hidden="true" />
+                            </IconButton>
+                          ) : null}
                           <IconButton
                             label={
                               !canManage
@@ -871,6 +986,30 @@ const TemplateList = () => {
         template={codeTemplate}
         isOpen={codeTemplate !== null}
         onClose={() => setCodeTemplate(null)}
+        providerEnabled={providerEnabled}
+      />
+
+      <ProviderTemplateDialog
+        templateKey={openProviderKey}
+        onClose={() => setOpenProviderKey(null)}
+        canManage={canManage}
+        canTestSend={canTestSend}
+        localTemplates={templates}
+        onChanged={providerTemplates.reload}
+      />
+
+      <CoreDesignDialog
+        coreEmail={canManage ? coreDesignFor : null}
+        design={coreDesignFor ? coreDesigns?.[coreDesignFor.type] : undefined}
+        templates={providerTemplates.overview?.templates ?? []}
+        onClose={() => setCoreDesignFor(null)}
+        onSaved={(design) =>
+          setCoreDesigns((current) =>
+            current && design && coreDesignFor
+              ? { ...current, [coreDesignFor.type]: design }
+              : current
+          )
+        }
       />
 
       <TemplateTestSendModal

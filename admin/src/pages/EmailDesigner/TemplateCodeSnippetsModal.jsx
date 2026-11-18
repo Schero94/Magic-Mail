@@ -6,6 +6,7 @@ import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useReturnFocus } from '../../hooks/useReturnFocus';
 import { buildCodeSnippets, snippetText } from './codeSnippets';
+import { ConvertForProviderPanel } from './providerTemplates/ConvertForProviderPanel';
 import {
   AccentText,
   CodeBlock,
@@ -38,9 +39,17 @@ const CodeTokens = ({ tokens }) =>
 /**
  * "Code snippets" dialog for one template.
  *
- * @param {{template: object|null, isOpen: boolean, onClose: () => void}} props
+ * With a SendGrid or Mailgun account (`providerEnabled`), an extra section
+ * converts the template for the provider ("Convert for provider").
+ *
+ * @param {{template: object|null, isOpen: boolean, onClose: () => void, providerEnabled?: boolean}} props
  */
-export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
+export const TemplateCodeSnippetsModal = ({
+  template,
+  isOpen,
+  onClose,
+  providerEnabled = false,
+}) => {
   const { t } = useMagicMailIntl();
   const copy = useCopyToClipboard();
   const [copiedKey, setCopiedKey] = useState(null);
@@ -187,6 +196,20 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
                 </Accordion.Item>
               );
             })}
+            {providerEnabled ? (
+              <Accordion.Item value="provider">
+                <Accordion.Header>
+                  <Accordion.Trigger icon={() => <SecondaryTriggerIcon aria-hidden="true" />}>
+                    {t('templates.convert.title', 'Convert for SendGrid or Mailgun')}
+                  </Accordion.Trigger>
+                </Accordion.Header>
+                <Accordion.Content>
+                  <Box padding={4}>
+                    <ConvertForProviderPanel templateReferenceId={template.templateReferenceId} />
+                  </Box>
+                </Accordion.Content>
+              </Accordion.Item>
+            ) : null}
           </Accordion.Root>
         </ScrollableDialogBody>
         <StyledModalFooter>

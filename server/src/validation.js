@@ -631,6 +631,42 @@ const schemas = {
     })
     .strict(),
 
+  // ── Provider templates (SendGrid / Mailgun) admin routes ───────────────
+  'providerTemplates.key': z
+    .object({
+      key: z
+        .string()
+        .max(110)
+        .regex(/^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/),
+    })
+    .strict(),
+  'providerTemplates.sync': z.object({ force: z.boolean().optional() }).strict(),
+  'providerTemplates.testSend': z
+    .object({
+      to: emailString.optional(),
+      accountName: safeString.optional(),
+    })
+    .strict(),
+  'providerTemplates.settings': z
+    .object({
+      fallbackTemplateReferenceId: z.number().int().positive().max(2_147_483_647).nullable(),
+    })
+    .strict(),
+  'providerTemplates.coreDesign': z
+    .object({
+      providerTemplate: z
+        .string()
+        .max(110)
+        .regex(/^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/)
+        .nullable(),
+      fallbackToDesigner: z.boolean().optional(),
+    })
+    .strict(),
+  // Not named `id`: validate() strips Strapi system fields such as `id`.
+  'providerTemplates.localTemplateId': z
+    .object({ templateReferenceId: z.string().regex(/^\d{1,10}$/) })
+    .strict(),
+
   // ── Outbox (send queue) admin routes ───────────────────────────────────
   'outbox.listQuery': z
     .object({

@@ -48,6 +48,7 @@ import {
 import { GradientButton } from '../components/StyledButtons';
 import { brand, theme } from '../utils/theme';
 import { TestEmailModal } from './Accounts/TestEmailModal';
+import { CoreDesignAlert } from './EmailDesigner/providerTemplates/CoreDesignAlert';
 import {
   AccountsContainer,
   Container,
@@ -666,6 +667,12 @@ const HomePage = () => {
           </Typography>
         </Box>
       ) : null}
+
+      <CoreDesignAlert
+        enabled={accounts.some(
+          (account) => account?.provider === 'sendgrid' || account?.provider === 'mailgun'
+        )}
+      />
 
       {!loadError && (
         <StatsGrid>

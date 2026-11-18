@@ -1,7 +1,7 @@
 /**
  * StrictMode checks of every MagicMail admin entry point: the plugin page with its five sections
- * (accounts, routing rules, templates, analytics, outbox), the template editor, the Plugin Settings
- * page and the initializer, plus the dialogs they open. See harness/index.jsx for what each
+ * (accounts, routing rules, templates incl. provider templates, analytics, outbox), the template
+ * editor, the Plugin Settings page and the initializer, plus the dialogs they open. See harness/index.jsx for what each
  * assertion counts.
  */
 import assert from 'node:assert/strict';
@@ -32,6 +32,15 @@ const ACCOUNT = {
   lastUsed: null,
 };
 
+/** Provider-template overview without SendGrid or Mailgun accounts. */
+const NO_PROVIDER_TEMPLATES = {
+  enabled: false,
+  accounts: [],
+  templates: [],
+  lastSyncedAt: null,
+  stale: false,
+};
+
 /** Routes of every section of the plugin page. */
 const pluginRoutes = () => {
   network.on('GET', '/magic-mail/accounts', { data: [ACCOUNT] });
@@ -49,6 +58,7 @@ const pluginRoutes = () => {
     counts: {},
   });
   network.on('GET', '/magic-mail/designer/editor-config', { data: {} });
+  network.on('GET', '/magic-mail/provider-templates', { data: NO_PROVIDER_TEMPLATES });
 };
 
 /**
@@ -74,6 +84,27 @@ const button = (label) =>
     const name = node.getAttribute('aria-label') || node.textContent.trim();
     return label instanceof RegExp ? label.test(name) : name === label;
   });
+
+/**
+ * Clicks the button or tab with this label; fails with the visible labels when it is missing.
+ * @param {string | RegExp} label - Label or text.
+ */
+const clickLabel = async (label) => {
+  const target = button(label);
+  if (!target) {
+    const labels = [...document.querySelectorAll('button, [role="tab"]')].map(
+      (node) => node.getAttribute('aria-label') || node.textContent.trim()
+    );
+    assert.fail(`no button "${label}"; visible: ${labels.join(' | ')}`);
+  }
+  if (target.getAttribute('role') === 'tab') {
+    // Radix tabs activate on mousedown.
+    await act(async () => {
+      target.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    });
+  }
+  await click(target);
+};
 
 const wait = (ms) => act(async () => new Promise((resolve) => setTimeout(resolve, ms)));
 
@@ -107,7 +138,12 @@ test('initializer: StrictMode mount reports the plugin and leaves nothing behind
 for (const [section, path, expected, endpoints] of [
   ['accounts', '/plugins/magic-mail', /Primary SMTP/, ['/magic-mail/accounts']],
   ['routing rules', '/plugins/magic-mail/routing', /Routing/, ['/magic-mail/routing-rules']],
-  ['templates', '/plugins/magic-mail/designer', /Templates/, ['/magic-mail/designer/templates']],
+  [
+    'templates',
+    '/plugins/magic-mail/designer',
+    /Templates/,
+    ['/magic-mail/designer/templates', '/magic-mail/provider-templates'],
+  ],
   [
     'analytics',
     '/plugins/magic-mail/analytics',
@@ -232,6 +268,120 @@ test('templates: code snippets and test-send dialogs open and close cleanly', as
     },
   });
   assert.equal(mutations(result.calls).length, 0, 'no mutation');
+});
+
+const SG_ACCOUNT = { documentId: 'sg-1', name: 'SendGrid', provider: 'sendgrid', isActive: true };
+const PROVIDER_TEMPLATE = {
+  key: 'sendgrid:order-receipt',
+  provider: 'sendgrid',
+  name: 'Order receipt',
+  subject: 'Your order {{order.id}}',
+  status: 'ok',
+  usable: true,
+  updatedAtProvider: '2026-11-18T10:00:00.000Z',
+  accounts: [{ documentId: 'sg-1', name: 'SendGrid', isActive: true, status: 'ok' }],
+  variableCount: 2,
+  fallbackTemplateReferenceId: null,
+  usedByCoreMails: [],
+};
+/** Provider-template overview with one synced SendGrid template. */
+const providerOverview = (stale = false) => ({
+  enabled: true,
+  accounts: [{ ...SG_ACCOUNT, lastSyncedAt: new Date().toISOString(), error: null, warning: null }],
+  templates: [PROVIDER_TEMPLATE],
+  lastSyncedAt: stale ? null : new Date().toISOString(),
+  stale,
+});
+const CORE_DESIGNS = Object.fromEntries(
+  ['reset-password', 'email-confirmation'].map((type) => [
+    type,
+    {
+      mode: 'designer',
+      providerTemplate: null,
+      templateName: null,
+      provider: null,
+      status: null,
+      usable: true,
+      fallbackToDesigner: false,
+      updatedAt: null,
+      variables: ['URL', 'USER'],
+    },
+  ])
+);
+
+/** Routes of the templates page with provider templates. */
+const providerRoutes = (stale = false) => {
+  pluginRoutes();
+  network.on('GET', '/magic-mail/provider-templates', { data: providerOverview(stale) });
+  network.on('GET', '/magic-mail/designer/core-designs', { data: CORE_DESIGNS });
+  network.on('GET', `/magic-mail/provider-templates/${encodeURIComponent(PROVIDER_TEMPLATE.key)}`, {
+    data: {
+      ...PROVIDER_TEMPLATE,
+      previewHtml: '<p>Order {{order.id}} for {{name}}</p>',
+      previewText: '',
+      previewTooLarge: false,
+      variables: [
+        { path: 'order.id', root: 'order', raw: false, scoped: false, inSample: false },
+        { path: 'name', root: 'name', raw: false, scoped: false, inSample: true },
+      ],
+      variablesTruncated: false,
+      sampleData: { name: 'Ada' },
+      coreMailVariables: [],
+      copyWarnings: [],
+      usage: "send({ providerTemplate: 'sendgrid:order-receipt' })",
+    },
+  });
+};
+
+test('provider templates: list, preview dialog and core-email design dialog open and close cleanly', async () => {
+  providerRoutes();
+  const result = await checkStrictEntry(<App />, {
+    path: '/plugins/magic-mail/designer',
+    permissions: ALL,
+    async whileMounted() {
+      assert.match(document.body.textContent, /Order receipt/);
+      await clickLabel('Open Order receipt');
+      assert.ok(document.querySelector('[role="dialog"]'), 'provider template dialog is open');
+      await wait(50);
+      assert.match(document.body.textContent, /order\.id/);
+      await clickLabel('Close');
+      await wait(50);
+      await clickLabel('Core emails');
+      await wait(50);
+      await clickLabel('Choose design of Reset password');
+      assert.ok(document.querySelector('[role="dialog"]'), 'core design dialog is open');
+      await clickLabel('Close');
+      await wait(50);
+    },
+  });
+  assert.equal(live(result.mountCalls, '/magic-mail/provider-templates').length, 1);
+  assert.equal(
+    live(
+      result.calls,
+      `/magic-mail/provider-templates/${encodeURIComponent(PROVIDER_TEMPLATE.key)}`
+    ).length,
+    1,
+    'the preview is loaded once'
+  );
+  assert.equal(mutations(result.calls).length, 0, 'no mutation');
+});
+
+test('provider templates: a stale list starts exactly one background sync in StrictMode', async () => {
+  providerRoutes(true);
+  network.on('POST', '/magic-mail/provider-templates/sync', { data: providerOverview(false) });
+  const result = await checkStrictEntry(<App />, {
+    path: '/plugins/magic-mail/designer',
+    permissions: ALL,
+    async whileMounted() {
+      await wait(100);
+    },
+  });
+  const syncs = live(result.calls, '/magic-mail/provider-templates/sync', 'POST');
+  assert.equal(syncs.length, 1, 'one background sync, not one per StrictMode effect run');
+  assert.deepEqual(
+    mutations(result.calls).map((call) => call.pathname),
+    ['/magic-mail/provider-templates/sync']
+  );
 });
 
 test('outbox: the detail drawer opens and closes cleanly', async () => {

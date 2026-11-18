@@ -10,6 +10,10 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 
 The full list is in [CHANGELOG.md](../CHANGELOG.md). Upgrade one minor or major at a time and read each step.
 
+### Upgrading to the release with provider templates
+
+Nothing to do. A new collection `magic_mail_provider_templates` is created on start, and nothing changes for projects without a SendGrid or Mailgun account. Sends without a provider template produce the same provider requests as in the release with the SendGrid EU region and the safer SendGrid/Mailgun send paths. To sync SendGrid templates, the API key needs **Template Engine → Read Access** in addition to **Mail Send**.
+
 ### Upgrading to the next release (after 4.4.0)
 
 1. **Stricter failover.** A send whose account fails with HTTP 500/502/504, a network error after the request was sent, or an SMTP connection lost or timed out after the server's `354` reply now throws instead of trying the next account, because that provider may already have delivered it. SMTP `4xx` replies (also `451` after DATA) and HTTP 408 now fail over. Check the provider before re-sending such a mail; with _Queue failed sends_ on, it appears in the Outbox as uncertain.

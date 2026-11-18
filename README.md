@@ -27,6 +27,7 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Outbox with retries.** Opt-in per send or for every failed send: 3 retries by default (after 1, 5 and 15 minutes, configurable from 1 to 10), idempotency keys, and an Outbox tab where you retry, discard or mark uncertain mails as sent.
 - **Delivery webhooks.** Signed SendGrid and Mailgun webhooks record bounces, blocks, complaints, deferrals, deliveries and unsubscribes on the delivery log, feed the suppression list and emit events other plugins can listen to.
 - **Templates.** A visual editor (Unlayer) or plain HTML and text, Mustache variables, versions with restore, import and export, plus the Users & Permissions reset and confirmation mails.
+- **Provider templates.** Keep designing in SendGrid or Mailgun: their templates appear read-only in MagicMail, with preview, test send and the same template data your code already passes. Routing, failover and logs stay in MagicMail, and the password-reset and confirmation mails can use them too.
 - **Analytics.** A delivery log with server-side search, open and click tracking with truncated IPs and configurable retention.
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
 - **Admin in five languages.** English, German, French, Spanish and Portuguese, in light and dark mode.
@@ -77,6 +78,10 @@ All screenshots show synthetic data (`example.test` addresses) on an isolated St
 **Templates**: Reference ID, category and status; edit in the visual or HTML editor, download, duplicate, code snippets, test send.
 
 ![Email templates: totals, the custom and core email tabs, and a table of four templates with ID, name, category, status and actions](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/templates.webp)
+
+**Provider templates**: with a SendGrid or Mailgun account, their templates appear under your own, with the provider, the change date there, the accounts that have them and their status.
+
+![Provider templates: SendGrid and Mailgun templates with provider badge, key, change date at the provider, account and status under the local templates](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/provider-templates.webp)
 
 **Analytics**: totals and the delivery log with server-side search, delivery status, opens and clicks per email.
 
@@ -159,20 +164,33 @@ await strapi.plugin('magic-mail').service('email-router').send({
 // → { success: true, accountUsed: 'Transactional SMTP', messageId: '<…>', emailId: '…' }
 ```
 
-All send options, attachments, unsubscribe headers, provider setup, routing rules and templates: [Sending guide](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md). HTTP routes: [API reference](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md).
+Designed your email in SendGrid or Mailgun? Send the synced template with the same data a MagicMail template gets (only accounts that have the template send it):
+
+```javascript
+await strapi
+  .plugin('magic-mail')
+  .service('email-router')
+  .send({
+    to: 'customer@example.com',
+    providerTemplate: 'sendgrid:welcome-email', // key shown in Email Templates → Provider templates
+    data: { name: 'Ada', user: { email: 'customer@example.com' } },
+  });
+```
+
+All send options, attachments, unsubscribe headers, provider setup, routing rules, templates and [provider templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#provider-templates-sendgrid-mailgun): [Sending guide](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md). HTTP routes: [API reference](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md).
 
 ## Permissions
 
 MagicMail registers six admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
 
-| Action                            | Grants                                                                                                          |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `plugin::magic-mail.access`       | The MagicMail menu entry and page. No API access by itself                                                      |
-| `plugin::magic-mail.read`         | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link |
-| `plugin::magic-mail.manage`       | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                            |
-| `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template test); 10 per minute per admin                    |
-| `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                           |
-| `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                            |
+| Action                            | Grants                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `plugin::magic-mail.access`       | The MagicMail menu entry and page. No API access by itself                                                         |
+| `plugin::magic-mail.read`         | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link    |
+| `plugin::magic-mail.manage`       | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                               |
+| `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template and provider-template test); 10 per minute per admin |
+| `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                              |
+| `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                               |
 
 Typical roles:
 
@@ -256,7 +274,7 @@ npm run verify
 npm run verify:runtime
 ```
 
-`npm run test:live` runs the opt-in suite against the real SendGrid and Mailgun APIs (SendGrid sandbox mode and Mailgun test mode, nothing is delivered; Mailgun bills test-mode messages). It reads `~/.config/magic-mail-live/.env` with `SENDGRID_API_KEY`, `SENDGRID_FROM`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and optionally `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`; without the file every live test is skipped. Never commit that file.
+`npm run test:live` runs the opt-in live suites against the real SendGrid and Mailgun APIs: the send paths (`tests/live/provider-send.live.test.js`), the provider-template flows (`tests/live/provider-templates.live.test.js`) and the rest of the SendGrid integration (`tests/live/sendgrid-account.live.test.js`: restricted API keys, template versions, read-only account checks; it creates temporary `magic-mail-live-*` API keys and templates and deletes them again, so its key needs full access). SendGrid runs in sandbox mode and Mailgun in test mode, so nothing is delivered (Mailgun bills test-mode messages). Credentials come only from `~/.config/magic-mail-live/.env` and are never printed. `LIVE_PROVIDERS` (environment variable or a line in that file) picks the providers: `sendgrid`, `mailgun` or `sendgrid,mailgun`; without it, every provider whose required variables are complete runs. Tests of a provider that is not selected are skipped with the reason. For SendGrid only: `LIVE_PROVIDERS=sendgrid npm run test:live`. Required per provider: SendGrid needs `SENDGRID_API_KEY`, `SENDGRID_FROM`, `LIVE_TEST_RECIPIENT` and, for the template suite, `SENDGRID_TEMPLATE_ID`; Mailgun needs `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and, for the template suite, `MAILGUN_TEMPLATE`. Optional: `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`. Without the file, or when a selected provider misses a variable, the template suite fails with the file name and the missing variable names (the send suite reports those tests as skipped). It never runs in CI. Never commit that file.
 
 `npm run test:admin` renders every admin entry point (the five sections of the MagicMail page with their dialogs, the template editor, the Plugin Settings page) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 

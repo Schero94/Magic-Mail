@@ -821,7 +821,7 @@ test('SEC-15: every admin test-send route is rate limited per admin', () => {
   const testRoutes = admin.filter((route) =>
     route.config.policies?.some((p) => p.config?.actions?.includes('plugin::magic-mail.test-send'))
   );
-  assert.equal(testRoutes.length, 3);
+  assert.equal(testRoutes.length, 4);
   for (const route of testRoutes) {
     assert.deepEqual(route.config.middlewares, [
       {
