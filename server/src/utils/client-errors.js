@@ -47,7 +47,12 @@ function toClientSendMessage(error) {
   const err = error && typeof error === 'object' ? error : {};
   const message = typeof err.message === 'string' ? err.message : '';
 
-  if (SAFE_PASSTHROUGH_CODES.has(err.code) || err.name === 'ValidationError') {
+  if (
+    SAFE_PASSTHROUGH_CODES.has(err.code) ||
+    err.name === 'ValidationError' ||
+    // Provider-template errors name the template key only.
+    err.name === 'ProviderTemplateError'
+  ) {
     return message || 'The email could not be sent.';
   }
   if (SAFE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {

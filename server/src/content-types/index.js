@@ -10,6 +10,7 @@ const emailTemplateVersion = require('./email-template-version/schema.json');
 const pluginSettings = require('./plugin-settings/schema.json');
 const outboxMessage = require('./outbox-message/schema.json');
 const suppressedRecipient = require('./suppressed-recipient/schema.json');
+const providerTemplate = require('./provider-template/schema.json');
 
 module.exports = {
   'email-account': {
@@ -41,5 +42,8 @@ module.exports = {
   },
   'suppressed-recipient': {
     schema: suppressedRecipient,
+  },
+  'provider-template': {
+    schema: providerTemplate,
   },
 };

@@ -10,6 +10,7 @@ const { resolveSendGridRegion, sendGridApiBaseUrl } = require('../utils/sendgrid
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
 const coordination = require('../utils/coordination');
 const { checkRecipientDomains } = require('../utils/recipient-domains');
+const { toPlainJson } = require('../utils/plain-json');
 const {
   classifyDeliveryError,
   combineOutcome,
@@ -69,6 +70,13 @@ const MAILGUN_TAG_MAX_LENGTH = 128;
 const SENDGRID_ERROR_FIELD =
   /^(?:personalizations(?:\.\d{1,4})?(?:\.(?:to|cc|bcc|headers|subject|custom_args|substitutions|dynamic_template_data|send_at)(?:\.\d{1,4})?(?:\.(?:email|name))?)?|from(?:\.(?:email|name))?|reply_to(?:\.(?:email|name))?|reply_to_list(?:\.\d{1,4})?(?:\.(?:email|name))?|subject|content(?:\.\d{1,4})?(?:\.(?:type|value))?|attachments(?:\.\d{1,4})?(?:\.(?:content|type|filename|disposition|content_id))?|headers|custom_args|template_id|categories|send_at|batch_id|asm(?:\.(?:group_id|groups_to_display))?|ip_pool_name|mail_settings(?:\.[a-z_]{1,40}){0,2}|tracking_settings(?:\.[a-z_]{1,40}){0,2})$/;
 const MAX_PROVIDER_FIELDS = 10;
+// Provider template sends: SendGrid documents no limit for
+// dynamic_template_data, only the 30 MB for the whole message above
+// (https://www.twilio.com/docs/sendgrid/api-reference/mail-send/limitations);
+// Magic Mail bounds the variables to 1 MB. Mailgun t:variables count towards
+// the 16 KB send options above.
+const PROVIDER_TEMPLATE_DATA_MAX_BYTES = 1024 * 1024;
+const PROVIDER_TEMPLATE_KEY = /^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/;
 
 // Refresh OAuth tokens this long before they expire (clock skew, slow sends).
 const OAUTH_EXPIRY_SKEW_MS = 60_000;
@@ -312,6 +320,24 @@ function validationError(message, reason) {
 }
 
 /**
+ * Error for a provider-template send that no provider accepted (unknown or
+ * stale template, no account has it, provider rejected it). `fallbackSafe`
+ * marks errors after which sending a different body cannot deliver twice.
+ *
+ * @param {string} message - Client-safe message (names the template only)
+ * @param {string} code
+ * @param {boolean} [fallbackSafe=true]
+ * @returns {Error}
+ */
+function providerTemplateError(message, code, fallbackSafe = true) {
+  const error = new Error(message);
+  error.name = 'ProviderTemplateError';
+  error.code = code;
+  error.magicMailFallbackSafe = fallbackSafe;
+  return error;
+}
+
+/**
  * Error for `queue: true` when the outbox table is missing.
  * @returns {Error}
  */
@@ -369,6 +395,22 @@ function messageTooLargeError(message) {
   const error = validationError(message);
   error.code = 'MAGIC_MAIL_MESSAGE_TOO_LARGE';
   return error;
+}
+
+/**
+ * Size-limit error for a send, thrown before any provider request. A
+ * provider-template send keeps its own code (MAGIC_MAIL_PROVIDER_TEMPLATE_TOO_LARGE,
+ * fallback-safe because nothing was sent); every other send gets
+ * MAGIC_MAIL_MESSAGE_TOO_LARGE (400).
+ *
+ * @param {object|null} template - Result of providerTemplateFor(), or null
+ * @param {string} message - Client-safe message without personal data
+ * @returns {Error}
+ */
+function tooLargeError(template, message) {
+  return template
+    ? providerTemplateError(message, 'MAGIC_MAIL_PROVIDER_TEMPLATE_TOO_LARGE')
+    : messageTooLargeError(message);
 }
 
 /**
@@ -1095,6 +1137,24 @@ function senderFor(account, emailData) {
 }
 
 /**
+ * The provider template this account sends for a provider-template mail, or
+ * null for a normal mail. An account without the template never sends it
+ * (routing only picks accounts that have it; this is the last check).
+ *
+ * @param {object} account
+ * @param {object} emailData
+ * @returns {{remoteId: string, name: string, scope: string, subject: string, variables: object}|null}
+ * @throws {Error} Account configuration error (failover-safe) when the account lacks the template
+ */
+function providerTemplateFor(account, emailData) {
+  const prepared = emailData?.__providerTemplate;
+  if (!prepared) return null;
+  const row = prepared.rowsByAccount?.[account.documentId];
+  if (!row) throw accountConfigError('This account does not have the provider template');
+  return { ...row, variables: prepared.variables };
+}
+
+/**
  * Message-ID for the account's domain. Queue sends pass a stable local part,
  * so every attempt of one queued message uses the same Message-ID.
  *
@@ -1335,6 +1395,18 @@ module.exports = ({ strapi }) => ({
       strapi.log.debug('[magic-mail] [SKIP-TRACK] Link tracking disabled for this email');
     }
 
+    // Provider template (SendGrid / Mailgun): resolved to the accounts that
+    // have it; the provider renders the body from the same `data`.
+    if (data.providerTemplate !== undefined && data.providerTemplate !== null) {
+      const prepared = await this.prepareProviderTemplate(data, options);
+      if (prepared.useFallback) {
+        return this.sendProviderTemplateFallback(input, options, prepared);
+      }
+      data.__providerTemplate = prepared;
+      if (!data.subject && prepared.subject) data.__logSubject = prepared.subject;
+    }
+    delete data.providerTemplate;
+
     // Template rendering (templateId or templateReferenceId).
     let renderedTemplate = null;
     if (data.templateId || data.templateReferenceId) {
@@ -1395,7 +1467,13 @@ module.exports = ({ strapi }) => ({
 
     // Send queue: `queue: true` stores the prepared message for the worker;
     // 'auto' (default) captures failed sends when the owner enabled it.
-    const queueMode = options.queue === true ? 'queue' : options.queue === false ? 'off' : 'auto';
+    const queueMode = data.__providerTemplate
+      ? 'off'
+      : options.queue === true
+        ? 'queue'
+        : options.queue === false
+          ? 'off'
+          : 'auto';
     const explicitAccount = Boolean(options.accountDocumentId || data.accountName);
     const queueService = queueMode === 'off' ? null : this.queueService();
     if (queueMode === 'queue') {
@@ -1507,6 +1585,16 @@ module.exports = ({ strapi }) => ({
         ...(emailLog?.emailId ? { emailId: emailLog.emailId } : {}),
       };
     } catch (error) {
+      if (data.__providerTemplate) {
+        return this.handleProviderTemplateFailure(error, {
+          input,
+          options,
+          data,
+          emailLog,
+          attempted,
+          skipped,
+        });
+      }
       const fallbackAllowed =
         typeof options.fallbackSend === 'function' &&
         ['MAGIC_MAIL_NO_ACCOUNT', 'MAGIC_MAIL_QUOTA_EXHAUSTED'].includes(error?.code);
@@ -1592,6 +1680,163 @@ module.exports = ({ strapi }) => ({
       );
       throw error;
     }
+  },
+
+  /**
+   * Resolves `data.providerTemplate` for a send: validates the key and the
+   * combination with other fields, finds the accounts that have the
+   * template, and converts the template data to bounded plain JSON.
+   *
+   * @param {object} data - Working copy (templateData already resolved)
+   * @param {object} options - send() options
+   * @returns {Promise<object>} Prepared template (`key`, `name`, `subject`,
+   *   `rowsByAccount`, `variables`, `fallbackTemplateReferenceId`) or
+   *   `{ useFallback: true, ... }` when the template can not be used and a
+   *   local fallback template is configured
+   * @throws {Error} ValidationError (400) for invalid input; a
+   *   ProviderTemplateError for an unknown or unusable template
+   */
+  async prepareProviderTemplate(data, options = {}) {
+    const key = data.providerTemplate;
+    if (typeof key !== 'string' || !PROVIDER_TEMPLATE_KEY.test(key)) {
+      throw validationError('providerTemplate must be a synced provider template key');
+    }
+    if (data.templateId || data.templateReferenceId || data.html || data.text) {
+      throw validationError(
+        'providerTemplate can not be combined with html, text, templateId or templateReferenceId'
+      );
+    }
+    if (options.queue === true) {
+      throw validationError('Provider template sends can not be queued');
+    }
+
+    let variables;
+    try {
+      ({ data: variables } = toPlainJson(data.templateData || {}, {
+        maxBytes: PROVIDER_TEMPLATE_DATA_MAX_BYTES,
+      }));
+    } catch (error) {
+      if (error?.name === 'PlainJsonError') {
+        throw validationError(`Invalid template data: ${error.message}`, error.code);
+      }
+      throw error;
+    }
+
+    const service = strapi.plugin('magic-mail').service('provider-templates');
+    const resolved = await service.resolveForSend(key);
+    const prepared = {
+      key,
+      name: resolved.name || key,
+      subject: '',
+      rowsByAccount: {},
+      variables,
+      fallbackTemplateReferenceId: resolved.fallbackTemplateReferenceId,
+    };
+    for (const row of resolved.rows) {
+      prepared.rowsByAccount[row.accountDocumentId] = {
+        remoteId: row.remoteId,
+        name: row.name,
+        scope: row.remoteScope || 'default',
+        subject: row.subject || '',
+      };
+      if (!prepared.subject && row.subject) prepared.subject = row.subject;
+    }
+
+    if (resolved.rows.length === 0) {
+      const error = resolved.known
+        ? providerTemplateError(
+            `Provider template "${prepared.name}" (${key}) is deleted or has no active version at the provider`,
+            'MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE'
+          )
+        : providerTemplateError(
+            `Provider template "${key}" is not synced. Sync the provider templates in Magic Mail first`,
+            'MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN'
+          );
+      if (prepared.fallbackTemplateReferenceId && options.providerTemplateFallback !== false) {
+        strapi.log.warn(
+          `[magic-mail] Provider template ${key} is not usable; sending the configured Magic Mail fallback template`
+        );
+        return { ...prepared, useFallback: true, reason: error.code };
+      }
+      throw error;
+    }
+    if (!data.templateName) data.templateName = prepared.name;
+    return prepared;
+  },
+
+  /**
+   * Sends the configured local fallback template instead of a provider
+   * template, with the same template data (opt-in per template key).
+   *
+   * @param {object} input - Original caller input
+   * @param {object} options - Original options
+   * @param {object} prepared - Result of prepareProviderTemplate()
+   * @returns {Promise<object>} Send result with `fallback: 'magic-mail-template'`
+   */
+  async sendProviderTemplateFallback(input, options, prepared) {
+    const { providerTemplate: _providerTemplate, ...rest } = input;
+    const result = await this.send(
+      {
+        ...rest,
+        templateReferenceId: prepared.fallbackTemplateReferenceId,
+        templateData: input.templateData || input.data || {},
+      },
+      { ...options, queue: false }
+    );
+    return { ...result, fallback: 'magic-mail-template', providerTemplate: prepared.key };
+  },
+
+  /**
+   * Error path of a provider-template send: records the failed attempt and
+   * either sends the configured local fallback template (only when no
+   * provider can have accepted the message) or reports the error unchanged.
+   *
+   * @param {Error} error
+   * @param {object} context - { input, options, data, emailLog, attempted, skipped }
+   * @returns {Promise<object>} The fallback send result
+   * @throws {Error} The original error when no fallback applies
+   */
+  async handleProviderTemplateFailure(
+    error,
+    { input, options, data, emailLog, attempted, skipped }
+  ) {
+    const prepared = data.__providerTemplate;
+    await this.markLog(
+      emailLog,
+      { deliveryStatus: 'failed' },
+      { attempted, skipped, providerTemplate: prepared.key }
+    );
+    const safe =
+      error?.magicMailFallbackSafe === true ||
+      ['MAGIC_MAIL_NO_ACCOUNT', 'MAGIC_MAIL_QUOTA_EXHAUSTED', 'MAGIC_MAIL_ACCOUNT_QUOTA'].includes(
+        error?.code
+      ) ||
+      // Refused before or by the provider (not ambiguous): nothing was accepted.
+      ['transient', 'permanent', 'capacity'].includes(classifyDeliveryError(error));
+    try {
+      Object.defineProperty(error, 'magicMailFallbackSafe', {
+        value: safe,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    } catch {
+      // frozen error
+    }
+    if (
+      safe &&
+      prepared.fallbackTemplateReferenceId &&
+      options.providerTemplateFallback !== false
+    ) {
+      strapi.log.warn(
+        `[magic-mail] Provider template ${prepared.key} failed; sending the configured Magic Mail fallback template`
+      );
+      return this.sendProviderTemplateFallback(input, options, prepared);
+    }
+    strapi.log.error(
+      `[magic-mail] [ERROR] Provider template send failed: ${error?.name || 'Error'} (${sanitizeErrorCode(error)})`
+    );
+    throw error;
   },
 
   /**
@@ -1777,7 +2022,7 @@ module.exports = ({ strapi }) => ({
         to: data.to,
         userId: data.userId || null,
         recipientName: data.recipientName || null,
-        subject: data.subject,
+        subject: data.subject || data.__logSubject,
         templateId: data.templateId || null,
         templateReferenceId:
           data.templateReferenceId || renderedTemplate?.templateReferenceId || null,
@@ -1791,6 +2036,15 @@ module.exports = ({ strapi }) => ({
           hasAttachments: data.attachments.length > 0,
           tracking: data.enableTracking !== false && Boolean(data.html),
           source,
+          // Template key and variable names only, never the values.
+          ...(data.__providerTemplate
+            ? {
+                providerTemplate: {
+                  key: data.__providerTemplate.key,
+                  variables: Object.keys(data.__providerTemplate.variables).slice(0, 100),
+                },
+              }
+            : {}),
         },
       });
     } catch (error) {
@@ -2030,6 +2284,27 @@ module.exports = ({ strapi }) => ({
    * @throws {Error} When the requested account does not exist or is inactive
    */
   async resolveExplicitAccount(data, ctx) {
+    const account = await this.resolveExplicitAccountOnly(data, ctx);
+    if (
+      account &&
+      data.__providerTemplate &&
+      !data.__providerTemplate.rowsByAccount[account.documentId]
+    ) {
+      throw providerTemplateError(
+        `The requested account does not have the provider template "${data.__providerTemplate.key}"`,
+        'MAGIC_MAIL_PROVIDER_TEMPLATE_ACCOUNT'
+      );
+    }
+    return account;
+  },
+
+  /**
+   * Explicit account lookup without the provider-template check.
+   *
+   * @returns {Promise<object|undefined>}
+   * @throws {Error} When the requested account does not exist or is inactive
+   */
+  async resolveExplicitAccountOnly(data, ctx) {
     if (ctx.accountDocumentId) {
       const account = await strapi
         .documents(EMAIL_ACCOUNT_UID)
@@ -2066,11 +2341,22 @@ module.exports = ({ strapi }) => ({
     if (excludeDocumentIds.length > 0) {
       filters.documentId = { $notIn: excludeDocumentIds };
     }
+    // A provider template is only routed to accounts where the sync found it.
+    const templateAccounts = emailData.__providerTemplate
+      ? Object.keys(emailData.__providerTemplate.rowsByAccount)
+      : null;
+    if (templateAccounts) {
+      filters.documentId = { ...(filters.documentId || {}), $in: templateAccounts };
+    }
 
-    const accounts = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
+    const found = await strapi.documents(EMAIL_ACCOUNT_UID).findMany({
       filters,
       sort: [{ priority: 'desc' }],
     });
+    const accounts =
+      templateAccounts && Array.isArray(found)
+        ? found.filter((a) => templateAccounts.includes(a.documentId))
+        : found;
     if (!accounts || accounts.length === 0) return null;
 
     // Same order as GET /routing-rules (the admin list), so rules with equal
@@ -2192,6 +2478,9 @@ module.exports = ({ strapi }) => ({
   },
 
   async sendViaAccount(account, emailData) {
+    if (emailData?.__providerTemplate && !['sendgrid', 'mailgun'].includes(account.provider)) {
+      throw accountConfigError('Provider templates are sent through SendGrid or Mailgun only');
+    }
     if (account.provider === 'gmail-oauth') return this.sendViaGmailOAuth(account, emailData);
     if (account.provider === 'microsoft-oauth')
       return this.sendViaMicrosoftOAuth(account, emailData);
@@ -2743,6 +3032,7 @@ module.exports = ({ strapi }) => ({
     if (!config.apiKey) throw accountConfigError('SendGrid API key not configured');
     const region = resolveSendGridRegion(config.region);
     if (!region) throw accountConfigError('SendGrid region must be "us" or "eu"');
+    const template = providerTemplateFor(account, emailData);
 
     this.validateEmailSecurity(emailData);
 
@@ -2756,15 +3046,27 @@ module.exports = ({ strapi }) => ({
       if (recipients.bcc.length > 0) personalization.bcc = recipients.bcc;
 
       const sender = senderFor(account, emailData);
+      if (template) {
+        // Dynamic template: the provider renders subject and body from the
+        // same data a local template gets (Handlebars, top-level keys).
+        personalization.dynamic_template_data = template.variables;
+      }
       const magicmailId = magicmailIdOf(emailData);
       const msg = {
         personalizations: [personalization],
         from: { email: sender.address, ...(sender.name ? { name: sender.name } : {}) },
-        subject: stripHeaderInjection(emailData.subject),
-        content: [
-          ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
-          ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
-        ],
+        ...(template
+          ? {
+              template_id: template.remoteId,
+              ...(emailData.subject ? { subject: stripHeaderInjection(emailData.subject) } : {}),
+            }
+          : {
+              subject: stripHeaderInjection(emailData.subject),
+              content: [
+                ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
+                ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
+              ],
+            }),
         // SendGrid v3 uses snake_case `custom_args`; values must be strings.
         custom_args: {
           magicmail_version: '1.0',
@@ -2809,7 +3111,8 @@ module.exports = ({ strapi }) => ({
 
       const body = JSON.stringify(msg);
       if (Buffer.byteLength(body) >= SENDGRID_MAX_MESSAGE_BYTES) {
-        throw messageTooLargeError(
+        throw tooLargeError(
+          template,
           'The message is larger than SendGrid accepts (30 MB including attachments)'
         );
       }
@@ -2886,6 +3189,13 @@ module.exports = ({ strapi }) => ({
     if (!region) {
       throw accountConfigError('Mailgun region must be "us" or "eu"');
     }
+    const template = providerTemplateFor(account, emailData);
+    if (template && !emailData.subject && !template.subject) {
+      throw providerTemplateError(
+        `The Mailgun template "${template.name}" has no Subject header. Add one at Mailgun or pass a subject`,
+        'MAGIC_MAIL_PROVIDER_TEMPLATE_NO_SUBJECT'
+      );
+    }
 
     this.validateEmailSecurity(emailData);
 
@@ -2897,9 +3207,19 @@ module.exports = ({ strapi }) => ({
       form.append('to', joinAddrs(emailData.to));
       if (emailData.cc) form.append('cc', joinAddrs(emailData.cc));
       if (emailData.bcc) form.append('bcc', joinAddrs(emailData.bcc));
-      form.append('subject', stripHeaderInjection(emailData.subject));
-      if (emailData.html) form.append('html', emailData.html);
-      if (emailData.text) form.append('text', emailData.text);
+      if (template) {
+        // The template's Subject header is used unless a subject is set.
+        if (emailData.subject) form.append('subject', stripHeaderInjection(emailData.subject));
+        // Domain templates are sent by name; account-level templates by id,
+        // which Mailgun recommends for use across domains.
+        form.append('template', template.scope === 'account' ? template.remoteId : template.name);
+        form.append('t:variables', JSON.stringify(template.variables));
+        form.append('t:text', 'yes');
+      } else {
+        form.append('subject', stripHeaderInjection(emailData.subject));
+        if (emailData.html) form.append('html', emailData.html);
+        if (emailData.text) form.append('text', emailData.text);
+      }
 
       const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
       if (replyTo) form.append('h:Reply-To', replyTo.map(formatAddress).join(', '));
@@ -2923,8 +3243,11 @@ module.exports = ({ strapi }) => ({
       if (tag) form.append('o:tag', tag);
 
       if (mailgunOptionBytes(form) > MAILGUN_MAX_OPTIONS_BYTES) {
-        throw messageTooLargeError(
-          'Headers and send options are larger than Mailgun accepts (16 KB in total)'
+        throw tooLargeError(
+          template,
+          template
+            ? 'Template data and headers are larger than Mailgun accepts (16 KB for all send options)'
+            : 'Headers and send options are larger than Mailgun accepts (16 KB in total)'
         );
       }
 
@@ -2937,7 +3260,8 @@ module.exports = ({ strapi }) => ({
       }
 
       if (estimateMailgunMessageBytes(form) >= MAILGUN_MAX_MESSAGE_BYTES) {
-        throw messageTooLargeError(
+        throw tooLargeError(
+          template,
           'The message is larger than Mailgun accepts (25 MB including attachments)'
         );
       }
@@ -3228,6 +3552,9 @@ module.exports = ({ strapi }) => ({
     emailData.to = validateRecipients(emailData.to, 'to', MAX_TO_RECIPIENTS);
     emailData.cc = validateRecipients(emailData.cc, 'cc', MAX_COPY_RECIPIENTS);
     emailData.bcc = validateRecipients(emailData.bcc, 'bcc', MAX_COPY_RECIPIENTS);
+
+    // Provider templates bring their own subject and body.
+    if (emailData.__providerTemplate) return;
 
     const { subject, html, text } = emailData;
     if (typeof subject !== 'string' || subject.trim().length === 0) {

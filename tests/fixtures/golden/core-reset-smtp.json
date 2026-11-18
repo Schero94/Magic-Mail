@@ -1,0 +1,49 @@
+{
+  "transport": {
+    "host": "smtp.example.test",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "u",
+      "pass": "p"
+    },
+    "requireTLS": true,
+    "tls": {
+      "rejectUnauthorized": true,
+      "minVersion": "TLSv1.2"
+    },
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "transactionLog": true,
+    "logger": true
+  },
+  "options": {
+    "from": {
+      "name": "Golden Sender",
+      "address": "noreply@smtp.example.test"
+    },
+    "to": "user@example.test",
+    "replyTo": [
+      {
+        "name": "",
+        "address": "support@example.test"
+      }
+    ],
+    "subject": "Reset password",
+    "text": "<p>We heard that you lost your password.</p><p>https://app.example.test/reset?code=0123456789abcdef</p>",
+    "html": "<p>We heard that you lost your password.</p><p>https://app.example.test/reset?code=0123456789abcdef</p><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />",
+    "attachments": [],
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "date": "<DATE>",
+    "messageId": "<<MSGID-LOCAL>@smtp.example.test>",
+    "headers": {
+      "X-Mailer": "MagicMail/1.0",
+      "X-Email-Type": "transactional",
+      "X-Content-Type-Options": "nosniff",
+      "X-Entity-Ref-ID": "magicmail-<NOW>"
+    },
+    "encoding": "utf-8",
+    "textEncoding": "base64"
+  }
+}

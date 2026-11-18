@@ -1,0 +1,79 @@
+{
+  "request": {
+    "url": "https://api.sendgrid.com/v3/mail/send",
+    "method": "POST",
+    "headers": {
+      "Authorization": "<redacted>",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "json": {
+        "personalizations": [
+          {
+            "to": [
+              {
+                "email": "ada@example.test"
+              }
+            ]
+          }
+        ],
+        "from": {
+          "email": "noreply@sendgrid.example.test",
+          "name": "Golden Sender"
+        },
+        "subject": "Welcome Ada <Lovelace> & friends",
+        "content": [
+          {
+            "type": "text/plain",
+            "value": "HELLO \n\nada@example.test\n\nOneTwo & three<strong>raw</strong>\nShop [https://shop.example.test/a?x=1]"
+          },
+          {
+            "type": "text/html",
+            "value": "<html><body><h1>Hello Ada &lt;Lovelace&gt;</h1><p>ada@example.test</p><li>One</li><li>Two &amp; three</li><div><strong>raw</strong></div><a href=\"https://track.example.test/c/1\">Shop</a></body></html><img src=\"https://track.example.test/api/magic-mail/track/open/emailgolden1\" />"
+          }
+        ],
+        "custom_args": {
+          "magicmail_version": "1.0",
+          "email_type": "transactional",
+          "priority": "normal",
+          "magicmail_id": "golddoc1"
+        },
+        "headers": {
+          "X-Campaign": "golden",
+          "X-Mailer": "MagicMail/1.0",
+          "X-Email-Type": "transactional"
+        },
+        "tracking_settings": {
+          "click_tracking": {
+            "enable": false
+          },
+          "open_tracking": {
+            "enable": false
+          }
+        },
+        "reply_to": {
+          "email": "support@example.test"
+        }
+      }
+    }
+  },
+  "log": {
+    "to": "ada@example.test",
+    "userId": null,
+    "recipientName": null,
+    "subject": "Welcome Ada <Lovelace> & friends",
+    "templateId": null,
+    "templateReferenceId": "4242",
+    "templateName": "Golden welcome",
+    "accountId": null,
+    "accountName": null,
+    "messageIdLocal": "<MSGID-LOCAL>",
+    "metadata": {
+      "type": "transactional",
+      "priority": "normal",
+      "hasAttachments": false,
+      "tracking": true,
+      "source": "service"
+    }
+  }
+}

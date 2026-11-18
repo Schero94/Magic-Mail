@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { createLogger } = require('./utils/logger');
 const coordination = require('./utils/coordination');
+const { buildCoreMailPayload, createCoreMailCapture } = require('./utils/core-mail-payload');
 
 /** Marks functions installed by MagicMail so hot reloads never stack wrappers. */
 const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
@@ -199,6 +200,13 @@ function installEmailInterception(strapi, log) {
     const routedSend = async (options = {}) => {
       const payload = { ...options };
       if (payload.data && !payload.templateData) payload.templateData = payload.data;
+      const coreMail = registry.coreMailCapture?.take(payload.html || payload.text) || null;
+      if (coreMail) {
+        const routed = await routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, () =>
+          callOriginal(options)
+        );
+        if (routed) return routed.result;
+      }
       log.debug('[EMAIL] Routing native Strapi email through MagicMail');
       return emailRouter().send(payload, {
         source: 'strapi-email',
@@ -231,11 +239,124 @@ function installEmailInterception(strapi, log) {
     }
   }
 
+  installCoreMailCapture(strapi, log);
+
   const active = wrapProvider();
   if (!active) {
     log.info('[EMAIL] Email provider not initialised yet; it is routed on first use');
   }
   return active || Boolean(service);
+}
+
+/**
+ * Records the variables users-permissions renders its core mails with.
+ *
+ * users-permissions builds the password-reset and email-confirmation bodies
+ * with its own `template(layout, data)` and then sends finished HTML, so the
+ * variables (URL, TOKEN/CODE, USER, ...) never reach the email provider.
+ * MagicMail wraps that synchronous function: the result is returned
+ * unchanged, and the allowlisted variables are kept for five minutes keyed by
+ * a hash of the rendered body, so the provider wrapper can send a core mail
+ * through a provider template with the same values.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @returns {boolean} true when the capture is installed
+ * @sideeffect Replaces `template` on the users-permissions service (restored
+ *   by uninstallEmailInterception); keeps core-mail variables in memory.
+ */
+function installCoreMailCapture(strapi, log) {
+  const registry = strapi.magicMail;
+  registry.coreMailCapture = registry.coreMailCapture || createCoreMailCapture();
+  let service = null;
+  try {
+    service =
+      typeof strapi.plugin === 'function' && strapi.plugin('users-permissions')
+        ? strapi.plugin('users-permissions').service('users-permissions')
+        : null;
+  } catch {
+    service = null;
+  }
+  if (!service || typeof service.template !== 'function') return false;
+  if (service.template[WRAPPED]) return true;
+
+  const original = service.template;
+  const capture = registry.coreMailCapture;
+  const wrapped = function magicMailTemplateCapture(layout, data) {
+    const rendered = original.call(this && this !== globalThis ? this : service, layout, data);
+    try {
+      capture.remember(rendered, data);
+    } catch {
+      // Recording is best effort; the rendered body is returned unchanged.
+    }
+    return rendered;
+  };
+  wrapped[WRAPPED] = true;
+  registry.usersPermissionsService = service;
+  registry.originalTemplate = original;
+  service.template = wrapped;
+  log.debug('[EMAIL] Core email variables are recorded for provider templates');
+  return true;
+}
+
+/**
+ * Sends a core mail (password reset, email confirmation) through the
+ * provider template chosen for it, with the v1 core-mail payload.
+ *
+ * Strict by default: a provider-template error reaches users-permissions and
+ * no other body is sent. With "send the Magic Mail designer version instead"
+ * enabled, the original mail is sent when no provider accepted the message.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @param {{coreEmailType: string, data: object}} coreMail - Recorded variables
+ * @param {object} payload - The mail users-permissions sends
+ * @param {() => Promise<any>} callOriginal - Native provider send
+ * @returns {Promise<{result: object}|null>} null when the core mail uses the designer
+ * @throws {Error} The provider-template error (strict mode)
+ */
+async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, callOriginal) {
+  let design;
+  try {
+    design = await strapi
+      .plugin('magic-mail')
+      .service('provider-templates')
+      .coreDesignFor(coreMail.coreEmailType);
+  } catch (error) {
+    log.warn(`[EMAIL] Core email design could not be read: ${error?.name || 'Error'}`);
+    return null;
+  }
+  if (!design) return null;
+
+  const router = strapi.plugin('magic-mail').service('email-router');
+  // The designer body and subject are replaced by the provider template.
+  const { html, text, subject, data, templateData, ...rest } = payload;
+  const providerPayload = {
+    ...rest,
+    providerTemplate: design.providerTemplate,
+    templateData: buildCoreMailPayload(coreMail.coreEmailType, coreMail.data, {
+      templateKey: design.providerTemplate,
+    }),
+  };
+  log.debug('[EMAIL] Routing a core email through its provider template');
+  try {
+    return {
+      result: await router.send(providerPayload, {
+        source: 'strapi-email',
+        providerTemplateFallback: false,
+      }),
+    };
+  } catch (error) {
+    if (design.fallbackToDesigner && error?.magicMailFallbackSafe === true) {
+      log.warn(
+        '[EMAIL] Provider template for a core email failed; sending the Magic Mail designer version'
+      );
+      return {
+        result: await router.send(payload, { source: 'strapi-email', fallbackSend: callOriginal }),
+      };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -260,6 +381,14 @@ function uninstallEmailInterception(strapi) {
   }
   registry.emailService = null;
   registry.originalServiceMethods = {};
+
+  const upService = registry.usersPermissionsService;
+  if (upService && registry.originalTemplate && upService.template?.[WRAPPED]) {
+    upService.template = registry.originalTemplate;
+  }
+  registry.usersPermissionsService = null;
+  registry.originalTemplate = null;
+  registry.coreMailCapture?.clear?.();
 }
 
 /**
@@ -415,6 +544,8 @@ function logSecretFingerprints(strapi) {
 }
 
 module.exports.installEmailInterception = installEmailInterception;
+module.exports.installCoreMailCapture = installCoreMailCapture;
+module.exports.routeCoreMailToProviderTemplate = routeCoreMailToProviderTemplate;
 module.exports.uninstallEmailInterception = uninstallEmailInterception;
 module.exports.purgeSensitiveLinkMappings = purgeSensitiveLinkMappings;
 module.exports.WRAPPED = WRAPPED;

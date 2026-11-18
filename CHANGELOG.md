@@ -1,3 +1,29 @@
+## [Unreleased]
+
+### Added
+
+* **provider templates:** SendGrid dynamic templates and Mailgun templates (domain and account level) appear read-only under **Email Templates → Provider templates** as soon as a SendGrid or Mailgun account exists. Sync reads them with the stored account key (never writes to the provider), follows the providers' pagination, uses the EU hosts for EU accounts, and refreshes itself when the list is older than 10 minutes. A template whose remote id disappears but whose name still exists on the account (a database moved to another environment) is matched by name.
+* **provider templates:** preview dialog with a sandboxed preview, the detected variables, a code example, a test send (to your own admin address by default, with the same sample values as local templates), an optional local fallback template, and **Copy as Magic Mail template** (HTML copy; Handlebars blocks become Mustache sections and anything that does not carry over is listed).
+* **sending:** `send({ to, providerTemplate: '<provider>:<slug>', data })` sends a synced template. The same `data` object that local templates render with Mustache is sent as SendGrid `dynamic_template_data` or Mailgun `t:variables`, converted to plain JSON (dates as ISO strings, no functions, no cycles) and checked against the provider limits (Mailgun: 16 KB for all send options; Magic Mail bounds template data to 1 MB). Routing, rules, failover, quotas and logs work as before, but only between accounts that have the template. Strict by default: a missing template or a provider refusal is a clear error; a local fallback template is sent only when it is configured and no provider accepted the message. The log stores the template key and variable names, never the values.
+* **core emails:** password reset and email confirmation can use a provider template (**Core emails → Design**). Magic Mail sends the familiar users-permissions names (`URL`, `TOKEN`/`CODE`, `USER`, `SERVER_URL`, `ADMIN_URL`) plus `url` (the finished link), `baseUrl`, `serverUrl`, `adminUrl`, `user`, `token`/`code` and `meta` (`templateKey`, `payloadVersion: 1`, `coreEmailType`). `USER` contains only `id`, `email`, `username`, `firstname`, `lastname`. Optional fallback to the Magic Mail designer version. A red notice on the Core emails tab and the dashboard names core emails whose template is not available.
+* **templates:** **Convert for SendGrid or Mailgun** in the code snippets dialog turns a local template's Mustache logic into Handlebars for upload at the provider.
+* **admin API:** `GET /magic-mail/provider-templates`, `POST /magic-mail/provider-templates/sync`, `GET /magic-mail/provider-templates/:key`, `POST /magic-mail/provider-templates/:key/test-send`, `PUT /magic-mail/provider-templates/:key/settings`, `POST /magic-mail/provider-templates/:key/copy`, `GET /magic-mail/designer/templates/:id/provider-html`, `GET /magic-mail/designer/core-designs`, `PUT /magic-mail/designer/core/:coreEmailType/design`. Existing permissions: `read` (sync is read-only at the provider and rate limited), `test-send`, `manage`; the core-email routes also need the users-permissions email-template permissions.
+
+### Security
+
+* Provider ids are never accepted from callers, only synced keys. The public Content API send routes do not accept `providerTemplate`.
+* Template previews render in a sandboxed iframe without scripts. Provider requests go only to the fixed SendGrid and Mailgun hosts, with timeouts and response size limits; paging URLs from the provider are never requested directly.
+
+### Migration
+
+* Provider templates: nothing to do. A new collection `magic_mail_provider_templates` is created on start; nothing changes for accounts without SendGrid or Mailgun. Sends without a provider template are byte-identical to 4.7.0 (golden payload tests). Provider-template sends are not queued in the outbox in this release.
+* To sync SendGrid templates, the SendGrid key also needs **Template Engine → Read Access** (sending alone needs only **Mail Send**).
+
+### Verification
+
+* SendGrid: tested live against the real SendGrid API on 2026-11-18, every send in sandbox mode: template sync with pagination, variable detection and preview, template sends, unknown and malformed template ids, the 1 MB data bound, and the template life cycle with temporary templates (no version, a first and a second active version, deleted and re-created under the same name, deleted for good). Temporary objects were deleted afterwards. The EU host could not be tested live (no EU subuser).
+* Mailgun: verified against Mailgun's official OpenAPI specification and with tests, but not yet against the live Mailgun API. Please report anything unexpected.
+
 # [4.7.0](https://github.com/Schero94/Magic-Mail/compare/v4.6.3...v4.7.0) (2026-11-18)
 
 

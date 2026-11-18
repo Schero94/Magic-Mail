@@ -11,7 +11,8 @@ const expected = {
   accounts: 7,
   'routing-rules': 5,
   oauth: 8,
-  designer: 19,
+  designer: 22,
+  'provider-templates': 6,
   analytics: 7,
   settings: 2,
   outbox: 7,
@@ -35,6 +36,7 @@ const category = (scope, route) => {
   if (route.path.startsWith('/routing-rules')) return 'routing-rules';
   if (route.path.startsWith('/oauth')) return 'oauth';
   if (route.path.startsWith('/designer')) return 'designer';
+  if (route.path.startsWith('/provider-templates')) return 'provider-templates';
   if (route.path.startsWith('/outbox') || route.path === '/analytics/queue-stats') return 'outbox';
   if (route.path.startsWith('/analytics')) return 'analytics';
   if (route.path === '/settings') return 'settings';
@@ -99,9 +101,13 @@ test('admin routes require the matching least-privilege capability', () => {
     if (
       route.path === '/accounts/:accountId/test' ||
       route.path === '/test-strapi-service' ||
-      route.path === '/designer/templates/:id/test-send'
+      route.path === '/designer/templates/:id/test-send' ||
+      route.path === '/provider-templates/:key/test-send'
     )
       return 'test-send';
+
+    // Syncing provider templates only reads the provider (rate limited).
+    if (route.path === '/provider-templates/sync') return 'read';
 
     if (
       route.path === '/oauth/gmail/auth' ||
@@ -137,7 +143,9 @@ test('admin routes require the matching least-privilege capability', () => {
     );
     // users-permissions email templates also need the users-permissions grant.
     const extra =
-      route.path === '/designer/core/:coreEmailType'
+      route.path === '/designer/core/:coreEmailType' ||
+      route.path === '/designer/core/:coreEmailType/design' ||
+      route.path === '/designer/core-designs'
         ? [
             `plugin::users-permissions.email-templates.${route.method === 'GET' ? 'read' : 'update'}`,
           ]
