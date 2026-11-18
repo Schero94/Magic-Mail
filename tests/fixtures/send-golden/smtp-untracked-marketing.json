@@ -1,0 +1,75 @@
+{
+  "transport": {
+    "host": "smtp.example.test",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "u",
+      "pass": "p"
+    },
+    "requireTLS": true,
+    "tls": {
+      "rejectUnauthorized": true,
+      "minVersion": "TLSv1.2"
+    },
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "transactionLog": true,
+    "logger": true
+  },
+  "options": {
+    "from": {
+      "name": "Golden Sender",
+      "address": "noreply@smtp.example.test"
+    },
+    "to": ["ada@example.test", "bob@example.test"],
+    "cc": "carol@example.test",
+    "bcc": ["dave@example.test"],
+    "replyTo": [
+      {
+        "name": "",
+        "address": "support@example.test"
+      }
+    ],
+    "subject": "Golden order 42",
+    "text": "Hello\nShop https://shop.example.test/a?x=1",
+    "html": "<p>Hello</p><a href=\"https://shop.example.test/a?x=1\">Shop</a><img src=\"cid:logo\" />",
+    "attachments": [
+      {
+        "filename": "receipt.txt",
+        "content": {
+          "buffer": "cmVjZWlwdCBib2R5"
+        },
+        "contentType": "text/plain",
+        "contentDisposition": "attachment"
+      },
+      {
+        "content": {
+          "buffer": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        },
+        "contentType": "image/png",
+        "cid": "logo",
+        "contentDisposition": "inline"
+      }
+    ],
+    "disableFileAccess": true,
+    "disableUrlAccess": true,
+    "date": "<DATE>",
+    "messageId": "<<MSGID-LOCAL>@smtp.example.test>",
+    "headers": {
+      "X-Campaign": "golden",
+      "List-Id": "<news.example.test>",
+      "X-Mailer": "MagicMail/1.0",
+      "X-Email-Type": "marketing",
+      "X-Priority": "1 (Highest)",
+      "Importance": "high",
+      "List-Unsubscribe": "<https://example.test/unsub>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      "Precedence": "bulk",
+      "X-Content-Type-Options": "nosniff",
+      "X-Entity-Ref-ID": "magicmail-<NOW>"
+    },
+    "encoding": "utf-8",
+    "textEncoding": "base64"
+  }
+}

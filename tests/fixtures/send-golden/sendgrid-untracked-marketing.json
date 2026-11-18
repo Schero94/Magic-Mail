@@ -1,0 +1,83 @@
+{
+  "url": "https://api.sendgrid.com/v3/mail/send",
+  "method": "POST",
+  "headers": {
+    "Authorization": "<redacted>",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "json": {
+      "personalizations": [
+        {
+          "to": [
+            {
+              "email": "ada@example.test"
+            },
+            {
+              "email": "bob@example.test"
+            }
+          ],
+          "cc": [
+            {
+              "email": "carol@example.test"
+            }
+          ],
+          "bcc": [
+            {
+              "email": "dave@example.test"
+            }
+          ]
+        }
+      ],
+      "from": {
+        "email": "noreply@sendgrid.example.test",
+        "name": "Golden Sender"
+      },
+      "subject": "Golden order 42",
+      "content": [
+        {
+          "type": "text/plain",
+          "value": "Hello\nShop https://shop.example.test/a?x=1"
+        },
+        {
+          "type": "text/html",
+          "value": "<p>Hello</p><a href=\"https://shop.example.test/a?x=1\">Shop</a><img src=\"cid:logo\" />"
+        }
+      ],
+      "custom_args": {
+        "magicmail_version": "1.0",
+        "email_type": "marketing",
+        "priority": "high"
+      },
+      "headers": {
+        "X-Campaign": "golden",
+        "List-Id": "<news.example.test>",
+        "X-Mailer": "MagicMail/1.0",
+        "X-Email-Type": "marketing",
+        "X-Priority": "1 (Highest)",
+        "Importance": "high",
+        "List-Unsubscribe": "<https://example.test/unsub>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        "Precedence": "bulk"
+      },
+      "reply_to": {
+        "email": "support@example.test"
+      },
+      "attachments": [
+        {
+          "content": "cmVjZWlwdCBib2R5",
+          "filename": "receipt.txt",
+          "type": "text/plain",
+          "disposition": "attachment"
+        },
+        {
+          "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+          "filename": "logo",
+          "type": "image/png",
+          "disposition": "inline",
+          "content_id": "logo"
+        }
+      ]
+    }
+  }
+}
