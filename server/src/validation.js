@@ -609,18 +609,6 @@ const schemas = {
         .refine((value) => Object.keys(value).length <= 20, {
           message: 'At most 20 custom headers',
         })
-        // Names plus values; keeps caller headers inside every provider's
-        // limit (Mailgun: 16 KB for all send options).
-        .refine(
-          (value) =>
-            Object.entries(value).reduce(
-              (total, [name, header]) =>
-                total + Buffer.byteLength(name) + Buffer.byteLength(String(header)),
-              0
-            ) <=
-            8 * 1024,
-          { message: 'Custom headers may use at most 8 KB in total' }
-        )
         .optional(),
     })
     .strict(),

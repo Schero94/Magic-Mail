@@ -129,7 +129,7 @@ test('SG-3: X-SG-ID and X-SG-EID are never passed on, in any spelling', async ()
 
 // ── MG-SEND-2: header budget ──────────────────────────────────────────────
 
-test('MG-SEND-2: caller headers are limited to 8 KB in total (service and Content API)', () => {
+test('MG-SEND-2: caller headers are limited to 8 KB in total by the service; the Content API keeps its rules', () => {
   const { filterCustomHeaders, MAX_CUSTOM_HEADER_BYTES } = routerInternals();
   assert.equal(MAX_CUSTOM_HEADER_BYTES, 8192);
   const big = {};
@@ -142,29 +142,18 @@ test('MG-SEND-2: caller headers are limited to 8 KB in total (service and Conten
   assert.equal(Object.keys(kept).length, 2);
   assert.ok(bytes <= 8192);
 
-  // Content API: each value is at most 1000 characters; 9 of them exceed 8 KB.
+  // Content API: no extra total-size rule (would be a stricter public
+  // validation); the service budget and the Mailgun 16 KB precheck apply.
   const { validate } = require('../server/src/validation');
   const headersOf = (count) =>
     Object.fromEntries(Array.from({ length: count }, (_, i) => [`X-H${i}`, 'v'.repeat(1000)]));
-  assert.throws(
-    () =>
-      validate('content.send', {
-        to: 'a@example.test',
-        subject: 's',
-        text: 't',
-        headers: headersOf(9),
-      }),
-    (error) =>
-      error.name === 'ValidationError' &&
-      JSON.stringify(error.details).includes('at most 8 KB in total')
-  );
   const ok = validate('content.send', {
     to: 'a@example.test',
     subject: 's',
     text: 't',
-    headers: headersOf(8),
+    headers: headersOf(9),
   });
-  assert.equal(Object.keys(ok.headers).length, 8);
+  assert.equal(Object.keys(ok.headers).length, 9);
 });
 
 test('MG-SEND-2: Mailgun send options above 16 KB are refused before any request', async () => {
