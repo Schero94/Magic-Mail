@@ -1,4 +1,10 @@
-## [Unreleased]
+# [4.7.0](https://github.com/Schero94/Magic-Mail/compare/v4.6.3...v4.7.0) (2026-11-18)
+
+
+### Features
+
+* **providers:** SendGrid EU region and safer SendGrid/Mailgun send paths ([#23](https://github.com/Schero94/Magic-Mail/issues/23)) ([f949c98](https://github.com/Schero94/Magic-Mail/commit/f949c98f243fb01ebe50f568da9ac9b40b69600d))
+
 
 ### Added
 
