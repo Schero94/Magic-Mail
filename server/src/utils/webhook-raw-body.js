@@ -11,7 +11,13 @@
  * the already consumed stream alone; the route handler parses the buffer.
  */
 
-const DEFAULT_LIMIT_BYTES = 512 * 1024;
+/**
+ * Default body limit. SendGrid posts batches of up to 768 KB ("Events post
+ * within approximately 30 seconds or when the batch size reaches 768
+ * kilobytes", Event Webhook overview); 1 MiB leaves headroom. Configurable
+ * with `webhooks.maxBodyBytes` (64 KiB to 5 MiB).
+ */
+const DEFAULT_LIMIT_BYTES = 1024 * 1024;
 const RAW_BODY_CONTENT_TYPE = 'application/x-magic-mail-webhook';
 
 /**

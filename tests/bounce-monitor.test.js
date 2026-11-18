@@ -192,6 +192,7 @@ test('IMAP: a Gmail-style bounce marks the matching log bounced and emits for Ma
           provider: 'mailbox',
           messageId: 'a1b2c3d4e5f6a7b8c9d0e1f2@sender.example',
           reasonCode: 'DNS_NXDOMAIN',
+          primary: true,
         },
       },
     ]);
@@ -212,6 +213,47 @@ test('IMAP: a Gmail-style bounce marks the matching log bounced and emits for Ma
     assert.equal(tables[EVENT_UID].rows.length, 1, 'soft bounce of an unknown mail: no event row');
     assert.equal(account.bounceMonitorState.totalBounced, 1);
     assert.equal(account.bounceMonitorState.totalDeferred, 1);
+  } finally {
+    await imap.close();
+  }
+});
+
+test('IMAP: a bounce for a CC recipient leaves the primary log untouched (MM-DO-7)', async () => {
+  const imap = await startFakeImap();
+  try {
+    const { monitor, tables, events } = makeStrapi({
+      accounts: [imapAccount(imap.port)],
+      logs: [
+        {
+          id: 1,
+          documentId: 'log1',
+          // The report names pool-user-1@nowhere.test, a CC of this send.
+          recipient: 'primary@nowhere.test',
+          accountId: 'accImap',
+          sentAt: new Date(),
+          messageIdLocal: 'a1b2c3d4e5f6a7b8c9d0e1f2',
+          providerMessageId: 'a1b2c3d4e5f6a7b8c9d0e1f2@sender.example',
+          deliveryStatus: 'sent',
+        },
+      ],
+      settings: { suppressHardBounces: true },
+    });
+    plainImapHook(monitor);
+    imap.add(fixture('gmail-address-not-found.eml'));
+    const result = await monitor.pollAccount(tables[ACCOUNT_UID].rows[0]);
+    assert.equal(result.bounced, 1);
+    const log = tables[LOG_UID].rows[0];
+    assert.equal(log.bounced, undefined);
+    assert.equal(log.deliveryStatus, 'sent');
+    const event = tables[EVENT_UID].rows[0];
+    assert.equal(event.type, 'bounce');
+    assert.equal(event.metadata.primary, false);
+    assert.equal(event.metadata.recipient, 'p***@nowhere.test');
+    assert.equal(events[0].payload.primary, false);
+    // The CC address itself is suppressed; the primary recipient is not.
+    assert.equal(tables[SUPPRESSED_UID].rows.length, 1);
+    assert.equal(await monitor.isSuppressed('pool-user-1@nowhere.test'), true);
+    assert.equal(await monitor.isSuppressed('primary@nowhere.test'), false);
   } finally {
     await imap.close();
   }
@@ -374,7 +416,7 @@ test('Gmail API: full sync, then history; bounces recorded, other mail only read
         id: 1,
         documentId: 'log1',
         messageIdLocal: 'a1b2c3d4e5f6a7b8c9d0e1f2',
-        recipient: 'x',
+        recipient: 'pool-user-1@nowhere.test',
         sentAt: new Date(),
       },
     ],

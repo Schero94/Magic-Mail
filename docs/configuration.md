@@ -61,6 +61,10 @@ module.exports = () => ({
       queue: {
         worker: true, // see "Retries and the outbox" for every key
       },
+      webhooks: {
+        maxBodyBytes: 1024 * 1024, // largest delivery-webhook body, 64 KiB to 5 MiB
+        suppressComplaints: false, // also suppress spam complainers
+      },
     },
   },
 });
@@ -84,6 +88,8 @@ module.exports = () => ({
 | `rateLimit.redis`             | Redis client                        | none                                                      | ioredis or node-redis v4+ client for `store: 'redis'`                                               |
 | `rateLimit.redisPrefix`       | string                              | `'magic-mail:rl:'`                                        | Key prefix in Redis                                                                                 |
 | `queue.*`                     | object                              | see [Retries and the outbox](./delivery.md#configuration) | Outbox worker, retries, limits and retention                                                        |
+| `webhooks.maxBodyBytes`       | integer, 65536 to 5242880           | `1048576` (1 MiB)                                         | Largest SendGrid/Mailgun webhook body; larger requests get `413`. SendGrid batches reach 768 KB     |
+| `webhooks.suppressComplaints` | boolean                             | `false`                                                   | Also add spam complaints to the suppression list (needs **Block hard-bounced recipients**)          |
 
 `allowedLinkHosts` empty means: every host may be click-tracked for admin, service and native sends, and **no** host for Content-API sends. When the list is set, it applies to all sends.
 

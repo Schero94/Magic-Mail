@@ -276,6 +276,8 @@ test(
             const ids = where.providerMessageId.$in;
             return logs.find((log) => ids.includes(log.providerMessageId)) || null;
           },
+          findMany: async ({ where }) =>
+            logs.filter((log) => where.providerMessageId.$in.includes(log.providerMessageId)),
         }),
         strapi: {
           eventHub: { emit: async (name) => emitted.push(name) },

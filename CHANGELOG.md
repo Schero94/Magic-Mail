@@ -14,6 +14,33 @@
 
 * No action needed. A Mailgun account whose domain was saved with `https://` or a trailing slash is repaired the next time you save it. If a stored domain is still invalid, the account form shows the error on the Credentials step.
 
+# [4.6.0](https://github.com/Schero94/Magic-Mail/compare/v4.5.1...v4.6.0) (2026-11-18)
+
+
+### Features
+
+* **webhooks:** record delivery outcomes, feed suppression and fix bounce analytics ([#21](https://github.com/Schero94/Magic-Mail/issues/21)) ([92e09e3](https://github.com/Schero94/Magic-Mail/commit/92e09e348bb57f50c6378dc5c377f99713c55332))
+
+
+### Added
+
+* **More delivery outcomes from SendGrid and Mailgun.** Besides bounces and spam complaints, the webhooks now record when a mail is delayed (**Deferred**), when the receiving server accepted it (new field `deliveryConfirmedAt`) and when a recipient unsubscribes through the provider (`unsubscribed`). To get them, select the extra events in your provider: SendGrid deferred, delivered, unsubscribe, group unsubscribe and group resubscribe; Mailgun Temporary Failure, Delivered and Unsubscribes. Without them nothing changes. Other plugins can listen to the new events `magic-mail.delivery.deferred`, `.delivered`, `.unsubscribed`, `.resubscribed`, `.blocked` and `.dropped`.
+* **Guide for checking the webhooks with your real accounts**: [docs/live-webhook-checks.md](https://github.com/Schero94/Magic-Mail/blob/main/docs/live-webhook-checks.md).
+
+### Fixed
+
+* **Analytics shows bounces again.** The bounce counter and bounce rate were always 0. Bounced mail now counts as sent and as bounced, so **Sent**, the open rate and the bounce rate change for your existing data.
+* **Large SendGrid batches are accepted.** SendGrid sends events in batches of up to 768 KB; MagicMail rejected batches above 512 KB, so their bounces were lost. The limit is now 1 MB, configurable with `webhooks.maxBodyBytes` in the plugin config. Every event of a batch is processed (before, events after the first 1000 were dropped).
+* **Provider bounces now block further sends.** With **Block hard-bounced recipients** on, a hard bounce reported by SendGrid or Mailgun adds the address to the suppression list, so no other account (for example SMTP failover) mails it again. Spam complaints are added too if you set `webhooks.suppressComplaints: true`.
+* **No more false bounces from SendGrid.** A SendGrid block (a temporary refusal, often reputation) and drops for sender-side reasons such as a broken template or an expired send are no longer shown as **Bounced**. They show as **Failed** with a reason code such as `SENDGRID_BLOCKED_500` or `SENDGRID_DROPPED_INVALID_TEMPLATE`. Drops because the address bounced before or is invalid still count as bounces; drops because of a spam report or unsubscribe are recorded as such.
+* **One bad cc address no longer marks the whole mail.** A bounce for a cc or bcc recipient is stored as an event for that address; the mail itself keeps its status.
+* **Late SendGrid bounces are matched.** Bounces that arrive without SendGrid's message id are matched by MagicMail's own id or the SMTP id when present; events that match no mail are counted in the log instead of disappearing silently.
+
+### Migration
+
+* Nothing to do for most installs. New optional columns are added on start; no data is changed or removed.
+* If your code listens to `magic-mail.delivery.bounced`: SendGrid blocks and sender-side drops now arrive as `magic-mail.delivery.blocked` and `.dropped`. If your code checks `deliveryStatus`, it can now also be `blocked` (shown as **Failed** in the admin).
+
 ## [4.5.1](https://github.com/Schero94/Magic-Mail/compare/v4.5.0...v4.5.1) (2026-11-17)
 
 

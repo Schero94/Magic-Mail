@@ -8,9 +8,10 @@ Send every Strapi email through the right account: several SMTP and API accounts
 
 [![npm version](https://img.shields.io/npm/v/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
 [![npm downloads](https://img.shields.io/npm/dm/strapi-plugin-magic-mail.svg)](https://www.npmjs.com/package/strapi-plugin-magic-mail)
-[![CI](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI build status](https://img.shields.io/github/actions/workflow/status/Schero94/Magic-Mail/ci.yml?branch=main&label=CI&logo=github)](https://github.com/Schero94/Magic-Mail/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/Schero94/Magic-Mail/blob/main/LICENSE)
-[![Docs](https://img.shields.io/badge/docs-schero94.github.io%2FMagic--Mail-6d4aff.svg)](https://schero94.github.io/Magic-Mail/)
+[![Strapi 5.57+](https://img.shields.io/badge/Strapi-5.57%2B-4945FF.svg)](https://github.com/Schero94/Magic-Mail#compatibility)
+[![Documentation site](https://img.shields.io/badge/docs-project%20site-6d4aff.svg)](https://schero94.github.io/Magic-Mail/)
 
 Live docs: https://schero94.github.io/Magic-Mail/
 
@@ -24,7 +25,7 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Routing rules.** Choose the account by email type, recipient, subject, template or a custom value, with a fallback account per rule.
 - **Quotas and safe failover.** Hourly and daily limits per account, reserved atomically. When an account fails, the next one is tried only if the error proves the provider did not take the mail, so a mail is never delivered twice by failover.
 - **Outbox with retries.** Opt-in per send or for every failed send: 3 retries by default (after 1, 5 and 15 minutes, configurable from 1 to 10), idempotency keys, and an Outbox tab where you retry, discard or mark uncertain mails as sent.
-- **Delivery webhooks.** Signed SendGrid and Mailgun bounce and complaint webhooks update the delivery log and emit events other plugins can listen to.
+- **Delivery webhooks.** Signed SendGrid and Mailgun webhooks record bounces, blocks, complaints, deferrals, deliveries and unsubscribes on the delivery log, feed the suppression list and emit events other plugins can listen to.
 - **Templates.** A visual editor (Unlayer) or plain HTML and text, Mustache variables, versions with restore, import and export, plus the Users & Permissions reset and confirmation mails.
 - **Analytics.** A delivery log with server-side search, open and click tracking with truncated IPs and configurable retention.
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
@@ -35,6 +36,10 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Mailgun domains are checked when you save the account.** A pasted `https://` or trailing slash is removed for you; a value that is not a domain name is flagged right in the form instead of failing later when mail is sent.
 - **Failed account tests say what to fix:** wrong API key, missing Mail Send permission, unverified sender, wrong Mailgun region, or a sandbox recipient that is not authorized yet.
 - **Clearer key setup:** the wizard recommends keys that can only send mail (SendGrid Custom Access with Mail Send, Mailgun Domain Sending Key).
+- **SendGrid and Mailgun webhooks record more outcomes:** deferred, delivered and provider unsubscribes, besides bounces and complaints ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#bounces-and-complaints)).
+- **Provider hard bounces feed the suppression list** when _Block hard-bounced recipients_ is on.
+- **Analytics counts bounces** again, and SendGrid blocks are no longer shown as bounces.
+- **SendGrid batches up to 768 KB are accepted** (limit 1 MB, `webhooks.maxBodyBytes`).
 
 ## Contents
 
@@ -200,7 +205,7 @@ Every plugin config key, the admin settings and the multi-instance setup are in 
 - **Content API.** The send routes accept API tokens only (users-permissions roles only with `contentApi.allowUserRoles`), reject unknown fields, file-path and URL attachments, and share 60 requests per minute per token across all instances. Never enable them for the _Public_ role.
 - **What goes out.** HTML is sanitised, `from` is pinned to the sending account's address, custom headers are allowlisted, and SMTP requires TLS 1.2 or newer with certificate checks (unless `allowInsecure` is set on a non-production or loopback host).
 - **OAuth.** Callbacks are public but use a signed, single-use state with PKCE, bound to the admin who started the flow and stored in the database.
-- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and provider messages and addresses are not stored.
+- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and bodies are capped (1 MiB by default). Provider messages are not stored; addresses only as a keyed hash plus a masked form (suppression list) or a masked form (events for cc/bcc recipients).
 - **Tracking.** Open and click events keep IPs truncated to /24 or /48 and no location, and expire after 90 days (links after 180 days). Authentication links are never tracked. Mention tracking in your privacy notice.
 - **Outbox.** Queued mails are stored encrypted and deleted once sent or discarded; the admin API and the Outbox tab never show mail content. `forgetRecipient(address)` removes a recipient's queued mails.
 - **Logs.** MagicMail's log lines carry error names and codes, not recipient addresses or message content.
@@ -221,6 +226,7 @@ Every plugin config key, the admin settings and the multi-instance setup are in 
 | [Content API and Admin API](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md)                     | Every route with request, response and error examples                                                                                                       |
 | [Configuration and several instances](https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md) | Every config key, admin settings, account fields, service API, Railway replicas and pm2 clusters                                                            |
 | [Troubleshooting and FAQ](https://github.com/Schero94/Magic-Mail/blob/main/docs/troubleshooting.md)           | Mail not received, OAuth errors, 400/403/429 responses, CSP, DMARC                                                                                          |
+| [Live webhook checks](https://github.com/Schero94/Magic-Mail/blob/main/docs/live-webhook-checks.md)           | Checking the SendGrid and Mailgun webhooks against your real accounts: test buttons, a real bounce, what to expect                                          |
 | [Upgrading](https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md)                               | Migration notes for every release since 4.0.0                                                                                                               |
 | [Permission migration](https://github.com/Schero94/Magic-Mail/blob/main/docs/permission-migration.md)         | Granting the 4.x admin capabilities                                                                                                                         |
 | [Changelog](https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md)                                    | Every release                                                                                                                                               |

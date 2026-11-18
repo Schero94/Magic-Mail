@@ -9,14 +9,14 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 
 ## Content API
 
-| Method | Path                                                            | Auth      | Purpose                                                                                |
-| ------ | --------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------- |
-| `POST` | `/api/magic-mail/send`                                          | API token | Send through the router with all [send options](./sending.md#send-options)             |
-| `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, template          |
-| `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                                    |
-| `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click redirect                                                                         |
-| `POST` | `/api/magic-mail/webhooks/sendgrid/:accountId`                  | signature | SendGrid bounce and complaint events ([details](./delivery.md#bounces-and-complaints)) |
-| `POST` | `/api/magic-mail/webhooks/mailgun/:accountId`                   | signature | Mailgun bounce and complaint events ([details](./delivery.md#bounces-and-complaints))  |
+| Method | Path                                                            | Auth      | Purpose                                                                       |
+| ------ | --------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| `POST` | `/api/magic-mail/send`                                          | API token | Send through the router with all [send options](./sending.md#send-options)    |
+| `POST` | `/api/magic-mail/send-message`                                  | API token | Simple email: `to`, `cc`, `bcc`, `subject`, `message`/`text`/`html`, template |
+| `GET`  | `/api/magic-mail/track/open/:emailId/:recipientHash`            | public    | Open-tracking pixel                                                           |
+| `GET`  | `/api/magic-mail/track/click/:emailId/:linkHash/:recipientHash` | public    | Click redirect                                                                |
+| `POST` | `/api/magic-mail/webhooks/sendgrid/:accountId`                  | signature | SendGrid delivery events ([details](./delivery.md#bounces-and-complaints))    |
+| `POST` | `/api/magic-mail/webhooks/mailgun/:accountId`                   | signature | Mailgun delivery events ([details](./delivery.md#bounces-and-complaints))     |
 
 ### The API token rule
 

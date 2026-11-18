@@ -27,7 +27,18 @@
     },
     "type": {
       "type": "enumeration",
-      "enum": ["open", "click", "bounce", "deferred", "complaint", "unsubscribe"],
+      "enum": [
+        "open",
+        "click",
+        "bounce",
+        "deferred",
+        "complaint",
+        "unsubscribe",
+        "delivered",
+        "blocked",
+        "dropped",
+        "resubscribe"
+      ],
       "required": true
     },
     "timestamp": {

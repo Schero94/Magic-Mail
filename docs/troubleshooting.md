@@ -50,6 +50,14 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 | Mailgun 400/403 (sandbox domain) | `MAILGUN_SANDBOX_RECIPIENT`  | The recipient is an authorized recipient of the sandbox domain.                          |
 | 429 (both)                       | `PROVIDER_RATE_LIMITED`      | Wait and try again.                                                                      |
 
+**Bounces from SendGrid or Mailgun do not show up**
+
+- The account needs the verification key (SendGrid) or signing key (Mailgun); without it every request gets `401`.
+- The URL must reach Strapi from the internet over https, with the account's id and your REST prefix.
+- A `413` in the access log means a batch was larger than `webhooks.maxBodyBytes`.
+- A warning `N delivery event(s) matched no email log` means events arrived for mail MagicMail did not send or whose log was deleted (also the providers' test events).
+- Step-by-step checks with the providers' test buttons and a real bounce: [Live webhook checks](./live-webhook-checks.md).
+
 **"Too many requests"**: the send routes allow 60 requests per minute per token, test sends 10 per minute per admin. Also check provider limits (for example Gmail 500/day for free accounts, 2,000/day for Workspace).
 
 ## FAQ
