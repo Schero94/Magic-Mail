@@ -33,6 +33,13 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 
 ## What's new
 
+- **SendGrid EU regional subusers:** choose region **EU** in the account to send through `api.eu.sendgrid.com` ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#sendgrid)).
+- **Fewer provider rejections:** duplicate recipients, SendGrid-reserved headers and oversized messages are handled before the request, with a clear error instead of a bare HTTP status.
+- **No double tracking:** when MagicMail tracks opens and clicks, SendGrid and Mailgun tracking is switched off for that mail, so links are wrapped once.
+- **Mailgun metadata:** email type and priority as variables plus a tag, so Mailgun logs and webhooks can be filtered.
+- **Mailgun domains are checked when you save the account.** A pasted `https://` or trailing slash is removed for you; a value that is not a domain name is flagged right in the form instead of failing later when mail is sent.
+- **Failed account tests say what to fix:** wrong API key, missing Mail Send permission, unverified sender, wrong Mailgun region, or a sandbox recipient that is not authorized yet.
+- **Clearer key setup:** the wizard recommends keys that can only send mail (SendGrid Custom Access with Mail Send, Mailgun Domain Sending Key).
 - **SendGrid and Mailgun webhooks record more outcomes:** deferred, delivered and provider unsubscribes, besides bounces and complaints ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#bounces-and-complaints)).
 - **Provider hard bounces feed the suppression list** when _Block hard-bounced recipients_ is on.
 - **Analytics counts bounces** again, and SendGrid blocks are no longer shown as bounces.
@@ -40,6 +47,7 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 
 ## Contents
 
+- [What's new](#whats-new)
 - [Screenshots](#screenshots)
 - [Quick start](#quick-start)
 - [Compatibility](#compatibility)

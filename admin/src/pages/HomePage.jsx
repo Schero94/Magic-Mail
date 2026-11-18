@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
+import { providerHintMessage } from '../utils/providerHints';
 import { useFormatters } from '../hooks/useFormatters';
 import {
   Badge,
@@ -220,14 +221,20 @@ const HomePage = () => {
         });
         return true;
       }
-      toggleNotification({
-        type: 'danger',
-        message: data?.message
-          ? t('accounts.test.failedReason', 'The test email failed: {reason}', {
-              reason: data.message,
-            })
-          : t('accounts.test.failed', 'The test email failed.'),
-      });
+      // Known SendGrid/Mailgun failures carry a stable hint code (ACC-ERR-01).
+      const hint = providerHintMessage(t, data?.hintCode, data?.hint);
+      let message = t('accounts.test.failed', 'The test email failed.');
+      if (data?.message && hint) {
+        message = t('accounts.test.failedWithHint', 'The test email failed: {reason}. {hint}', {
+          reason: data.message,
+          hint,
+        });
+      } else if (data?.message) {
+        message = t('accounts.test.failedReason', 'The test email failed: {reason}', {
+          reason: data.message,
+        });
+      }
+      toggleNotification({ type: 'danger', message });
       return false;
     } catch (err) {
       const reason = err?.response?.data?.error?.message;

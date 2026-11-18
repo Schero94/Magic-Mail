@@ -5,6 +5,7 @@
  * server can be tested under node:test.
  */
 import { isOptionalEmailAddressValid, isValidEmailAddress } from '../../utils/emailValidation.mjs';
+import { isValidMailgunDomain, normalizeMailgunDomain } from '../../utils/mailgunDomain.mjs';
 
 export const OAUTH_PROVIDERS = Object.freeze(['gmail-oauth', 'microsoft-oauth', 'yahoo-oauth']);
 
@@ -243,6 +244,27 @@ export const validateLimits = (form) => {
 };
 
 /**
+ * Field-level validation of the credentials step. An empty required field is
+ * not an error here (Continue stays disabled); only a value the server would
+ * reject is reported, so the field can show it inline.
+ *
+ * @param {string} provider
+ * @param {Record<string, any>} form
+ * @returns {{mailgunDomain?: 'invalid'}} error codes
+ */
+export const validateCredentials = (provider, form) => {
+  const errors = {};
+  if (
+    provider === 'mailgun' &&
+    filled(form.mailgunDomain) &&
+    !isValidMailgunDomain(form.mailgunDomain)
+  ) {
+    errors.mailgunDomain = 'invalid';
+  }
+  return errors;
+};
+
+/**
  * Decides whether "Continue" / "Create" is enabled for a step.
  *
  * @param {number} step - 1 provider, 2 details, 3 credentials, 4 settings
@@ -279,7 +301,13 @@ export const canProceedStep = (step, ctx) => {
       );
     }
     if (provider === 'sendgrid') return filled(form.apiKey);
-    if (provider === 'mailgun') return filled(form.apiKey) && filled(form.mailgunDomain);
+    if (provider === 'mailgun') {
+      return (
+        filled(form.apiKey) &&
+        filled(form.mailgunDomain) &&
+        Object.keys(validateCredentials(provider, form)).length === 0
+      );
+    }
     if (isOAuthProvider(provider)) {
       const needsTenant = provider === 'microsoft-oauth';
       const appConfigured =
@@ -327,9 +355,11 @@ export const buildConfig = (provider, form) => {
     case 'mailgun':
       return {
         apiKey: form.apiKey.trim(),
-        domain: form.mailgunDomain.trim(),
+        // Same normalisation as the server (scheme, trailing slash, case).
+        domain: normalizeMailgunDomain(form.mailgunDomain),
         region: form.mailgunRegion === 'eu' ? 'eu' : 'us',
-        webhookSigningKey: form.webhookSigningKey || '',
+        // Trimming keeps the stored-secret mask unchanged (it has no spaces).
+        webhookSigningKey: (form.webhookSigningKey || '').trim(),
       };
     case 'gmail-oauth':
     case 'yahoo-oauth':

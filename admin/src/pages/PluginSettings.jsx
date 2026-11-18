@@ -970,7 +970,7 @@ const PluginSettingsContent = () => {
               <SettingDescription>
                 {t(
                   'settings.bounces.suppress.description',
-                  'After a permanent bounce, further emails to that address are rejected until the entry is removed from the list below.'
+                  'After a permanent bounce (reported by the mailbox monitor, SendGrid or Mailgun), further emails to that address are rejected until the entry is removed from the list below.'
                 )}
               </SettingDescription>
             </SettingInfo>

@@ -11,6 +11,7 @@ import {
   TextInput,
   Typography,
 } from '@strapi/design-system';
+import { useState } from 'react';
 import { Key, Lock, Server } from '@strapi/icons';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
@@ -40,7 +41,9 @@ import {
   getWebhookUrl,
   isIntegerInRange,
   isMaskedSecret,
+  validateCredentials,
 } from './wizardState';
+import { normalizeMailgunDomain } from '../../utils/mailgunDomain.mjs';
 
 const bold = (chunks) => <strong>{chunks}</strong>;
 const code = (chunks) => <code>{chunks}</code>;
@@ -177,7 +180,7 @@ const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId
           <Field.Root
             hint={t(
               'accountModal.webhook.sendgridKeyHint',
-              'SendGrid: Settings, Mail Settings, Event Webhook. Enable "Signed Event Webhook" and paste the verification key. Select the events Bounced, Dropped and Spam Reports.'
+              'SendGrid: Settings, Mail Settings, Event Webhook. Enable "Signed Event Webhook" and paste the verification key. Select the events Bounced, Dropped and Spam Reports. Optional: also select Deferred, Delivered and Unsubscribe to see them in the log.'
             )}
             name="webhookPublicKey"
           >
@@ -200,7 +203,7 @@ const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId
           placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           hint={t(
             'accountModal.webhook.mailgunKeyHint',
-            'Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints.'
+            'Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints. Optional: also Temporary Failure, Delivered and Unsubscribes to see them in the log.'
           )}
           value={form.webhookSigningKey}
           onChange={(value) => onChange('webhookSigningKey', value)}
@@ -415,6 +418,62 @@ const ClientIdField = ({ name, label, placeholder, hint, value, onChange, locked
  * @param {Record<string, string>} props.serverRedirectUris
  * @param {string|number|null} [props.accountId] - saved account (edit mode), for the webhook URL
  */
+/**
+ * Mailgun sending domain with inline validation (ACC-MG-01). The error shows
+ * after the field was left once, or right away in edit mode, so an account
+ * saved earlier with an invalid domain explains why Continue is disabled.
+ * A value that only differs by scheme, trailing slash or case is accepted and
+ * the hint says how it will be saved (the server normalises the same way).
+ *
+ * @param {object} props
+ * @param {Record<string, any>} props.form - Wizard form values
+ * @param {(field: string, value: unknown) => void} props.onChange
+ * @param {boolean} props.isEditMode
+ * @returns {import('react').ReactElement}
+ */
+const MailgunDomainField = ({ form, onChange, isEditMode }) => {
+  const { t } = useMagicMailIntl();
+  const [left, setLeft] = useState(false);
+  const invalid = Boolean(validateCredentials('mailgun', form).mailgunDomain);
+  const normalized = normalizeMailgunDomain(form.mailgunDomain);
+  const willNormalize = !invalid && normalized !== '' && normalized !== form.mailgunDomain;
+  const error =
+    invalid && (left || isEditMode)
+      ? t(
+          'accountModal.mailgun.domainInvalid',
+          'Enter only the domain name, for example mg.example.com, without a path.'
+        )
+      : undefined;
+  const hint = willNormalize
+    ? t('accountModal.mailgun.domainNormalized', 'Will be saved as {domain}.', {
+        domain: normalized,
+      })
+    : t(
+        'accountModal.mailgun.domainHint',
+        'Your verified sending domain, for example mg.example.com. A sandbox domain only delivers to authorized recipients; add them in Mailgun first.'
+      );
+  return (
+    <FullWidthField>
+      <Field.Root hint={hint} error={error} required name="mailgunDomain">
+        <Field.Label>{t('accountModal.mailgun.domain', 'Mailgun domain')}</Field.Label>
+        <TextInput
+          placeholder="mg.example.com"
+          value={form.mailgunDomain}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => onChange('mailgunDomain', e.target.value)}
+          // Deferred to the next task: showing the error swaps the hint node
+          // while focus is between elements, and the modal's focus trap would
+          // then pull focus to the dialog instead of the next field.
+          onBlur={() => setTimeout(() => setLeft(true), 0)}
+        />
+        <Field.Hint />
+        <Field.Error />
+      </Field.Root>
+    </FullWidthField>
+  );
+};
+
 export const CredentialsStep = ({
   provider,
   form,
@@ -946,25 +1005,7 @@ export const CredentialsStep = ({
             </SectionTitle>
 
             {provider === 'mailgun' && (
-              <FullWidthField>
-                <Field.Root
-                  hint={t(
-                    'accountModal.mailgun.domainHint',
-                    'Your verified Mailgun domain (for example mg.example.com) or a sandbox domain for testing.'
-                  )}
-                  required
-                  name="mailgunDomain"
-                >
-                  <Field.Label>{t('accountModal.mailgun.domain', 'Mailgun domain')}</Field.Label>
-                  <TextInput
-                    placeholder="mg.example.com"
-                    value={form.mailgunDomain}
-                    autoComplete="off"
-                    onChange={(e) => onChange('mailgunDomain', e.target.value)}
-                  />
-                  <Field.Hint />
-                </Field.Root>
-              </FullWidthField>
+              <MailgunDomainField form={form} onChange={onChange} isEditMode={isEditMode} />
             )}
 
             {provider === 'sendgrid' && (
@@ -1028,16 +1069,20 @@ export const CredentialsStep = ({
                   ? t('accountModal.sendgrid.apiKey', 'SendGrid API key')
                   : t('accountModal.mailgun.apiKey', 'Mailgun API key')
               }
-              placeholder={provider === 'sendgrid' ? 'SG.xxxxxxxxxxxxxxxx' : 'key-xxxxxxxxxxxxxxxx'}
+              placeholder={
+                provider === 'sendgrid'
+                  ? 'SG.xxxxxxxxxxxxxxxx'
+                  : t('accountModal.mailgun.apiKeyPlaceholder', 'Paste the Mailgun API key')
+              }
               hint={
                 provider === 'sendgrid'
                   ? t(
                       'accountModal.sendgrid.apiKeyHint',
-                      'Found in the SendGrid dashboard under Settings, API Keys. Create a key with the "Mail Send" permission.'
+                      'In SendGrid: Settings, API Keys, Create API Key. Choose Custom Access and grant only Mail Send.'
                     )
                   : t(
                       'accountModal.mailgun.apiKeyHint',
-                      'Found in the Mailgun dashboard under Settings, API Keys. Use the private API key, not the public validation key.'
+                      'Recommended: a Domain Sending Key for this domain (Sending, Domains, your domain, Domain Settings, Sending API keys). It can only send mail. The account API key (Account Settings, API Keys) also works, but grants full account access.'
                     )
               }
               value={form.apiKey}
@@ -1089,11 +1134,11 @@ export const CredentialsStep = ({
               {provider === 'sendgrid'
                 ? t(
                     'accountModal.sendgrid.resourcesBody',
-                    'API keys: Settings, API Keys, Create API Key. Required scope: Mail Send (full access).'
+                    'API key: Settings, API Keys, Create API Key, Custom Access, Mail Send only. A Full Access key is not needed. The From address must be a verified Sender Identity (single sender or authenticated domain).'
                   )
                 : t(
                     'accountModal.mailgun.resourcesBody',
-                    'API keys: Settings, API Security, Private API key. Domains: Sending, Domains (verify your domain or use the sandbox).'
+                    'Domain Sending Key: Sending, Domains, Domain Settings, Sending API keys. Account API key: Account Settings, API Keys. Sandbox domains: add authorized recipients before you send a test.'
                   )}
             </StaticAlert>
           </Flex>
