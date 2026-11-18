@@ -40,15 +40,16 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 
 **An account test fails with "SendGrid/Mailgun API request failed: <status>"**: the error message now says what to check. API clients get the same as `hintCode` in the response of `POST /magic-mail/accounts/:accountId/test`.
 
-| Provider and status              | `hintCode`                   | What to check                                                                            |
-| -------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
-| SendGrid 401                     | `SENDGRID_UNAUTHORIZED`      | The API key is complete and not deleted.                                                 |
-| SendGrid 403                     | `SENDGRID_FORBIDDEN`         | The key has the Mail Send permission and the From address is a verified Sender Identity. |
-| SendGrid 413                     | `SENDGRID_PAYLOAD_TOO_LARGE` | Content and attachment size.                                                             |
-| Mailgun 401                      | `MAILGUN_UNAUTHORIZED`       | The key, and the region (an EU domain needs the EU region).                              |
-| Mailgun 404                      | `MAILGUN_DOMAIN_NOT_FOUND`   | The domain name and the region.                                                          |
-| Mailgun 400/403 (sandbox domain) | `MAILGUN_SANDBOX_RECIPIENT`  | The recipient is an authorized recipient of the sandbox domain.                          |
-| 429 (both)                       | `PROVIDER_RATE_LIMITED`      | Wait and try again.                                                                      |
+| Provider and status                           | `hintCode`                   | What to check                                                                                                                                                                    |
+| --------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SendGrid 401                                  | `SENDGRID_UNAUTHORIZED`      | The API key is complete and not deleted.                                                                                                                                         |
+| SendGrid 401/403, key valid without Mail Send | `SENDGRID_MISSING_MAIL_SEND` | Give the key the Mail Send permission. SendGrid answers 401 for a valid key without it; MagicMail then makes one read-only `GET /v3/scopes` to tell this apart from a wrong key. |
+| SendGrid 403                                  | `SENDGRID_FORBIDDEN`         | The key has the Mail Send permission and the From address is a verified Sender Identity.                                                                                         |
+| SendGrid 413                                  | `SENDGRID_PAYLOAD_TOO_LARGE` | Content and attachment size.                                                                                                                                                     |
+| Mailgun 401                                   | `MAILGUN_UNAUTHORIZED`       | The key, and the region (an EU domain needs the EU region).                                                                                                                      |
+| Mailgun 404                                   | `MAILGUN_DOMAIN_NOT_FOUND`   | The domain name and the region.                                                                                                                                                  |
+| Mailgun 400/403 (sandbox domain)              | `MAILGUN_SANDBOX_RECIPIENT`  | The recipient is an authorized recipient of the sandbox domain.                                                                                                                  |
+| 429 (both)                                    | `PROVIDER_RATE_LIMITED`      | Wait and try again.                                                                                                                                                              |
 
 **Bounces from SendGrid or Mailgun do not show up**
 

@@ -19,6 +19,11 @@ export const providerHintMessage = (t, code, fallback) => {
         'accounts.test.hint.sendgridForbidden',
         'SendGrid refused the request. Check that the API key has the Mail Send permission and that the From address is a verified Sender Identity.'
       );
+    case 'SENDGRID_MISSING_MAIL_SEND':
+      return t(
+        'accounts.test.hint.sendgridMissingMailSend',
+        'The SendGrid API key is valid but does not have the Mail Send permission. Give the key Mail Send access or create a key that has it.'
+      );
     case 'SENDGRID_PAYLOAD_TOO_LARGE':
       return t(
         'accounts.test.hint.sendgridPayloadTooLarge',

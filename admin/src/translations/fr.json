@@ -255,6 +255,7 @@
   "accounts.test.hint.mailgunUnauthorized": "Mailgun a refusé la clé API. Vérifiez la clé et la région : un domaine créé dans la région UE nécessite la région UE.",
   "accounts.test.hint.rateLimited": "Le fournisseur limite les requêtes. Patientez un instant, puis réessayez.",
   "accounts.test.hint.sendgridForbidden": "SendGrid a refusé la requête. Vérifiez que la clé API dispose de l’autorisation Mail Send et que l’adresse d’expéditeur est une Sender Identity vérifiée.",
+  "accounts.test.hint.sendgridMissingMailSend": "La clé API SendGrid est valide mais ne dispose pas de l’autorisation Mail Send. Accordez l’accès Mail Send à la clé ou créez une clé qui en dispose.",
   "accounts.test.hint.sendgridPayloadTooLarge": "SendGrid a refusé le message, car il est trop volumineux. Réduisez la taille du contenu et des pièces jointes.",
   "accounts.test.hint.sendgridUnauthorized": "SendGrid a refusé la clé API. Vérifiez que la clé a été copiée entièrement et n’a pas été supprimée.",
   "accounts.test.mode": "Mode de test",

@@ -3,7 +3,13 @@
 const { errors } = require('@strapi/utils');
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
-const { toClientSendResult, describeErrorForLog } = require('../utils/client-errors');
+const {
+  toClientSendResult,
+  describeErrorForLog,
+  providerFromError,
+  providerStatusFromError,
+} = require('../utils/client-errors');
+const { checkSendGridKeyScopes } = require('../utils/sendgrid-key-check');
 const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
 const { SENDGRID_REGIONS, resolveSendGridRegion } = require('../utils/sendgrid-region');
 const { normalizeMailgunDomain, isValidMailgunDomain } = require('../utils/mailgun-domain');
@@ -476,7 +482,23 @@ module.exports = ({ strapi }) => ({
           mailgunDomain = undefined;
         }
       }
-      return { success: false, ...toClientSendResult(error, { mailgunDomain }) };
+      // SendGrid answers 401 for a wrong key and for a key without Mail Send:
+      // one read-only GET /v3/scopes tells them apart (never throws).
+      let sendgridKeyCheck;
+      const status = providerStatusFromError(error);
+      if (
+        account.provider === 'sendgrid' &&
+        providerFromError(error) === 'sendgrid' &&
+        (status === 401 || status === 403) &&
+        account.config
+      ) {
+        try {
+          sendgridKeyCheck = await checkSendGridKeyScopes(decryptCredentials(account.config));
+        } catch {
+          sendgridKeyCheck = undefined;
+        }
+      }
+      return { success: false, ...toClientSendResult(error, { mailgunDomain, sendgridKeyCheck }) };
     }
   },
 

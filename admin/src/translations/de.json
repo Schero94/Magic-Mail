@@ -255,6 +255,7 @@
   "accounts.test.hint.mailgunUnauthorized": "Mailgun hat den API-Schlüssel abgelehnt. Prüfen Sie den Schlüssel und die Region: Eine in der EU-Region angelegte Domain benötigt die EU-Region.",
   "accounts.test.hint.rateLimited": "Der Anbieter begrenzt die Anfragen. Warten Sie einen Moment und versuchen Sie es erneut.",
   "accounts.test.hint.sendgridForbidden": "SendGrid hat die Anfrage verweigert. Prüfen Sie, ob der API-Schlüssel die Berechtigung Mail Send hat und die Absenderadresse eine verifizierte Sender Identity ist.",
+  "accounts.test.hint.sendgridMissingMailSend": "Der SendGrid-API-Schlüssel ist gültig, hat aber nicht die Berechtigung Mail Send. Geben Sie dem Schlüssel Zugriff auf Mail Send oder erstellen Sie einen Schlüssel mit dieser Berechtigung.",
   "accounts.test.hint.sendgridPayloadTooLarge": "SendGrid hat die Nachricht als zu groß abgelehnt. Verkleinern Sie Inhalt und Anhänge.",
   "accounts.test.hint.sendgridUnauthorized": "SendGrid hat den API-Schlüssel abgelehnt. Prüfen Sie, ob der Schlüssel vollständig kopiert und nicht gelöscht wurde.",
   "accounts.test.mode": "Testmodus",

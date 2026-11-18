@@ -255,6 +255,7 @@
   "accounts.test.hint.mailgunUnauthorized": "O Mailgun recusou a chave de API. Verifique a chave e a região: um domínio criado na região UE precisa da região UE.",
   "accounts.test.hint.rateLimited": "O provedor está limitando as solicitações. Aguarde um momento e tente novamente.",
   "accounts.test.hint.sendgridForbidden": "O SendGrid recusou a solicitação. Verifique se a chave de API tem a permissão Mail Send e se o endereço do remetente é uma Sender Identity verificada.",
+  "accounts.test.hint.sendgridMissingMailSend": "A chave de API do SendGrid é válida, mas não tem a permissão Mail Send. Dê à chave acesso ao Mail Send ou crie uma chave que tenha essa permissão.",
   "accounts.test.hint.sendgridPayloadTooLarge": "O SendGrid recusou a mensagem por ser grande demais. Reduza o tamanho do conteúdo e dos anexos.",
   "accounts.test.hint.sendgridUnauthorized": "O SendGrid recusou a chave de API. Verifique se a chave foi copiada por completo e não foi excluída.",
   "accounts.test.mode": "Modo de teste",

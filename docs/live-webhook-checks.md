@@ -41,14 +41,27 @@ data from your mail send".
 2. Click **Test Your Integration**.
 3. Look at the response in your access log or reverse proxy log and write it
    down: `200` or `401`.
-   - **Unverified:** the page does not say whether test posts are signed. A
-     `401` here only means the test post failed the signature check. It does
-     not prove that real events will fail.
+   - Checked 2026-11-18 with `POST /v3/user/webhooks/event/test` against a
+     signed webhook: the test post is signed, and MagicMail answered `200`.
+     A `401` therefore means the verification key in the MagicMail account
+     does not match the webhook (or the request was changed on the way).
    - `413` means the body was larger than `webhooks.maxBodyBytes`. It should
      not happen with the test post.
 4. Expected in MagicMail: no email log changes, because the example ids match
    no mail you sent. With a `200`, the Strapi log may show the
    `matched no email log` warning.
+5. **The test adds SendGrid's sample address to the suppression list** while
+   **Block hard-bounced recipients** is on. The example batch contains a
+   `bounce` and a `dropped` event with the reason `Bounced Address` for
+   SendGrid's sample recipient. MagicMail suppresses hard bounces even when
+   no email log matches, because the address did bounce, so after the test
+   the list shows one entry like `e***@test.com` (reason
+   `SENDGRID_DROPPED_BOUNCED_ADDRESS`, 2 bounces). It blocks only that
+   sample address. To remove it:
+   - **Plugin Settings → Bounces and recipient checks → Suppressed
+     recipients**, then **Remove** on that row; or
+   - `DELETE /magic-mail/suppressions/:documentId` (admin API, the id from
+     `GET /magic-mail/suppressions`).
 
 ## 2. Mailgun webhook test
 
