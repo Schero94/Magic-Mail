@@ -120,11 +120,11 @@ Keep the encryption key stable: without it the stored account credentials cannot
 
 | MagicMail | Strapi                                     | Node.js                                           | Databases                                                                                |
 | --------- | ------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 4.x       | `^5.57.0` (acceptance host: Strapi 5.62.0) | `>=22.12.0 <=26.x.x` (CI runs Node 22, 24 and 26) | PostgreSQL, MySQL 8, SQLite. Several processes: PostgreSQL tested, MySQL not load-tested |
+| 4.x       | `^5.57.0` (acceptance host: Strapi 5.63.0) | `>=22.12.0 <=26.x.x` (CI runs Node 22, 24 and 26) | PostgreSQL, MySQL 8, SQLite. Several processes: PostgreSQL tested, MySQL not load-tested |
 | 3.1       | `^5.57.0`                                  | `>=20.19.0 <=26.x.x`                              | as Strapi                                                                                |
 
 - Peer dependencies: `@strapi/strapi`, `@strapi/plugin-users-permissions` (every default Strapi app has it; the email log links to its users), `react`, `react-dom`, `react-router-dom` and `styled-components` as in a `create-strapi-app` project. `@strapi/design-system`, `@strapi/icons` and `react-intl` are optional peers, which the Strapi admin provides.
-- The packed plugin installs with npm into a Strapi 5.62.0 project without plugin warnings, and its admin builds there (checked 2026-11-17). The yarn 1 and pnpm install check dates from Strapi 5.61.
+- The packed plugin installs with npm into a Strapi 5.63.0 project without plugin warnings, and its admin builds there (checked 2026-11-18). The yarn 1 and pnpm install check dates from Strapi 5.61.
 - The minimum Strapi version is 5.57.0, the first release whose admin ships Design System 2.2.4, the version the MagicMail admin uses. CI also installs that floor (Strapi 5.57.0 with Design System 2.2.4) and runs the tests and the build against it.
 
 ## Sending email
