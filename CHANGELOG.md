@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.6.1](https://github.com/Schero94/Magic-Mail/compare/v4.6.0...v4.6.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **accounts:** Mailgun domain validation, key trimming and actionable test errors ([#22](https://github.com/Schero94/Magic-Mail/issues/22)) ([76c2cf6](https://github.com/Schero94/Magic-Mail/commit/76c2cf69787f3208571c28e5a6d24b8e8cbfeda4))
+
 
 ### Fixed
 
