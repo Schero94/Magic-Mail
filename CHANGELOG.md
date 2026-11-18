@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.6.3](https://github.com/Schero94/Magic-Mail/compare/v4.6.2...v4.6.3) (2026-11-18)
+
+
+### Bug Fixes
+
+* **admin:** state that the dialogs are labelled by their title ([#27](https://github.com/Schero94/Magic-Mail/issues/27)) ([0435754](https://github.com/Schero94/Magic-Mail/commit/0435754f9154c75c2ee5a3039f93500c87c04555))
+
 
 ### Fixed
 
