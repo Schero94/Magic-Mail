@@ -141,6 +141,7 @@ test('UI-M03: settings are normalised from the API and only changed keys are sav
   assert.deepEqual(loaded, {
     enableLinkTracking: false,
     enableOpenTracking: true,
+    providerTracking: false,
     trackingBaseUrl: 'https://api.example.com',
     defaultFromName: '',
     defaultFromEmail: '',

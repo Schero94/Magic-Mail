@@ -1,0 +1,919 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Email API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.brevo.com/v3",
+      "description": "https://api.brevo.com/v3"
+    }
+  ],
+  "paths": {
+    "/smtp/email": {
+      "post": {
+        "operationId": "transactionalEmails_sendTransacEmail",
+        "summary": "Send a transactional email",
+        "description": "Send a transactional email to one or more recipients, either using inline HTML content or a pre-built template via `templateId`. You can schedule emails for future delivery using `scheduledAt` (UTC, up to 5-minute delay), send multiple personalized versions with `messageVersions` (max 2000 total recipients, 99 per version), and attach files via URL or base64-encoded content. A `sender` and `subject` are required when no `templateId` is provided; when a `templateId` is used, the template''s sender and subject are applied unless overridden.",
+        "tags": ["transactionalEmails"],
+        "responses": {
+          "201": {
+            "description": "Transactional email sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transactional_emails_sendTransacEmail_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendTransacEmailRequestBadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Request body parameters for sending a transactional email",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "attachment": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaAttachmentItems"
+                    },
+                    "description": "Array of attachment objects. Each attachment must include either an absolute URL (no local file paths) or base64-encoded content, along with the attachment filename. The `name` field is required when `content` is provided. Supported file extensions: xlsx, xls, ods, docx, docm, doc, csv, pdf, txt, gif, jpg, jpeg, png, tif, tiff, rtf, bmp, cgm, css, shtml, html, htm, zip, xml, ppt, pptx, tar, ez, ics, mobi, msg, pub, eps, odt, mp3, m4a, m4v, wma, ogg, flac, wav, aif, aifc, aiff, mp4, mov, avi, mkv, mpeg, mpg, wmv, pkpass, xlsm. When `templateId` is specified: if the template uses the New Template Language format, both `url` and `content` attachment types are supported; if the template uses the Old Template Language format, the `attachment` parameter is ignored.\n"
+                  },
+                  "batchId": {
+                    "type": "string",
+                    "description": "UUIDv4 identifier for the scheduled batch of transactional emails. If omitted, a valid UUIDv4 batch identifier is automatically generated."
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaBccItems"
+                    },
+                    "description": "Array of BCC recipient objects. Each object contains an email address and an optional name.\n"
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaCcItems"
+                    },
+                    "description": "Array of CC recipient objects. Each object contains an email address and an optional name.\n"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "description": "Any type"
+                    },
+                    "description": "Custom email headers (non-standard headers) to include in the email. The `sender.ip` header can be set to specify the IP address used for sending transactional emails (dedicated IP users only). Header names must use Title-Case-Format (words separated by hyphens with the first letter of each word capitalized). Headers not in this format are automatically converted. Standard email headers are not supported. Example: `{\"sender.ip\":\"1.2.3.4\", \"X-Mailin-custom\":\"some_custom_value\", \"IdempotencyKey\":\"abc-123\"}`\n"
+                  },
+                  "htmlContent": {
+                    "type": "string",
+                    "description": "HTML body content of the email. Required when `templateId` is not provided. Ignored when `templateId` is provided.\n"
+                  },
+                  "messageVersions": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItems"
+                    },
+                    "description": "Array of message version objects for sending customized email variants. The `templateId` can be customized per version only if a global `templateId` is provided. The `htmlContent` and `textContent` can be customized per version only if at least one of these is present in the global parameters. Global parameters such as `to` (required), `bcc`, `cc`, `replyTo`, and `subject` can be customized per version. Maximum total recipients per API request is 2000. Maximum recipients per message version is 99. Individual `params` objects must not exceed 100 KB. Cumulative `params` across all versions must not exceed 1000 KB. See https://developers.brevo.com/docs/batch-send-transactional-emails for detailed usage instructions.\n"
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "description": "Any type"
+                    },
+                    "description": "Key-value pairs for template variable substitution. Only applicable when the template uses the New Template Language format.\n"
+                  },
+                  "replyTo": {
+                    "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaReplyTo",
+                    "description": "Reply-to email address (required) and optional display name. Recipients will use this address when replying to the email.\n"
+                  },
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "UTC date-time when the email should be sent (format: YYYY-MM-DDTHH:mm:ss.SSSZ). Include timezone information in the date-time value. Scheduled emails may be delayed by up to 5 minutes."
+                  },
+                  "sender": {
+                    "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaSender",
+                    "description": "Sender information. Required when `templateId` is not provided. Specify either an email address (with optional name) or a sender ID. The `name` field is ignored when `id` is provided.\n"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Email subject line. Required when `templateId` is not provided.\n"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Array of tags for categorizing and filtering emails"
+                  },
+                  "templateId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "Template identifier"
+                  },
+                  "textContent": {
+                    "type": "string",
+                    "description": "Plain text body content of the email. Ignored when `templateId` is provided.\n"
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaToItems"
+                    },
+                    "description": "Array of recipient objects. Each object contains an email address and an optional display name. Required when `messageVersions` is not provided. Ignored when `messageVersions` is provided. Example: `[{\"name\":\"Jimmy\", \"email\":\"jimmy@example.com\"}, {\"name\":\"Joe\", \"email\":\"joe@example.com\"}]`\n"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ]
+      }
+    },
+    "/smtp/templates": {
+      "get": {
+        "operationId": "transactionalEmails_getSmtpTemplates",
+        "summary": "Get the list of email templates",
+        "description": "Retrieve a paginated list of all transactional email templates (including automation templates) with their details such as name, subject, sender, status, HTML content, and timestamps. Results default to 50 per page (max 1000) and are sorted in descending creation order unless overridden. You can filter by active/inactive status using `templateStatus` and by editor type using `editorType` (currently only `richTextEditor` is supported).",
+        "tags": ["transactionalEmails"],
+        "parameters": [
+          {
+            "name": "templateStatus",
+            "in": "query",
+            "description": "Filter on the status of the template. Active = true, inactive = false",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of documents returned per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "maximum": 1000,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Index of the first document in the page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort the results in the ascending/descending order of record creation. Default order is **descending** if `sort` is not passed",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SmtpTemplatesGetParametersSort",
+              "default": "desc"
+            }
+          },
+          {
+            "name": "editorType",
+            "in": "query",
+            "description": "Filter on the editor type used to create the template. Currently only `richTextEditor` is supported as a filter value.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SmtpTemplatesGetParametersEditorType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "transactional email templates informations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transactional_emails_getSmtpTemplates_Response_200"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSmtpTemplatesRequestBadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ]
+      }
+    },
+    "/smtp/templates/{templateId}": {
+      "get": {
+        "operationId": "transactionalEmails_getSmtpTemplate",
+        "summary": "Returns the template information",
+        "description": "Retrieve the full details of a specific transactional email template by its numeric ID or custom template identifier string. The response includes the template name, subject, sender information, HTML content, active status, creation and modification timestamps, reply-to address, tag, and a `doiTemplate` flag indicating whether the template is a double opt-in template (detected by the presence of optin-related tags or variables in the content).",
+        "tags": ["transactionalEmails"],
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "description": "ID of the template. Can be a numeric template ID or a custom template identifier string (alphanumeric, hyphens, and underscores only, max 64 characters, must start with a letter).",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SmtpTemplatesTemplateIdGetParametersTemplateId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email template informations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getSmtpTemplateOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSmtpTemplateRequestBadRequestError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template ID not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorModel"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Transactional_emails_sendTransacEmail_Response_201": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "description": "Message ID of the transactional email sent"
+          },
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "title": "Transactional emails_sendTransacEmail_Response_201"
+      },
+      "SendTransacEmailRequestBadRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/SmtpEmailPostResponsesContentApplicationJsonSchemaCode",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "SendTransacEmailRequestBadRequestError"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaAttachmentItems": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "format": "byte",
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+            "description": "Base64-encoded attachment data"
+          },
+          "name": {
+            "type": "string",
+            "description": "Attachment filename. Required when `content` is provided.\n"
+          },
+          "url": {
+            "type": "string",
+            "format": "url",
+            "description": "Absolute URL of the attachment. Local file paths are not supported.\n"
+          }
+        },
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaAttachmentItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaBccItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient in bcc for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "BCC recipient email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the BCC recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient in bcc no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaBccItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaCcItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient in cc for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "CC recipient email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the CC recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient in cc no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaCcItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItems": {
+        "type": "object",
+        "properties": {
+          "bcc": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsBccItems"
+            },
+            "description": "Array of BCC recipient objects. Each object contains an email address and an optional name.\n"
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsCcItems"
+            },
+            "description": "Array of CC recipient objects. Each object contains an email address and an optional name.\n"
+          },
+          "htmlContent": {
+            "type": "string",
+            "description": "HTML body content of the email. Required when `templateId` is not provided. Ignored when `templateId` is provided.\n"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "description": "Any type"
+            },
+            "description": "Key-value pairs for template variable substitution. Only applicable when the template uses the New Template Language format.\n"
+          },
+          "replyTo": {
+            "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsReplyTo",
+            "description": "Reply-to email address (required) and optional display name. Recipients will use this address when replying to the email.\n"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject line for this message version\n"
+          },
+          "textContent": {
+            "type": "string",
+            "description": "Plain text body content of the email. Ignored when `templateId` is provided.\n"
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsToItems"
+            },
+            "description": "Array of recipient objects. Each object contains an email address and an optional display name.\n"
+          }
+        },
+        "required": ["to"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaReplyTo": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address in reply to"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the reply-to address. Maximum length is 70 characters.\n"
+          }
+        },
+        "required": ["email"],
+        "description": "Reply-to email address (required) and optional display name. Recipients will use this address when replying to the email.\n",
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaReplyTo"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaSender": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Sender email address. Required when `id` is not provided."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sender identifier. Required when `email` is not provided. Use this field to select a sender with a specific IP pool (dedicated IP users only)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the sender. Maximum length is 70 characters. Only applicable when `email` is provided.\n"
+          }
+        },
+        "description": "Sender information. Required when `templateId` is not provided. Specify either an email address (with optional name) or a sender ID. The `name` field is ignored when `id` is provided.\n",
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaSender"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaToItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address of the recipient"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaToItems"
+      },
+      "SmtpTemplatesGetParametersSort": {
+        "type": "string",
+        "enum": ["asc", "desc"],
+        "default": "desc",
+        "title": "SmtpTemplatesGetParametersSort"
+      },
+      "SmtpTemplatesGetParametersEditorType": {
+        "type": "string",
+        "enum": ["richTextEditor"],
+        "title": "SmtpTemplatesGetParametersEditorType"
+      },
+      "Transactional_emails_getSmtpTemplates_Response_200": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Count of transactional email templates"
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/getSmtpTemplateOverview"
+            }
+          }
+        },
+        "title": "Transactional emails_getSmtpTemplates_Response_200"
+      },
+      "GetSmtpTemplatesRequestBadRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/SmtpTemplatesGetResponsesContentApplicationJsonSchemaCode",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "GetSmtpTemplatesRequestBadRequestError"
+      },
+      "SmtpTemplatesTemplateIdGetParametersTemplateId": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "title": "SmtpTemplatesTemplateIdGetParametersTemplateId"
+      },
+      "getSmtpTemplateOverview": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "Creation UTC date-time of the template (YYYY-MM-DDTHH:mm:ss.SSSZ)"
+          },
+          "doiTemplate": {
+            "type": "boolean",
+            "description": "It is true if template is a valid Double opt-in (DOI) template, otherwise it is false. This field will be available only in case of single template detail call."
+          },
+          "htmlContent": {
+            "type": "string",
+            "description": "HTML content of the template"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID of the template"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Status of template (true=active, false=inactive)"
+          },
+          "modifiedAt": {
+            "type": "string",
+            "description": "Last modification UTC date-time of the template (YYYY-MM-DDTHH:mm:ss.SSSZ)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the template"
+          },
+          "replyTo": {
+            "type": "string",
+            "format": "email",
+            "description": "Email defined as the \"Reply to\" for the template"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/GetSmtpTemplateOverviewSender"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Subject of the template"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Tag of the template"
+          },
+          "testSent": {
+            "type": "boolean",
+            "description": "Status of test sending for the template (true=test email has been sent, false=test email has not been sent)"
+          },
+          "toField": {
+            "type": "string",
+            "description": "Customisation of the \"to\" field for the template"
+          },
+          "customTemplateId": {
+            "type": "string",
+            "description": "Custom template identifier, if one was assigned during template creation. Only present when the template has a custom ID."
+          }
+        },
+        "required": [
+          "createdAt",
+          "htmlContent",
+          "id",
+          "isActive",
+          "modifiedAt",
+          "name",
+          "replyTo",
+          "sender",
+          "subject",
+          "tag",
+          "testSent",
+          "toField"
+        ],
+        "title": "getSmtpTemplateOverview"
+      },
+      "GetSmtpTemplateRequestBadRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/SmtpTemplatesTemplateIdGetResponsesContentApplicationJsonSchemaCode",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "GetSmtpTemplateRequestBadRequestError"
+      },
+      "errorModel": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["message"],
+        "title": "errorModel"
+      },
+      "SmtpEmailPostResponsesContentApplicationJsonSchemaCode": {
+        "type": "string",
+        "enum": [
+          "invalid_parameter",
+          "missing_parameter",
+          "out_of_range",
+          "campaign_processing",
+          "campaign_sent",
+          "document_not_found",
+          "not_enough_credits",
+          "permission_denied",
+          "duplicate_parameter",
+          "duplicate_request",
+          "method_not_allowed",
+          "unauthorized",
+          "account_under_validation",
+          "not_acceptable",
+          "bad_request",
+          "unprocessable_entity",
+          "Domain does not exist",
+          "Contact email not found",
+          "Attribute not found",
+          "Category id not found",
+          "Invalid parameters passed",
+          "Record(s) for identifier not found",
+          "Returned when query params are invalid",
+          "Returned when invalid data posted",
+          "Feed not found",
+          "Campaign ID not found",
+          "api-key not found",
+          "DMARC policy requires domain authentication",
+          "DNS records not properly configured",
+          "Invalid OTP code provided",
+          "OTP code has expired",
+          "Domain already exists in your account",
+          "The sum of all IP weights must equal 100",
+          "Authentication failed",
+          "Insufficient credits",
+          "Request already processed"
+        ],
+        "description": "Error code displayed in case of a failure",
+        "title": "SmtpEmailPostResponsesContentApplicationJsonSchemaCode"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsBccItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient in bcc for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "BCC recipient email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the BCC recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient in bcc no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsBccItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsCcItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient in cc for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "CC recipient email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the CC recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient in cc no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsCcItems"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsReplyTo": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address in reply to"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the reply-to address. Maximum length is 70 characters.\n"
+          }
+        },
+        "required": ["email"],
+        "description": "Reply-to email address (required) and optional display name. Recipients will use this address when replying to the email.\n",
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsReplyTo"
+      },
+      "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsToItems": {
+        "type": "object",
+        "properties": {
+          "contactPixelTrackingConsent": {
+            "type": "boolean",
+            "description": "Consent of the recipient for open (pixel) and click tracking, resolved by the sender at send time. Considered only if the per-contact pixel tracking consent feature is enabled for your account. Pass `true` if this recipient has consented to open and click tracking, in which case the open pixel and tracked links identify the recipient. Pass `false` to anonymise the open and click events (counted in aggregate statistics only). If it is not passed, the recipient is treated as unknown consent status and the email is still sent (the open and click are anonymised unless your account tracks unknown-consent contacts). A value other than `true`/`false` is rejected. Ignored when the feature is not enabled for your account.\n"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address of the recipient"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the recipient. Maximum length is 70 characters.\n"
+          },
+          "removeTrackingPixel": {
+            "type": "boolean",
+            "description": "Pass `true` to send the recipient no open pixel, so no open is recorded for them, not even in aggregate statistics. Only available to Enterprise plans: for other accounts the field is accepted but ignored. Considered only if the recipient is not tracked: `contactPixelTrackingConsent` is `false`, or not passed and your account does not track unknown-consent contacts. Click tracking is unchanged. If `false` or not passed, the open pixel is added as usual. A value other than `true`/`false` is rejected.\n"
+          }
+        },
+        "required": ["email"],
+        "title": "SmtpEmailPostRequestBodyContentApplicationJsonSchemaMessageVersionsItemsToItems"
+      },
+      "SmtpTemplatesGetResponsesContentApplicationJsonSchemaCode": {
+        "type": "string",
+        "enum": [
+          "invalid_parameter",
+          "missing_parameter",
+          "out_of_range",
+          "campaign_processing",
+          "campaign_sent",
+          "document_not_found",
+          "not_enough_credits",
+          "permission_denied",
+          "duplicate_parameter",
+          "duplicate_request",
+          "method_not_allowed",
+          "unauthorized",
+          "account_under_validation",
+          "not_acceptable",
+          "bad_request",
+          "unprocessable_entity",
+          "Domain does not exist",
+          "Contact email not found",
+          "Attribute not found",
+          "Category id not found",
+          "Invalid parameters passed",
+          "Record(s) for identifier not found",
+          "Returned when query params are invalid",
+          "Returned when invalid data posted",
+          "Feed not found",
+          "Campaign ID not found",
+          "api-key not found",
+          "DMARC policy requires domain authentication",
+          "DNS records not properly configured",
+          "Invalid OTP code provided",
+          "OTP code has expired",
+          "Domain already exists in your account",
+          "The sum of all IP weights must equal 100",
+          "Authentication failed",
+          "Insufficient credits",
+          "Request already processed"
+        ],
+        "description": "Error code displayed in case of a failure",
+        "title": "SmtpTemplatesGetResponsesContentApplicationJsonSchemaCode"
+      },
+      "GetSmtpTemplateOverviewSender": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "From email for the template"
+          },
+          "id": {
+            "type": "string",
+            "description": "Sender id of the template"
+          },
+          "name": {
+            "type": "string",
+            "description": "Sender name for the template"
+          }
+        },
+        "title": "GetSmtpTemplateOverviewSender"
+      },
+      "SmtpTemplatesTemplateIdGetResponsesContentApplicationJsonSchemaCode": {
+        "type": "string",
+        "enum": [
+          "invalid_parameter",
+          "missing_parameter",
+          "out_of_range",
+          "campaign_processing",
+          "campaign_sent",
+          "document_not_found",
+          "not_enough_credits",
+          "permission_denied",
+          "duplicate_parameter",
+          "duplicate_request",
+          "method_not_allowed",
+          "unauthorized",
+          "account_under_validation",
+          "not_acceptable",
+          "bad_request",
+          "unprocessable_entity",
+          "Domain does not exist",
+          "Contact email not found",
+          "Attribute not found",
+          "Category id not found",
+          "Invalid parameters passed",
+          "Record(s) for identifier not found",
+          "Returned when query params are invalid",
+          "Returned when invalid data posted",
+          "Feed not found",
+          "Campaign ID not found",
+          "api-key not found",
+          "DMARC policy requires domain authentication",
+          "DNS records not properly configured",
+          "Invalid OTP code provided",
+          "OTP code has expired",
+          "Domain already exists in your account",
+          "The sum of all IP weights must equal 100",
+          "Authentication failed",
+          "Insufficient credits",
+          "Request already processed"
+        ],
+        "description": "Error code displayed in case of a failure",
+        "title": "SmtpTemplatesTemplateIdGetResponsesContentApplicationJsonSchemaCode"
+      }
+    }
+  },
+  "x-magic-mail-source": {
+    "url": "https://developers.brevo.com/openapi/email-api.json",
+    "sha256": "d56adf661e413abc2436312fce0e83ee4219635bec4066c562ea6c9f5f77d43c",
+    "retrieved": "2026-11-18",
+    "operations": ["POST /smtp/email", "GET /smtp/templates", "GET /smtp/templates/{templateId}"]
+  }
+}

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Test harness for the SendGrid and Mailgun send paths: a minimal fake
+ * Test harness for the SendGrid, Mailgun and Brevo send paths: a minimal fake
  * Strapi with the real email-router service, in-memory accounts, a
  * deterministic delivery log and tracking, and a recording fake `fetch`.
  * Synthetic data only; nothing leaves the process.
@@ -24,19 +24,32 @@ function withEncryptionKey() {
   };
 }
 
+/** Synthetic Brevo webhook token used by accountFor('brevo'). */
+const BREVO_WEBHOOK_TOKEN = 'brevo-webhook-token-synthetic-0123456789abcdef';
+
+/** Synthetic Amazon SES config (fake key pair, not real AWS credentials). */
+const SES_TEST_CONFIG = Object.freeze({
+  region: 'eu-west-1',
+  credentialSource: 'keys',
+  accessKeyId: 'FAKEKEYIDFORTESTS001',
+  secretAccessKey: 'fakeSecretForMagicMailTests/0123456789abc',
+});
+
 /**
- * Builds a SendGrid or Mailgun account with an encrypted config.
+ * Builds a SendGrid, Mailgun, Brevo or Amazon SES account with an encrypted config.
  *
- * @param {'sendgrid'|'mailgun'} provider
+ * @param {'sendgrid'|'mailgun'|'brevo'|'ses'} provider
  * @param {object} [config] - Extra plain config (region, domain, ...)
  * @returns {object}
  */
 function accountFor(provider, config = {}) {
   const { encryptCredentials } = require('../../server/src/utils/encryption');
-  const plain =
-    provider === 'sendgrid'
-      ? { apiKey: 'SG.fake', ...config }
-      : { apiKey: 'key-fake', domain: 'mg.example.test', ...config };
+  let plain;
+  if (provider === 'sendgrid') plain = { apiKey: 'SG.fake', ...config };
+  else if (provider === 'brevo') {
+    plain = { apiKey: 'xkeysib-fake-synthetic-key', webhookToken: BREVO_WEBHOOK_TOKEN, ...config };
+  } else if (provider === 'ses') plain = { ...SES_TEST_CONFIG, ...config };
+  else plain = { apiKey: 'key-fake', domain: 'mg.example.test', ...config };
   return {
     documentId: `acc${provider}`,
     name: `test-${provider}`,
@@ -150,6 +163,9 @@ function fakeFetch(respond) {
     }
     calls.push(call);
     if (respond) return respond(call);
+    if (call.url.startsWith('https://api.brevo.com/')) {
+      return jsonResponse(201, { messageId: '<202611181200.12345678901@smtp-relay.mailin.fr>' });
+    }
     return call.url.includes('mailgun')
       ? jsonResponse(200, { id: '<20261118.abc@mg.example.test>', message: 'Queued. Thank you.' })
       : jsonResponse(202, undefined, { 'x-message-id': 'sg-message-1' });
@@ -182,7 +198,9 @@ const PIXEL_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 module.exports = {
+  BREVO_WEBHOOK_TOKEN,
   PIXEL_PNG,
+  SES_TEST_CONFIG,
   accountFor,
   createHarness,
   fakeFetch,

@@ -103,6 +103,15 @@ class OpenApiContract {
     this.strict.addSchema(this.spec, 'spec');
     this.coercing.addSchema(this.spec, 'spec');
     this.servers = (this.spec.servers || []).map((server) => new URL(server.url).host);
+    // Server URLs with a path (Brevo: https://api.brevo.com/v3) prefix every
+    // documented path; SendGrid and Mailgun servers have none.
+    this.basePaths = [
+      ...new Set(
+        (this.spec.servers || [])
+          .map((server) => new URL(server.url).pathname.replace(/\/+$/, ''))
+          .filter(Boolean)
+      ),
+    ];
   }
 
   /**
@@ -113,10 +122,16 @@ class OpenApiContract {
    * @returns {{template: string, op: object, pathItem: object}|null}
    */
   findOperation(method, url) {
+    const candidates = [url.pathname];
+    for (const base of this.basePaths || []) {
+      if (url.pathname.startsWith(`${base}/`)) candidates.push(url.pathname.slice(base.length));
+    }
     for (const [template, pathItem] of Object.entries(this.spec.paths)) {
       const pattern = new RegExp(`^${template.replace(/\{[^}]+\}/g, '[^/]+')}$`);
       const op = pathItem[method.toLowerCase()];
-      if (op && pattern.test(url.pathname)) return { template, op, pathItem };
+      if (op && candidates.some((candidate) => pattern.test(candidate))) {
+        return { template, op, pathItem };
+      }
     }
     return null;
   }

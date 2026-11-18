@@ -28,7 +28,7 @@ Mention open and click tracking in your privacy notice.
 
 ## Bounces and complaints
 
-SendGrid and Mailgun can tell MagicMail what happened to a message after they accepted it: a bounce, a spam complaint, a temporary failure, the final delivery or an unsubscribe. The webhooks are off until you save a verification key on the account.
+SendGrid, Mailgun, Brevo and Amazon SES can tell MagicMail what happened to a message after they accepted it: a bounce, a spam complaint, a temporary failure, the final delivery or an unsubscribe. The webhooks are off until the account has its verification secret (SendGrid, Mailgun: a key you paste; Brevo: a token MagicMail creates; Amazon SES: the SNS topic ARN).
 
 **SendGrid**
 
@@ -42,6 +42,22 @@ SendGrid and Mailgun can tell MagicMail what happened to a message after they ac
 2. Edit the Mailgun account in MagicMail, paste it into **HTTP webhook signing key** and save.
 3. Add the **Webhook URL** (`https://<your-strapi>/api/magic-mail/webhooks/mailgun/<accountId>`) in Mailgun for **Permanent Failure** and **Spam Complaints**. Optional: **Temporary Failure**, **Delivered** and **Unsubscribes** (only sent when unsubscribe tracking is on for the domain).
 
+**Brevo**
+
+Brevo webhooks carry no signature, so MagicMail creates a random 256-bit webhook token for every Brevo account and accepts only requests that present it.
+
+1. Edit the Brevo account in MagicMail, copy the **Webhook URL** (`https://<your-strapi>/api/magic-mail/webhooks/brevo/<accountId>`) and select **Show webhook token** (only for admins signed in to the browser with the `manage` permission; every reveal is written to the server log as an audit line without the token). **Replace token** creates a new one after a confirmation; Brevo must then get the new token.
+2. In Brevo open **Transactional → Settings → Webhooks → Add a new webhook**, paste the URL and select Delivered, Hard bounce, Soft bounce, Invalid email, Deferred, Blocked, Spam and Unsubscribed (plus Opened and Clicked for [provider opens and clicks](#provider-opens-and-clicks)). Do not select "First opening": unique and proxy opens are ignored.
+3. Choose token authentication and paste the token. Through the API the same webhook is `POST https://api.brevo.com/v3/webhooks` with `{"type":"transactional","channel":"email","url":"<URL>","events":["delivered","hardBounce","softBounce","invalid","deferred","blocked","spam","unsubscribed","opened","click"],"auth":{"type":"bearer","token":"<token>"},"batched":true}`. MagicMail accepts the token as `Authorization: Bearer <token>` or in the custom header `X-Magic-Mail-Webhook-Token` (Brevo's `headers` option), compared in constant time.
+
+**Amazon SES** (event destination through SNS)
+
+1. In the SES configuration set of the account, add an **SNS** event destination for Delivery, Bounce, Complaint, Reject, Rendering failure and Delivery delay (plus Open and Click for provider opens and clicks). Use a **standard** SNS topic in the same region; SES needs permission to publish to it (`sns:Publish` for `ses.amazonaws.com`, restricted with `AWS:SourceAccount` and `AWS:SourceArn`).
+2. Paste the topic ARN into **SNS topic ARN** on the account and save. Without it the webhook rejects every request.
+3. In SNS create an **HTTPS** subscription to `https://<your-strapi>/api/magic-mail/webhooks/ses/<accountId>`. MagicMail verifies the subscription confirmation and confirms it itself.
+
+Every SNS message is verified before anything is read: the `TopicArn` must equal the saved ARN, the signing certificate must come from `https://sns.<region>.amazonaws.com/SimpleNotificationService-….pem` of the topic's region (no other host, no redirects, at most 16 KB, cached for an hour), and the signature (SignatureVersion 1 or 2) must match the canonical string AWS documents. Replayed SNS messages are ignored by their `MessageId`.
+
 **What happens.** Every request is verified with the provider signature (SendGrid ECDSA over the raw body, Mailgun HMAC-SHA256) and a one-hour timestamp window; replays are ignored. Request bodies up to 1 MiB are accepted (SendGrid posts batches of up to 768 KB; change it with [`webhooks.maxBodyBytes`](./configuration.md#plugin-config)); larger ones get `413`. Every event of a batch is processed in the order of the provider timestamps.
 
 | Provider event                                                                                                                                                                  | Email log                                                                                                          | Event (`strapi.eventHub`)          |
@@ -54,6 +70,13 @@ SendGrid and Mailgun can tell MagicMail what happened to a message after they ac
 | SendGrid `group_resubscribe`                                                                                                                                                    | `unsubscribed: false` (only when newer than the unsubscribe)                                                       | `magic-mail.delivery.resubscribed` |
 | SendGrid `deferred`, Mailgun `failed` + `temporary`                                                                                                                             | **Deferred**, code such as `MAILGUN_DEFERRED_421`                                                                  | `magic-mail.delivery.deferred`     |
 | SendGrid `delivered`, Mailgun `delivered`                                                                                                                                       | `deliveryConfirmedAt` set; a **Deferred** mail returns to **Sent**                                                 | `magic-mail.delivery.delivered`    |
+| Brevo `hard_bounce` and `invalid_email`, SES `Bounce` with type `Permanent`                                                                                                     | **Bounced** (suppressible), code such as `BREVO_HARD_BOUNCE`, `SES_BOUNCE_GENERAL` (SES bounce subtype)            | `magic-mail.delivery.bounced`      |
+| Brevo `soft_bounce` and `deferred`, SES `DeliveryDelay`                                                                                                                         | **Deferred**                                                                                                       | `magic-mail.delivery.deferred`     |
+| Brevo `blocked`, SES `Bounce` with type `Transient` or `Undetermined` (SES publishes these only after it stopped retrying)                                                      | final status `blocked`, not suppressed                                                                             | `magic-mail.delivery.blocked`      |
+| Brevo `error`, SES `Reject` and `Rendering Failure`                                                                                                                             | **Failed**                                                                                                         | `magic-mail.delivery.dropped`      |
+| Brevo `spam`, SES `Complaint`                                                                                                                                                   | `complained: true`                                                                                                 | `magic-mail.delivery.complained`   |
+| Brevo `unsubscribed`, SES `Subscription` (unsubscribe)                                                                                                                          | `unsubscribed: true`                                                                                               | `magic-mail.delivery.unsubscribed` |
+| Brevo `delivered`, SES `Delivery`                                                                                                                                               | `deliveryConfirmedAt` set                                                                                          | `magic-mail.delivery.delivered`    |
 
 Rules:
 
@@ -73,9 +96,19 @@ const events = await strapi
   .getDeliveryEvents([messageId]); // [{ messageId, bounced, complained, reasonCode }]
 ```
 
-The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook; use [bounce monitoring](#bounce-monitoring-mailbox) for them.
+The URL uses the default REST prefix `/api`; adjust it if you changed `api.rest.prefix`. Behind a reverse proxy, enable `server.proxy` so the rate limit (600 requests per minute and IP) sees the real client address. Brevo and Amazon SES use the same URL pattern (`/webhooks/brevo/<accountId>`, `/webhooks/ses/<accountId>`) and the same rate limit. SMTP, Gmail, Microsoft 365 and Yahoo accounts have no bounce webhook; use [bounce monitoring](#bounce-monitoring-mailbox) for them.
 
 **Checking the webhooks against your real accounts.** [Live webhook checks](./live-webhook-checks.md) lists the steps: the providers' test buttons, a real bounce to a mailbox that does not exist, and what MagicMail should show afterwards.
+
+### Provider opens and clicks
+
+Provider templates are rendered by the provider, so MagicMail can not add its pixel or rewrite their links. **Plugin Settings → Open Tracking → Count provider opens and clicks** (off by default; visible once a SendGrid, Mailgun, Brevo or Amazon SES account exists) lets the provider track them instead:
+
+- On a provider-template send, MagicMail asks the provider to track: SendGrid `tracking_settings` open and click on (not in the text part), Mailgun `o:tracking-opens=yes` and `o:tracking-clicks=htmlonly`, SES `ConfigurationOverrides.Tracking` on (needs a configuration set with Open and Click events). Brevo tracks at account level. The email log is marked as provider-tracked.
+- The provider's webhook events (SendGrid `open`/`click`, Mailgun `opened`/`clicked`, Brevo `opened`/`click`, SES `Open`/`Click`) then increase the open and click counts of that log and appear as open and click events in Email Analytics, de-duplicated by provider event id.
+- Only provider-tracked logs count these events. For every other mail MagicMail's own pixel and links are the source, and provider events are ignored, so nothing is counted twice.
+- A clicked link is stored as origin and path only (no query string, no fragment); password-reset, confirmation and other sensitive links are not stored. No IP address or user agent from the provider is stored.
+- A caller's `enableTracking: false` keeps tracking off for that mail; normal (non-template) sends never change.
 
 ### Bounce monitoring (mailbox)
 

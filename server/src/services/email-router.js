@@ -11,6 +11,8 @@ const { routingRuleEvaluationSort } = require('../utils/routing-order');
 const coordination = require('../utils/coordination');
 const { checkRecipientDomains } = require('../utils/recipient-domains');
 const { toPlainJson } = require('../utils/plain-json');
+const { canonicalLocale } = require('../utils/locale');
+const { getAdapter, TEMPLATE_PROVIDERS } = require('../providers');
 const {
   classifyDeliveryError,
   combineOutcome,
@@ -76,7 +78,7 @@ const MAX_PROVIDER_FIELDS = 10;
 // Magic Mail bounds the variables to 1 MB. Mailgun t:variables count towards
 // the 16 KB send options above.
 const PROVIDER_TEMPLATE_DATA_MAX_BYTES = 1024 * 1024;
-const PROVIDER_TEMPLATE_KEY = /^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/;
+const PROVIDER_TEMPLATE_KEY = /^(sendgrid|mailgun|brevo|ses):[a-z0-9][a-z0-9-]{0,99}$/;
 
 // Refresh OAuth tokens this long before they expire (clock skew, slow sends).
 const OAUTH_EXPIRY_SKEW_MS = 60_000;
@@ -614,6 +616,56 @@ function estimateMailgunMessageBytes(form) {
     }
   }
   return total;
+}
+
+/**
+ * Helpers handed to provider adapters (providers/index.js). They are the
+ * functions the SendGrid and Mailgun send paths use, so every provider
+ * applies the same sender, header, attachment, size and error rules.
+ *
+ * @param {object} router - The email-router service (for validateEmailSecurity)
+ * @returns {object}
+ */
+function providerSendHelpers(router) {
+  return {
+    EMAIL_TYPES,
+    PRIORITIES,
+    accountConfigError,
+    buildOutboundHeaders,
+    fetchBounds,
+    formatAddress,
+    magicmailIdOf,
+    messageTooLargeError,
+    normalizeAttachments,
+    parseAddressList,
+    providerHttpError,
+    providerTemplateError,
+    providerTemplateFor,
+    providerTrackingOf,
+    rateLimitResetMs,
+    readProviderErrorBody,
+    resolveReplyTo,
+    senderFor,
+    stripHeaderInjection,
+    tooLargeError,
+    trackingAppliedOf,
+    uniqueRecipients: sendGridRecipients,
+    validateEmailSecurity: (emailData) => router.validateEmailSecurity(emailData),
+    validationError,
+  };
+}
+
+/**
+ * Whether the provider's own open/click tracking should count this message
+ * (provider-template sends with "Count provider opens and clicks" on). Set
+ * by send() as `__providerTracking`; Magic Mail never tracks provider-rendered
+ * bodies itself.
+ *
+ * @param {object} emailData
+ * @returns {boolean}
+ */
+function providerTrackingOf(emailData) {
+  return emailData?.__providerTracking === true;
 }
 
 /**
@@ -1436,6 +1488,14 @@ module.exports = ({ strapi }) => ({
       );
     }
 
+    // Provider-rendered bodies can not carry Magic Mail's pixel or rewritten
+    // links. With "Count provider opens and clicks" on, the provider tracks
+    // them and its open/click events feed the analytics (delivery webhooks).
+    data.__providerTracking =
+      Boolean(data.__providerTemplate) &&
+      pluginSettings.providerTracking === true &&
+      data.enableTracking !== false;
+
     // Unsubscribe: per-email URL wins. The global URL and the "emit for every
     // email type" behaviour both depend on `enableUnsubscribeHeader`.
     const unsubscribeEnabled = pluginSettings.enableUnsubscribeHeader === true;
@@ -1723,9 +1783,23 @@ module.exports = ({ strapi }) => ({
     }
 
     const service = strapi.plugin('magic-mail').service('provider-templates');
-    const resolved = await service.resolveForSend(key);
+    // Language versions: data.locale, else the recipient's stored locale.
+    let locale = null;
+    if (data.locale !== undefined && data.locale !== null && data.locale !== '') {
+      locale = canonicalLocale(data.locale);
+      if (!locale) throw validationError('locale must be a language tag such as de or pt-BR');
+    } else if (typeof service.hasLocales === 'function' && (await service.hasLocales(key))) {
+      locale = await this.recipientLocale(data.to);
+    }
+    const localized =
+      typeof service.resolveLocalized === 'function'
+        ? await service.resolveLocalized(key, locale)
+        : { key, locale: null, resolved: await service.resolveForSend(key) };
+    const resolved = localized.resolved;
     const prepared = {
       key,
+      sentKey: localized.key,
+      locale: localized.locale,
       name: resolved.name || key,
       subject: '',
       rowsByAccount: {},
@@ -1762,6 +1836,33 @@ module.exports = ({ strapi }) => ({
     }
     if (!data.templateName) data.templateName = prepared.name;
     return prepared;
+  },
+
+  /**
+   * Stored locale of the (single) recipient: the users-permissions user with
+   * this email, when the host added a string or enumeration `locale`
+   * attribute to the user content type. Returns null for several recipients,
+   * no such attribute, no user or an invalid value. Only the locale is read.
+   *
+   * @param {unknown} to - Recipient(s) of the mail
+   * @returns {Promise<string|null>} Canonical locale such as 'de-AT'
+   */
+  async recipientLocale(to) {
+    try {
+      const addresses = listAddresses(to);
+      if (addresses.length !== 1) return null;
+      const uid = 'plugin::users-permissions.user';
+      const attribute = strapi.contentType?.(uid)?.attributes?.locale;
+      if (!attribute || !['string', 'enumeration'].includes(attribute.type)) return null;
+      const user = await strapi.db.query(uid).findOne({
+        where: { email: addresses[0].toLowerCase() },
+        select: ['locale'],
+      });
+      return canonicalLocale(user?.locale);
+    } catch (error) {
+      strapi.log.debug(`[magic-mail] Recipient locale lookup failed: ${error?.name || 'Error'}`);
+      return null;
+    }
   },
 
   /**
@@ -2030,6 +2131,7 @@ module.exports = ({ strapi }) => ({
         accountId: null,
         accountName: null,
         messageIdLocal: data.__messageIdLocal,
+        ...(data.__providerTracking === true ? { providerTracking: true } : {}),
         metadata: {
           type: data.type,
           priority: data.priority,
@@ -2041,6 +2143,13 @@ module.exports = ({ strapi }) => ({
             ? {
                 providerTemplate: {
                   key: data.__providerTemplate.key,
+                  ...(data.__providerTemplate.sentKey &&
+                  data.__providerTemplate.sentKey !== data.__providerTemplate.key
+                    ? {
+                        sentKey: data.__providerTemplate.sentKey,
+                        locale: data.__providerTemplate.locale,
+                      }
+                    : {}),
                   variables: Object.keys(data.__providerTemplate.variables).slice(0, 100),
                 },
               }
@@ -2478,8 +2587,10 @@ module.exports = ({ strapi }) => ({
   },
 
   async sendViaAccount(account, emailData) {
-    if (emailData?.__providerTemplate && !['sendgrid', 'mailgun'].includes(account.provider)) {
-      throw accountConfigError('Provider templates are sent through SendGrid or Mailgun only');
+    if (emailData?.__providerTemplate && !TEMPLATE_PROVIDERS.includes(account.provider)) {
+      throw accountConfigError(
+        'Provider templates are sent through SendGrid, Mailgun, Brevo or Amazon SES only'
+      );
     }
     if (account.provider === 'gmail-oauth') return this.sendViaGmailOAuth(account, emailData);
     if (account.provider === 'microsoft-oauth')
@@ -2489,7 +2600,38 @@ module.exports = ({ strapi }) => ({
       return this.sendViaSMTP(account, emailData);
     if (account.provider === 'sendgrid') return this.sendViaSendGrid(account, emailData);
     if (account.provider === 'mailgun') return this.sendViaMailgun(account, emailData);
+    const adapter = getAdapter(account.provider);
+    if (adapter) return this.sendViaAdapter(adapter, account, emailData);
     throw accountConfigError(`Unsupported provider: ${account.provider}`);
+  },
+
+  /**
+   * Sends through a registered provider adapter (Brevo, Amazon SES; see
+   * providers/index.js). The adapter gets the decrypted config and the same
+   * helpers the SendGrid and Mailgun paths use, so sender rules, header
+   * filtering, attachment limits, correlation ids and error classes are
+   * shared.
+   *
+   * @param {object} adapter - Entry of providers/index.js
+   * @param {object} account - Email account (encrypted config)
+   * @param {object} emailData - Prepared message
+   * @returns {Promise<{messageId: string|null, response: string}>}
+   * @throws {Error} Account configuration, validation or provider HTTP errors
+   * @sideeffect One HTTPS request to the provider.
+   */
+  async sendViaAdapter(adapter, account, emailData) {
+    const config = readAccountSecret(account.config);
+    try {
+      return await adapter.send({
+        account,
+        config,
+        emailData,
+        h: providerSendHelpers(this),
+      });
+    } catch (err) {
+      strapi.log.error(`[magic-mail] ${adapter.label} send failed: ${err?.name || 'Error'}`);
+      throw err;
+    }
   },
 
   /**
@@ -3078,7 +3220,14 @@ module.exports = ({ strapi }) => ({
       };
 
       const tracking = trackingAppliedOf(emailData);
-      if (tracking.opens || tracking.clicks) {
+      if (providerTrackingOf(emailData)) {
+        // Provider template with "Count provider opens and clicks": SendGrid
+        // tracks the body it renders; its open/click events are counted.
+        msg.tracking_settings = {
+          click_tracking: { enable: true, enable_text: false },
+          open_tracking: { enable: true },
+        };
+      } else if (tracking.opens || tracking.clicks) {
         msg.tracking_settings = {
           ...(tracking.clicks ? { click_tracking: { enable: false } } : {}),
           ...(tracking.opens ? { open_tracking: { enable: false } } : {}),
@@ -3230,8 +3379,14 @@ module.exports = ({ strapi }) => ({
 
       // Magic Mail tracks these parts itself: Mailgun must not track them again.
       const tracking = trackingAppliedOf(emailData);
-      if (tracking.opens) form.append('o:tracking-opens', 'no');
-      if (tracking.clicks) form.append('o:tracking-clicks', 'no');
+      if (providerTrackingOf(emailData)) {
+        // Provider template with "Count provider opens and clicks".
+        form.append('o:tracking-opens', 'yes');
+        form.append('o:tracking-clicks', 'htmlonly');
+      } else {
+        if (tracking.opens) form.append('o:tracking-opens', 'no');
+        if (tracking.clicks) form.append('o:tracking-clicks', 'no');
+      }
       // Metadata for Mailgun events/webhooks: allowlisted values only.
       const type = EMAIL_TYPES.includes(emailData.type) ? emailData.type : 'transactional';
       const priority = PRIORITIES.includes(emailData.priority) ? emailData.priority : 'normal';
@@ -3610,6 +3765,7 @@ module.exports = ({ strapi }) => ({
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
+  providerSendHelpers,
   MAILGUN_MAX_MESSAGE_BYTES,
   MAILGUN_MAX_OPTIONS_BYTES,
   MAX_TOTAL_ATTACHMENT_BYTES,

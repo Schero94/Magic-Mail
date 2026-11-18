@@ -4,6 +4,8 @@
  * Public, signed delivery webhooks (bounces and complaints).
  * POST /api/magic-mail/webhooks/sendgrid/:accountId
  * POST /api/magic-mail/webhooks/mailgun/:accountId
+ * POST /api/magic-mail/webhooks/brevo/:accountId
+ * POST /api/magic-mail/webhooks/ses/:accountId (SNS HTTPS subscription)
  *
  * Responses carry no detail: 200 for processed or ignored events, 401 for an
  * unknown account, a missing secret or a bad signature, 400 for a malformed
@@ -44,4 +46,6 @@ const handle = (provider) => async (ctx) => {
 module.exports = {
   sendgrid: handle('sendgrid'),
   mailgun: handle('mailgun'),
+  brevo: handle('brevo'),
+  ses: handle('ses'),
 };

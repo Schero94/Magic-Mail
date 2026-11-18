@@ -116,6 +116,32 @@ module.exports = {
     },
     {
       method: 'POST',
+      path: '/accounts/:accountId/webhook-token',
+      handler: 'accounts.webhookToken',
+      config: {
+        policies: adminPolicy('manage'),
+        middlewares: [
+          {
+            name: `plugin::${PLUGIN_ID}.rate-limit`,
+            config: { bucket: 'admin-webhook-token', max: 10, window: 60_000 },
+          },
+        ],
+        description: 'Show or rotate the Brevo webhook token (browser sessions only, audited)',
+      },
+    },
+    {
+      method: 'POST',
+      path: '/accounts/:accountId/check',
+      handler: 'accounts.check',
+      config: {
+        policies: adminPolicy('test-send'),
+        middlewares: testSendRateLimit(),
+        description:
+          'Read-only connection check of a Brevo or Amazon SES account (no email is sent)',
+      },
+    },
+    {
+      method: 'POST',
       path: '/test-strapi-service',
       handler: 'accounts.testStrapiService',
       config: {

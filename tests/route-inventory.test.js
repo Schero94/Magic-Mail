@@ -8,7 +8,7 @@ const admin = require('../server/src/routes/admin').routes;
 const content = require('../server/src/routes/content-api').routes;
 
 const expected = {
-  accounts: 7,
+  accounts: 9,
   'routing-rules': 5,
   oauth: 8,
   designer: 22,
@@ -18,7 +18,7 @@ const expected = {
   outbox: 7,
   'content-send': 2,
   tracking: 2,
-  webhooks: 2,
+  webhooks: 4,
   'bounce-monitor': 6,
 };
 
@@ -73,8 +73,10 @@ test('only signed OAuth callbacks, signed delivery webhooks and bounded tracking
   assert.deepEqual(publicContent.map((r) => r.path).sort(), [
     '/track/click/:emailId/:linkHash/:recipientHash',
     '/track/open/:emailId/:recipientHash',
+    '/webhooks/brevo/:accountId',
     '/webhooks/mailgun/:accountId',
     '/webhooks/sendgrid/:accountId',
+    '/webhooks/ses/:accountId',
   ]);
   for (const route of [...admin, ...content]) {
     if (route.config?.auth === false) continue;
@@ -100,6 +102,8 @@ test('admin routes require the matching least-privilege capability', () => {
 
     if (
       route.path === '/accounts/:accountId/test' ||
+      // Read-only provider check with the stored key, same budget as tests.
+      route.path === '/accounts/:accountId/check' ||
       route.path === '/test-strapi-service' ||
       route.path === '/designer/templates/:id/test-send' ||
       route.path === '/provider-templates/:key/test-send'

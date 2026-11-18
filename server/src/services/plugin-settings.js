@@ -16,6 +16,8 @@ const REVALIDATE_MS = 1_000;
 const DEFAULT_SETTINGS = Object.freeze({
   enableLinkTracking: true,
   enableOpenTracking: true,
+  // Provider templates: count the provider's own open/click events (off by default).
+  providerTracking: false,
   trackingBaseUrl: null,
   defaultFromName: null,
   defaultFromEmail: null,

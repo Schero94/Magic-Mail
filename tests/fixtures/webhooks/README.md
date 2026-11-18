@@ -63,3 +63,34 @@ from the official sendgrid-nodejs test suite
 (<https://github.com/sendgrid/sendgrid-nodejs/blob/498e2329e87d804d83f4a7b519d33fa09198d0ca/packages/eventwebhook/src/eventwebhook.spec.js>).
 It keeps SendGrid's sample address, because changing a byte would break the
 signature.
+
+## `brevo-events.json`
+
+One event object per key, copied on 2026-11-18 from the JSON examples of the
+"Transactional Email" section of the Brevo transactional webhooks page
+(<https://developers.brevo.com/docs/transactional-webhooks>, `.md` variant).
+Keys are the section titles (Sent, Clicked, Deferred, Delivered, Soft bounced,
+Hard bounced, Spam, First opening, Opened, Invalid email, Blocked, Error,
+Unsubscribed, Proxy open, Unique proxy open). Used by
+`tests/brevo-adapter.test.js` and `tests/brevo-integration.test.js`.
+
+Changes from the published examples:
+
+- The examples are not valid JSON (`"id": xxxxx`); `xxxxx` became `26224`, the
+  webhook id of the example on <https://developers.brevo.com/docs/how-to-use-webhooks>.
+- Addresses became `recipient@example.test` / `sender@example.test`, the IP
+  placeholder `xxx.xxx.xxx.xxx` became `192.0.2.1`, `relay.domain.com` became
+  `relay.example.test` and `https://domain.com/product` became
+  `https://shop.example.test/product`. Nothing else was changed.
+
+Documentation quirks the tests keep visible:
+
+- The "Error" example carries `"event": "invalid_email"` although the table
+  above it names the event `error`; the tests build the `error` case from it.
+- `ts_epoch` is documented in milliseconds, but most examples show seconds
+  (Proxy open shows milliseconds).
+- `id` is the webhook id, not an event id; Brevo events have no event id.
+
+Brevo transactional webhooks are not signed. They are authenticated with the
+account's random webhook token (bearer `auth` or a custom header), see
+<https://developers.brevo.com/docs/secured-webhooks>.

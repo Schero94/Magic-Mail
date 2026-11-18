@@ -142,7 +142,7 @@ export const ProviderTemplatesSection = ({
           }
           description={t(
             'templates.provider.empty.description',
-            'Create a dynamic template at SendGrid or a template at Mailgun, then select Sync. Magic Mail lists it here and can send it with your routing, failover and logs.'
+            'Create a template at your provider (SendGrid, Mailgun, Brevo or Amazon SES), then select Sync. Magic Mail lists it here and can send it with your routing, failover and logs.'
           )}
           actions={syncing ? null : syncButton}
         />
@@ -217,7 +217,7 @@ export const ProviderTemplatesSection = ({
           <Typography variant="pi" textColor="neutral600" tag="p">
             {t(
               'templates.provider.description',
-              'Read-only templates from your SendGrid and Mailgun accounts.'
+              'Read-only templates from your SendGrid, Mailgun, Brevo and Amazon SES accounts.'
             )}{' '}
             {lastSynced}
           </Typography>

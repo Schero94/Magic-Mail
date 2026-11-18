@@ -1,3 +1,4 @@
+import { hasTemplateProviderAccount } from './EmailDesigner/providerTemplates/providerTemplateUtils';
 import { useEffect, useRef, useState } from 'react';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
@@ -81,6 +82,8 @@ const PROVIDER_NAMES = {
   'yahoo-oauth': 'Yahoo Mail OAuth',
   sendgrid: 'SendGrid',
   mailgun: 'Mailgun',
+  brevo: 'Brevo',
+  ses: 'Amazon SES',
 };
 const providerName = (value) => PROVIDER_NAMES[value] ?? value;
 
@@ -668,11 +671,7 @@ const HomePage = () => {
         </Box>
       ) : null}
 
-      <CoreDesignAlert
-        enabled={accounts.some(
-          (account) => account?.provider === 'sendgrid' || account?.provider === 'mailgun'
-        )}
-      />
+      <CoreDesignAlert enabled={hasTemplateProviderAccount(accounts)} />
 
       {!loadError && (
         <StatsGrid>

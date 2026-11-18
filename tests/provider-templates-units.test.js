@@ -159,7 +159,9 @@ test('template keys are stable slugs and raw provider ids are not keys', () => {
   assert.equal(isProviderTemplateKey('mailgun:a'), true);
   assert.equal(isProviderTemplateKey('d-13b8f94fbcae4ec6b75270d6cb59f932'), false);
   assert.equal(isProviderTemplateKey('sendgrid:Welcome'), false);
-  assert.equal(isProviderTemplateKey('brevo:welcome'), false);
+  assert.equal(isProviderTemplateKey('brevo:welcome'), true);
+  assert.equal(isProviderTemplateKey('ses:welcome'), true);
+  assert.equal(isProviderTemplateKey('postmark:welcome'), false);
 });
 
 test('the HTML copy design keeps styles and the body in one HTML block', () => {

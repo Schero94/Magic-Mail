@@ -1,5 +1,7 @@
 'use strict';
 
+const { canonicalLocale } = require('../utils/locale');
+
 /**
  * Admin API for provider templates (SendGrid dynamic templates, Mailgun
  * templates): list and sync, preview, test send, local fallback, copy as a
@@ -119,6 +121,12 @@ module.exports = ({ strapi }) => {
                 to,
                 providerTemplate: key,
                 templateData: service().sampleData(detail, to),
+                // A chosen language version, else the admin's interface language.
+                ...(body.language
+                  ? { locale: body.language }
+                  : canonicalLocale(ctx.state?.user?.preferedLanguage)
+                    ? { locale: canonicalLocale(ctx.state.user.preferedLanguage) }
+                    : {}),
                 ...(body.accountName ? { accountName: body.accountName } : {}),
               },
               { queue: false, providerTemplateFallback: false }
@@ -142,18 +150,26 @@ module.exports = ({ strapi }) => {
      *
      * @route PUT /magic-mail/provider-templates/:key/settings
      * @auth Admin JWT + plugin::magic-mail.manage
-     * @param {import('koa').Context} ctx - body `{ fallbackTemplateReferenceId: number|null }`
-     * @returns {Promise<void>} 200 `{ data: { fallbackTemplateReferenceId } }`;
-     *   400 invalid or unknown template; 404 unknown key
+     * @param {import('koa').Context} ctx - body `{ fallbackTemplateReferenceId?: number|null,
+     *   locales?: Record<string, string> }` (at least one; `locales` maps a
+     *   language tag to another synced template key of the same provider and
+     *   replaces the whole map, `{}` clears it)
+     * @returns {Promise<void>} 200 `{ data: { fallbackTemplateReferenceId?, locales? } }`;
+     *   400 invalid or unknown template or locale; 404 unknown key
      * @sideeffect Writes the plugin store.
      */
     async updateSettings(ctx) {
       try {
         const key = keyParam(ctx);
         const body = validate('providerTemplates.settings', ctx.request.body || {});
-        ctx.body = {
-          data: await service().setFallback(key, body.fallbackTemplateReferenceId),
-        };
+        const data = {};
+        if (body.fallbackTemplateReferenceId !== undefined) {
+          Object.assign(data, await service().setFallback(key, body.fallbackTemplateReferenceId));
+        }
+        if (body.locales !== undefined) {
+          Object.assign(data, await service().setLocales(key, body.locales));
+        }
+        ctx.body = { data };
       } catch (error) {
         handleControllerError(ctx, error, '[magic-mail] Provider template settings failed');
       }

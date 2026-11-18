@@ -146,7 +146,7 @@ export const CoreDesignDialog = ({ coreEmail, design, templates, onClose, onSave
                 name="coreDesign"
                 hint={t(
                   'templates.coreDesign.hint',
-                  'With a provider template, SendGrid or Mailgun renders this email. Routing, failover and logs stay in Magic Mail.'
+                  'With a provider template, the provider renders this email. Routing, failover and logs stay in Magic Mail.'
                 )}
               >
                 <Field.Label>{t('templates.coreDesign.label', 'Design')}</Field.Label>

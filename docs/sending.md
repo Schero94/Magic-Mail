@@ -8,7 +8,7 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 - [Provider setup](#provider-setup)
 - [Routing rules and quotas](#routing-rules-and-quotas)
 - [Templates and the visual editor](#templates-and-the-visual-editor)
-- [Provider templates (SendGrid, Mailgun)](#provider-templates-sendgrid-mailgun)
+- [Provider templates (SendGrid, Mailgun, Brevo, Amazon SES)](#provider-templates-sendgrid-mailgun-brevo-amazon-ses)
 
 ## Sending email
 
@@ -177,7 +177,7 @@ The provider value `nodemailer` is an alias of `smtp`.
 
 ### SendGrid
 
-1. In SendGrid go to **Settings → API Keys → Create API Key**, choose **Custom Access** and grant only **Mail Send**. A Full Access key is not needed. Add **Template Engine → Read Access** only if you want to use [provider templates](#provider-templates-sendgrid-mailgun).
+1. In SendGrid go to **Settings → API Keys → Create API Key**, choose **Custom Access** and grant only **Mail Send**. A Full Access key is not needed. Add **Template Engine → Read Access** only if you want to use [provider templates](#provider-templates-sendgrid-mailgun-brevo-amazon-ses).
 2. In MagicMail choose **SendGrid** and paste the key. The From address must be a verified Sender Identity in SendGrid (single sender or authenticated domain).
 3. Choose the region. **Global** fits every account except EU regional subusers, which need **EU**.
 
@@ -216,18 +216,80 @@ What MagicMail adds to each Mailgun message:
 - The variables `v:magicmail_email_type`, `v:magicmail_priority` and `v:magicmail_id` (the email log id), and `o:tag` with the email type. Mailgun shows variables to the recipient in the `X-Mailgun-Variables` header; they contain no personal data.
 - Messages are refused before the request when headers and options exceed Mailgun's 16 KB limit or the estimated message size is 25 MB or more.
 
+### Brevo
+
+1. In Brevo go to **SMTP & API → API keys → Generate a new API key**. Use an API key (`xkeysib-…`), not an SMTP key. If **Security → Authorised IPs** blocks unknown addresses, authorise the IP address of your Strapi server.
+2. In MagicMail choose **Brevo** and paste the key. The From address must be a verified sender or belong to an authenticated domain in Brevo. Brevo has one API host for every account (`https://api.brevo.com/v3`); there is no region to choose.
+3. Save, then use **Check connection**: it reads `GET /v3/account` with the stored key (no email is sent) and names the cause when it fails (invalid key, IP not authorised, account still under validation, no credits).
+
+What MagicMail sends to Brevo (`POST /v3/smtp/email`, header `api-key`):
+
+- `sender`, `to`, `cc`, `bcc` (every address once), one `replyTo` (several reply-to addresses are refused with a 400), `subject`, `htmlContent` and `textContent`.
+- Attachments as base64 `content` with a `name`. Brevo does not support inline (`cid`) images and accepts only certain file extensions; both are refused before the request with a clear error. Brevo accepts at most 20 MB per message including attachments.
+- The filtered custom headers, plus `X-Mailin-custom: magicmail_id=<log id>` (Brevo echoes it in webhooks) and the email type as a tag. Caller headers named `X-Sib-*` or `X-Mailin-*` are dropped.
+- Open and click tracking is an account-wide Brevo setting; there is no per-message switch.
+
+### Amazon SES
+
+1. Verify the From address or its domain in Amazon SES **in the region you will use**. While the AWS account is in the SES sandbox, every recipient must be verified too (the [mailbox simulator](https://docs.aws.amazon.com/ses/latest/dg/send-an-email-from-console.html) addresses such as `success@simulator.amazonses.com` always work).
+2. Create an IAM user with only these permissions and an access key for it:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "ses:SendEmail",
+         "Resource": [
+           "arn:aws:ses:<region>:<account>:identity/<domain-or-address>",
+           "arn:aws:ses:<region>:<account>:configuration-set/<set>",
+           "arn:aws:ses:<region>:<account>:template/*"
+         ]
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["ses:GetAccount", "ses:ListEmailTemplates"],
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": "ses:GetEmailTemplate",
+         "Resource": "arn:aws:ses:<region>:<account>:template/*"
+       }
+     ]
+   }
+   ```
+
+3. In MagicMail choose **Amazon SES**, enter the region (for example `eu-west-1`) and the access key ID and secret access key. Instead of a key you can choose **Server environment variables**: MagicMail then reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and, for temporary role credentials, `AWS_SESSION_TOKEN` from the Strapi process at every request. Use this when your platform injects role credentials as environment variables. MagicMail never calls the EC2 instance-metadata or ECS credential endpoints.
+4. Optional: a **configuration set** (needed for bounce, complaint and delivery events and for open and click tracking) and the **SNS topic ARN** for the [webhook](./delivery.md#bounces-and-complaints).
+   ![Account wizard, Amazon SES credentials step: region, IAM access key or server environment credentials, configuration set and Check connection](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/ses-account.webp)
+
+5. Save, then **Check connection**: it reads `GET /v2/email/account` (no email is sent) and shows whether the account is still in the sandbox and whether sending is enabled.
+
+MagicMail calls the SES v2 API (`https://email.<region>.amazonaws.com`) with requests signed by AWS Signature Version 4, implemented with Node's `crypto` and tested against the official AWS SigV4 test suite (no AWS SDK is installed). China (`cn-*`) and ISO regions are rejected; GovCloud works.
+
+What MagicMail sends to Amazon SES (`SendEmail`):
+
+- `FromEmailAddress`, `Destination` (to, cc, bcc; at most 50 recipients in total, an SES limit), `ReplyToAddresses`, and `Content.Simple` with subject, text, HTML, the filtered headers (at most 15) and attachments.
+- `EmailTags` `magicmail_id` and `magicmail_email_type`, and the configuration set when one is saved.
+- `ConfigurationOverrides.Tracking` switches SES open/click tracking off for the parts MagicMail tracks itself.
+- Messages are refused before the request at 40 MB (the SES v2 limit including attachments).
+
 ### Provider comparison
 
-| Provider      | Authentication        | Transport                   | DKIM                 |
-| ------------- | --------------------- | --------------------------- | -------------------- |
-| Gmail         | OAuth 2.0             | Gmail API                   | by Google            |
-| Microsoft 365 | OAuth 2.0 (Entra ID)  | Microsoft Graph `sendMail`  | by Microsoft         |
-| Yahoo Mail    | OAuth 2.0             | SMTP with XOAUTH2           | by Yahoo             |
-| SMTP          | Username and password | Nodemailer, any SMTP server | optional (see above) |
-| SendGrid      | API key               | HTTPS API (v3)              | by SendGrid          |
-| Mailgun       | API key + domain      | HTTPS API (US or EU region) | by Mailgun           |
+| Provider      | Authentication                            | Transport                                                | DKIM                      |
+| ------------- | ----------------------------------------- | -------------------------------------------------------- | ------------------------- |
+| Gmail         | OAuth 2.0                                 | Gmail API                                                | by Google                 |
+| Microsoft 365 | OAuth 2.0 (Entra ID)                      | Microsoft Graph `sendMail`                               | by Microsoft              |
+| Yahoo Mail    | OAuth 2.0                                 | SMTP with XOAUTH2                                        | by Yahoo                  |
+| SMTP          | Username and password                     | Nodemailer, any SMTP server                              | optional (see above)      |
+| SendGrid      | API key                                   | HTTPS API (v3)                                           | by SendGrid               |
+| Mailgun       | API key + domain                          | HTTPS API (US or EU region)                              | by Mailgun                |
+| Brevo         | API key                                   | HTTPS API (v3)                                           | by Brevo                  |
+| Amazon SES    | IAM access key or environment credentials | HTTPS API (v2, SigV4, any commercial or GovCloud region) | by Amazon SES (Easy DKIM) |
 
-All providers support attachments, inline images (`cid`) and custom headers.
+All providers support attachments and custom headers. Inline images (`cid`) work everywhere except Brevo.
 
 ## Routing rules and quotas
 
@@ -387,15 +449,15 @@ module.exports = [
 
 With `designer.scriptUrl` (self-hosted `embed.js`) put that origin into `script-src` instead; the editor iframe still loads from `editor.unlayer.com`, so keep it in `frame-src`. The Unlayer script runs in the admin origin. Only allow it if you accept that trust.
 
-## Provider templates (SendGrid, Mailgun)
+## Provider templates (SendGrid, Mailgun, Brevo, Amazon SES)
 
-If your team designs emails in SendGrid or Mailgun, MagicMail can send those templates while routing, failover, quotas and the delivery log stay in MagicMail. Nothing changes until a SendGrid or Mailgun account exists; then a **Provider templates** section appears under your templates.
+If your team designs emails in SendGrid, Mailgun, Brevo or Amazon SES, MagicMail can send those templates while routing, failover, quotas and the delivery log stay in MagicMail. Nothing changes until such an account exists; then a **Provider templates** section appears under your templates.
 
 ![Provider templates under the local templates: a SendGrid and a Mailgun template with provider badge, change date at the provider, the accounts that have it and the status](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/provider-templates.webp)
 
 **How it works**
 
-1. MagicMail reads the templates of every SendGrid and Mailgun account with the stored, encrypted API key: SendGrid dynamic templates, Mailgun templates of the account's sending domain and account-level Mailgun templates. It never writes to the provider. The list refreshes itself when it is older than 10 minutes; **Sync** refreshes it at once.
+1. MagicMail reads the templates of every SendGrid, Mailgun, Brevo and Amazon SES account with the stored, encrypted credentials: SendGrid dynamic templates, Mailgun templates of the account's sending domain and account-level Mailgun templates, Brevo transactional templates (inactive ones are shown as **No active version**) and SES email templates of the account's region. It never writes to the provider. The list refreshes itself when it is older than 10 minutes; **Sync** refreshes it at once.
 2. Each template gets a key from its provider and name, for example `sendgrid:welcome-email` or `mailgun:newsletter-digest`. The key is the same in every environment, so code and settings do not change between staging and production. If the provider id of a template changes (for example after a database copy to another environment) but a template with the same name exists, MagicMail matches it by name and shows **Matched by name**.
 3. **Open** shows a sandboxed preview, the variables the template uses, a code example, **Send test** (to your own admin address unless you enter another one; it uses the same sample values as local template tests) and **Copy as Magic Mail template**.
 
@@ -416,19 +478,20 @@ await strapi
   });
 ```
 
-The `data` object is the one a local template gets: MagicMail sends it as SendGrid `dynamic_template_data` or Mailgun `t:variables`. Both providers use Handlebars with top-level keys, so `{{name}}`, `{{user.email}}` and `{{{html}}}` keep their names. Before sending, the data is converted to plain JSON: dates become ISO strings, functions and `undefined` are dropped, cycles and values such as `Map` or `BigInt` are rejected with a 400 that names the field, never the value.
+The `data` object is the one a local template gets: MagicMail sends it as SendGrid `dynamic_template_data`, Mailgun `t:variables`, Brevo `params` or SES `TemplateData`. SendGrid, Mailgun and SES use Handlebars with top-level keys, so `{{name}}`, `{{user.email}}` and `{{{html}}}` keep their names. Brevo templates read the same data under `params`: a Brevo template writes `{{ params.name }}` and you still pass `name`; the dialog lists the variables without the `params.` prefix. Before sending, the data is converted to plain JSON: dates become ISO strings, functions and `undefined` are dropped, cycles and values such as `Map` or `BigInt` are rejected with a 400 that names the field, never the value.
 
-| Rule                            | Behaviour                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Which accounts send             | Only accounts where the sync found the template. Routing rules, the primary account and failover work as usual among those accounts. An explicit `accountName` without the template is an error.                                                                                                                                                                      |
-| Subject                         | The template's subject. SendGrid always uses the template subject (use `{{subject}}` in it and pass `subject` in `data` for a per-mail subject). Mailgun uses `subject` when you pass one and the template's Subject header otherwise; a Mailgun template without a Subject header needs `subject`.                                                                   |
-| Sender                          | The MagicMail account's verified From, as for every other mail.                                                                                                                                                                                                                                                                                                       |
-| Missing or unpublished template | A clear error naming the template (`MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE`, `MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN`). No other body is sent.                                                                                                                                                                                                                        |
-| Fallback                        | Optional, per template: **Fallback template** in the dialog sends a local MagicMail template with the same `data` instead, but only when no provider accepted the message (missing template, provider refusal, no account available). An ambiguous error (for example a timeout after sending) never triggers it.                                                     |
-| Size limits                     | Mailgun accepts 16 KB for all send options (`t:variables` plus headers); SendGrid accepts messages under 30 MB. MagicMail also bounds template data to 1 MB. Larger mails fail before anything is sent with `MAGIC_MAIL_PROVIDER_TEMPLATE_TOO_LARGE`. For Mailgun the 16 KB also include the `v:magicmail_*` variables and `o:tag` that MagicMail adds to every send. |
-| Tracking                        | The provider renders the body, so MagicMail adds no open pixel or link tracking. Use the provider's tracking settings.                                                                                                                                                                                                                                                |
-| Log                             | The delivery log stores the template key and the variable names, never the values.                                                                                                                                                                                                                                                                                    |
-| Not available                   | The public Content API (`/api/magic-mail/send`) does not accept `providerTemplate`; the outbox does not queue provider-template mails in this release. Brevo, Amazon SES and SMTP/OAuth accounts have no provider templates.                                                                                                                                          |
+| Rule                            | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which accounts send             | Only accounts where the sync found the template. Routing rules, the primary account and failover work as usual among those accounts. An explicit `accountName` without the template is an error.                                                                                                                                                                                                                                                                     |
+| Subject                         | The template's subject. SendGrid always uses the template subject (use `{{subject}}` in it and pass `subject` in `data` for a per-mail subject). Mailgun uses `subject` when you pass one and the template's Subject header otherwise; a Mailgun template without a Subject header needs `subject`.                                                                                                                                                                  |
+| Sender                          | The MagicMail account's verified From, as for every other mail.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Missing or unpublished template | A clear error naming the template (`MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE`, `MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN`). No other body is sent.                                                                                                                                                                                                                                                                                                                       |
+| Fallback                        | Optional, per template: **Fallback template** in the dialog sends a local MagicMail template with the same `data` instead, but only when no provider accepted the message (missing template, provider refusal, no account available). An ambiguous error (for example a timeout after sending) never triggers it.                                                                                                                                                    |
+| Size limits                     | Mailgun accepts 16 KB for all send options (`t:variables` plus headers); SendGrid accepts messages under 30 MB. MagicMail also bounds template data to 1 MB. Larger mails fail before anything is sent with `MAGIC_MAIL_PROVIDER_TEMPLATE_TOO_LARGE`. For Mailgun the 16 KB also include the `v:magicmail_*` variables and `o:tag` that MagicMail adds to every send.                                                                                                |
+| Tracking                        | The provider renders the body, so MagicMail adds no open pixel or link tracking. With **Count provider opens and clicks** (Plugin Settings, off by default) MagicMail asks SendGrid, Mailgun and SES to track the template mail and counts their open and click webhook events in Email Analytics; Brevo tracks at account level and its `opened`/`click` events are counted the same way. See [provider opens and clicks](./delivery.md#provider-opens-and-clicks). |
+| Language versions               | Optional, per template: see [Language versions](#language-versions) below.                                                                                                                                                                                                                                                                                                                                                                                           |
+| Log                             | The delivery log stores the template key and the variable names, never the values.                                                                                                                                                                                                                                                                                                                                                                                   |
+| Not available                   | The public Content API (`/api/magic-mail/send`) does not accept `providerTemplate`; the outbox does not queue provider-template mails in this release. SMTP and OAuth accounts have no provider templates. Brevo templates can not be copied as Magic Mail templates (Brevo's own template language does not map to Mustache). SES ignores a caller `subject` for templates (SES does not allow one).                                                                |
 
 **Password reset and email confirmation**
 
@@ -440,9 +503,31 @@ The `data` object is the one a local template gets: MagicMail sends it as SendGr
 | `USER` and `user`                                                          | `id`, `email`, `username` and, when present, `firstname` and `lastname`. Never the whole user.                            |
 | `url`                                                                      | The finished link: `URL` with `code=TOKEN` (reset) or `confirmation=CODE` (confirmation), built with `URL`/`searchParams` |
 | `baseUrl`, `serverUrl`, `adminUrl`, `token` or `code`                      | camelCase copies                                                                                                          |
-| `meta`                                                                     | `templateKey`, `payloadVersion: 1`, `coreEmailType`                                                                       |
+| `meta`                                                                     | `templateKey`, `payloadVersion: 1`, `coreEmailType` and, when the user has a stored locale, `locale`                      |
 
 The dialog lists these names and warns about variables the template uses that MagicMail does not send. By default a failing provider template is reported as an error; tick **send the Magic Mail designer version instead** to fall back. When the chosen template is deleted or unpublished at the provider, the Core emails tab and the MagicMail dashboard show a red notice.
+
+### Language versions
+
+![Provider template dialog for a Brevo template with the language versions de and fr, a language field and a template picker](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/language-versions.webp)
+
+A provider template can have one version per language. Create the translated templates at the provider (for example `Welcome`, `Welcome DE`, `Welcome FR`), sync, open the default template and add **Language versions**: type a language code (`de`, `fr`, `pt-BR`) and pick the template from the list. Changes are saved at once. You keep sending the default key; MagicMail picks the version:
+
+```javascript
+await strapi
+  .plugin('magic-mail')
+  .service('email-router')
+  .send({
+    to: 'user@example.com',
+    providerTemplate: 'brevo:welcome',
+    locale: 'de-AT',
+    data: { name: 'Ada' },
+  });
+```
+
+1. The language: `locale` passed to `send()`; otherwise the recipient's stored locale, when the Users & Permissions user content type has a `locale` attribute (string or enumeration) and the mail has exactly one recipient. Core emails (password reset, email confirmation) use the user's stored locale the same way and send it as `meta.locale`. **Send test** uses your admin interface language.
+2. The version: the exact language tag (`de-AT`), then its language (`de`), then the default template. A version that is deleted or unpublished at the provider is skipped, and the next candidate is used, so a broken translation never blocks the mail.
+3. Rules: versions must come from the same provider and are picked from the synced list (no ids are typed); a version can not have versions of its own. The delivery log records the requested key, the sent version and the language. An invalid `locale` is a 400.
 
 **Convert for provider**
 
@@ -451,4 +536,5 @@ The code snippets dialog of a local template has **Convert for SendGrid or Mailg
 **How this is verified**
 
 - Every request MagicMail builds for these features (template list with pagination, template detail, send with `template_id` and `dynamic_template_data`, Mailgun domain and account templates, send with `template` and `t:variables`, EU hosts) is validated in CI against the providers' official OpenAPI documents ([twilio/sendgrid-oai](https://github.com/twilio/sendgrid-oai), pinned by commit, and the [Mailgun API reference](https://documentation.mailgun.com/docs/mailgun/api-reference/send/mailgun/templates)), together with the responses of the fake SendGrid and Mailgun servers the integration tests use.
-- `npm run test:live` runs the same flows against the real SendGrid (sandbox mode, nothing delivered) and Mailgun (test mode, nothing delivered) APIs with your own test accounts; see [Contributing](https://github.com/Schero94/Magic-Mail#contributing). Live verification status: **pending** (no live run recorded yet).
+- Brevo requests and fake responses are validated against Brevo's official OpenAPI documents (`email-api.json`, `accounts-and-settings.json` from developers.brevo.com, pinned by SHA-256). Amazon SES requests are validated against the official Smithy model of SES v2 ([aws/api-models-aws](https://github.com/aws/api-models-aws), pinned by commit), and the request signing against all 38 cases of the official AWS SigV4 test suite.
+- `npm run test:live` runs the same flows against the real SendGrid (sandbox mode, nothing delivered) and Mailgun (test mode, nothing delivered) APIs with your own test accounts; see [Contributing](https://github.com/Schero94/Magic-Mail#contributing). Brevo runs with the sandbox header `X-Sib-Sandbox: drop` (nothing delivered) and SES only to the mailbox simulator. Live verification status: **pending** (no live run recorded yet).

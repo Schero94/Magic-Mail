@@ -93,6 +93,10 @@
       "type": "integer",
       "default": 0
     },
+    "providerTracking": {
+      "type": "boolean",
+      "default": false
+    },
     "bounced": {
       "type": "boolean",
       "default": false

@@ -34,7 +34,7 @@ const SAFE_PASSTHROUGH_CODES = new Set(['MAGIC_MAIL_VALIDATION', 'MAGIC_MAIL_ACC
 /** Plugin-authored messages that are safe to show as-is. */
 const SAFE_MESSAGE_PATTERNS = [
   /^No email account available$/,
-  /^(SendGrid|Mailgun|Gmail|Microsoft Graph|Microsoft|Yahoo)[\w ]* API request failed: \d{3}$/,
+  /^(SendGrid|Mailgun|Brevo|Amazon SES|Gmail|Microsoft Graph|Microsoft|Yahoo)[\w ]* API request failed: \d{3}$/,
 ];
 
 /**
@@ -149,6 +149,8 @@ function providerStatusFromError(error) {
  * @returns {{code: keyof typeof PROVIDER_HINTS, message: string}|null}
  */
 function providerErrorHint(error, { mailgunDomain, sendgridKeyCheck } = {}) {
+  const adapterHint = adapterErrorHint(error);
+  if (adapterHint) return adapterHint;
   const provider = providerFromError(error);
   const status = providerStatusFromError(error);
   if (!provider || !status) return null;
@@ -171,6 +173,29 @@ function providerErrorHint(error, { mailgunDomain, sendgridKeyCheck } = {}) {
     code = 'MAILGUN_SANDBOX_RECIPIENT';
   }
   return code ? { code, message: PROVIDER_HINTS[code] } : null;
+}
+
+/**
+ * Hint of a Brevo or Amazon SES send failure, from the adapter's own hint
+ * table (providers/index.js). `error.provider` is set by `providerHttpError`
+ * ('brevo', 'amazon ses').
+ *
+ * @param {unknown} error
+ * @returns {{code: string, message: string}|null}
+ */
+function adapterErrorHint(error) {
+  const err = error && typeof error === 'object' ? error : {};
+  if (typeof err.provider !== 'string') return null;
+  const { ADAPTERS } = require('../providers');
+  const adapter = Object.values(ADAPTERS).find(
+    (entry) => entry.label.toLowerCase() === err.provider.toLowerCase()
+  );
+  if (!adapter || !Number.isInteger(err.status)) return null;
+  const code =
+    err.status === 429 ? 'PROVIDER_RATE_LIMITED' : adapter.hintFor?.(err.status, err.code);
+  if (!code) return null;
+  const message = code === 'PROVIDER_RATE_LIMITED' ? PROVIDER_HINTS[code] : adapter.HINTS?.[code];
+  return message ? { code, message } : null;
 }
 
 /**

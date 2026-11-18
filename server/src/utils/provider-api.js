@@ -352,6 +352,7 @@ module.exports = {
   listMailgunTemplates,
   listSendGridTemplates,
   pageParam,
+  readBounded,
   resolveSendGridRegion,
   sendGridApiBaseUrl,
   toIso,

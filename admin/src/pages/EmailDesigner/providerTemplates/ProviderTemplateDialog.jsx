@@ -28,6 +28,7 @@ import {
   StyledModalHeader,
 } from '../templateListStyles';
 import { Notice } from './Notice';
+import { LanguageVersions } from './LanguageVersions';
 import { conversionWarning, providerName, statusInfo } from './providerTemplateUtils';
 import { ConvertedCode, PreviewFrame, VariableList, VariableItem } from './providerTemplateStyles';
 
@@ -45,7 +46,8 @@ const NO_FALLBACK = '__none__';
  * @param {boolean} props.canManage - May set the fallback and copy
  * @param {boolean} props.canTestSend - May send a test
  * @param {Array<{templateReferenceId: number, name: string}>} props.localTemplates
- * @param {() => void} props.onChanged - Called after the fallback changed
+ * @param {() => void} props.onChanged - Called after the fallback or the language versions changed
+ * @param {Array<object>} [props.providerTemplateList] - Synced provider templates (language versions)
  * @returns {import('react').ReactElement}
  */
 export const ProviderTemplateDialog = ({
@@ -55,6 +57,7 @@ export const ProviderTemplateDialog = ({
   canTestSend,
   localTemplates,
   onChanged,
+  providerTemplateList = [],
 }) => {
   const { t } = useMagicMailIntl();
   const { get, post, put } = useFetchClient();
@@ -398,6 +401,14 @@ export const ProviderTemplateDialog = ({
               ))}
             </VariableList>
           )}
+          {detail.provider === 'brevo' ? (
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'templates.provider.detail.brevoParams',
+                'Brevo reads your data under params: the template writes params.name, you pass name. Magic Mail does the mapping.'
+              )}
+            </Typography>
+          ) : null}
           {notSentInTest.length > 0 ? (
             <Typography variant="pi" textColor="neutral600">
               {t(
@@ -465,6 +476,16 @@ export const ProviderTemplateDialog = ({
           </Field.Root>
         ) : null}
 
+        <LanguageVersions
+          detail={detail}
+          templates={providerTemplateList}
+          canManage={canManage}
+          onSaved={(locales) => {
+            setDetail((current) => ({ ...current, locales }));
+            onChanged?.();
+          }}
+        />
+
         {canTestSend ? (
           <Field.Root
             name="providerTestRecipient"
@@ -513,7 +534,7 @@ export const ProviderTemplateDialog = ({
                 {t('common.close', 'Close')}
               </TertiaryButton>
               <Flex gap={2} wrap="wrap" justifyContent="flex-end">
-                {canManage && detail?.previewHtml ? (
+                {canManage && detail?.previewHtml && detail.provider !== 'brevo' ? (
                   <SecondaryButton
                     type="button"
                     onClick={startCopy}

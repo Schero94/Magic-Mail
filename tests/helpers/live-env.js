@@ -4,8 +4,8 @@
 // in tests/live/. Values are only kept in memory and never printed: every
 // message built here names variables, never their values.
 //
-// LIVE_PROVIDERS picks the providers a run covers: `sendgrid`, `mailgun` or
-// `sendgrid,mailgun`. It is read from the process environment first, then
+// LIVE_PROVIDERS picks the providers a run covers: a comma-separated list of
+// `sendgrid`, `mailgun`, `brevo` and `ses`. It is read from the process environment first, then
 // from the credentials file. Without it, every provider whose required
 // variables are complete is selected; when none is complete, all providers
 // are selected so the missing variables are reported.
@@ -16,6 +16,8 @@ const path = require('node:path');
 
 const ENV_FILE = path.join(os.homedir(), '.config', 'magic-mail-live', '.env');
 const PROVIDERS = ['sendgrid', 'mailgun'];
+/** Every provider name LIVE_PROVIDERS may contain (Brevo and SES have their own suites). */
+const KNOWN_PROVIDERS = ['sendgrid', 'mailgun', 'brevo', 'ses'];
 const ALLOWED_HOSTS = new Set([
   'api.sendgrid.com',
   'api.eu.sendgrid.com',
@@ -66,9 +68,9 @@ function loadLiveConfig(requiredByProvider) {
       .split(',')
       .map((name) => name.trim().toLowerCase())
       .filter(Boolean);
-    const unknown = names.filter((name) => !PROVIDERS.includes(name));
+    const unknown = names.filter((name) => !KNOWN_PROVIDERS.includes(name));
     if (unknown.length > 0) {
-      selectionError = `LIVE_PROVIDERS has unknown provider(s) ${unknown.join(', ')}; use sendgrid, mailgun or sendgrid,mailgun`;
+      selectionError = `LIVE_PROVIDERS has unknown provider(s) ${unknown.join(', ')}; use a comma-separated list of ${KNOWN_PROVIDERS.join(', ')}`;
     }
     selected = PROVIDERS.filter((provider) => names.includes(provider));
   } else {
@@ -165,9 +167,32 @@ function installLiveFetch() {
   };
 }
 
+/**
+ * Why a single-provider suite (Brevo, Amazon SES) is not selected by
+ * LIVE_PROVIDERS, or null when it runs. Without LIVE_PROVIDERS every suite
+ * whose variables are complete runs.
+ *
+ * @param {string} provider - 'brevo' or 'ses'
+ * @param {Record<string, string>|null} env - from readLiveEnv()
+ * @returns {string|null}
+ */
+function providerNotSelected(provider, env) {
+  const raw = process.env.LIVE_PROVIDERS ?? (env ? env.LIVE_PROVIDERS : undefined);
+  if (raw === undefined || raw.trim() === '') return null;
+  const names = raw
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  return names.includes(provider)
+    ? null
+    : `${provider} not selected (LIVE_PROVIDERS=${names.join(',')})`;
+}
+
 module.exports = {
   ENV_FILE,
+  KNOWN_PROVIDERS,
   PROVIDERS,
+  providerNotSelected,
   ALLOWED_HOSTS,
   readLiveEnv,
   loadLiveConfig,

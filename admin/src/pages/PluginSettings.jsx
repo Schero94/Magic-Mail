@@ -1,3 +1,4 @@
+import { hasTemplateProviderAccount } from './EmailDesigner/providerTemplates/providerTemplateUtils';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
@@ -305,7 +306,24 @@ const PluginSettingsContent = () => {
   const [initialSettings, setInitialSettings] = useState(null);
   const [settings, setSettings] = useState(SETTINGS_DEFAULTS);
   const [saving, setSaving] = useState(false);
+  const [templateAccounts, setTemplateAccounts] = useState(false);
   const mounted = useRef(true);
+
+  // The provider-tracking switch only matters with a SendGrid, Mailgun, Brevo
+  // or Amazon SES account; without one it stays hidden.
+  useEffect(() => {
+    let ignore = false;
+    get('/magic-mail/accounts')
+      .then((response) => {
+        if (!ignore) setTemplateAccounts(hasTemplateProviderAccount(response?.data?.data));
+      })
+      .catch(() => {
+        if (!ignore) setTemplateAccounts(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [get]);
 
   useEffect(() => {
     mounted.current = true;
@@ -654,6 +672,35 @@ const PluginSettingsContent = () => {
               />
             </SwitchWrapper>
           </SettingRow>
+          {templateAccounts || settings.providerTracking ? (
+            <SettingRow alignItems="center">
+              <SettingInfo>
+                <SettingLabel>
+                  {t('settings.providerTracking.label', 'Count provider opens and clicks')}
+                </SettingLabel>
+                <SettingDescription>
+                  {t(
+                    'settings.providerTracking.description',
+                    'Provider templates are rendered by SendGrid, Mailgun, Brevo or Amazon SES, so Magic Mail can not add its pixel or rewrite their links. When this is on, the provider tracks them and its open and click events are counted in Email Analytics. Needs the delivery webhook with open and click events (SES: a configuration set with Open and Click). Brevo tracks at account level.'
+                  )}
+                </SettingDescription>
+              </SettingInfo>
+              <SwitchWrapper>
+                <Switch
+                  checked={settings.providerTracking}
+                  disabled={!canManage}
+                  onCheckedChange={(checked) => handleChange('providerTracking', checked)}
+                  aria-label={t(
+                    'settings.providerTracking.label',
+                    'Count provider opens and clicks'
+                  )}
+                  onLabel={t('settings.switch.on', 'Enabled')}
+                  offLabel={t('settings.switch.off', 'Disabled')}
+                  visibleLabels={false}
+                />
+              </SwitchWrapper>
+            </SettingRow>
+          ) : null}
         </SectionContent>
       </SettingsSection>
 
