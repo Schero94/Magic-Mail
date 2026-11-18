@@ -141,7 +141,7 @@ export const TemplateTestSendModal = ({ template, isOpen, onClose }) => {
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <StyledModalContent onCloseAutoFocus={returnFocus}>
+      <StyledModalContent onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
         <form onSubmit={sendTestEmail} noValidate>
           <StyledModalHeader closeLabel={t('common.close', 'Close')}>
             <Modal.Title>{t('templates.testSend.title', 'Send test email')}</Modal.Title>

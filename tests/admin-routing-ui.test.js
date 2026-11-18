@@ -367,7 +367,7 @@ test('rule form hints are passed to Field.Root (DS 2 Field.Hint ignores children
 
 test('dialogs return focus to their opener and row actions keep native keys', () => {
   assert.match(modal, /useReturnFocus\(true, getReturnFocusFallback\)/);
-  assert.match(modal, /<Modal\.Content size="L" onCloseAutoFocus=\{returnFocus\}>/);
+  assert.match(modal, /<Modal\.Content size="L" onCloseAutoFocus=\{returnFocus\}[^>]*>/);
   assert.match(page, /getReturnFocusFallback=\{getFocusFallback\}/);
   assert.match(page, /data-mm-focus-fallback/);
   assert.match(

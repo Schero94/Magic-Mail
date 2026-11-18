@@ -507,7 +507,7 @@ const AddAccountModal = ({
           if (!open) requestClose();
         }}
       >
-        <Modal.Content size="XL" onCloseAutoFocus={returnFocus}>
+        <Modal.Content size="XL" onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
           <Modal.Header closeLabel={t('common.close', 'Close')}>
             <Modal.Title variant="beta">
               <Flex tag="span" alignItems="center" gap={2}>

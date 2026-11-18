@@ -26,6 +26,22 @@
 * If you use a SendGrid EU regional subuser, set that account's region to **EU**.
 * If you listen to SendGrid or Mailgun webhooks yourself, you will see the new `magicmail_*` custom arguments / variables and the Mailgun tag.
 
+## [4.6.3](https://github.com/Schero94/Magic-Mail/compare/v4.6.2...v4.6.3) (2026-11-18)
+
+
+### Bug Fixes
+
+* **admin:** state that the dialogs are labelled by their title ([#27](https://github.com/Schero94/Magic-Mail/issues/27)) ([0435754](https://github.com/Schero94/Magic-Mail/commit/0435754f9154c75c2ee5a3039f93500c87c04555))
+
+
+### Fixed
+
+* The dialogs and drawers (add or edit account, test email, routing rule, template code snippets, template test send, version history, outbox details) no longer log the Radix warning "Missing `Description` or `aria-describedby={undefined}`" in the browser console. Their title is their accessible name, and they now say so.
+
+### Tests
+
+* `npm run test:admin`: StrictMode tests for every admin entry point (no duplicate requests, no leaked timers, listeners, connections or observers after unmount, no console errors or warnings), also run against React 19 in an informational CI job.
+
 ## [4.6.2](https://github.com/Schero94/Magic-Mail/compare/v4.6.1...v4.6.2) (2026-11-18)
 
 

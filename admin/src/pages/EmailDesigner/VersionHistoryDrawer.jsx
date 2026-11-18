@@ -94,7 +94,7 @@ export const VersionHistoryDrawer = forwardRef(function VersionHistoryDrawer(
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <VersionSheet onCloseAutoFocus={returnFocus}>
+      <VersionSheet onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
         <VersionSheetHeader closeLabel={t('editor.versions.close', 'Close version history')}>
           <VersionSheetTitle>
             <ClockIcon aria-hidden="true" />
