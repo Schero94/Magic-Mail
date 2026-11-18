@@ -3,8 +3,9 @@
 const { errors } = require('@strapi/utils');
 const { encryptCredentials, decryptCredentials } = require('../utils/encryption');
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
-const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
+const { toClientSendResult, describeErrorForLog } = require('../utils/client-errors');
 const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
+const { normalizeMailgunDomain, isValidMailgunDomain } = require('../utils/mailgun-domain');
 const coordination = require('../utils/coordination');
 
 /**
@@ -78,6 +79,43 @@ const assertMailgunRegion = (provider, config) => {
   });
 };
 
+/** API provider config fields that are trimmed on save (ACC-MG-04). */
+const TRIMMED_API_FIELDS = ['apiKey', 'webhookSigningKey', 'webhookPublicKey'];
+
+/**
+ * Normalises and validates the SendGrid/Mailgun part of an incoming config.
+ *
+ * - Trims `apiKey`, `webhookSigningKey` and `webhookPublicKey` (copy-paste
+ *   whitespace broke HMAC checks). The SECRET_MASK has no whitespace, so the
+ *   keep-the-stored-secret passthrough is unaffected.
+ * - Mailgun `domain`: strips scheme, trailing slashes and case, then requires
+ *   a host name (ACC-MG-01). Required when `requireDomain` is set (create, or
+ *   a provider change to Mailgun); otherwise checked only when sent, so edits
+ *   that do not touch the config are never blocked by an older stored value.
+ *
+ * @param {string} provider - Effective provider of the account
+ * @param {object|undefined|null} config - Incoming plain config (not mutated)
+ * @param {{requireDomain?: boolean}} [options]
+ * @returns {object|undefined|null} A normalised copy, or `config` unchanged for other providers
+ * @throws {errors.ValidationError} When the Mailgun domain is missing or not a host name (400)
+ */
+const normalizeApiProviderConfig = (provider, config, { requireDomain = false } = {}) => {
+  if ((provider !== 'mailgun' && provider !== 'sendgrid') || !config) return config;
+  const out = { ...config };
+  for (const field of TRIMMED_API_FIELDS) {
+    if (typeof out[field] === 'string') out[field] = out[field].trim();
+  }
+  if (provider !== 'mailgun') return out;
+  if (!('domain' in out) && !requireDomain) return out;
+  if (!isValidMailgunDomain(out.domain)) {
+    throw new errors.ValidationError('Mailgun domain must be a host name such as mg.example.com', {
+      config: ['domain: must be a host name such as mg.example.com, without https:// or a path'],
+    });
+  }
+  out.domain = normalizeMailgunDomain(out.domain);
+  return out;
+};
+
 const escapeHtml = (value) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -116,14 +154,20 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Create new email account
+   * Creates an email account. SendGrid/Mailgun keys are trimmed and the
+   * Mailgun domain is normalised and validated before the config is encrypted.
+   *
+   * @param {object} accountData - Validated create body
+   * @returns {Promise<object>} The created account document
+   * @throws {errors.ValidationError} Invalid Mailgun region or domain, or an
+   *   unsupported bounce mode (400)
+   * @sideeffect Writes one email-account row; may clear the primary flag of others.
    */
   async createAccount(accountData) {
     const {
       name,
       description,
       provider,
-      config,
       fromEmail,
       fromName,
       replyTo,
@@ -139,8 +183,11 @@ module.exports = ({ strapi }) => ({
 
     strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
 
-    assertMailgunRegion(provider, config);
+    assertMailgunRegion(provider, accountData.config);
     assertBounceMode(provider, bounceMonitor);
+    const config = normalizeApiProviderConfig(provider, accountData.config, {
+      requireDomain: true,
+    });
 
     // Encrypt sensitive config data
     const encryptedConfig = config ? encryptCredentials(config) : null;
@@ -178,7 +225,16 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Update email account
+   * Updates an email account. A sent Mailgun `config.domain` is normalised and
+   * validated; spelling-only changes of the same domain (scheme, slash, case)
+   * are not treated as an identity change.
+   *
+   * @param {string|number} idOrDocumentId - Account documentId or numeric id
+   * @param {object} accountData - Validated update body (partial)
+   * @returns {Promise<object>} The updated account document
+   * @throws {errors.NotFoundError} Unknown account (404)
+   * @throws {errors.ValidationError} Invalid region/domain, or stored secrets to re-enter (400)
+   * @sideeffect Writes the account row; renames routing-rule references on a rename.
    */
   async updateAccount(idOrDocumentId, accountData) {
     const documentId = await this.resolveDocumentId(idOrDocumentId);
@@ -198,7 +254,6 @@ module.exports = ({ strapi }) => ({
       name,
       description,
       provider,
-      config,
       fromEmail,
       fromName,
       replyTo,
@@ -212,7 +267,7 @@ module.exports = ({ strapi }) => ({
 
     const previousName = existingAccount.name;
     const providerChanged = provider !== undefined && provider !== existingAccount.provider;
-    if (providerChanged && !config) {
+    if (providerChanged && !accountData.config) {
       throw new errors.ValidationError(
         'Changing the provider requires a complete provider configuration',
         {
@@ -221,8 +276,13 @@ module.exports = ({ strapi }) => ({
       );
     }
 
-    assertMailgunRegion(provider ?? existingAccount.provider, config);
+    assertMailgunRegion(provider ?? existingAccount.provider, accountData.config);
     assertBounceMode(provider ?? existingAccount.provider, bounceMonitor);
+    const config = normalizeApiProviderConfig(
+      provider ?? existingAccount.provider,
+      accountData.config,
+      { requireDomain: providerChanged }
+    );
 
     let encryptedConfig = existingAccount.config;
     if (config) {
@@ -297,7 +357,8 @@ module.exports = ({ strapi }) => ({
    * @param {string|number} idOrDocumentId - Account identifier
    * @param {string} testEmail - Primary test recipient
    * @param {{priority?: string, type?: string, unsubscribeUrl?: string|null, cc?: string|string[]}} testOptions - Test headers and delivery options
-   * @returns {Promise<{success: boolean, message: string, testConfig?: object}>}
+   * @returns {Promise<{success: boolean, message: string, hintCode?: string, hint?: string, testConfig?: object}>}
+   *   On failure `hintCode`/`hint` are added for known SendGrid/Mailgun HTTP failures (ACC-ERR-01).
    */
   async testAccount(idOrDocumentId, testEmail, testOptions = {}) {
     const documentId = await this.resolveDocumentId(idOrDocumentId);
@@ -386,7 +447,16 @@ module.exports = ({ strapi }) => ({
       // Never echo raw transport errors (internal hosts, ports, SMTP
       // responses with addresses) to the client.
       strapi.log.warn(`[magic-mail] Account test failed: ${describeErrorForLog(error)}`);
-      return { success: false, message: toClientSendMessage(error) };
+      // The Mailgun domain is read only to recognise a sandbox domain for the hint.
+      let mailgunDomain;
+      if (account.provider === 'mailgun' && account.config) {
+        try {
+          mailgunDomain = decryptCredentials(account.config)?.domain;
+        } catch {
+          mailgunDomain = undefined;
+        }
+      }
+      return { success: false, ...toClientSendResult(error, { mailgunDomain }) };
     }
   },
 
@@ -534,7 +604,9 @@ module.exports = ({ strapi }) => ({
       if (value === undefined || value === null || value === '') return '';
       if (key === 'allowInsecure') return value === true || value === 'true' ? 'true' : '';
       const text = String(value).trim();
-      return key === 'host' || key === 'domain' ? text.toLowerCase() : text;
+      // 'https://mg.example.com/' and 'mg.example.com' are the same Mailgun domain.
+      if (key === 'domain') return normalizeMailgunDomain(text);
+      return key === 'host' ? text.toLowerCase() : text;
     };
     return IDENTITY_FIELDS.filter(
       (key) => key in incoming && norm(key, incoming[key]) !== norm(key, existingPlain[key])

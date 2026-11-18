@@ -176,13 +176,14 @@ The provider value `nodemailer` is an alias of `smtp`.
 
 ### SendGrid
 
-1. In SendGrid go to **Settings → API Keys** and create a key with the **Mail Send** permission.
-2. In MagicMail choose **SendGrid** and paste the key. The sender address must be verified in SendGrid.
+1. In SendGrid go to **Settings → API Keys → Create API Key**, choose **Custom Access** and grant only **Mail Send**. A Full Access key is not needed: MagicMail only sends mail.
+2. In MagicMail choose **SendGrid** and paste the key. The From address must be a verified Sender Identity in SendGrid (single sender or authenticated domain).
 
 ### Mailgun
 
-1. In Mailgun copy your **Private API key** and your verified sending domain. Note the region the domain was created in (US or EU).
-2. In MagicMail choose **Mailgun**, enter the domain (for example `mg.example.com`), pick the region and paste the key.
+1. In Mailgun create a **Domain Sending Key** for your sending domain (**Sending → Domains → your domain → Domain Settings → Sending API keys → Add Sending Key**). It can only send mail, which is all MagicMail needs. The account **Private API key** (**Account Settings → API Keys**) also works, but grants full access to your Mailgun account. Note the region the domain was created in (US or EU).
+2. In MagicMail choose **Mailgun**, enter the domain (for example `mg.example.com`), pick the region and paste the key. If you paste `https://mg.example.com/`, MagicMail saves `mg.example.com`; anything else that is not a domain name is rejected when you save.
+3. A sandbox domain (`sandbox….mailgun.org`) only delivers to authorized recipients. Add your test address under the sandbox domain in Mailgun before you send a test.
 
 A Mailgun domain can only be used through the API host of its region. MagicMail stores the region as `config.region` and calls:
 

@@ -78,15 +78,22 @@ function verifySendGridSignature({ publicKey, rawBody, signature, timestamp, now
 }
 
 /**
+ * Verifies a Mailgun webhook signature. The stored signing key is trimmed
+ * first (ACC-MG-04): surrounding whitespace from a copy-paste, or a newline
+ * sent straight to the admin API, would otherwise change the HMAC key and
+ * reject every webhook. Trimming here also repairs keys stored earlier.
+ *
  * @param {{signingKey: unknown, timestamp: unknown, token: unknown, signature: unknown, nowMs?: number}} input
- * @returns {boolean}
+ * @returns {boolean} false for an empty key, a malformed token or signature,
+ *   a stale timestamp or a mismatch
  */
 function verifyMailgunSignature({ signingKey, timestamp, token, signature, nowMs }) {
-  if (typeof signingKey !== 'string' || !signingKey) return false;
+  const key = typeof signingKey === 'string' ? signingKey.trim() : '';
+  if (!key) return false;
   if (typeof token !== 'string' || !/^[A-Za-z0-9]{10,200}$/.test(token)) return false;
   if (typeof signature !== 'string' || !/^[a-f0-9]{64}$/i.test(signature)) return false;
   if (!isFreshTimestamp(timestamp, nowMs)) return false;
-  const expected = crypto.createHmac('sha256', signingKey).update(`${timestamp}${token}`).digest();
+  const expected = crypto.createHmac('sha256', key).update(`${timestamp}${token}`).digest();
   const given = Buffer.from(signature, 'hex');
   return given.length === expected.length && crypto.timingSafeEqual(given, expected);
 }
