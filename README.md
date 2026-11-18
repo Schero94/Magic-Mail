@@ -246,10 +246,13 @@ npm ci --ignore-scripts
 npm run lint
 npm run format:check
 npm test
+npm run test:admin
 npm run build
 npm run verify
 npm run verify:runtime
 ```
+
+`npm run test:admin` renders every admin entry point (the five sections of the MagicMail page with their dialogs, the template editor, the Plugin Settings page) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 
 `npm run test:multi-instance` runs the multi-process suite (set `MAGIC_MAIL_TEST_PG_URL` for PostgreSQL). `npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change. CI runs the same checks on Node 22 and 24 for every pull request and every push to `main`. Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `docs:`); releases are cut from `main` by semantic-release.
 

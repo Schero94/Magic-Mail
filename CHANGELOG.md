@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Fixed
+
+* The dialogs and drawers (add or edit account, test email, routing rule, template code snippets, template test send, version history, outbox details) no longer log the Radix warning "Missing `Description` or `aria-describedby={undefined}`" in the browser console. Their title is their accessible name, and they now say so.
+
+### Tests
+
+* `npm run test:admin`: StrictMode tests for every admin entry point (no duplicate requests, no leaked timers, listeners, connections or observers after unmount, no console errors or warnings), also run against React 19 in an informational CI job.
+
 ## [4.6.2](https://github.com/Schero94/Magic-Mail/compare/v4.6.1...v4.6.2) (2026-11-18)
 
 

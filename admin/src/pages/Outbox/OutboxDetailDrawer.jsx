@@ -150,7 +150,7 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <VersionSheet onCloseAutoFocus={returnFocus}>
+      <VersionSheet onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
         <VersionSheetHeader closeLabel={t('queue.detail.close', 'Close details')}>
           <VersionSheetTitle>
             <InboxStackIcon aria-hidden="true" />

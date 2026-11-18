@@ -134,7 +134,25 @@ test('workflows pin actions by SHA, use least privilege and never run install sc
     for (const [, ref] of yaml.matchAll(/uses:\s*[\w./-]+@(\S+)/g)) {
       assert.match(ref, /^[0-9a-f]{40}$/, `${file}: action ref ${ref} is not a commit SHA`);
     }
-    assert.doesNotMatch(yaml, /--legacy-peer-deps/, `${file}: peer conflicts must not be hidden`);
+    // One exception: the informational React 19 job installs React outside the declared
+    // ^18 peer range on purpose (that conflict is what it tests), cannot block a pull
+    // request, and uses --legacy-peer-deps for that single install only.
+    const react19 = yaml.split(/^ {2}react-19:\s*$/m)[1]?.split(/^ {2}[\w-]+:\s*$/m)[0] ?? '';
+    if (react19) {
+      assert.match(
+        react19,
+        /continue-on-error: true/,
+        `${file}: the React 19 job is informational`
+      );
+      const legacy = react19.split('\n').filter((line) => line.includes('--legacy-peer-deps'));
+      assert.equal(legacy.length, 1, `${file}: only the React 19 install skips the peer check`);
+      assert.match(legacy[0], /npm install --no-save .*react@19 react-dom@19$/);
+    }
+    assert.doesNotMatch(
+      yaml.replace(react19, ''),
+      /--legacy-peer-deps/,
+      `${file}: peer conflicts must not be hidden`
+    );
     for (const [line] of yaml.matchAll(/^\s*run:\s*npm ci\b.*$/gm)) {
       assert.match(line, /--ignore-scripts/, `${file}: ${line.trim()}`);
     }

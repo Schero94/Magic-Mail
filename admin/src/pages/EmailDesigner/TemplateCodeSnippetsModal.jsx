@@ -96,7 +96,7 @@ export const TemplateCodeSnippetsModal = ({ template, isOpen, onClose }) => {
 
   return (
     <Modal.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <CodeModalContent onCloseAutoFocus={returnFocus}>
+      <CodeModalContent onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
         <StyledModalHeader closeLabel={t('common.close', 'Close')}>
           <Modal.Title>
             {t('templates.code.title', 'Code snippets: {name}', { name: template.name })}
