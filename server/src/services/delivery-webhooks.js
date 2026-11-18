@@ -5,6 +5,7 @@ const { decryptCredentials } = require('../utils/encryption');
 const { normalizeMessageId, messageIdCandidates } = require('../utils/message-id');
 const { verifySendGridSignature, verifyMailgunSignature } = require('../utils/webhook-signatures');
 const coordination = require('../utils/coordination');
+const { getAdapter, WEBHOOK_PROVIDERS } = require('../providers');
 
 /**
  * Signed delivery webhooks (SendGrid Event Webhook, Mailgun webhooks).
@@ -42,7 +43,7 @@ const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 
-const PROVIDERS = new Set(['sendgrid', 'mailgun']);
+const PROVIDERS = new Set(WEBHOOK_PROVIDERS);
 const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
 /** Log documentId sent as SendGrid custom_args / Mailgun v: variable `magicmail_id`. */
 const MAGICMAIL_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
@@ -58,7 +59,7 @@ const SEEN_MAX = 20_000;
 const seen = new Map();
 
 /**
- * @typedef {'bounced'|'complained'|'blocked'|'dropped'|'deferred'|'delivered'|'unsubscribed'|'resubscribed'} DeliveryKind
+ * @typedef {'bounced'|'complained'|'blocked'|'dropped'|'deferred'|'delivered'|'unsubscribed'|'resubscribed'|'opened'|'clicked'} DeliveryKind
  */
 
 /**
@@ -73,6 +74,7 @@ const seen = new Map();
  * @property {number|null} [occurredAt] Provider event time in ms.
  * @property {'bounce'|'complaint'|null} [suppress] Whether the outcome may feed the suppression list.
  * @property {boolean} [notDelivered] SendGrid drop: the mail never left the provider.
+ * @property {string|null} [url] Clicked link ('clicked' only); memory only, see engagementUrl().
  */
 
 /** Email event type per outcome. */
@@ -86,6 +88,11 @@ const EVENT_TYPES = Object.freeze({
   unsubscribed: 'unsubscribe',
   resubscribed: 'resubscribe',
 });
+
+/** Provider engagement kinds (counted only for provider-tracked logs). */
+const ENGAGEMENT_KINDS = new Set(['opened', 'clicked']);
+const ENGAGEMENT_EVENT_TYPES = Object.freeze({ opened: 'open', clicked: 'click' });
+const MAX_LINK_URL_LENGTH = 2048;
 
 /** States a later event never changes. */
 const FINAL_STATUSES = new Set(['bounced', 'blocked', 'failed']);
@@ -239,7 +246,9 @@ function maskAddress(address) {
  * - dropped: by `reason` (SENDGRID_DROP_REASONS); never delivered.
  * - spamreport -> complained; deferred; delivered; unsubscribe and
  *   group_unsubscribe -> unsubscribed; group_resubscribe -> resubscribed.
- * Other events (processed, open, click, ...) are ignored.
+ * - open -> opened, click -> clicked (counted only for logs sent with
+ *   provider tracking, see recordEngagement).
+ * Other events (processed, ...) are ignored.
  *
  * @param {Record<string, unknown>} event
  * @returns {DeliveryEvent|null}
@@ -285,6 +294,14 @@ function mapSendGridEvent(event) {
     mapped = { kind: 'unsubscribed', reasonCode: reasonCode('sendgrid', type) };
   } else if (type === 'group_resubscribe') {
     mapped = { kind: 'resubscribed', reasonCode: reasonCode('sendgrid', type) };
+  } else if (type === 'open') {
+    mapped = { kind: 'opened', reasonCode: reasonCode('sendgrid', 'open') };
+  } else if (type === 'click') {
+    mapped = {
+      kind: 'clicked',
+      reasonCode: reasonCode('sendgrid', 'click'),
+      url: typeof event.url === 'string' ? event.url : null,
+    };
   }
   if (!mapped) return null;
   return {
@@ -329,6 +346,7 @@ function parseSendGridEvents(payload) {
  *   `suppress-*` (Mailgun's own list already blocked it) or `old`.
  * - failed + temporary -> deferred.
  * - complained, unsubscribed, delivered.
+ * - opened, clicked (counted only for provider-tracked logs).
  *
  * @param {unknown} eventData
  * @returns {DeliveryEvent[]}
@@ -381,6 +399,19 @@ function parseMailgunEvent(eventData) {
   }
   if (eventData.event === 'delivered') {
     return [{ ...base, kind: 'delivered', reasonCode: reasonCode('mailgun', 'delivered') }];
+  }
+  if (eventData.event === 'opened') {
+    return [{ ...base, kind: 'opened', reasonCode: reasonCode('mailgun', 'opened') }];
+  }
+  if (eventData.event === 'clicked') {
+    return [
+      {
+        ...base,
+        kind: 'clicked',
+        reasonCode: reasonCode('mailgun', 'clicked'),
+        url: typeof eventData.url === 'string' ? eventData.url : null,
+      },
+    ];
   }
   return [];
 }
@@ -514,6 +545,39 @@ function logUpdateFor(event, log, at, provider) {
 }
 
 /**
+ * The clicked link as stored on a click event: an absolute http(s) URL
+ * without query string and fragment, or null for anything else and for
+ * sensitive links (password reset, confirmation, magic links, token-bearing
+ * paths). Provider-reported URLs are those in the provider-rendered body, so
+ * they can carry tokens; only the origin and path are kept.
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+function engagementUrl(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 8192) return null;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  if (parsed.username || parsed.password) return null;
+  // Query and fragment are dropped first; the remaining origin + path is
+  // checked against the sensitive-link policy (reset, confirm, magic links).
+  const stripped = `${parsed.origin}${parsed.pathname}`;
+  if (stripped.length > MAX_LINK_URL_LENGTH) return null;
+  const { isSensitiveTrackingUrl } = require('../utils/tracking-url-policy');
+  try {
+    if (isSensitiveTrackingUrl(stripped)) return null;
+  } catch {
+    return null;
+  }
+  return stripped;
+}
+
+/**
  * @param {Buffer} raw
  * @returns {unknown} parsed JSON or undefined
  */
@@ -528,6 +592,7 @@ function parseJson(raw) {
 const LOG_FIELDS = [
   'id',
   'documentId',
+  'providerTracking',
   'providerMessageId',
   'recipient',
   'accountId',
@@ -586,6 +651,20 @@ module.exports = ({ strapi }) => ({
       const payload = parseJson(rawBody);
       if (payload === undefined) return rejected(400);
       events = parseSendGridEvents(payload);
+    } else if (getAdapter(provider)) {
+      // Brevo, Amazon SES: the adapter authenticates and parses the request.
+      const result = await getAdapter(provider).webhook({
+        config,
+        rawBody,
+        headers,
+        now: Date.now(),
+      });
+      if (!result || result.status !== 200) return rejected(result?.status === 400 ? 400 : 401);
+      events = Array.isArray(result.events) ? result.events : [];
+      if (typeof result.replayKey === 'string' && result.replayKey) {
+        replayKey = `${provider}:${result.replayKey}`.slice(0, 300);
+        if (wasSeen(replayKey)) return { status: 200, processed: 0, unmatched: 0 };
+      }
     } else {
       const payload = parseJson(rawBody);
       if (!payload || typeof payload !== 'object') return rejected(400);
@@ -652,6 +731,8 @@ module.exports = ({ strapi }) => ({
           ? event.magicmailId
           : null,
     };
+    if (ENGAGEMENT_KINDS.has(event.kind))
+      return this.recordEngagement(provider, event, lookup, context);
     if (!lookup.candidates.length && !lookup.smtpCandidates.length && !lookup.magicmailId) {
       context.unmatched = (context.unmatched || 0) + 1;
       return false;
@@ -684,6 +765,100 @@ module.exports = ({ strapi }) => ({
       return await this._applyEvent(provider, event, lookup, eventId, context);
     } catch (error) {
       if (eventId) await releaseClaim(strapi, `event:${eventId}`, eventClaim);
+      throw error;
+    }
+  },
+
+  /**
+   * Counts a provider open or click on its email log.
+   *
+   * Only logs sent with provider tracking (`providerTracking: true`, set for
+   * provider-template sends while "Count provider opens and clicks" is on)
+   * are counted: Magic Mail's own pixel and link rewrite cover every other
+   * mail, and counting both would double the numbers. Events for other logs
+   * and events without a log are ignored silently (not "unmatched": providers
+   * also report opens of mails that Magic Mail tracks itself).
+   *
+   * De-duplicated by provider event id when the provider sends one. The
+   * clicked URL is reduced by engagementUrl(); no IP or user agent from the
+   * provider is stored.
+   *
+   * @param {string} provider
+   * @param {DeliveryEvent} event - kind 'opened' or 'clicked'
+   * @param {{candidates: string[], smtpCandidates: string[], magicmailId: string|null}} lookup
+   * @param {{accountId?: string}} context
+   * @returns {Promise<boolean>} true when counted
+   * @sideeffect Increments openCount/clickCount (and first/lastOpenedAt) and
+   *   creates one open/click email event.
+   */
+  async recordEngagement(provider, event, lookup, context = {}) {
+    if (!lookup.candidates.length && !lookup.smtpCandidates.length && !lookup.magicmailId) {
+      return false;
+    }
+    const log = await this._findLog(lookup, context.accountId);
+    if (!log || log.providerTracking !== true) return false;
+    if (!isPrimaryRecipient(log, event.recipient)) return false;
+
+    const eventId =
+      event.eventId && EVENT_ID_PATTERN.test(event.eventId) ? `${provider}:${event.eventId}` : null;
+    let claim;
+    if (eventId) {
+      if (wasSeen(`event:${eventId}`)) return false;
+      claim = await claimOnce(strapi, `event:${eventId}`);
+      if (claim === null) return false;
+    }
+    try {
+      if (eventId) {
+        const existing = await strapi.db
+          .query(EMAIL_EVENT_UID)
+          .findOne({ where: { providerEventId: eventId }, select: ['id'] });
+        if (existing) {
+          remember(`event:${eventId}`);
+          return false;
+        }
+      }
+      const at = new Date(event.occurredAt ?? Date.now());
+      const opened = event.kind === 'opened';
+      const fields = opened
+        ? { counter: 'openCount', first: 'firstOpenedAt', last: 'lastOpenedAt' }
+        : { counter: 'clickCount' };
+      const { incrementCounter } = require('./analytics');
+      const atomic = await incrementCounter(
+        strapi,
+        EMAIL_LOG_UID,
+        log.documentId,
+        fields,
+        at
+      ).catch(() => false);
+      if (!atomic) {
+        const current = await strapi.db.query(EMAIL_LOG_UID).findOne({
+          where: { documentId: log.documentId },
+          select: ['openCount', 'clickCount', 'firstOpenedAt'],
+        });
+        const data = opened
+          ? {
+              openCount: (current?.openCount || 0) + 1,
+              firstOpenedAt: current?.firstOpenedAt || at,
+              lastOpenedAt: at,
+            }
+          : { clickCount: (current?.clickCount || 0) + 1 };
+        await strapi.documents(EMAIL_LOG_UID).update({ documentId: log.documentId, data });
+      }
+      const linkUrl = opened ? null : engagementUrl(event.url);
+      await strapi.documents(EMAIL_EVENT_UID).create({
+        data: {
+          emailLog: log.documentId,
+          type: ENGAGEMENT_EVENT_TYPES[event.kind],
+          timestamp: at,
+          providerEventId: eventId,
+          ...(linkUrl ? { linkUrl } : {}),
+          metadata: { provider, source: 'provider-tracking' },
+        },
+      });
+      if (eventId) remember(`event:${eventId}`);
+      return true;
+    } catch (error) {
+      if (eventId) await releaseClaim(strapi, `event:${eventId}`, claim);
       throw error;
     }
   },
@@ -867,6 +1042,7 @@ module.exports = ({ strapi }) => ({
 });
 
 module.exports.__test__ = {
+  engagementUrl,
   parseSendGridEvents,
   parseMailgunEvent,
   reasonCode,

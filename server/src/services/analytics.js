@@ -589,6 +589,8 @@ module.exports = ({ strapi }) => ({
           typeof data.messageIdLocal === 'string' && /^[a-z0-9]{8,64}$/.test(data.messageIdLocal)
             ? data.messageIdLocal
             : null,
+        // Opens and clicks come from the provider's events (provider templates).
+        ...(data.providerTracking === true ? { providerTracking: true } : {}),
         metadata,
       },
     });
@@ -1467,6 +1469,7 @@ module.exports = ({ strapi }) => ({
 
 module.exports.TRACKING_ID_PATTERN = TRACKING_ID_PATTERN;
 module.exports.getRestPrefix = getRestPrefix;
+module.exports.incrementCounter = incrementCounter;
 module.exports.__test__ = {
   incrementCounter,
   anonymizeIp,

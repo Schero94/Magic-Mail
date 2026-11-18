@@ -11,6 +11,7 @@ const affectedFiles = [
     expectedChecked: [
       'settings.enableLinkTracking',
       'settings.enableOpenTracking',
+      'settings.providerTracking',
       'settings.enableUnsubscribeHeader',
       'settings.queueFailedSends',
       'settings.checkRecipientDomains',

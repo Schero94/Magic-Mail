@@ -24,7 +24,37 @@ export const PROVIDER_LABELS = Object.freeze({
   smtp: 'SMTP',
   sendgrid: 'SendGrid',
   mailgun: 'Mailgun',
+  brevo: 'Brevo',
+  ses: 'Amazon SES',
 });
+
+/** Amazon SES field rules (same as server/src/providers/ses.js). */
+export const SES_REGION_PATTERN = /^[a-z]{2}(?:-[a-z]+)+-\d{1,2}$/;
+const SES_UNSUPPORTED_REGION = /^(?:cn-|[a-z]{2}-iso)/;
+const SES_ACCESS_KEY_ID_PATTERN = /^\w{16,128}$/;
+const SES_CONFIGURATION_SET_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const SES_TOPIC_ARN_PATTERN =
+  /^arn:(aws|aws-us-gov):sns:([a-z]{2}(?:-[a-z]+)+-\d{1,2}):(\d{12}):([A-Za-z0-9_-]{1,256})$/;
+
+/** Common SES regions offered in the wizard (any valid region code can be typed). */
+export const SES_REGIONS = Object.freeze([
+  'us-east-1',
+  'us-east-2',
+  'us-west-2',
+  'ca-central-1',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-west-3',
+  'eu-central-1',
+  'eu-north-1',
+  'eu-south-1',
+  'ap-south-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'sa-east-1',
+]);
 
 /** Product names of the OAuth identity providers (not translated). */
 export const OAUTH_PROVIDER_NAMES = Object.freeze({
@@ -81,6 +111,13 @@ export const createEmptyForm = () => ({
   sendgridRegion: 'us',
   webhookPublicKey: '',
   webhookSigningKey: '',
+  // Amazon SES
+  sesRegion: 'eu-west-1',
+  sesCredentialSource: 'keys',
+  sesAccessKeyId: '',
+  sesSecretAccessKey: '',
+  sesConfigurationSet: '',
+  sesTopicArn: '',
   microsoftTenantId: '',
   oauthClientId: '',
   oauthClientSecret: '',
@@ -105,6 +142,8 @@ export const BOUNCE_MODES = Object.freeze({
   'yahoo-oauth': ['imap'],
   sendgrid: [],
   mailgun: [],
+  brevo: [],
+  ses: [],
 });
 
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -149,6 +188,12 @@ export const accountToForm = (account = {}) => {
     // Optional bounce/complaint webhook secrets (SendGrid key is public).
     webhookPublicKey: stringOr(config.webhookPublicKey),
     webhookSigningKey: stringOr(config.webhookSigningKey),
+    sesRegion: account?.provider === 'ses' ? stringOr(config.region) : 'eu-west-1',
+    sesCredentialSource: config.credentialSource === 'environment' ? 'environment' : 'keys',
+    sesAccessKeyId: stringOr(config.accessKeyId),
+    sesSecretAccessKey: stringOr(config.secretAccessKey),
+    sesConfigurationSet: stringOr(config.configurationSetName),
+    sesTopicArn: stringOr(config.snsTopicArn),
     microsoftTenantId: stringOr(config.tenantId),
     oauthClientId: stringOr(config.clientId),
     oauthClientSecret: stringOr(config.clientSecret),
@@ -250,10 +295,35 @@ export const validateLimits = (form) => {
  *
  * @param {string} provider
  * @param {Record<string, any>} form
- * @returns {{mailgunDomain?: 'invalid'}} error codes
+ * @returns {{mailgunDomain?: 'invalid', sesRegion?: 'invalid', sesAccessKeyId?: 'invalid',
+ *   sesConfigurationSet?: 'invalid', sesTopicArn?: 'invalid'|'partition'}} error codes
  */
 export const validateCredentials = (provider, form) => {
   const errors = {};
+  if (provider === 'ses') {
+    const region = (form.sesRegion || '').trim();
+    if (
+      filled(region) &&
+      (!SES_REGION_PATTERN.test(region) || SES_UNSUPPORTED_REGION.test(region))
+    ) {
+      errors.sesRegion = 'invalid';
+    }
+    const keyId = (form.sesAccessKeyId || '').trim();
+    if (form.sesCredentialSource !== 'environment' && filled(keyId)) {
+      if (!SES_ACCESS_KEY_ID_PATTERN.test(keyId)) errors.sesAccessKeyId = 'invalid';
+    }
+    const set = (form.sesConfigurationSet || '').trim();
+    if (filled(set) && !SES_CONFIGURATION_SET_PATTERN.test(set))
+      errors.sesConfigurationSet = 'invalid';
+    const arn = (form.sesTopicArn || '').trim();
+    if (filled(arn)) {
+      const match = SES_TOPIC_ARN_PATTERN.exec(arn);
+      if (!match) errors.sesTopicArn = 'invalid';
+      else if ((match[1] === 'aws-us-gov') !== region.startsWith('us-gov-')) {
+        errors.sesTopicArn = 'partition';
+      }
+    }
+  }
   if (
     provider === 'mailgun' &&
     filled(form.mailgunDomain) &&
@@ -300,7 +370,17 @@ export const canProceedStep = (step, ctx) => {
         isIntegerInRange(form.port, PORT_MIN, PORT_MAX)
       );
     }
-    if (provider === 'sendgrid') return filled(form.apiKey);
+    if (provider === 'sendgrid' || provider === 'brevo') return filled(form.apiKey);
+    if (provider === 'ses') {
+      const keys =
+        form.sesCredentialSource === 'environment' ||
+        (filled(form.sesAccessKeyId) && filled(form.sesSecretAccessKey));
+      return (
+        filled(form.sesRegion) &&
+        keys &&
+        Object.keys(validateCredentials(provider, form)).length === 0
+      );
+    }
     if (provider === 'mailgun') {
       return (
         filled(form.apiKey) &&
@@ -361,6 +441,24 @@ export const buildConfig = (provider, form) => {
         // Trimming keeps the stored-secret mask unchanged (it has no spaces).
         webhookSigningKey: (form.webhookSigningKey || '').trim(),
       };
+    case 'brevo':
+      // The webhook token is created by the server and never sent from here.
+      return { apiKey: form.apiKey.trim() };
+    case 'ses': {
+      const environment = form.sesCredentialSource === 'environment';
+      return {
+        region: (form.sesRegion || '').trim(),
+        credentialSource: environment ? 'environment' : 'keys',
+        ...(environment
+          ? {}
+          : {
+              accessKeyId: (form.sesAccessKeyId || '').trim(),
+              secretAccessKey: form.sesSecretAccessKey || '',
+            }),
+        configurationSetName: (form.sesConfigurationSet || '').trim(),
+        snsTopicArn: (form.sesTopicArn || '').trim(),
+      };
+    }
     case 'gmail-oauth':
     case 'yahoo-oauth':
       return {
@@ -509,16 +607,16 @@ export const getRedirectUri = (providerKey, { serverRedirectUri, backendURL, ori
 };
 
 /**
- * Public bounce/complaint webhook URL of a saved SendGrid or Mailgun account.
- * Assumes Strapi's default REST prefix `/api`.
+ * Public delivery webhook URL of a saved SendGrid, Mailgun, Brevo or Amazon
+ * SES account. Assumes Strapi's default REST prefix `/api`.
  *
- * @param {'sendgrid'|'mailgun'} provider
+ * @param {'sendgrid'|'mailgun'|'brevo'|'ses'} provider
  * @param {string|number|null|undefined} accountId - account documentId
  * @param {{backendURL?: unknown, origin?: string}} env
  * @returns {string|null} null until the account is saved
  */
 export const getWebhookUrl = (provider, accountId, env = {}) => {
-  if (!['sendgrid', 'mailgun'].includes(provider)) return null;
+  if (!['sendgrid', 'mailgun', 'brevo', 'ses'].includes(provider)) return null;
   if (accountId === null || accountId === undefined || accountId === '') return null;
   return `${resolveBackendBase(env)}/api/magic-mail/webhooks/${provider}/${encodeURIComponent(
     String(accountId)

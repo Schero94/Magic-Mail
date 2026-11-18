@@ -4,7 +4,63 @@
  */
 
 /** Display names of the template providers (brand names, not translated). */
-export const PROVIDER_NAMES = Object.freeze({ sendgrid: 'SendGrid', mailgun: 'Mailgun' });
+export const PROVIDER_NAMES = Object.freeze({
+  sendgrid: 'SendGrid',
+  mailgun: 'Mailgun',
+  brevo: 'Brevo',
+  ses: 'Amazon SES',
+});
+
+/** Account providers whose templates Magic Mail syncs (server: providers/index.js). */
+export const TEMPLATE_PROVIDERS = Object.freeze(['sendgrid', 'mailgun', 'brevo', 'ses']);
+
+/**
+ * @param {Array<{provider?: string}>} accounts
+ * @returns {boolean} true when at least one account can have provider templates
+ */
+export const hasTemplateProviderAccount = (accounts) =>
+  Array.isArray(accounts) &&
+  accounts.some((account) => TEMPLATE_PROVIDERS.includes(account?.provider));
+
+const LOCALE_SHAPE = /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8}){0,3}$/;
+
+/**
+ * Canonical language tag (same rule as server/src/utils/locale.js), or null.
+ *
+ * @param {unknown} value - e.g. 'de', 'pt_br'
+ * @returns {string|null} e.g. 'de', 'pt-BR'
+ */
+export const canonicalLocaleTag = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().replace(/_/g, '-');
+  if (!trimmed || trimmed.length > 35 || !LOCALE_SHAPE.test(trimmed)) return null;
+  try {
+    return Intl.getCanonicalLocales(trimmed)[0] ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Templates that can become a language version of `detail`: same provider,
+ * not the template itself, not already used for a language, without
+ * language versions of their own and not a version of another template.
+ *
+ * @param {{key: string, provider: string, locales?: {key: string}[]}} detail
+ * @param {Array<{key: string, provider: string, locales?: object[], localeVariantOf?: string|null}>} templates
+ * @returns {Array<{key: string, name: string}>}
+ */
+export const languageVersionCandidates = (detail, templates) => {
+  const used = new Set((detail?.locales ?? []).map((entry) => entry.key));
+  return (templates ?? []).filter(
+    (template) =>
+      template.provider === detail?.provider &&
+      template.key !== detail?.key &&
+      !used.has(template.key) &&
+      !(template.locales ?? []).length &&
+      (!template.localeVariantOf || template.localeVariantOf === detail?.key)
+  );
+};
 
 /**
  * One status mapping for every provider template screen: badge tone, label

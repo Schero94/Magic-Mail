@@ -31,6 +31,7 @@ const {
 const { detectTemplateVariables } = require('../utils/template-variables');
 const { handlebarsToMustache, mustacheToHandlebars } = require('../utils/template-syntax');
 const { buildHtmlDesign } = require('../utils/html-design');
+const { canonicalLocale, localeCandidates } = require('../utils/locale');
 const {
   CORE_EMAIL_TYPES,
   buildCoreMailPayload,
@@ -39,13 +40,14 @@ const {
 
 const PROVIDER_TEMPLATE_UID = 'plugin::magic-mail.provider-template';
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
-const TEMPLATE_PROVIDERS = Object.freeze(['sendgrid', 'mailgun']);
+const { TEMPLATE_PROVIDERS, getAdapter } = require('../providers');
 const STORE = Object.freeze({ type: 'plugin', name: 'magic-mail', key: 'provider-templates' });
 const STALE_AFTER_MS = 10 * 60 * 1000;
 const MAX_PREVIEW_BYTES = 512 * 1024;
 const MAX_ROWS = 2000;
 const USABLE_STATUSES = Object.freeze(['ok', 'matchedByName']);
-const KEY_PATTERN = /^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/;
+const KEY_PATTERN = /^(sendgrid|mailgun|brevo|ses):[a-z0-9][a-z0-9-]{0,99}$/;
+const MAX_LOCALES_PER_TEMPLATE = 50;
 
 /** Sample values for test sends; the same values local template tests use. */
 const SAMPLE_DATA = Object.freeze({ name: 'Test User' });
@@ -104,14 +106,23 @@ function templateError(message, code) {
 /**
  * Detects variables of one template; never throws.
  *
+ * Brevo templates read Magic Mail's data under `params` (`{{ params.name }}`)
+ * and use Brevo's own template language, so their variables come from the
+ * Brevo adapter and are reported without the `params.` prefix: the path is
+ * the key the caller passes in `data`.
+ *
  * @param {{subject: string, html: string, text: string}} remote
+ * @param {string} [provider]
  * @returns {{detected: object[], truncated: boolean}}
  */
-function analyseVariables(remote) {
+function analyseVariables(remote, provider) {
   try {
-    const { variables, truncated } = detectTemplateVariables(
-      [remote.subject, remote.html, remote.text].filter(Boolean).join('\n')
-    );
+    const source = [remote.subject, remote.html, remote.text].filter(Boolean).join('\n');
+    const adapter = getAdapter(provider);
+    const { variables, truncated } =
+      typeof adapter?.templateVariables === 'function'
+        ? adapter.templateVariables(source)
+        : detectTemplateVariables(source);
     return { detected: variables, truncated };
   } catch {
     return { detected: [], truncated: true };
@@ -125,13 +136,14 @@ module.exports = ({ strapi }) => ({
   /**
    * The plugin-store state (fallbacks, core-mail designs, sync bookkeeping).
    *
-   * @returns {Promise<{fallbacks: object, coreMails: object, accounts: object, lastSyncedAt: string|null}>}
+   * @returns {Promise<{fallbacks: object, locales: object, coreMails: object, accounts: object, lastSyncedAt: string|null}>}
    */
   async getState() {
     const store = await strapi.store({ type: STORE.type, name: STORE.name });
     const value = (await store.get({ key: STORE.key })) || {};
     return {
       fallbacks: value.fallbacks && typeof value.fallbacks === 'object' ? value.fallbacks : {},
+      locales: value.locales && typeof value.locales === 'object' ? value.locales : {},
       coreMails: value.coreMails && typeof value.coreMails === 'object' ? value.coreMails : {},
       accounts: value.accounts && typeof value.accounts === 'object' ? value.accounts : {},
       lastSyncedAt: typeof value.lastSyncedAt === 'string' ? value.lastSyncedAt : null,
@@ -150,6 +162,7 @@ module.exports = ({ strapi }) => ({
       const current = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
       return mutate({
         fallbacks: { ...(current.fallbacks || {}) },
+        locales: { ...(current.locales || {}) },
         coreMails: { ...(current.coreMails || {}) },
         accounts: { ...(current.accounts || {}) },
         lastSyncedAt: current.lastSyncedAt || null,
@@ -198,6 +211,16 @@ module.exports = ({ strapi }) => ({
       config = decryptCredentials(account.config) || {};
     } catch {
       throw new ProviderApiError('CREDENTIALS');
+    }
+    const adapter = getAdapter(account.provider);
+    if (adapter?.templates) {
+      let normalized;
+      try {
+        normalized = adapter.normalizeConfig(config, { creating: false });
+      } catch {
+        throw new ProviderApiError('CREDENTIALS');
+      }
+      return adapter.templates.list(normalized);
     }
     if (!config.apiKey) throw new ProviderApiError('CREDENTIALS');
     if (account.provider === 'sendgrid') {
@@ -311,7 +334,7 @@ module.exports = ({ strapi }) => ({
           status = 'matchedByName';
         }
         const previewTooLarge = Buffer.byteLength(template.html || '') > MAX_PREVIEW_BYTES;
-        const variables = analyseVariables(template);
+        const variables = analyseVariables(template, account.provider);
         const data = {
           provider: account.provider,
           accountDocumentId: account.documentId,
@@ -407,6 +430,12 @@ module.exports = ({ strapi }) => ({
           .sort()
           .pop();
         const fallback = state.fallbacks?.[key];
+        const localeMap =
+          state.locales?.[key] && typeof state.locales[key] === 'object' ? state.locales[key] : {};
+        const localeVariantOf =
+          Object.keys(state.locales || {}).find((base) =>
+            Object.values(state.locales[base] || {}).includes(key)
+          ) || null;
         return {
           key,
           provider,
@@ -426,6 +455,10 @@ module.exports = ({ strapi }) => ({
             : 0,
           fallbackTemplateReferenceId: Number.isInteger(fallback) ? fallback : null,
           usedByCoreMails: coreUsage(key),
+          locales: Object.entries(localeMap)
+            .map(([locale, variantKey]) => ({ locale, key: variantKey }))
+            .sort((a, b) => a.locale.localeCompare(b.locale)),
+          localeVariantOf,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -569,6 +602,118 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Replaces the per-locale template map of a key. Each locale maps to
+   * another synced template of the same provider (picked in the admin, never
+   * a typed id). A variant can not have its own map, and a key with a map
+   * can not be a variant (no chains).
+   *
+   * @param {string} key - Default template of the map
+   * @param {Record<string, string>} locales - locale -> template key; {} clears
+   * @returns {Promise<{locales: {locale: string, key: string}[]}>}
+   * @throws {errors.NotFoundError} Unknown key
+   * @throws {errors.ValidationError} Invalid locale, unknown variant, other
+   *   provider, self reference or chain
+   * @sideeffect Writes the plugin store; logs the change (keys only).
+   */
+  async setLocales(key, locales) {
+    await this.detail(key);
+    const entries = Object.entries(locales || {});
+    if (entries.length > MAX_LOCALES_PER_TEMPLATE) {
+      throw new errors.ValidationError('Too many locales', {
+        locales: [`At most ${MAX_LOCALES_PER_TEMPLATE} locales`],
+      });
+    }
+    const overview = await this.overview();
+    const known = new Map(overview.templates.map((t) => [t.key, t]));
+    const state = await this.getState();
+    const problems = [];
+    const next = {};
+    for (const [rawLocale, variantKey] of entries) {
+      const locale = canonicalLocale(rawLocale);
+      if (!locale) {
+        problems.push('A locale is not a language tag such as de or pt-BR');
+        continue;
+      }
+      if (Object.hasOwn(next, locale)) {
+        problems.push(`The locale ${locale} is listed twice`);
+        continue;
+      }
+      const variant = isProviderTemplateKey(variantKey) ? known.get(variantKey) : null;
+      if (!variant) problems.push(`${locale}: the template is not synced`);
+      else if (variantKey === key)
+        problems.push(`${locale}: pick another template than the default`);
+      else if (variant.provider !== key.split(':')[0]) {
+        problems.push(`${locale}: the template must be from the same provider`);
+      } else if (Object.keys(state.locales?.[variantKey] || {}).length > 0) {
+        problems.push(`${locale}: that template has its own language versions`);
+      } else next[locale] = variantKey;
+    }
+    const isVariant = Object.entries(state.locales || {}).some(
+      ([base, map]) => base !== key && Object.values(map || {}).includes(key)
+    );
+    if (isVariant && entries.length > 0) {
+      problems.push('This template is a language version of another template');
+    }
+    if (problems.length > 0) {
+      throw new errors.ValidationError('Invalid language versions', {
+        locales: problems.slice(0, 20),
+      });
+    }
+    await this.updateState((current) => {
+      const map = { ...current.locales };
+      if (Object.keys(next).length === 0) delete map[key];
+      else map[key] = next;
+      return { ...current, locales: map };
+    });
+    strapi.log.info(
+      `[magic-mail] [AUDIT] Provider template language versions changed: ${key} (${Object.keys(next).length})`
+    );
+    return {
+      locales: Object.entries(next)
+        .map(([locale, variantKey]) => ({ locale, key: variantKey }))
+        .sort((a, b) => a.locale.localeCompare(b.locale)),
+    };
+  },
+
+  /**
+   * Picks the template to send for a locale: the exact locale, then its
+   * language, then the default template. A mapped version that is not
+   * usable (deleted or unpublished at the provider) is skipped and the next
+   * candidate is tried, so a broken language version never blocks the mail.
+   *
+   * @param {string} key - Default template
+   * @param {unknown} locale - Recipient locale (BCP 47), may be empty
+   * @returns {Promise<{key: string, locale: string|null, resolved: object}>}
+   *   `resolved` is the resolveForSend() result for the chosen key
+   */
+  async resolveLocalized(key, locale) {
+    const state = isProviderTemplateKey(key) ? await this.getState() : { locales: {} };
+    const map = state.locales?.[key] || {};
+    for (const candidate of localeCandidates(locale)) {
+      const variantKey = map[candidate];
+      if (!variantKey || !isProviderTemplateKey(variantKey)) continue;
+      const resolved = await this.resolveForSend(variantKey);
+      if (resolved.rows.length > 0) return { key: variantKey, locale: candidate, resolved };
+      strapi.log.warn(
+        `[magic-mail] Language version ${candidate} of ${key} is not usable; trying the next one`
+      );
+    }
+    return { key, locale: null, resolved: await this.resolveForSend(key) };
+  },
+
+  /**
+   * Whether a key has language versions (used to skip the recipient lookup).
+   *
+   * @param {string} key
+   * @returns {Promise<boolean>}
+   */
+  async hasLocales(key) {
+    if (!isProviderTemplateKey(key)) return false;
+    const state = await this.getState();
+    return Object.keys(state.locales?.[key] || {}).length > 0;
+  },
+
+  /**
    * Sets or clears the local fallback template of a key.
    *
    * @param {string} key
@@ -611,6 +756,13 @@ module.exports = ({ strapi }) => ({
    */
   async copyAsLocal(key) {
     const detail = await this.detail(key);
+    if (detail.provider === 'brevo') {
+      // Brevo templates use their own language with params.*; a Mustache
+      // copy would render empty placeholders.
+      throw new errors.ValidationError('Brevo templates can not be copied', {
+        key: ['Brevo templates use their own template language'],
+      });
+    }
     if (!detail.previewHtml) {
       throw new errors.ValidationError('This template has no content to copy', {
         key: ['No active version with HTML content'],

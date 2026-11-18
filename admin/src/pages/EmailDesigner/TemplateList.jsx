@@ -996,6 +996,7 @@ const TemplateList = () => {
         canTestSend={canTestSend}
         localTemplates={templates}
         onChanged={providerTemplates.reload}
+        providerTemplateList={providerTemplates.overview?.templates}
       />
 
       <CoreDesignDialog

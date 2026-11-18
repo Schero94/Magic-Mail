@@ -394,6 +394,22 @@ test('FUN-28/SUP-M03: debug controller, unused services and helpers are gone', (
   const manager = require('../server/src/services/account-manager')({ strapi: { log: quietLog } });
   assert.equal('getAccountWithDecryptedConfig' in manager, false);
   assert.equal('resetCounters' in manager, false);
+  // 'ses' was once a dead enum value; it is now backed by a real adapter.
   const schema = require('../server/src/content-types/email-account/schema.json');
-  assert.equal(schema.attributes.provider.enum.includes('ses'), false);
+  const { getAdapter } = require('../server/src/providers');
+  for (const provider of schema.attributes.provider.enum) {
+    if (
+      [
+        'smtp',
+        'nodemailer',
+        'gmail-oauth',
+        'microsoft-oauth',
+        'yahoo-oauth',
+        'sendgrid',
+        'mailgun',
+      ].includes(provider)
+    )
+      continue;
+    assert.equal(typeof getAdapter(provider)?.send, 'function', provider);
+  }
 });

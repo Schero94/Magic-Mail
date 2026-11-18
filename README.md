@@ -21,19 +21,22 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 
 ## What you get
 
-- **Six providers.** Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server (optional DKIM), SendGrid and Mailgun. Credentials are encrypted with AES-256-GCM and never reach the browser.
+- **Eight providers.** Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server (optional DKIM), SendGrid, Mailgun, Brevo and Amazon SES (API v2, any commercial or GovCloud region). Credentials are encrypted with AES-256-GCM and never reach the browser.
 - **Routing rules.** Choose the account by email type, recipient, subject, template or a custom value, with a fallback account per rule.
 - **Quotas and safe failover.** Hourly and daily limits per account, reserved atomically. When an account fails, the next one is tried only if the error proves the provider did not take the mail, so a mail is never delivered twice by failover.
 - **Outbox with retries.** Opt-in per send or for every failed send: 3 retries by default (after 1, 5 and 15 minutes, configurable from 1 to 10), idempotency keys, and an Outbox tab where you retry, discard or mark uncertain mails as sent.
-- **Delivery webhooks.** Signed SendGrid and Mailgun webhooks record bounces, blocks, complaints, deferrals, deliveries and unsubscribes on the delivery log, feed the suppression list and emit events other plugins can listen to.
+- **Delivery webhooks.** Verified SendGrid, Mailgun, Brevo and Amazon SES (SNS) webhooks record bounces, blocks, complaints, deferrals, deliveries and unsubscribes on the delivery log, feed the suppression list and emit events other plugins can listen to.
 - **Templates.** A visual editor (Unlayer) or plain HTML and text, Mustache variables, versions with restore, import and export, plus the Users & Permissions reset and confirmation mails.
-- **Provider templates.** Keep designing in SendGrid or Mailgun: their templates appear read-only in MagicMail, with preview, test send and the same template data your code already passes. Routing, failover and logs stay in MagicMail, and the password-reset and confirmation mails can use them too.
+- **Provider templates.** Keep designing in SendGrid, Mailgun, Brevo or Amazon SES: their templates appear read-only in MagicMail, with preview, test send, language versions and the same template data your code already passes. Routing, failover and logs stay in MagicMail, and the password-reset and confirmation mails can use them too.
 - **Analytics.** A delivery log with server-side search, open and click tracking with truncated IPs and configurable retention.
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
 - **Admin in five languages.** English, German, French, Spanish and Portuguese, in light and dark mode.
 
 ## What's new
 
+- **Brevo and Amazon SES accounts:** send, check the connection without sending, sync their templates and receive bounces, complaints and deliveries (Brevo with a MagicMail webhook token, SES through SNS with signature checks) ([Brevo](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#brevo), [Amazon SES](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#amazon-ses)).
+- **Language versions of provider templates:** map `de`, `fr`, `pt-BR` … to translated templates; MagicMail picks the version from `locale` or the user's stored locale, falling back to the language and then the default ([details](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#language-versions)).
+- **Opens and clicks for provider templates:** with _Count provider opens and clicks_ on, the provider tracks the mails it renders and its open and click events appear in Email Analytics ([details](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#provider-opens-and-clicks)).
 - **SendGrid EU regional subusers:** choose region **EU** in the account to send through `api.eu.sendgrid.com` ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#sendgrid)).
 - **Fewer provider rejections:** duplicate recipients, SendGrid-reserved headers and oversized messages are handled before the request, with a clear error instead of a bare HTTP status.
 - **No double tracking:** when MagicMail tracks opens and clicks, SendGrid and Mailgun tracking is switched off for that mail, so links are wrapped once.
@@ -82,6 +85,10 @@ All screenshots show synthetic data (`example.test` addresses) on an isolated St
 **Provider templates**: with a SendGrid or Mailgun account, their templates appear under your own, with the provider, the change date there, the accounts that have them and their status.
 
 ![Provider templates: SendGrid and Mailgun templates with provider badge, key, change date at the provider, account and status under the local templates](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/provider-templates.webp)
+
+**Brevo and Amazon SES accounts**: the wizard asks only for what the provider needs, checks the connection without sending and shows the webhook URL and setup steps ([Amazon SES](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#amazon-ses) and [language versions](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#language-versions) have their screenshots in the sending guide).
+
+![Account wizard, Brevo credentials step: API key stored encrypted, Check connection with the result "Connected", and the bounce webhook section with the webhook URL](https://raw.githubusercontent.com/Schero94/Magic-Mail/main/docs/site/img/readme/brevo-account.webp)
 
 **Analytics**: totals and the delivery log with server-side search, delivery status, opens and clicks per email.
 
@@ -164,7 +171,7 @@ await strapi.plugin('magic-mail').service('email-router').send({
 // → { success: true, accountUsed: 'Transactional SMTP', messageId: '<…>', emailId: '…' }
 ```
 
-Designed your email in SendGrid or Mailgun? Send the synced template with the same data a MagicMail template gets (only accounts that have the template send it):
+Designed your email in SendGrid, Mailgun, Brevo or Amazon SES? Send the synced template with the same data a MagicMail template gets (only accounts that have the template send it):
 
 ```javascript
 await strapi
@@ -174,23 +181,24 @@ await strapi
     to: 'customer@example.com',
     providerTemplate: 'sendgrid:welcome-email', // key shown in Email Templates → Provider templates
     data: { name: 'Ada', user: { email: 'customer@example.com' } },
+    locale: 'de', // optional: picks the German language version when one is set
   });
 ```
 
-All send options, attachments, unsubscribe headers, provider setup, routing rules, templates and [provider templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#provider-templates-sendgrid-mailgun): [Sending guide](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md). HTTP routes: [API reference](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md).
+All send options, attachments, unsubscribe headers, provider setup, routing rules, templates and [provider templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#provider-templates-sendgrid-mailgun-brevo-amazon-ses): [Sending guide](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md). HTTP routes: [API reference](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md).
 
 ## Permissions
 
 MagicMail registers six admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
 
-| Action                            | Grants                                                                                                             |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `plugin::magic-mail.access`       | The MagicMail menu entry and page. No API access by itself                                                         |
-| `plugin::magic-mail.read`         | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link    |
-| `plugin::magic-mail.manage`       | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                               |
-| `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template and provider-template test); 10 per minute per admin |
-| `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                              |
-| `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                               |
+| Action                            | Grants                                                                                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plugin::magic-mail.access`       | The MagicMail menu entry and page. No API access by itself                                                                                                          |
+| `plugin::magic-mail.read`         | Read accounts, routing rules, templates, analytics and settings; render and export templates; the settings link                                                     |
+| `plugin::magic-mail.manage`       | Create, update and delete accounts, rules, templates, logs and settings; OAuth setup                                                                                |
+| `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template and provider-template test) and run the read-only Brevo/SES connection check; 10 per minute per admin |
+| `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                                                                               |
+| `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                                                                                |
 
 Typical roles:
 
@@ -222,12 +230,12 @@ Every plugin config key, the admin settings and the multi-instance setup are in 
 
 ## Security and privacy
 
-- **Credentials.** SMTP passwords, API keys, OAuth tokens and DKIM keys are encrypted with AES-256-GCM (key derived from `MAGIC_MAIL_ENCRYPTION_KEY` with HKDF). The admin API returns the placeholder `********` instead of a secret, and changing the host, user, provider or OAuth client requires the secret again.
+- **Credentials.** SMTP passwords, API keys, AWS secret access keys, webhook tokens, OAuth tokens and DKIM keys are encrypted with AES-256-GCM (key derived from `MAGIC_MAIL_ENCRYPTION_KEY` with HKDF). The admin API returns the placeholder `********` instead of a secret, and changing the host, user, provider or OAuth client requires the secret again.
 - **Admin routes.** Every route needs an authenticated administrator plus the capability listed in [Permissions](#permissions). `access` only shows the menu entry.
 - **Content API.** The send routes accept API tokens only (users-permissions roles only with `contentApi.allowUserRoles`), reject unknown fields, file-path and URL attachments, and share 60 requests per minute per token across all instances. Never enable them for the _Public_ role.
 - **What goes out.** HTML is sanitised, `from` is pinned to the sending account's address, custom headers are allowlisted, and SMTP requires TLS 1.2 or newer with certificate checks (unless `allowInsecure` is set on a non-production or loopback host).
 - **OAuth.** Callbacks are public but use a signed, single-use state with PKCE, bound to the admin who started the flow and stored in the database.
-- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; replays are ignored and bodies are capped (1 MiB by default). Provider messages are not stored; addresses only as a keyed hash plus a masked form (suppression list) or a masked form (events for cc/bcc recipients).
+- **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; Brevo requests need the account's random webhook token (compared in constant time; shown only to admins with `manage` in a browser session, every reveal is audit-logged); Amazon SES (SNS) messages need the configured topic ARN and a valid SNS signature from an AWS SNS certificate host; replays are ignored and bodies are capped (1 MiB by default). Provider messages are not stored; addresses only as a keyed hash plus a masked form (suppression list) or a masked form (events for cc/bcc recipients).
 - **Tracking.** Open and click events keep IPs truncated to /24 or /48 and no location, and expire after 90 days (links after 180 days). Authentication links are never tracked. Mention tracking in your privacy notice.
 - **Outbox.** Queued mails are stored encrypted and deleted once sent or discarded; the admin API and the Outbox tab never show mail content. `forgetRecipient(address)` removes a recipient's queued mails.
 - **Logs.** MagicMail's log lines carry error names and codes, not recipient addresses or message content.
@@ -240,18 +248,18 @@ Every plugin config key, the admin settings and the multi-instance setup are in 
 
 ## Documentation
 
-| Guide                                                                                                         | What it covers                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Docs site](https://schero94.github.io/Magic-Mail/)                                                           | Overview, screenshot gallery, install, outbox, several instances                                                                                            |
-| [Sending, providers, routing and templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md) | Send options, attachments, Gmail/Microsoft 365/Yahoo/SMTP/SendGrid/Mailgun setup, routing rules, quotas, failover, templates, the visual editor and its CSP |
-| [Tracking, bounces and the outbox](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md)         | Open and click tracking, retention, bounce webhooks and mailbox monitoring, recipient checks, retries and the outbox                                        |
-| [Content API and Admin API](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md)                     | Every route with request, response and error examples                                                                                                       |
-| [Configuration and several instances](https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md) | Every config key, admin settings, account fields, service API, Railway replicas and pm2 clusters                                                            |
-| [Troubleshooting and FAQ](https://github.com/Schero94/Magic-Mail/blob/main/docs/troubleshooting.md)           | Mail not received, OAuth errors, 400/403/429 responses, CSP, DMARC                                                                                          |
-| [Live webhook checks](https://github.com/Schero94/Magic-Mail/blob/main/docs/live-webhook-checks.md)           | Checking the SendGrid and Mailgun webhooks against your real accounts: test buttons, a real bounce, what to expect                                          |
-| [Upgrading](https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md)                               | Migration notes for every release since 4.0.0                                                                                                               |
-| [Permission migration](https://github.com/Schero94/Magic-Mail/blob/main/docs/permission-migration.md)         | Granting the 4.x admin capabilities                                                                                                                         |
-| [Changelog](https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md)                                    | Every release                                                                                                                                               |
+| Guide                                                                                                         | What it covers                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Docs site](https://schero94.github.io/Magic-Mail/)                                                           | Overview, screenshot gallery, install, outbox, several instances                                                                                                             |
+| [Sending, providers, routing and templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md) | Send options, attachments, Gmail/Microsoft 365/Yahoo/SMTP/SendGrid/Mailgun/Brevo/Amazon SES setup, routing rules, quotas, failover, templates, the visual editor and its CSP |
+| [Tracking, bounces and the outbox](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md)         | Open and click tracking, retention, bounce webhooks and mailbox monitoring, recipient checks, retries and the outbox                                                         |
+| [Content API and Admin API](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md)                     | Every route with request, response and error examples                                                                                                                        |
+| [Configuration and several instances](https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md) | Every config key, admin settings, account fields, service API, Railway replicas and pm2 clusters                                                                             |
+| [Troubleshooting and FAQ](https://github.com/Schero94/Magic-Mail/blob/main/docs/troubleshooting.md)           | Mail not received, OAuth errors, 400/403/429 responses, CSP, DMARC                                                                                                           |
+| [Live webhook checks](https://github.com/Schero94/Magic-Mail/blob/main/docs/live-webhook-checks.md)           | Checking the SendGrid and Mailgun webhooks against your real accounts: test buttons, a real bounce, what to expect                                                           |
+| [Upgrading](https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md)                               | Migration notes for every release since 4.0.0                                                                                                                                |
+| [Permission migration](https://github.com/Schero94/Magic-Mail/blob/main/docs/permission-migration.md)         | Granting the 4.x admin capabilities                                                                                                                                          |
+| [Changelog](https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md)                                    | Every release                                                                                                                                                                |
 
 ## Contributing
 
@@ -274,7 +282,7 @@ npm run verify
 npm run verify:runtime
 ```
 
-`npm run test:live` runs the opt-in live suites against the real SendGrid and Mailgun APIs: the send paths (`tests/live/provider-send.live.test.js`), the provider-template flows (`tests/live/provider-templates.live.test.js`) and the rest of the SendGrid integration (`tests/live/sendgrid-account.live.test.js`: restricted API keys, template versions, read-only account checks; it creates temporary `magic-mail-live-*` API keys and templates and deletes them again, so its key needs full access). SendGrid runs in sandbox mode and Mailgun in test mode, so nothing is delivered (Mailgun bills test-mode messages). Credentials come only from `~/.config/magic-mail-live/.env` and are never printed. `LIVE_PROVIDERS` (environment variable or a line in that file) picks the providers: `sendgrid`, `mailgun` or `sendgrid,mailgun`; without it, every provider whose required variables are complete runs. Tests of a provider that is not selected are skipped with the reason. For SendGrid only: `LIVE_PROVIDERS=sendgrid npm run test:live`. Required per provider: SendGrid needs `SENDGRID_API_KEY`, `SENDGRID_FROM`, `LIVE_TEST_RECIPIENT` and, for the template suite, `SENDGRID_TEMPLATE_ID`; Mailgun needs `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and, for the template suite, `MAILGUN_TEMPLATE`. Optional: `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`. Without the file, or when a selected provider misses a variable, the template suite fails with the file name and the missing variable names (the send suite reports those tests as skipped). It never runs in CI. Never commit that file.
+`npm run test:live` runs the opt-in live suites against the real SendGrid and Mailgun APIs: the send paths (`tests/live/provider-send.live.test.js`), the provider-template flows (`tests/live/provider-templates.live.test.js`) and the rest of the SendGrid integration (`tests/live/sendgrid-account.live.test.js`: restricted API keys, template versions, read-only account checks; it creates temporary `magic-mail-live-*` API keys and templates and deletes them again, so its key needs full access). SendGrid runs in sandbox mode and Mailgun in test mode, so nothing is delivered (Mailgun bills test-mode messages). Credentials come only from `~/.config/magic-mail-live/.env` and are never printed. `LIVE_PROVIDERS` (environment variable or a line in that file) picks the providers as a comma-separated list of `sendgrid`, `mailgun`, `brevo` and `ses`; without it, every provider whose required variables are complete runs. Tests of a provider that is not selected are skipped with the reason. For SendGrid only: `LIVE_PROVIDERS=sendgrid npm run test:live`. Required per provider: SendGrid needs `SENDGRID_API_KEY`, `SENDGRID_FROM`, `LIVE_TEST_RECIPIENT` and, for the template suite, `SENDGRID_TEMPLATE_ID`; Mailgun needs `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and, for the template suite, `MAILGUN_TEMPLATE`. Optional: `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`. Without the file, or when a selected provider misses a variable, the template suite fails with the file name and the missing variable names (the send suite reports those tests as skipped). Brevo (`tests/live/brevo.live.test.js`, sandbox header `X-Sib-Sandbox: drop`, nothing delivered) needs `BREVO_API_KEY`, `BREVO_FROM`, `BREVO_TO` and optionally `BREVO_TEMPLATE_ID`; Amazon SES (`tests/live/ses.live.test.js`, only the SES mailbox simulator `success@` and `bounce@simulator.amazonses.com`) needs `SES_REGION`, `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY`, `SES_FROM` and optionally `SES_CONFIGURATION_SET`, `SES_TEMPLATE_NAME`; both skip with the missing names when their variables are not set. It never runs in CI. Never commit that file.
 
 `npm run test:admin` renders every admin entry point (the five sections of the MagicMail page with their dialogs, the template editor, the Plugin Settings page) inside `React.StrictMode` with the providers of the Strapi admin, in jsdom with a fake network. It fails on a mutation sent twice, a read repeated without aborting the first one, an interval, listener, connection or observer left after unmount, and any console error or warning. A separate CI job runs the same tests against React 19 for information only: the plugin's peer range is React 18, like the Strapi 5 admin.
 

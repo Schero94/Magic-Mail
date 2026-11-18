@@ -27,8 +27,10 @@ test('Magic-Mail registers only email, OAuth, analytics, settings, tracking and 
       'GET /track/open/:emailId/:recipientHash',
       'POST /send',
       'POST /send-message',
+      'POST /webhooks/brevo/:accountId',
       'POST /webhooks/mailgun/:accountId',
       'POST /webhooks/sendgrid/:accountId',
+      'POST /webhooks/ses/:accountId',
     ].sort()
   );
 });

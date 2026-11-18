@@ -16,16 +16,16 @@ import { Key, Lock, Server } from '@strapi/icons';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { ExternalLink, SecretField, SecurityAlert } from './fieldParts';
+import { BrevoFields, SesFields } from './ApiProviderFields';
 import {
   BulletList,
   CONNECT_BUTTON_COLORS,
   ConnectButton,
-  ExternalAnchor,
   FormSection,
   FullWidthField,
   GuideBox,
   GuideList,
-  InfoAlert,
   RedirectUriRow,
   RedirectUriValue,
   SectionTitle,
@@ -40,7 +40,6 @@ import {
   getRedirectUri,
   getWebhookUrl,
   isIntegerInRange,
-  isMaskedSecret,
   validateCredentials,
 } from './wizardState';
 import { normalizeMailgunDomain } from '../../utils/mailgunDomain.mjs';
@@ -48,25 +47,7 @@ import { normalizeMailgunDomain } from '../../utils/mailgunDomain.mjs';
 const bold = (chunks) => <strong>{chunks}</strong>;
 const code = (chunks) => <code>{chunks}</code>;
 
-const ExternalLink = ({ href, children, standalone = false }) => {
-  const { t } = useMagicMailIntl();
-  return (
-    <ExternalAnchor href={href} target="_blank" rel="noopener noreferrer" $standalone={standalone}>
-      {children}
-      <span
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          overflow: 'hidden',
-          clip: 'rect(0 0 0 0)',
-        }}
-      >
-        {` (${t('accountModal.guide.newTab', 'opens in a new tab')})`}
-      </span>
-    </ExternalAnchor>
-  );
-};
+export { SecretField };
 
 const GuideStep = ({ number, children }) => (
   <li>
@@ -74,47 +55,6 @@ const GuideStep = ({ number, children }) => (
     {children}
   </li>
 );
-
-/** Text input for a secret; explains how stored (masked) secrets are kept. */
-export const SecretField = ({
-  name,
-  label,
-  value,
-  placeholder,
-  hint,
-  onChange,
-  isEditMode,
-  required = true,
-}) => {
-  const { t } = useMagicMailIntl();
-  const masked = isEditMode && isMaskedSecret(value);
-  return (
-    <FullWidthField>
-      <Field.Root
-        hint={
-          masked
-            ? t(
-                'accountModal.credentials.maskedHint',
-                'A secret is stored. Leave this value unchanged to keep it, or enter a new one to replace it.'
-              )
-            : hint
-        }
-        required={required}
-        name={name}
-      >
-        <Field.Label>{label}</Field.Label>
-        <TextInput
-          type="password"
-          autoComplete="new-password"
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <Field.Hint />
-      </Field.Root>
-    </FullWidthField>
-  );
-};
 
 const RedirectUri = ({ providerKey, serverRedirectUri }) => {
   const { t } = useMagicMailIntl();
@@ -244,20 +184,6 @@ const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId
         </Typography>
       </div>
     </Flex>
-  );
-};
-
-const SecurityAlert = ({ title, children }) => {
-  const { t } = useMagicMailIntl();
-  return (
-    <InfoAlert
-      variant="success"
-      title={title}
-      marginBottom={4}
-      closeLabel={t('common.close', 'Close')}
-    >
-      {children}
-    </InfoAlert>
   );
 };
 
@@ -983,6 +909,26 @@ export const CredentialsStep = ({
             </GuideStep>
           </>
         )}
+
+      {provider === 'brevo' && (
+        <BrevoFields
+          form={form}
+          onChange={onChange}
+          isEditMode={isEditMode}
+          accountId={accountId}
+          unreadableAlert={unreadableAlert}
+        />
+      )}
+
+      {provider === 'ses' && (
+        <SesFields
+          form={form}
+          onChange={onChange}
+          isEditMode={isEditMode}
+          accountId={accountId}
+          unreadableAlert={unreadableAlert}
+        />
+      )}
 
       {(provider === 'sendgrid' || provider === 'mailgun') && (
         <>

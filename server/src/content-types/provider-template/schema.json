@@ -5,7 +5,7 @@
     "singularName": "provider-template",
     "pluralName": "provider-templates",
     "displayName": "Provider Template",
-    "description": "Read-only copy of a SendGrid or Mailgun template, one row per account that has it"
+    "description": "Read-only copy of a SendGrid, Mailgun, Brevo or Amazon SES template, one row per account that has it"
   },
   "options": {
     "draftAndPublish": false
@@ -26,7 +26,7 @@
     },
     "provider": {
       "type": "enumeration",
-      "enum": ["sendgrid", "mailgun"],
+      "enum": ["sendgrid", "mailgun", "brevo", "ses"],
       "required": true
     },
     "accountDocumentId": {

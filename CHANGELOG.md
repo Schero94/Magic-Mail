@@ -1,3 +1,30 @@
+## [Unreleased]
+
+### Added
+
+* **Brevo accounts.** Send through the Brevo transactional API (`api-key` header) with sender, cc/bcc, reply-to, attachments, filtered headers and the `magicmail_id` correlation header. **Check connection** reads the Brevo account without sending and names the cause of a failure (invalid key, IP not authorised, account under validation, no credits). Brevo templates sync like SendGrid and Mailgun templates and are sent with `templateId` and your `data` as `params` (a Brevo template writes `{{ params.name }}`, you pass `name`). Delivery webhooks are authenticated with a random webhook token MagicMail creates per account (**Show webhook token**, **Replace token**).
+* **Amazon SES accounts.** Send through the SES v2 API in any commercial or GovCloud region, signed with AWS Signature Version 4 (own implementation, tested against the official AWS SigV4 test suite; no AWS SDK). Credentials are an IAM access key or the server's environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`). **Check connection** shows sandbox and sending status. SES templates sync and are sent with `TemplateData`. Bounces, complaints, deliveries, delays, rejects and opens/clicks arrive through an SES configuration set → SNS → HTTPS subscription; every SNS message is checked against the configured topic ARN and the SNS signature, and the subscription is confirmed automatically.
+* **Language versions for provider templates.** A provider template can map languages (`de`, `fr`, `pt-BR`, …) to other synced templates of the same provider. `send({ providerTemplate, locale })` picks the exact language, then the base language, then the default; without `locale` the recipient's stored locale is used when the users-permissions user type has a `locale` attribute. Core emails use the user's locale and send it as `meta.locale`; test sends use the admin's interface language or `language`. Unusable versions are skipped.
+* **Opens and clicks of provider-rendered mails.** New setting **Count provider opens and clicks** (off by default; shown only with a SendGrid, Mailgun, Brevo or SES account). Provider-template sends then ask the provider to track, and the provider's open and click webhook events (SendGrid, Mailgun, Brevo, SES) are counted in Email Analytics, only for those mails, so nothing is counted twice. Clicked links are stored as origin and path only.
+* **admin API:** `POST /magic-mail/accounts/:accountId/check` (`test-send`, read-only), `POST /magic-mail/accounts/:accountId/webhook-token` (`manage`, browser sessions only, audit-logged), `locales` in `PUT /magic-mail/provider-templates/:key/settings`, `language` in `POST /magic-mail/provider-templates/:key/test-send`. Content API: `POST /api/magic-mail/webhooks/brevo/:accountId`, `POST /api/magic-mail/webhooks/ses/:accountId`.
+
+### Security
+
+* Brevo webhooks have no provider signature; MagicMail requires a 256-bit random token per account (constant-time comparison, encrypted at rest, revealed only to browser sessions with `manage`, every reveal logged without the token). SNS messages for SES are verified (topic ARN, certificate host `sns.<region>.amazonaws.com` of the topic's region, no redirects, size-capped certificate fetch, SignatureVersion 1 and 2) before anything is processed. AWS credentials are never read from instance-metadata or ECS endpoints. Provider error bodies are never logged or returned; Brevo and SES connection checks return no personal data.
+
+### Migration
+
+* Brevo, Amazon SES, language versions and provider tracking: nothing to do. The email log gets an optional `providerTracking` flag and the settings an optional `providerTracking` switch (off). SendGrid, Mailgun and SMTP requests are unchanged (golden payload tests). `PUT /provider-templates/:key/settings` now accepts `locales`, and `fallbackTemplateReferenceId` is optional there (at least one of the two is required).
+
+### Verification
+
+* **Brevo and Amazon SES are marked Beta in the account wizard.** Both are verified against their official API descriptions (Brevo OpenAPI files, the Amazon SES v2 Smithy model), by contract tests on every request and response, by the 38 official AWS SigV4 test vectors and by integration tests against fake servers built from those descriptions, plus a browser acceptance run on Strapi 5.62.0 (SQLite and PostgreSQL). **They have not yet been tested against the live Brevo and Amazon SES APIs.** Only a live run (`npm run test:live` with the `BREVO_*` and `SES_*` variables) can confirm:
+  1. which header Brevo sends for bearer-token webhook authentication (`Authorization: Bearer <token>` is assumed; the custom header `X-Magic-Mail-Webhook-Token` also works);
+  2. the wording of Brevo's error messages that select the specific hints (IP not authorised, sender not verified, unknown template); other errors fall back to the hint for their status code;
+  3. that Amazon SES accepts the per-message `ConfigurationOverrides.Tracking` field used for provider open and click tracking;
+  4. that SES answers `404 NotFoundException` for an unknown template on `SendEmail`;
+  5. the verification of a real SNS signing certificate (the tests use self-signed certificates; trust rests on HTTPS to the fixed `sns.<region>.amazonaws.com` host).
+
 # [4.8.0](https://github.com/Schero94/Magic-Mail/compare/v4.7.0...v4.8.0) (2026-11-18)
 
 

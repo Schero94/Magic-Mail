@@ -116,5 +116,31 @@ module.exports = {
         description: 'Signed Mailgun bounce/complaint webhook',
       },
     },
+    // Brevo: no payload signature exists; the request must carry the
+    // account's random webhook token (see providers/brevo.js).
+    {
+      method: 'POST',
+      path: '/webhooks/brevo/:accountId',
+      handler: 'deliveryWebhooks.brevo',
+      config: {
+        policies: [],
+        auth: false,
+        middlewares: webhookRateLimit,
+        description: 'Token-authenticated Brevo transactional webhook',
+      },
+    },
+    // Amazon SES event destination through SNS: the SNS message signature
+    // and the configured topic ARN are verified (see providers/ses.js).
+    {
+      method: 'POST',
+      path: '/webhooks/ses/:accountId',
+      handler: 'deliveryWebhooks.ses',
+      config: {
+        policies: [],
+        auth: false,
+        middlewares: webhookRateLimit,
+        description: 'Signed Amazon SES (SNS) delivery webhook',
+      },
+    },
   ],
 };
