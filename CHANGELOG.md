@@ -16,6 +16,11 @@
 * **SendGrid's reserved headers are filtered.** A caller header `X-SG-ID` or `X-SG-EID` used to make SendGrid reject the mail; Magic Mail now drops them like its own reserved headers.
 * **Clearer provider failures.** Failed SendGrid and Mailgun calls now carry the provider and, for SendGrid, the names of the rejected fields (for example `personalizations.0.cc`), never the provider's message text (it can contain addresses). The error message stays `SendGrid API request failed: <status>`. The server log names the region. When SendGrid answers 429 with a reset time, a queued retry waits at least until then.
 
+### Verification
+
+* SendGrid: every change above was tested live against the real SendGrid API in sandbox mode on 2026-11-18 (sending, account check, webhooks). The EU host could not be tested live (no EU subuser).
+* Mailgun: the changes are verified against Mailgun's official OpenAPI specification and with tests, but not yet against the live Mailgun API. Please report anything unexpected.
+
 ### Migration
 
 * If you use a SendGrid EU regional subuser, set that account's region to **EU**.
