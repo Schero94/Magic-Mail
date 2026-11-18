@@ -58,10 +58,17 @@
     },
     "deliveryStatus": {
       "type": "enumeration",
-      "enum": ["pending", "sent", "failed", "bounced", "deferred"]
+      "enum": ["pending", "sent", "failed", "bounced", "deferred", "blocked"]
     },
     "deliveredAt": {
       "type": "datetime"
+    },
+    "deliveryConfirmedAt": {
+      "type": "datetime"
+    },
+    "lastDeliveryEventAt": {
+      "type": "datetime",
+      "private": true
     },
     "providerMessageId": {
       "type": "string",

@@ -48,6 +48,7 @@ test('message ids are normalised and bounded', () => {
   assert.equal(normalizeMessageId(42), null);
   assert.deepEqual(messageIdCandidates('sendgrid', 'Gu2Gx9.filterdrecv-1.2'), [
     'Gu2Gx9.filterdrecv-1.2',
+    'Gu2Gx9.filterdrecv-1',
     'Gu2Gx9',
   ]);
   assert.deepEqual(messageIdCandidates('mailgun', '<a.b@mg.example.test>'), [
@@ -301,7 +302,7 @@ test('SendGrid webhook stores bounces/complaints and emits events without person
       rawBody: body,
       headers,
     });
-    assert.deepEqual(result, { status: 200, processed: 2 });
+    assert.deepEqual(result, { status: 200, processed: 2, unmatched: 0 });
     assert.deepEqual(strapi.updates[0], {
       documentId: 'log1',
       data: {
@@ -310,6 +311,7 @@ test('SendGrid webhook stores bounces/complaints and emits events without person
         bouncedAt: strapi.updates[0].data.bouncedAt,
         bounceSource: 'sendgrid',
         deliveryStatus: 'bounced',
+        lastDeliveryEventAt: strapi.updates[0].data.lastDeliveryEventAt,
       },
     });
     assert.equal(strapi.updates[1].data.complained, true);
@@ -321,6 +323,7 @@ test('SendGrid webhook stores bounces/complaints and emits events without person
       provider: 'sendgrid',
       messageId: 'Gu2Gx9TkSiqZ',
       reasonCode: 'SENDGRID_BOUNCE_500',
+      primary: true,
     });
     assert.doesNotMatch(
       JSON.stringify([strapi.emitted, strapi.events, strapi.updates]),
@@ -334,7 +337,7 @@ test('SendGrid webhook stores bounces/complaints and emits events without person
       rawBody: body,
       headers,
     });
-    assert.deepEqual(again, { status: 200, processed: 0 });
+    assert.deepEqual(again, { status: 200, processed: 0, unmatched: 0 });
 
     // Bad signature, unknown account and wrong provider are indistinguishable.
     const bad = {
@@ -411,7 +414,7 @@ test('SendGrid webhook is off until a verification key is stored', async () => {
   });
 });
 
-test('Mailgun webhook handles permanent failures, ignores temporary ones and rejects replays', async () => {
+test('Mailgun webhook handles permanent failures, records temporary ones and rejects replays', async () => {
   await withKey(async ({ encryptCredentials }) => {
     deliveryService.__test__.resetSeen();
     const account = {
@@ -455,6 +458,7 @@ test('Mailgun webhook handles permanent failures, ignores temporary ones and rej
       {
         status: 200,
         processed: 1,
+        unmatched: 0,
       }
     );
     assert.equal(strapi.emitted[0].payload.reasonCode, 'MAILGUN_BOUNCE_550');
@@ -471,9 +475,11 @@ test('Mailgun webhook handles permanent failures, ignores temporary ones and rej
       {
         status: 200,
         processed: 0,
+        unmatched: 0,
       }
     );
 
+    // A temporary failure is recorded as deferred but never downgrades the bounce.
     const temporary = { ...permanent, id: 'mg-evt-2', severity: 'temporary' };
     assert.deepEqual(
       await service.handleWebhook({
@@ -482,8 +488,9 @@ test('Mailgun webhook handles permanent failures, ignores temporary ones and rej
         rawBody: make('u'.repeat(50), temporary),
         headers: {},
       }),
-      { status: 200, processed: 0 }
+      { status: 200, processed: 1, unmatched: 0 }
     );
+    assert.equal(strapi.emitted[1].name, 'magic-mail.delivery.deferred');
 
     const forged = JSON.parse(body.toString());
     forged.signature.signature = signMailgun(
@@ -552,6 +559,7 @@ test('send paths report real provider ids or none, never synthetic ones', () => 
     'failed',
     'bounced',
     'deferred',
+    'blocked',
   ]);
   assert.equal(log.attributes.complained.type, 'boolean');
 });

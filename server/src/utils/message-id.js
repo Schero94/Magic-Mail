@@ -25,10 +25,15 @@ function normalizeMessageId(value) {
   return id;
 }
 
+/** Most dot-separated prefixes tried for one SendGrid id. */
+const MAX_SENDGRID_PREFIXES = 8;
+
 /**
  * Lookup candidates for an id reported by a webhook. SendGrid reports
  * `sg_message_id` as `<x-message-id>.<filter suffix>`, while the send API
- * returned only the `x-message-id` prefix, so both forms are tried.
+ * returned only the `x-message-id`. That id can itself contain dots (the
+ * official samples use `14c5d75ce93.dfd.64b469`), so every dot-separated
+ * prefix is tried, longest first, bounded to a few candidates.
  *
  * @param {'sendgrid'|'mailgun'|string} provider
  * @param {unknown} reportedId
@@ -39,8 +44,12 @@ function messageIdCandidates(provider, reportedId) {
   if (!id) return [];
   const out = [id];
   if (provider === 'sendgrid') {
-    const prefix = id.split('.')[0];
-    if (prefix && prefix !== id) out.push(prefix);
+    const parts = id.split('.');
+    const last = Math.min(parts.length - 1, MAX_SENDGRID_PREFIXES);
+    for (let end = last; end >= 1; end -= 1) {
+      const prefix = parts.slice(0, end).join('.');
+      if (prefix && !out.includes(prefix)) out.push(prefix);
+    }
   }
   return out;
 }

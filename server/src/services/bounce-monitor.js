@@ -37,6 +37,8 @@ const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const OUTBOX_UID = 'plugin::magic-mail.outbox-message';
 const SUPPRESSED_UID = 'plugin::magic-mail.suppressed-recipient';
+/** Delivery states a soft bounce never overrides. */
+const FINAL_STATUSES = new Set(['bounced', 'blocked', 'failed']);
 
 /** Poll tick; each account is polled at most once per configured interval. */
 const TICK_MS = 60_000;
@@ -468,14 +470,22 @@ module.exports = ({ strapi }) => {
   };
 
   /**
-   * Adds or refreshes a hard-bounced address on the suppression list.
+   * Adds or refreshes an address on the suppression list. Shared by the
+   * mailbox monitor (source `mailbox`) and the SendGrid/Mailgun webhooks
+   * (source `sendgrid` / `mailgun`); callers check the "Block hard-bounced
+   * recipients" setting first.
    *
-   * @param {object} account
-   * @param {string} address
-   * @param {string} reasonCode
+   * @param {{address: string, reasonCode: string, source: string, accountId?: string|null}} input
+   *   `address` is used in memory only: the row keeps a keyed hash (same
+   *   normalisation as isSuppressed) and a masked form.
+   * @returns {Promise<boolean>} false when the address is unusable
+   * @sideeffect Creates or updates one `magic_mail_suppressed_recipients` row.
    */
-  const suppress = async (account, address, reasonCode) => {
-    const addressHash = purposeHmac('suppressed-recipient', address.toLowerCase());
+  const suppressAddress = async ({ address, reasonCode, source, accountId = null }) => {
+    if (typeof address !== 'string' || !address.includes('@')) return false;
+    const normalized = address.trim().toLowerCase();
+    const addressHash = purposeHmac('suppressed-recipient', normalized);
+    const code = String(reasonCode || '').slice(0, 64);
     const existing = await strapi.db
       .query(SUPPRESSED_UID)
       .findOne({ where: { addressHash }, select: ['id', 'bounceCount'] });
@@ -483,18 +493,22 @@ module.exports = ({ strapi }) => {
     if (existing) {
       await strapi.db.query(SUPPRESSED_UID).update({
         where: { id: existing.id },
-        data: { reasonCode, lastBouncedAt: now, bounceCount: (existing.bounceCount || 0) + 1 },
+        data: {
+          reasonCode: code,
+          lastBouncedAt: now,
+          bounceCount: (existing.bounceCount || 0) + 1,
+        },
       });
-      return;
+      return true;
     }
     try {
       await strapi.db.query(SUPPRESSED_UID).create({
         data: {
           addressHash,
-          maskedAddress: maskAddress(address),
-          reasonCode,
-          source: 'mailbox',
-          accountId: account.documentId,
+          maskedAddress: maskAddress(normalized),
+          reasonCode: code,
+          source: String(source || 'unknown').slice(0, 32),
+          accountId: typeof accountId === 'string' ? accountId.slice(0, 64) : null,
           bounceCount: 1,
           lastBouncedAt: now,
         },
@@ -502,6 +516,7 @@ module.exports = ({ strapi }) => {
     } catch {
       // Unique hash: another process added it at the same moment.
     }
+    return true;
   };
 
   /**
@@ -538,9 +553,15 @@ module.exports = ({ strapi }) => {
       const hard = recipient.kind === 'hard';
       const { log, quality } = await matchLog(account, parsed, recipient.address);
       const now = new Date(clock());
+      // Only the log's primary recipient changes log-level fields; a report
+      // for a cc/bcc/further recipient is recorded as an event only.
+      const primary =
+        !log ||
+        !log.recipient ||
+        String(log.recipient).trim().toLowerCase() === String(recipient.address).toLowerCase();
       if (log) {
         counts.matched += 1;
-        if (hard) {
+        if (primary && hard) {
           await strapi.documents(EMAIL_LOG_UID).update({
             documentId: log.documentId,
             data: {
@@ -551,7 +572,7 @@ module.exports = ({ strapi }) => {
               deliveryStatus: 'bounced',
             },
           });
-        } else if (!log.bounced) {
+        } else if (primary && !log.bounced && !FINAL_STATUSES.has(log.deliveryStatus)) {
           await strapi.documents(EMAIL_LOG_UID).update({
             documentId: log.documentId,
             data: {
@@ -567,7 +588,13 @@ module.exports = ({ strapi }) => {
             type: hard ? 'bounce' : 'deferred',
             timestamp: now,
             providerEventId,
-            metadata: { provider: 'mailbox', reasonCode: recipient.reasonCode, match: quality },
+            metadata: {
+              provider: 'mailbox',
+              reasonCode: recipient.reasonCode,
+              match: quality,
+              primary,
+              ...(primary ? {} : { recipient: maskAddress(recipient.address) }),
+            },
           },
         });
       }
@@ -575,8 +602,14 @@ module.exports = ({ strapi }) => {
       if (hard) counts.bounced += 1;
       else counts.deferred += 1;
 
-      if (hard && global.suppressHardBounces)
-        await suppress(account, recipient.address, recipient.reasonCode);
+      if (hard && global.suppressHardBounces) {
+        await suppressAddress({
+          address: recipient.address,
+          reasonCode: recipient.reasonCode,
+          source: 'mailbox',
+          accountId: account.documentId,
+        });
+      }
 
       const messageId = log?.providerMessageId || parsed.originalMessageId || null;
       if (messageId) {
@@ -585,6 +618,7 @@ module.exports = ({ strapi }) => {
             provider: 'mailbox',
             messageId,
             reasonCode: recipient.reasonCode,
+            primary: log ? primary : null,
           });
         } catch (error) {
           strapi.log.warn(
@@ -1056,6 +1090,8 @@ module.exports = ({ strapi }) => {
       timer.unref?.();
       return timer;
     },
+
+    suppressAddress,
 
     /**
      * Whether sends to `address` are blocked by the suppression list.

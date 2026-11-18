@@ -65,11 +65,12 @@ import {
  * Presents a stored delivery state with a neutral fallback for legacy logs.
  * The English label doubles as the default message of its translation key.
  *
- * @param {'pending'|'sent'|'failed'|'bounced'|'deferred'|null|undefined} deliveryStatus
+ * @param {'pending'|'sent'|'failed'|'bounced'|'deferred'|'blocked'|null|undefined} deliveryStatus
  * @param {string|null|undefined} deliveredAt Provider acceptance time for legacy log rows.
  * @param {{bounced?: boolean, complained?: boolean}} [feedback] Webhook or mailbox bounce results.
  *   A bounce or complaint arrives after acceptance and wins over "Sent"; a
- *   soft bounce (4.x.x, the provider still retries) shows as "Deferred".
+ *   soft bounce (4.x.x, the provider still retries) shows as "Deferred". A
+ *   SendGrid block (final, not a hard bounce) shows as "Failed" with its code.
  * @returns {{label: string, tone: 'danger'|'warning'|'success'|null}}
  *   `tone` is an accent colour (readable in light and dark mode); null = neutral text.
  */
@@ -79,6 +80,7 @@ const getDeliveryStatusPresentation = (deliveryStatus, deliveredAt, feedback = {
   }
   if (feedback.complained === true) return { label: 'Complaint', tone: 'danger' };
   if (deliveryStatus === 'deferred') return { label: 'Deferred', tone: 'warning' };
+  if (deliveryStatus === 'blocked') return { label: 'Failed', tone: 'danger' };
   if (deliveryStatus === 'failed') return { label: 'Failed', tone: 'danger' };
   if (deliveryStatus === 'pending') return { label: 'Pending', tone: 'warning' };
   if (!deliveryStatus && !deliveredAt) return { label: 'Unverified', tone: null };
@@ -688,7 +690,9 @@ const Analytics = () => {
       complained: log.complained,
     });
     const reason =
-      (delivery.label === 'Bounced' || delivery.label === 'Deferred') &&
+      (delivery.label === 'Bounced' ||
+        delivery.label === 'Deferred' ||
+        delivery.label === 'Failed') &&
       typeof log.bounceReason === 'string' &&
       /^[A-Z0-9_]{2,64}$/.test(log.bounceReason)
         ? log.bounceReason

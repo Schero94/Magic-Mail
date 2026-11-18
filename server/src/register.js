@@ -1,13 +1,17 @@
 'use strict';
 
 const { getRestPrefix } = require('./services/analytics');
-const { createWebhookRawBodyMiddleware } = require('./utils/webhook-raw-body');
+const { createWebhookRawBodyMiddleware, DEFAULT_LIMIT_BYTES } = require('./utils/webhook-raw-body');
 
 module.exports = ({ strapi }) => {
   // Delivery webhooks are verified over the exact request bytes. This runs
   // before the global strapi::body parser, which is registered at bootstrap.
+  // The limit comes from the validated plugin config (webhooks.maxBodyBytes).
   strapi.server.use(
-    createWebhookRawBodyMiddleware({ pathPrefix: `${getRestPrefix(strapi)}/magic-mail/webhooks/` })
+    createWebhookRawBodyMiddleware({
+      pathPrefix: `${getRestPrefix(strapi)}/magic-mail/webhooks/`,
+      limit: strapi.config.get('plugin::magic-mail.webhooks.maxBodyBytes', DEFAULT_LIMIT_BYTES),
+    })
   );
 
   strapi.admin.services.permission.actionProvider.registerMany([

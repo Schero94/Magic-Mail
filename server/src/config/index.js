@@ -1,6 +1,35 @@
 'use strict';
 
 const MAX_PAYLOAD_CEILING = 20 * 1024 * 1024;
+const WEBHOOK_BODY_MIN = 64 * 1024;
+const WEBHOOK_BODY_MAX = 5 * 1024 * 1024;
+
+/**
+ * Validates `config.webhooks` (signed SendGrid/Mailgun delivery webhooks).
+ *
+ * @param {*} webhooks
+ * @throws {Error} On an invalid value (the message names the key, never the value)
+ */
+function validateWebhooksConfig(webhooks) {
+  if (typeof webhooks !== 'object' || webhooks === null || Array.isArray(webhooks)) {
+    throw new Error('[magic-mail] config.webhooks must be an object');
+  }
+  const max = webhooks.maxBodyBytes;
+  if (
+    max !== undefined &&
+    (!Number.isInteger(max) || max < WEBHOOK_BODY_MIN || max > WEBHOOK_BODY_MAX)
+  ) {
+    throw new Error(
+      `[magic-mail] config.webhooks.maxBodyBytes must be an integer from ${WEBHOOK_BODY_MIN} to ${WEBHOOK_BODY_MAX}`
+    );
+  }
+  if (
+    webhooks.suppressComplaints !== undefined &&
+    typeof webhooks.suppressComplaints !== 'boolean'
+  ) {
+    throw new Error('[magic-mail] config.webhooks.suppressComplaints must be a boolean');
+  }
+}
 
 /**
  * Validates `config.queue` (send queue). Unknown keys are ignored like the
@@ -116,6 +145,15 @@ module.exports = {
       allowedLinkHosts: [],
       // Store open/click IPs truncated to /24 (IPv4) or /48 (IPv6).
       anonymizeIp: true,
+    },
+    webhooks: {
+      // Largest accepted delivery-webhook body. SendGrid batches reach 768 KB;
+      // 64 KiB to 5 MiB. Larger bodies get 413.
+      maxBodyBytes: 1024 * 1024,
+      // Also add addresses that reported spam (SendGrid spamreport, Mailgun
+      // complained) to the suppression list. Needs the admin setting
+      // "Block hard-bounced recipients", which turns the list on.
+      suppressComplaints: false,
     },
     // Send queue (outbox). Off unless a send passes `queue: true` or the
     // "Queue failed sends" setting is on. See README "Retries and the outbox".
@@ -249,6 +287,7 @@ module.exports = {
       }
     }
     if (config?.queue !== undefined) validateQueueConfig(config.queue);
+    if (config?.webhooks !== undefined) validateWebhooksConfig(config.webhooks);
     if (config?.quotaTimezone !== undefined) {
       try {
         new Intl.DateTimeFormat('en-US', { timeZone: config.quotaTimezone });

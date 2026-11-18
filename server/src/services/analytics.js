@@ -16,6 +16,8 @@ const coordination = require('../utils/coordination');
 
 // Content Type UIDs
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
+/** Delivery states that mean the provider accepted the mail (see getStats). */
+const ACCEPTED_DELIVERY_STATUSES = Object.freeze(['sent', 'bounced', 'deferred', 'blocked']);
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 const EMAIL_LINK_UID = 'plugin::magic-mail.email-link';
 
@@ -729,7 +731,12 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Counts provider-accepted deliveries and their engagement events.
-   * Legacy log rows without a delivery status are treated as sent.
+   *
+   * Accepted = the provider took the mail: deliveryStatus `sent`, `bounced`,
+   * `deferred` or `blocked` (a bounce, deferral or block happens after
+   * acceptance), or a legacy row without a status but with `deliveredAt`.
+   * Bounced = accepted AND (deliveryStatus `bounced` OR `bounced: true`);
+   * rows bounced before the status existed only carry the flag.
    *
    * @param {{userId?: string, templateId?: number, accountId?: string, dateFrom?: string, dateTo?: string}} filters
    * @returns {Promise<{totalSent: number, totalOpened: number, totalClicked: number, totalBounced: number, openRate: number, clickRate: number, bounceRate: number}>}
@@ -755,7 +762,7 @@ module.exports = ({ strapi }) => ({
     // New rows count only after provider acceptance. Legacy rows have no
     // deliveryStatus, so use their post-acceptance deliveredAt timestamp.
     baseFilters.$or = [
-      { deliveryStatus: 'sent' },
+      { deliveryStatus: { $in: [...ACCEPTED_DELIVERY_STATUSES] } },
       { deliveryStatus: { $null: true }, deliveredAt: { $notNull: true } },
     ];
 
@@ -770,7 +777,11 @@ module.exports = ({ strapi }) => ({
         filters: { ...baseFilters, clickCount: { $gt: 0 } },
       }),
       strapi.documents(EMAIL_LOG_UID).count({
-        filters: { ...baseFilters, bounced: true },
+        // $and keeps the accepted-mail $or above intact.
+        filters: {
+          ...baseFilters,
+          $and: [{ $or: [{ deliveryStatus: 'bounced' }, { bounced: true }] }],
+        },
       }),
     ]);
 
@@ -792,7 +803,7 @@ module.exports = ({ strapi }) => ({
   /**
    * Lists email logs with server-side search, filters and pagination.
    *
-   * @param {{userId?: string, templateId?: number, search?: string, deliveryStatus?: 'pending'|'sent'|'failed'}} filters
+   * @param {{userId?: string, templateId?: number, search?: string, deliveryStatus?: 'pending'|'sent'|'failed'|'bounced'|'deferred'}} filters
    *   `search` matches recipient, recipient name, subject and template name (case-insensitive).
    * @param {{page?: number, pageSize?: number}} pagination - pageSize is capped at 100
    * @returns {Promise<{data: object[], pagination: {page: number, pageSize: number, pageCount: number, total: number}}>}
@@ -808,8 +819,11 @@ module.exports = ({ strapi }) => ({
     }
     const conditions = [];
     if (filters.deliveryStatus === 'bounced') {
-      // Webhook bounces (older rows) set only `bounced`; mailbox bounces both.
+      // Rows bounced before deliveryStatus existed carry only `bounced`.
       conditions.push({ $or: [{ deliveryStatus: 'bounced' }, { bounced: true }] });
+    } else if (filters.deliveryStatus === 'failed') {
+      // A SendGrid block is a final non-delivery shown as Failed in the admin.
+      where.deliveryStatus = { $in: ['failed', 'blocked'] };
     } else if (filters.deliveryStatus) {
       where.deliveryStatus = filters.deliveryStatus;
     }

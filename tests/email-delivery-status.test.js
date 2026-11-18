@@ -28,12 +28,17 @@ test('analytics rates and sent totals exclude pending and failed delivery attemp
     assert.deepEqual(
       query.filters.$or,
       [
-        { deliveryStatus: 'sent' },
+        { deliveryStatus: { $in: ['sent', 'bounced', 'deferred', 'blocked'] } },
         { deliveryStatus: { $null: true }, deliveredAt: { $notNull: true } },
       ],
       'every analytics numerator and denominator uses accepted deliveries while retaining legacy rows'
     );
   }
+  // Bounced = accepted AND (status bounced OR the legacy flag); the $and keeps
+  // the accepted $or intact. Real filter semantics: tests/analytics-stats-sqlite.test.js.
+  assert.deepEqual(queries[3].filters.$and, [
+    { $or: [{ deliveryStatus: 'bounced' }, { bounced: true }] },
+  ]);
 });
 
 test('analytics UI labels failed attempts instead of presenting every log as sent', () => {
@@ -54,6 +59,7 @@ test('new analytics logs start pending and legacy rows need acceptance evidence'
     'failed',
     'bounced',
     'deferred',
+    'blocked',
   ]);
   assert.equal(Object.hasOwn(contentType.attributes.deliveryStatus, 'default'), false);
 
