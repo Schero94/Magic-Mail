@@ -180,7 +180,7 @@ const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId
           <Field.Root
             hint={t(
               'accountModal.webhook.sendgridKeyHint',
-              'SendGrid: Settings, Mail Settings, Event Webhook. Enable "Signed Event Webhook" and paste the verification key. Select the events Bounced, Dropped and Spam Reports.'
+              'SendGrid: Settings, Mail Settings, Event Webhook. Enable "Signed Event Webhook" and paste the verification key. Select the events Bounced, Dropped and Spam Reports. Optional: also select Deferred, Delivered and Unsubscribe to see them in the log.'
             )}
             name="webhookPublicKey"
           >
@@ -203,7 +203,7 @@ const DeliveryWebhookFields = ({ provider, form, onChange, isEditMode, accountId
           placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           hint={t(
             'accountModal.webhook.mailgunKeyHint',
-            'Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints.'
+            'Mailgun: Settings, API Security, HTTP webhook signing key. Then add the webhook URL below for the events Permanent Failure and Spam Complaints. Optional: also Temporary Failure, Delivered and Unsubscribes to see them in the log.'
           )}
           value={form.webhookSigningKey}
           onChange={(value) => onChange('webhookSigningKey', value)}
