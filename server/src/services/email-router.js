@@ -624,6 +624,59 @@ function parseAddressList(value) {
   return out;
 }
 
+/** RFC 5322 atext plus spaces and Unicode letters: a display name that needs no quotes. */
+const PLAIN_DISPLAY_NAME = /^[\p{L}\p{M}\p{N} !#$%&'*+\-/=?^_`{|}~]+$/u;
+
+/**
+ * Formats one parsed mailbox with a lower-cased address. The display name is
+ * kept byte for byte; it is quoted (with `"` and `\` escaped) only when it
+ * contains characters that would otherwise change how it parses, such as a
+ * comma or angle brackets.
+ *
+ * @param {{name?: string, address: string}} entry
+ * @returns {string}
+ */
+function formatNormalizedMailbox(entry) {
+  const address = entry.address.trim().toLowerCase();
+  const name = entry.name || '';
+  if (!name) return address;
+  const phrase = PLAIN_DISPLAY_NAME.test(name) ? name : `"${name.replace(/["\\]/g, '\\$&')}"`;
+  return `${phrase} <${address}>`;
+}
+
+/**
+ * Normalises one recipient string: parsed with the RFC 5322 parser the
+ * transports use, so commas, quotes and angle brackets inside quoted display
+ * names are kept. Only the address part is lower-cased (RFC 5321: the domain
+ * is case-insensitive; Magic Mail has always lower-cased the whole address).
+ * Values the parser cannot read as plain mailboxes (groups, empty addresses)
+ * are returned trimmed and otherwise unchanged; validation handles them later.
+ *
+ * @param {*} value
+ * @returns {*} the normalised string, or the value unchanged when it is not a string
+ */
+function normalizeRecipientString(value) {
+  if (typeof value !== 'string') return value;
+  const entries = getAddressParser()(value);
+  if (entries.length === 0 || entries.some((e) => Array.isArray(e.group) || !e.address)) {
+    return value.trim();
+  }
+  return entries.map(formatNormalizedMailbox).join(', ');
+}
+
+/**
+ * Normalises a to/cc/bcc value (string, array of strings, or `{ name, address }`
+ * objects, which are passed through) without touching display names.
+ *
+ * @param {*} value
+ * @returns {*}
+ */
+function normalizeRecipients(value) {
+  if (!value) return value;
+  if (Array.isArray(value)) return value.map(normalizeRecipientString);
+  return normalizeRecipientString(value);
+}
+
 /**
  * Returns the bare, lower-cased addresses of a recipient value.
  * @param {*} value
@@ -1273,25 +1326,10 @@ module.exports = ({ strapi }) => ({
       throw validationError('Recipient email address (to) is required');
     }
 
-    // Normalize addresses (RFC 5321: the domain part is case-insensitive).
-    const normalizeAddr = (addr) => {
-      if (typeof addr !== 'string') return addr;
-      if (addr.includes('<') && addr.includes('>')) {
-        return addr.replace(/<([^>]+)>/, (_, email) => `<${email.trim().toLowerCase()}>`);
-      }
-      return addr.trim().toLowerCase();
-    };
-    const normalizeAddrs = (value) => {
-      if (!value) return value;
-      if (Array.isArray(value)) return value.map(normalizeAddr);
-      if (typeof value === 'string' && value.includes(',')) {
-        return value.split(',').map(normalizeAddr).join(', ');
-      }
-      return normalizeAddr(value);
-    };
-    data.to = normalizeAddrs(data.to);
-    if (data.cc) data.cc = normalizeAddrs(data.cc);
-    if (data.bcc) data.bcc = normalizeAddrs(data.bcc);
+    // Lower-case the address parts; display names stay exactly as given.
+    data.to = normalizeRecipients(data.to);
+    if (data.cc) data.cc = normalizeRecipients(data.cc);
+    if (data.bcc) data.bcc = normalizeRecipients(data.bcc);
 
     if (data.skipLinkTracking) {
       strapi.log.debug('[magic-mail] [SKIP-TRACK] Link tracking disabled for this email');
