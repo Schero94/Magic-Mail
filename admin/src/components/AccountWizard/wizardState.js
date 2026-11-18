@@ -77,6 +77,7 @@ export const createEmptyForm = () => ({
   apiKey: '',
   mailgunDomain: '',
   mailgunRegion: 'us',
+  sendgridRegion: 'us',
   webhookPublicKey: '',
   webhookSigningKey: '',
   microsoftTenantId: '',
@@ -142,6 +143,8 @@ export const accountToForm = (account = {}) => {
     mailgunDomain: stringOr(config.domain),
     // Accounts saved before regions existed use the US endpoint.
     mailgunRegion: config.region === 'eu' ? 'eu' : 'us',
+    // SendGrid EU regional subusers use api.eu.sendgrid.com.
+    sendgridRegion: config.region === 'eu' ? 'eu' : 'us',
     // Optional bounce/complaint webhook secrets (SendGrid key is public).
     webhookPublicKey: stringOr(config.webhookPublicKey),
     webhookSigningKey: stringOr(config.webhookSigningKey),
@@ -317,6 +320,8 @@ export const buildConfig = (provider, form) => {
     case 'sendgrid':
       return {
         apiKey: form.apiKey.trim(),
+        // "us" = api.sendgrid.com (global), "eu" = api.eu.sendgrid.com.
+        region: form.sendgridRegion === 'eu' ? 'eu' : 'us',
         webhookPublicKey: (form.webhookPublicKey || '').trim(),
       };
     case 'mailgun':

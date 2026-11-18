@@ -913,5 +913,9 @@
   "suppressions.empty.description": "Empfänger erscheinen hier nach einem dauerhaften Bounce.",
   "suppressions.pagination": "Seiten der Sperrliste",
   "suppressions.confirm.title": "Aus der Sperrliste entfernen?",
-  "suppressions.confirm.body": "E-Mails an {address} werden wieder versendet. Nur entfernen, wenn die Adresse korrigiert wurde."
+  "suppressions.confirm.body": "E-Mails an {address} werden wieder versendet. Nur entfernen, wenn die Adresse korrigiert wurde.",
+  "accountModal.sendgrid.regionHint": "Wählen Sie EU nur für einen regionalen EU-Subuser. EU-Konten werden über api.eu.sendgrid.com aufgerufen, alle anderen über api.sendgrid.com.",
+  "accountModal.sendgrid.region": "SendGrid-Region",
+  "accountModal.sendgrid.regionGlobal": "Global (api.sendgrid.com)",
+  "accountModal.sendgrid.regionEu": "EU (api.eu.sendgrid.com)"
 }

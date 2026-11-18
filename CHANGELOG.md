@@ -4,6 +4,8 @@
 
 * **More delivery outcomes from SendGrid and Mailgun.** Besides bounces and spam complaints, the webhooks now record when a mail is delayed (**Deferred**), when the receiving server accepted it (new field `deliveryConfirmedAt`) and when a recipient unsubscribes through the provider (`unsubscribed`). To get them, select the extra events in your provider: SendGrid deferred, delivered, unsubscribe, group unsubscribe and group resubscribe; Mailgun Temporary Failure, Delivered and Unsubscribes. Without them nothing changes. Other plugins can listen to the new events `magic-mail.delivery.deferred`, `.delivered`, `.unsubscribed`, `.resubscribed`, `.blocked` and `.dropped`.
 * **Guide for checking the webhooks with your real accounts**: [docs/live-webhook-checks.md](https://github.com/Schero94/Magic-Mail/blob/main/docs/live-webhook-checks.md).
+* **SendGrid EU regional subusers.** A SendGrid account now has a region: **Global** (default, `api.sendgrid.com`) or **EU** (`api.eu.sendgrid.com`). If your SendGrid key belongs to an EU regional subuser, open the account, choose region **EU** and save. Existing accounts keep the global host; nothing changes for them. An unknown region is rejected when the account is saved.
+* **Mailgun sends carry Magic Mail metadata.** Each Mailgun mail gets the variables `magicmail_email_type`, `magicmail_priority` and `magicmail_id` (the email log id) and one tag with the email type (`transactional`, `marketing` or `notification`), so you can filter Mailgun's logs and webhooks by type. SendGrid mails carry `magicmail_id` as a custom argument. Mailgun shows variables to recipients in the `X-Mailgun-Variables` header; they contain no personal data.
 
 ### Fixed
 
@@ -13,11 +15,22 @@
 * **No more false bounces from SendGrid.** A SendGrid block (a temporary refusal, often reputation) and drops for sender-side reasons such as a broken template or an expired send are no longer shown as **Bounced**. They show as **Failed** with a reason code such as `SENDGRID_BLOCKED_500` or `SENDGRID_DROPPED_INVALID_TEMPLATE`. Drops because the address bounced before or is invalid still count as bounces; drops because of a spam report or unsubscribe are recorded as such.
 * **One bad cc address no longer marks the whole mail.** A bounce for a cc or bcc recipient is stored as an event for that address; the mail itself keeps its status.
 * **Late SendGrid bounces are matched.** Bounces that arrive without SendGrid's message id are matched by MagicMail's own id or the SMTP id when present; events that match no mail are counted in the log instead of disappearing silently.
+* **Duplicate recipients no longer make SendGrid reject the whole email.** SendGrid refuses a mail when an address appears twice in to, cc or bcc. Magic Mail now sends every address once (the first occurrence wins, compared without case) and drops a cc or bcc list that only repeated other addresses. Other providers are unchanged (Mailgun ignores duplicates itself).
+* **SendGrid keeps recipient names.** `Ada Lovelace <ada@example.com>` arrives as "Ada Lovelace" instead of the bare address.
+* **Oversized emails are rejected before upload with a clear message.** SendGrid accepts less than 30 MB and Mailgun 25 MB per message. Magic Mail now checks the size before calling the provider and answers with a validation error (`MAGIC_MAIL_MESSAGE_TOO_LARGE`) instead of uploading the whole mail and getting a vague rejection. All attachments of one email together may be at most 40 MB raw with every provider (each file stays limited to 25 MB). A provider's own "too large" answer (HTTP 413) gets the same code.
+* **Magic Mail turns off Mailgun's and SendGrid's own open/click tracking when it tracks itself, so links are no longer wrapped twice** and opens are not counted twice. Only the part Magic Mail really applied is switched off; when Magic Mail does not track (tracking off, no public URL), the provider's tracking settings apply as before.
+* **Custom headers can no longer break Mailgun sends.** Mailgun allows 16 KB for all headers and options of one message. Caller headers are now limited to 8 KB in total for every provider: the Content API answers 400 above that, and the service API drops the headers that do not fit. A Mailgun message whose headers still exceed 16 KB is refused before sending.
+* **SendGrid's reserved headers are filtered.** A caller header `X-SG-ID` or `X-SG-EID` used to make SendGrid reject the mail; Magic Mail now drops them like its own reserved headers.
+* **Clearer provider failures.** Failed SendGrid and Mailgun calls now carry the provider and, for SendGrid, the names of the rejected fields (for example `personalizations.0.cc`), never the provider's message text (it can contain addresses). The error message stays `SendGrid API request failed: <status>`. The server log names the region. When SendGrid answers 429 with a reset time, a queued retry waits at least until then.
 
 ### Migration
 
 * Nothing to do for most installs. New optional columns are added on start; no data is changed or removed.
 * If your code listens to `magic-mail.delivery.bounced`: SendGrid blocks and sender-side drops now arrive as `magic-mail.delivery.blocked` and `.dropped`. If your code checks `deliveryStatus`, it can now also be `blocked` (shown as **Failed** in the admin).
+* If you use a SendGrid EU regional subuser, set that account's region to **EU**.
+* Content API callers that send more than 8 KB of custom headers get a 400 now; send fewer or shorter headers.
+* If you listen to SendGrid or Mailgun webhooks yourself, you will see the new `magicmail_*` custom arguments / variables and the Mailgun tag.
+
 
 ## [4.5.1](https://github.com/Schero94/Magic-Mail/compare/v4.5.0...v4.5.1) (2026-11-17)
 

@@ -6,6 +6,7 @@ const store = require('../utils/outbox-store');
 const { encryptPayload, decryptPayload, purposeHmac } = require('../utils/encryption');
 const {
   backoffDelay,
+  retryLowerBoundMs,
   combineOutcome,
   classifyDeliveryError,
   sanitizeErrorCode,
@@ -50,6 +51,8 @@ const PAYLOAD_FIELDS = [
   'accountName',
   'unsubscribeUrl',
   '__forceUnsubscribe',
+  // { opens, clicks } Magic Mail tracking really applied (provider tracking off).
+  '__trackingApplied',
   'templateReferenceId',
   'templateName',
   'templateId',
@@ -441,7 +444,13 @@ module.exports = ({ strapi }) => {
       const errorClass = options.errorClass;
       const code = sanitizeErrorCode(options.error);
       const status = errorClass === 'ambiguous' ? 'uncertain' : 'pending';
-      let nextAttemptAt = at + backoffDelay(1, cfg.backoffMs, cfg.jitterRatio, state.random);
+      // A provider rate-limit reset (SendGrid 429) is a lower bound for the retry.
+      let nextAttemptAt =
+        at +
+        Math.max(
+          backoffDelay(1, cfg.backoffMs, cfg.jitterRatio, state.random),
+          retryLowerBoundMs(options.error)
+        );
       if (errorClass === 'capacity') nextAttemptAt = nextQuotaWindow(at);
       try {
         const { row, duplicate } = await insertPrepared(data, {
@@ -570,6 +579,10 @@ module.exports = ({ strapi }) => {
         ...message,
         __outboxId: row.documentId,
         __messageIdLocal: messageIdLocal,
+        // Delivery-log documentId for provider correlation (`magicmail_id`).
+        ...(typeof row.emailLogDocumentId === 'string'
+          ? { __logDocumentId: row.emailLogDocumentId }
+          : {}),
       };
 
       let defaultFromName;
@@ -636,6 +649,7 @@ module.exports = ({ strapi }) => {
             code: sanitizeErrorCode(error),
             errorClass,
             account: ctx.attempted.length ? ctx.attempted.at(-1) : null,
+            retryAfterMs: retryLowerBoundMs(error),
           },
           !dispatched && errorClass !== 'capacity'
         );
@@ -715,11 +729,12 @@ module.exports = ({ strapi }) => {
      * Records a failed queue attempt (fenced).
      *
      * @param {object} row - claimed row
-     * @param {{code: string, errorClass: string, account?: string|null}} outcome
+     * @param {{code: string, errorClass: string, account?: string|null, retryAfterMs?: number}} outcome
+     *   `retryAfterMs`: provider rate-limit reset, a lower bound for the next attempt
      * @param {boolean} countAttempt - add an attempt (no provider call happened)
      * @returns {Promise<string>} resulting status
      */
-    async finishFailure(row, { code, errorClass, account = null }, countAttempt) {
+    async finishFailure(row, { code, errorClass, account = null, retryAfterMs = 0 }, countAttempt) {
       const cfg = config();
       const at = now();
       const attempts = (row.attempts || 0) + (countAttempt ? 1 : 0);
@@ -753,7 +768,11 @@ module.exports = ({ strapi }) => {
           leaseToken: null,
           claimedBy: null,
           nextAttemptAt:
-            at + backoffDelay(retryNumber, cfg.backoffMs, cfg.jitterRatio, state.random),
+            at +
+            Math.max(
+              backoffDelay(retryNumber, cfg.backoffMs, cfg.jitterRatio, state.random),
+              retryLowerBoundMs({ retryAfterMs })
+            ),
         };
       } else if (errorClass === 'ambiguous') {
         status = 'uncertain';

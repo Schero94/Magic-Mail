@@ -247,6 +247,8 @@ npm run verify
 npm run verify:runtime
 ```
 
+`npm run test:live` runs the opt-in suite against the real SendGrid and Mailgun APIs (SendGrid sandbox mode and Mailgun test mode, nothing is delivered; Mailgun bills test-mode messages). It reads `~/.config/magic-mail-live/.env` with `SENDGRID_API_KEY`, `SENDGRID_FROM`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_REGION`, `LIVE_TEST_RECIPIENT` and optionally `SENDGRID_REGION`, `SENDGRID_EU_API_KEY`, `SENDGRID_EU_FROM`, `MAILGUN_FROM`, `MAILGUN_EU_DOMAIN`, `MAILGUN_EU_API_KEY`; without the file every live test is skipped. Never commit that file.
+
 `npm run test:multi-instance` runs the multi-process suite (set `MAGIC_MAIL_TEST_PG_URL` for PostgreSQL). `npm run watch` (or `npm run watch:link` with yalc) rebuilds the admin and the server bundle on change. CI runs the same checks on Node 22 and 24 for every pull request and every push to `main`. Use [Conventional Commits](https://www.conventionalcommits.org/) (`fix:`, `feat:`, `docs:`); releases are cut from `main` by semantic-release.
 
 **Dependency audits.** Run `npm audit` from your Strapi project root to check the complete installed tree; npm applies overrides from the root project only. MagicMail validates every request with its own zod (`^4.6.7`) and bounds all collections. Strapi itself ships other zod copies inside `@strapi/*` packages; if `npm audit` in your project reports one of them, the fix comes with a Strapi update.

@@ -5,6 +5,7 @@ const { encryptCredentials, decryptCredentials } = require('../utils/encryption'
 const { toAccountListDTO, toAccountEditDTO } = require('../utils/account-dto');
 const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
 const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-region');
+const { SENDGRID_REGIONS, resolveSendGridRegion } = require('../utils/sendgrid-region');
 const coordination = require('../utils/coordination');
 
 /**
@@ -78,6 +79,23 @@ const assertMailgunRegion = (provider, config) => {
   });
 };
 
+/**
+ * Rejects an unsupported SendGrid `config.region` ("us" global, "eu" for EU
+ * regional subusers). An omitted region keeps the global endpoint.
+ *
+ * @param {string} provider - effective provider of the account
+ * @param {object|undefined|null} config - incoming plain config
+ * @throws {errors.ValidationError}
+ */
+const assertSendGridRegion = (provider, config) => {
+  if (provider !== 'sendgrid' || !config || !('region' in config)) return;
+  if (resolveSendGridRegion(config.region)) return;
+  throw new errors.ValidationError(
+    `SendGrid region must be one of: ${SENDGRID_REGIONS.join(', ')}`,
+    { config: [`region: must be one of ${SENDGRID_REGIONS.join(', ')}`] }
+  );
+};
+
 const escapeHtml = (value) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -140,6 +158,7 @@ module.exports = ({ strapi }) => ({
     strapi.log.info(`[magic-mail] Creating account: ${name} (${provider})`);
 
     assertMailgunRegion(provider, config);
+    assertSendGridRegion(provider, config);
     assertBounceMode(provider, bounceMonitor);
 
     // Encrypt sensitive config data
@@ -222,6 +241,7 @@ module.exports = ({ strapi }) => ({
     }
 
     assertMailgunRegion(provider ?? existingAccount.provider, config);
+    assertSendGridRegion(provider ?? existingAccount.provider, config);
     assertBounceMode(provider ?? existingAccount.provider, bounceMonitor);
 
     let encryptedConfig = existingAccount.config;

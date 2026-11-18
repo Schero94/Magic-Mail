@@ -913,5 +913,9 @@
   "suppressions.empty.description": "Recipients appear here after a permanent bounce.",
   "suppressions.pagination": "Suppression list pages",
   "suppressions.confirm.title": "Remove from the suppression list?",
-  "suppressions.confirm.body": "Emails to {address} are sent again. Only do this when the address was fixed."
+  "suppressions.confirm.body": "Emails to {address} are sent again. Only do this when the address was fixed.",
+  "accountModal.sendgrid.regionHint": "Use EU only for an EU regional subuser. EU accounts are called through api.eu.sendgrid.com, all others through api.sendgrid.com.",
+  "accountModal.sendgrid.region": "SendGrid region",
+  "accountModal.sendgrid.regionGlobal": "Global (api.sendgrid.com)",
+  "accountModal.sendgrid.regionEu": "EU (api.eu.sendgrid.com)"
 }

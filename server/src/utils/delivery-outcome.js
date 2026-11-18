@@ -214,6 +214,22 @@ function sanitizeErrorCode(error) {
   return 'UNKNOWN';
 }
 
+/** Upper bound for a provider-reported retry delay (SendGrid X-RateLimit-Reset). */
+const MAX_RETRY_LOWER_BOUND_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Provider-reported minimum delay before the next attempt (set by the
+ * SendGrid adapter from X-RateLimit-Reset on a 429), or 0. Only a positive
+ * integer of at most 24 h counts; anything else is ignored.
+ *
+ * @param {*} error - Error thrown by a provider adapter
+ * @returns {number} milliseconds
+ */
+function retryLowerBoundMs(error) {
+  const value = error && typeof error === 'object' ? error.retryAfterMs : undefined;
+  return Number.isInteger(value) && value > 0 && value <= MAX_RETRY_LOWER_BOUND_MS ? value : 0;
+}
+
 /**
  * Delay before retry number `retryNumber` (1-based) with symmetric jitter.
  *
@@ -367,6 +383,7 @@ module.exports = {
   combineOutcome,
   sanitizeErrorCode,
   backoffDelay,
+  retryLowerBoundMs,
   createSmtpProbe,
   tagSmtpStage,
   tagPreDispatch,

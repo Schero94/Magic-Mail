@@ -54,22 +54,22 @@ See [Content API](./api.md#content-api) for `POST /api/magic-mail/send` and `/se
 
 The same fields work for the router, the Strapi email service and `POST /api/magic-mail/send`.
 
-| Field                                                | Description                                                                                                                                                                   |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `to`, `cc`, `bcc`                                    | Address, array or comma-separated list (max. 100 `to`, 50 `cc`/`bcc`). Display names allowed                                                                                  |
-| `subject`, `text`, `html`                            | `subject` is required unless a template provides it; `text` or `html` is required. HTML is sanitised (no scripts, event handlers or `javascript:` URLs; email layout is kept) |
-| `from`                                               | Optional. Must be the sending account's address; only its display name is used                                                                                                |
-| `replyTo`                                            | A valid address                                                                                                                                                               |
-| `type`                                               | `transactional` (default), `marketing` or `notification`. Without `type`, a template's category is used                                                                       |
-| `priority`                                           | `normal` (default), `high` or `low`. `high` adds `X-Priority` and `Importance` headers                                                                                        |
-| `accountName`                                        | Force one account                                                                                                                                                             |
-| `templateId` / `templateReferenceId`, `templateData` | Render a MagicMail template by its Reference ID with Mustache data (`data` is accepted as an alias of `templateData`)                                                         |
-| `unsubscribeUrl`                                     | Per-email unsubscribe URL                                                                                                                                                     |
-| `enableTracking: false`, `skipLinkTracking: true`    | Disable open and click tracking, or only click tracking, for this email                                                                                                       |
-| `customField`                                        | Value matched by routing rules of type _Custom_                                                                                                                               |
-| `headers`                                            | Up to 20 custom headers: `X-*` (except MagicMail's own) plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To`, `References`. Others are dropped                       |
-| `attachments`                                        | Up to 20, 25 MB each, with `filename`, `content`, `contentType`, `encoding`, `cid`                                                                                            |
-| `userId`, `recipientName`                            | Stored on the email log                                                                                                                                                       |
+| Field                                                | Description                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`, `cc`, `bcc`                                    | Address, array or comma-separated list (max. 100 `to`, 50 `cc`/`bcc`). Display names allowed                                                                                                                                                                           |
+| `subject`, `text`, `html`                            | `subject` is required unless a template provides it; `text` or `html` is required. HTML is sanitised (no scripts, event handlers or `javascript:` URLs; email layout is kept)                                                                                          |
+| `from`                                               | Optional. Must be the sending account's address; only its display name is used                                                                                                                                                                                         |
+| `replyTo`                                            | A valid address                                                                                                                                                                                                                                                        |
+| `type`                                               | `transactional` (default), `marketing` or `notification`. Without `type`, a template's category is used                                                                                                                                                                |
+| `priority`                                           | `normal` (default), `high` or `low`. `high` adds `X-Priority` and `Importance` headers                                                                                                                                                                                 |
+| `accountName`                                        | Force one account                                                                                                                                                                                                                                                      |
+| `templateId` / `templateReferenceId`, `templateData` | Render a MagicMail template by its Reference ID with Mustache data (`data` is accepted as an alias of `templateData`)                                                                                                                                                  |
+| `unsubscribeUrl`                                     | Per-email unsubscribe URL                                                                                                                                                                                                                                              |
+| `enableTracking: false`, `skipLinkTracking: true`    | Disable open and click tracking, or only click tracking, for this email                                                                                                                                                                                                |
+| `customField`                                        | Value matched by routing rules of type _Custom_                                                                                                                                                                                                                        |
+| `headers`                                            | Up to 20 custom headers, 8 KB in total (names plus values): `X-*` (except MagicMail's own and SendGrid's `X-SG-ID`/`X-SG-EID`) plus `List-Id`, `Precedence`, `Auto-Submitted`, `In-Reply-To`, `References`. Others are dropped; the Content API answers 400 above 8 KB |
+| `attachments`                                        | Up to 20, 25 MB each and 40 MB together, with `filename`, `content`, `contentType`, `encoding`, `cid`. SendGrid and Mailgun have lower message limits (see below)                                                                                                      |
+| `userId`, `recipientName`                            | Stored on the email log                                                                                                                                                                                                                                                |
 
 ### Attachments
 
@@ -178,6 +178,21 @@ The provider value `nodemailer` is an alias of `smtp`.
 
 1. In SendGrid go to **Settings → API Keys** and create a key with the **Mail Send** permission.
 2. In MagicMail choose **SendGrid** and paste the key. The sender address must be verified in SendGrid.
+3. Choose the region. **Global** fits every account except EU regional subusers, which need **EU**.
+
+| `config.region` | API host                      |
+| --------------- | ----------------------------- |
+| `us` (default)  | `https://api.sendgrid.com`    |
+| `eu`            | `https://api.eu.sendgrid.com` |
+
+Any other value is rejected when the account is created or updated. Accounts saved without a region keep using the global host.
+
+What MagicMail sends to SendGrid:
+
+- Every address once across to, cc and bcc (SendGrid rejects duplicates), with its display name.
+- `custom_args`: `magicmail_version`, `email_type`, `priority` and `magicmail_id` (the email log id, used to match webhook events).
+- `tracking_settings.open_tracking` / `click_tracking` with `enable: false` for the parts MagicMail tracks itself, so SendGrid does not track them a second time.
+- Messages are refused before the request when the request body would be 30 MB or more (SendGrid accepts "less than 30MB" including attachments).
 
 ### Mailgun
 
@@ -192,6 +207,12 @@ A Mailgun domain can only be used through the API host of its region. MagicMail 
 | `eu`            | `https://api.eu.mailgun.net` |
 
 Any other value is rejected with a validation error when the account is created or updated. Accounts saved without a region keep using the US host.
+
+What MagicMail adds to each Mailgun message:
+
+- `o:tracking-opens=no` / `o:tracking-clicks=no` for the parts MagicMail tracks itself (no double-wrapped links).
+- The variables `v:magicmail_email_type`, `v:magicmail_priority` and `v:magicmail_id` (the email log id), and `o:tag` with the email type. Mailgun shows variables to the recipient in the `X-Mailgun-Variables` header; they contain no personal data.
+- Messages are refused before the request when headers and options exceed Mailgun's 16 KB limit or the estimated message size is 25 MB or more.
 
 ### Provider comparison
 

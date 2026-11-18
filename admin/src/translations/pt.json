@@ -913,5 +913,9 @@
   "suppressions.empty.description": "Os destinatários aparecem aqui após uma devolução permanente.",
   "suppressions.pagination": "Páginas da lista de bloqueio",
   "suppressions.confirm.title": "Remover da lista de bloqueio?",
-  "suppressions.confirm.body": "Os e-mails para {address} voltam a ser enviados. Faça-o apenas se o endereço foi corrigido."
+  "suppressions.confirm.body": "Os e-mails para {address} voltam a ser enviados. Faça-o apenas se o endereço foi corrigido.",
+  "accountModal.sendgrid.regionHint": "Escolha EU apenas para um subusuário regional da EU. As contas da EU são chamadas por meio de api.eu.sendgrid.com; todas as outras, por meio de api.sendgrid.com.",
+  "accountModal.sendgrid.region": "Região do SendGrid",
+  "accountModal.sendgrid.regionGlobal": "Global (api.sendgrid.com)",
+  "accountModal.sendgrid.regionEu": "EU (api.eu.sendgrid.com)"
 }

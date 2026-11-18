@@ -599,8 +599,13 @@ test('wizard builds the webhook URL only for saved SendGrid/Mailgun accounts', (
   assert.equal(getWebhookUrl('smtp', 'abc', { origin: 'https://x.test' }), null);
   assert.deepEqual(buildConfig('sendgrid', { apiKey: ' SG.k ', webhookPublicKey: ' KEY ' }), {
     apiKey: 'SG.k',
+    region: 'us',
     webhookPublicKey: 'KEY',
   });
+  assert.equal(
+    buildConfig('sendgrid', { apiKey: 'SG.k', sendgridRegion: 'eu', webhookPublicKey: '' }).region,
+    'eu'
+  );
 });
 
 test('a failing eventHub listener does not fail the webhook', async () => {

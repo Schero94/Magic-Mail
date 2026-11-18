@@ -6,6 +6,7 @@ const sanitizeHtml = require('sanitize-html');
 const { decryptCredentials } = require('../utils/encryption');
 const { normalizeMessageId } = require('../utils/message-id');
 const { mailgunApiBaseUrl, resolveMailgunRegion } = require('../utils/mailgun-region');
+const { resolveSendGridRegion, sendGridApiBaseUrl } = require('../utils/sendgrid-region');
 const { routingRuleEvaluationSort } = require('../utils/routing-order');
 const coordination = require('../utils/coordination');
 const { checkRecipientDomains } = require('../utils/recipient-domains');
@@ -36,6 +37,40 @@ const MAX_ATTACHMENTS = 20;
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MAX_CUSTOM_HEADERS = 20;
 const MAX_ROUTING_CANDIDATES = 25;
+
+// Provider size limits (official docs, checked 2026-11-18):
+// - SendGrid: "The total size of your email, including attachments, must be
+//   less than 30MB" (Mail Send reference, Limitations). The docs do not say
+//   whether the encoded or the raw size counts, so the JSON request body is
+//   measured against the decimal value.
+// - Mailgun: "The maximum message size Mailgun supports is 25MB ... enforced
+//   on the uncompressed body" (Sending messages over HTTP), and "Send options
+//   (parameters starting with o:, h:, v:, or t:) are limited to 16KB total"
+//   (API reference, POST /v3/{domain_name}/messages).
+const SENDGRID_MAX_MESSAGE_BYTES = 30_000_000;
+const MAILGUN_MAX_MESSAGE_BYTES = 25_000_000;
+const MAILGUN_MAX_OPTIONS_BYTES = 16 * 1024;
+/** Raw (decoded) size of all attachments of one message, for every provider. */
+const MAX_TOTAL_ATTACHMENT_BYTES = 40 * 1024 * 1024;
+/** Bytes of all caller headers (names plus values), for every provider. */
+const MAX_CUSTOM_HEADER_BYTES = 8 * 1024;
+/** A provider error body is read up to this size, parsed, then discarded. */
+const PROVIDER_ERROR_BODY_MAX_BYTES = 4 * 1024;
+const PROVIDER_ERROR_BODY_TIMEOUT_MS = 2_000;
+/** SendGrid X-RateLimit-Reset is used only when it lies within this window. */
+const MAX_RATE_LIMIT_RESET_MS = 24 * 60 * 60 * 1000;
+/** Delivery-log documentId sent as SendGrid custom arg / Mailgun variable `magicmail_id`. */
+const MAGICMAIL_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
+/** Mailgun tag: ASCII, at most 128 characters (Mailgun Tagging guide). */
+const MAILGUN_TAG_MAX_LENGTH = 128;
+/**
+ * SendGrid `errors[].field` paths kept on a failed send. Anything else
+ * (unknown paths, free text) is dropped; the error message text is never
+ * kept because it can contain addresses.
+ */
+const SENDGRID_ERROR_FIELD =
+  /^(?:personalizations(?:\.\d{1,4})?(?:\.(?:to|cc|bcc|headers|subject|custom_args|substitutions|dynamic_template_data|send_at)(?:\.\d{1,4})?(?:\.(?:email|name))?)?|from(?:\.(?:email|name))?|reply_to(?:\.(?:email|name))?|reply_to_list(?:\.\d{1,4})?(?:\.(?:email|name))?|subject|content(?:\.\d{1,4})?(?:\.(?:type|value))?|attachments(?:\.\d{1,4})?(?:\.(?:content|type|filename|disposition|content_id))?|headers|custom_args|template_id|categories|send_at|batch_id|asm(?:\.(?:group_id|groups_to_display))?|ip_pool_name|mail_settings(?:\.[a-z_]{1,40}){0,2}|tracking_settings(?:\.[a-z_]{1,40}){0,2})$/;
+const MAX_PROVIDER_FIELDS = 10;
 
 // Refresh OAuth tokens this long before they expire (clock skew, slow sends).
 const OAUTH_EXPIRY_SKEW_MS = 60_000;
@@ -203,6 +238,10 @@ const RESERVED_X_HEADERS = new Set([
   'x-entity-ref-id',
   'x-content-type-options',
   'x-magicmail-outbox',
+  // SendGrid rejects requests that set these ("You may not override the
+  // following headers: x-sg-id, x-sg-eid, ...", tsg_mail_v3.json headers).
+  'x-sg-id',
+  'x-sg-eid',
 ]);
 
 /** Bounded timeouts for queue (worker) sends; the lease must exceed their sum. */
@@ -306,10 +345,235 @@ function accountConfigError(message) {
  * @param {number} status
  * @returns {Error}
  */
-function providerHttpError(provider, status) {
+function providerHttpError(provider, status, details = {}) {
   const error = new Error(`${provider} API request failed: ${status}`);
   error.status = status;
+  error.provider = String(provider).toLowerCase();
+  if (status === 413) error.code = 'MAGIC_MAIL_MESSAGE_TOO_LARGE';
+  if (Array.isArray(details.providerFields) && details.providerFields.length > 0) {
+    error.providerFields = details.providerFields;
+  }
+  if (details.providerReason) error.providerReason = details.providerReason;
+  if (Number.isInteger(details.retryAfterMs) && details.retryAfterMs > 0) {
+    error.retryAfterMs = details.retryAfterMs;
+  }
   return error;
+}
+
+/**
+ * ValidationError (400) for a message that is larger than a limit. Thrown
+ * before any provider request, so nothing was sent.
+ *
+ * @param {string} message - Client-safe message without personal data
+ * @returns {Error} with code MAGIC_MAIL_MESSAGE_TOO_LARGE
+ */
+function messageTooLargeError(message) {
+  const error = validationError(message);
+  error.code = 'MAGIC_MAIL_MESSAGE_TOO_LARGE';
+  return error;
+}
+
+/**
+ * Reads at most PROVIDER_ERROR_BODY_MAX_BYTES of a failed provider response
+ * within PROVIDER_ERROR_BODY_TIMEOUT_MS. Never throws: a missing, slow or
+ * unreadable body gives null. The text is only parsed by the caller, never
+ * logged, stored or returned (it can contain recipient addresses).
+ *
+ * @param {Response|object} response
+ * @returns {Promise<string|null>}
+ */
+async function readProviderErrorBody(response) {
+  let timer;
+  let reader = null;
+  try {
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), PROVIDER_ERROR_BODY_TIMEOUT_MS);
+    });
+    const read = (async () => {
+      if (response?.body && typeof response.body.getReader === 'function') {
+        reader = response.body.getReader();
+        const chunks = [];
+        let total = 0;
+        while (total < PROVIDER_ERROR_BODY_MAX_BYTES) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(Buffer.from(value));
+          total += value.byteLength;
+        }
+        return Buffer.concat(chunks).subarray(0, PROVIDER_ERROR_BODY_MAX_BYTES).toString('utf8');
+      }
+      if (typeof response?.text === 'function') {
+        const text = await response.text();
+        return typeof text === 'string' ? text.slice(0, PROVIDER_ERROR_BODY_MAX_BYTES) : null;
+      }
+      return null;
+    })();
+    return await Promise.race([read, timeout]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    if (reader) reader.cancel().catch(() => {});
+  }
+}
+
+/**
+ * Safe details of a SendGrid error body (`ErrorResponse`
+ * `{ errors: [{ message, field, help }] }`): the allowlisted `field` paths
+ * and, for a 403, whether the documented "From address doesn't match
+ * Verified Sender Identity" case applies. The message text itself is only
+ * compared, never kept.
+ *
+ * @param {string|null} text - Bounded body from readProviderErrorBody
+ * @param {number} status
+ * @returns {{providerFields: string[], providerReason: string|null}}
+ */
+function sendGridErrorDetails(text, status) {
+  const result = { providerFields: [], providerReason: null };
+  if (typeof text !== 'string' || text.length === 0) return result;
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return result;
+  }
+  const errors = Array.isArray(parsed?.errors) ? parsed.errors.slice(0, 50) : [];
+  for (const entry of errors) {
+    const raw = typeof entry?.field === 'string' ? entry.field : '';
+    if (raw && raw.length <= 100) {
+      const field = raw.replace(/\[(\d{1,4})\]/g, '.$1');
+      if (
+        SENDGRID_ERROR_FIELD.test(field) &&
+        !result.providerFields.includes(field) &&
+        result.providerFields.length < MAX_PROVIDER_FIELDS
+      ) {
+        result.providerFields.push(field);
+      }
+    }
+    const message = typeof entry?.message === 'string' ? entry.message.slice(0, 500) : '';
+    if (status === 403 && /verified sender identity/i.test(message)) {
+      result.providerReason = 'sender_identity';
+    }
+  }
+  return result;
+}
+
+/**
+ * Milliseconds until SendGrid's `X-RateLimit-Reset` (epoch seconds in the
+ * documented example; the rate-limits page does not define the format), or 0
+ * when the header is missing, not an integer, in the past or more than 24 h
+ * ahead. Used only as a lower bound for the next queue attempt.
+ *
+ * @param {Response|object} response
+ * @param {number} [nowMs=Date.now()]
+ * @returns {number}
+ */
+function rateLimitResetMs(response, nowMs = Date.now()) {
+  const raw = response?.headers?.get?.('x-ratelimit-reset');
+  if (typeof raw !== 'string' || !/^\d{1,12}$/.test(raw.trim())) return 0;
+  const delta = Number(raw.trim()) * 1000 - nowMs;
+  return delta > 0 && delta <= MAX_RATE_LIMIT_RESET_MS ? Math.ceil(delta) : 0;
+}
+
+/**
+ * SendGrid recipient lists. Every address appears once across to, then cc,
+ * then bcc (case-insensitive; the first occurrence wins), because SendGrid
+ * answers 400 when "Each unique email address in the personalization block"
+ * is not "only included once" (Mail Send errors). Display names are kept as
+ * `MailTo.name`. Empty cc/bcc lists are left out by the caller.
+ *
+ * @param {object} emailData
+ * @returns {{to: {email: string, name?: string}[], cc: {email: string, name?: string}[], bcc: {email: string, name?: string}[]}}
+ */
+function sendGridRecipients(emailData) {
+  const seen = new Set();
+  const pick = (value) => {
+    const out = [];
+    for (const entry of parseAddressList(value)) {
+      const email = (entry.address || '').toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      const name = stripHeaderInjection(entry.name || '');
+      out.push(name ? { email, name } : { email });
+    }
+    return out;
+  };
+  return { to: pick(emailData.to), cc: pick(emailData.cc), bcc: pick(emailData.bcc) };
+}
+
+/**
+ * What Magic Mail's own tracking really changed in this message (set by
+ * applyTracking). Only those parts switch off the provider's tracking, so
+ * provider-side tracking keeps working when Magic Mail does not track.
+ *
+ * @param {object} emailData
+ * @returns {{opens: boolean, clicks: boolean}}
+ */
+function trackingAppliedOf(emailData) {
+  const applied = emailData?.__trackingApplied;
+  return {
+    opens: applied?.opens === true,
+    clicks: applied?.clicks === true,
+  };
+}
+
+/**
+ * Delivery-log documentId for provider correlation, or null.
+ *
+ * @param {object} emailData
+ * @returns {string|null}
+ */
+function magicmailIdOf(emailData) {
+  const id = emailData?.__logDocumentId;
+  return typeof id === 'string' && MAGICMAIL_ID_PATTERN.test(id) ? id : null;
+}
+
+/**
+ * Mailgun tag for an email type: ASCII letters, digits, `_`, `.`, `-`, at
+ * most 128 characters; '' when nothing is left.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+function mailgunTag(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, MAILGUN_TAG_MAX_LENGTH);
+}
+
+/**
+ * Bytes of all Mailgun send options (o:, h:, v:, t: form fields).
+ *
+ * @param {FormData} form
+ * @returns {number}
+ */
+function mailgunOptionBytes(form) {
+  let total = 0;
+  for (const [name, value] of form.entries()) {
+    if (/^[ohvt]:/.test(name) && typeof value === 'string') {
+      total += Buffer.byteLength(name) + Buffer.byteLength(value);
+    }
+  }
+  return total;
+}
+
+/**
+ * Estimated size of the MIME message Mailgun builds from a form: text fields
+ * as UTF-8, files base64-encoded with line breaks every 76 characters.
+ *
+ * @param {FormData} form
+ * @returns {number}
+ */
+function estimateMailgunMessageBytes(form) {
+  let total = 0;
+  for (const [name, value] of form.entries()) {
+    if (typeof value === 'string') {
+      total += Buffer.byteLength(name) + Buffer.byteLength(value);
+    } else if (value && typeof value.size === 'number') {
+      const encoded = Math.ceil(value.size / 3) * 4;
+      total += encoded + Math.ceil(encoded / 76) * 2;
+    }
+  }
+  return total;
 }
 
 /**
@@ -545,6 +809,7 @@ function normalizeAttachments(list) {
   if (!Array.isArray(list)) throw validationError('attachments must be an array');
   if (list.length > MAX_ATTACHMENTS) throw validationError('Too many attachments');
 
+  let totalBytes = 0;
   return list.map((attachment, index) => {
     if (!attachment || typeof attachment !== 'object') {
       throw validationError('Invalid attachment');
@@ -564,6 +829,10 @@ function normalizeAttachments(list) {
 
     const content = decodeAttachmentContent(attachment.content, attachment.encoding);
     if (content.length > MAX_ATTACHMENT_BYTES) throw validationError('Attachment is too large');
+    totalBytes += content.length;
+    if (totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw messageTooLargeError('Attachments are too large in total (40 MB at most)');
+    }
 
     let cid;
     if (attachment.cid !== undefined && attachment.cid !== null && attachment.cid !== '') {
@@ -609,7 +878,10 @@ function toNodemailerAttachments(attachments) {
 
 /**
  * Filters caller headers to the allowlist (`X-*` except plugin-owned ones,
- * List-Id, Precedence, Auto-Submitted, In-Reply-To, References).
+ * List-Id, Precedence, Auto-Submitted, In-Reply-To, References). At most
+ * MAX_CUSTOM_HEADERS headers and MAX_CUSTOM_HEADER_BYTES bytes (names plus
+ * values) are kept, so caller headers fit every provider (Mailgun allows
+ * 16 KB for all send options). Headers beyond either limit are dropped.
  *
  * @param {*} source
  * @returns {Record<string, string>}
@@ -619,6 +891,7 @@ function filterCustomHeaders(source) {
   if (!source || typeof source !== 'object' || Array.isArray(source)) return out;
 
   let count = 0;
+  let bytes = 0;
   for (const [rawName, rawValue] of Object.entries(source)) {
     if (count >= MAX_CUSTOM_HEADERS) break;
     const name = stripHeaderInjection(rawName);
@@ -633,6 +906,9 @@ function filterCustomHeaders(source) {
     else if (lower.startsWith('x-') && !RESERVED_X_HEADERS.has(lower)) canonical = name;
     if (!canonical) continue;
 
+    const size = Buffer.byteLength(canonical) + Buffer.byteLength(value);
+    if (bytes + size > MAX_CUSTOM_HEADER_BYTES) break;
+    bytes += size;
     out[canonical] = value;
     count += 1;
   }
@@ -1112,6 +1388,9 @@ module.exports = ({ strapi }) => ({
 
     // One delivery log per attempt, whether or not tracking is enabled.
     const emailLog = await this.createDeliveryLog(data, renderedTemplate, source);
+    // Correlation id for provider webhooks (SendGrid custom arg / Mailgun
+    // variable `magicmail_id`); an opaque id, no personal data.
+    if (typeof emailLog?.documentId === 'string') data.__logDocumentId = emailLog.documentId;
     const trackingEnabled = data.enableTracking !== false;
     if (emailLog && trackingEnabled && data.html) {
       data.html = await this.applyTracking(data, emailLog, pluginSettings);
@@ -1495,10 +1774,23 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Injects the open pixel and rewrites links (subject to global settings).
+   *
+   * Reports what was really applied in `data.__trackingApplied`
+   * (`{ opens, clicks }`): a part counts only when it changed the HTML (no
+   * public tracking URL, no eligible link or a failure leave it false). The
+   * SendGrid and Mailgun adapters switch off the provider's own open/click
+   * tracking for exactly these parts, so links are not wrapped twice.
+   *
+   * @param {object} data - Working copy of the message
+   * @param {{emailId: string}} emailLog - Delivery log of this send
+   * @param {object} pluginSettings - enableOpenTracking / enableLinkTracking
    * @returns {Promise<string>} Tracked HTML (original HTML on failure)
+   * @sideeffect Sets `data.__trackingApplied`; stores click-tracking link mappings.
    */
   async applyTracking(data, emailLog, pluginSettings) {
     let html = data.html;
+    const applied = { opens: false, clicks: false };
+    data.__trackingApplied = applied;
     try {
       const analyticsService = strapi.plugin('magic-mail').service('analytics');
       const recipientHash = analyticsService.generateRecipientHash(emailLog.emailId, data.to);
@@ -1509,20 +1801,32 @@ module.exports = ({ strapi }) => ({
       if (typeof analyticsService.addTracking === 'function') {
         // One resolved public URL for pixel and links; without a public URL the
         // mail is sent untracked (never pointing at localhost in production).
-        return await analyticsService.addTracking(html, emailLog.emailId, recipientHash, {
+        const reported = { opens: false, clicks: false };
+        const tracked = await analyticsService.addTracking(html, emailLog.emailId, recipientHash, {
           openTracking,
           linkTracking,
           settings: pluginSettings,
+          applied: reported,
         });
+        Object.assign(applied, reported);
+        return tracked;
       }
-      if (openTracking)
+      const reported = { opens: false, clicks: false };
+      if (openTracking) {
+        const before = html;
         html = analyticsService.injectTrackingPixel(html, emailLog.emailId, recipientHash);
-      if (linkTracking)
+        reported.opens = html !== before;
+      }
+      if (linkTracking) {
+        const before = html;
         html = await analyticsService.rewriteLinksForTracking(
           html,
           emailLog.emailId,
           recipientHash
         );
+        reported.clicks = html !== before;
+      }
+      Object.assign(applied, reported);
       return html;
     } catch (error) {
       strapi.log.error(
@@ -2387,26 +2691,43 @@ module.exports = ({ strapi }) => ({
     }
   },
 
-  /** Send via the SendGrid v3 API. */
+  /**
+   * Sends through the SendGrid v3 Mail Send API (global or EU host).
+   *
+   * Every address is sent once across to/cc/bcc with its display name;
+   * `custom_args.magicmail_id` carries the delivery-log documentId; SendGrid's
+   * own open/click tracking is switched off for the parts Magic Mail tracks.
+   * A request body of 30 MB or more is refused before any network call.
+   *
+   * @param {object} account - SendGrid account (encrypted config with apiKey, optional region)
+   * @param {object} emailData - Prepared message (validated again here)
+   * @returns {Promise<{messageId: string|null, response: string}>} X-Message-Id
+   *   (null when SendGrid sends none, e.g. sandbox mode)
+   * @throws {Error} Account configuration error (no key, unknown region)
+   * @throws {errors.ValidationError} Invalid message, or MAGIC_MAIL_MESSAGE_TOO_LARGE
+   * @throws {Error} "SendGrid API request failed: <status>" with `status`,
+   *   `provider`, and when known `providerFields`, `providerReason`, `retryAfterMs`
+   * @sideeffect One HTTPS request to SendGrid with the recipients and content.
+   */
   async sendViaSendGrid(account, emailData) {
     const config = readAccountSecret(account.config);
     if (!config.apiKey) throw accountConfigError('SendGrid API key not configured');
+    const region = resolveSendGridRegion(config.region);
+    if (!region) throw accountConfigError('SendGrid region must be "us" or "eu"');
 
     this.validateEmailSecurity(emailData);
 
     try {
-      const toRecipientList = (value) => listAddresses(value).map((email) => ({ email }));
-
-      const personalization = { to: toRecipientList(emailData.to) };
+      const recipients = sendGridRecipients(emailData);
+      const personalization = { to: recipients.to };
       if (personalization.to.length === 0) {
         throw validationError('SendGrid send requires at least one valid recipient');
       }
-      const ccRecipients = toRecipientList(emailData.cc);
-      if (ccRecipients.length > 0) personalization.cc = ccRecipients;
-      const bccRecipients = toRecipientList(emailData.bcc);
-      if (bccRecipients.length > 0) personalization.bcc = bccRecipients;
+      if (recipients.cc.length > 0) personalization.cc = recipients.cc;
+      if (recipients.bcc.length > 0) personalization.bcc = recipients.bcc;
 
       const sender = senderFor(account, emailData);
+      const magicmailId = magicmailIdOf(emailData);
       const msg = {
         personalizations: [personalization],
         from: { email: sender.address, ...(sender.name ? { name: sender.name } : {}) },
@@ -2415,14 +2736,23 @@ module.exports = ({ strapi }) => ({
           ...(emailData.text ? [{ type: 'text/plain', value: emailData.text }] : []),
           ...(emailData.html ? [{ type: 'text/html', value: emailData.html }] : []),
         ],
-        // SendGrid v3 uses snake_case `custom_args`.
+        // SendGrid v3 uses snake_case `custom_args`; values must be strings.
         custom_args: {
           magicmail_version: '1.0',
           email_type: emailData.type || 'transactional',
           priority: emailData.priority || 'normal',
+          ...(magicmailId ? { magicmail_id: magicmailId } : {}),
         },
         headers: buildOutboundHeaders(emailData),
       };
+
+      const tracking = trackingAppliedOf(emailData);
+      if (tracking.opens || tracking.clicks) {
+        msg.tracking_settings = {
+          ...(tracking.clicks ? { click_tracking: { enable: false } } : {}),
+          ...(tracking.opens ? { open_tracking: { enable: false } } : {}),
+        };
+      }
 
       const replyTo = resolveReplyTo(emailData.replyTo || account.replyTo);
       if (replyTo && replyTo.length === 1) {
@@ -2448,23 +2778,40 @@ module.exports = ({ strapi }) => ({
         }));
       }
 
-      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      const body = JSON.stringify(msg);
+      if (Buffer.byteLength(body) >= SENDGRID_MAX_MESSAGE_BYTES) {
+        throw messageTooLargeError(
+          'The message is larger than SendGrid accepts (30 MB including attachments)'
+        );
+      }
+
+      const response = await fetch(`${sendGridApiBaseUrl(region)}/v3/mail/send`, {
         ...fetchBounds(emailData),
         method: 'POST',
         headers: {
           Authorization: `Bearer ${config.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(msg),
+        body,
       });
 
       if (!response.ok) {
-        strapi.log.error(`[magic-mail] SendGrid API request failed: ${response.status}`);
-        throw providerHttpError('SendGrid', response.status);
+        const details = sendGridErrorDetails(
+          await readProviderErrorBody(response),
+          response.status
+        );
+        strapi.log.error(
+          `[magic-mail] SendGrid API request failed: ${response.status} (region ${region})`
+        );
+        throw providerHttpError('SendGrid', response.status, {
+          ...details,
+          retryAfterMs: response.status === 429 ? rateLimitResetMs(response) : 0,
+        });
       }
 
       return {
         // SendGrid's id; its webhooks report it as the `sg_message_id` prefix.
+        // Sandbox mode answers 200 without X-Message-Id: then null.
         messageId: normalizeMessageId(response.headers?.get?.('x-message-id')),
         response: 'Accepted',
       };
@@ -2474,7 +2821,25 @@ module.exports = ({ strapi }) => ({
     }
   },
 
-  /** Send via the Mailgun API. */
+  /**
+   * Sends through the Mailgun messages API (US or EU host).
+   *
+   * Adds `o:tracking-opens=no` / `o:tracking-clicks=no` only for the parts
+   * Magic Mail tracks itself, the metadata variables `v:magicmail_email_type`,
+   * `v:magicmail_priority` and `v:magicmail_id` (delivery-log documentId;
+   * Mailgun shows variables in the X-Mailgun-Variables header and in
+   * webhooks, so only allowlisted values and an opaque id are sent) and one
+   * `o:tag` with the email type. Refuses, before any network call, send
+   * options over 16 KB and messages estimated at 25 MB or more.
+   *
+   * @param {object} account - Mailgun account (encrypted config with apiKey, domain, region)
+   * @param {object} emailData - Prepared message (validated again here)
+   * @returns {Promise<{messageId: string|null, response: string}>} Mailgun id without angle brackets
+   * @throws {Error} Account configuration error (key, domain, region)
+   * @throws {errors.ValidationError} Invalid message, or MAGIC_MAIL_MESSAGE_TOO_LARGE
+   * @throws {Error} "Mailgun API request failed: <status>" with `status` and `provider`
+   * @sideeffect One HTTPS request to Mailgun with the recipients and content.
+   */
   async sendViaMailgun(account, emailData) {
     const config = readAccountSecret(account.config);
     if (!config.apiKey || !config.domain) {
@@ -2514,11 +2879,37 @@ module.exports = ({ strapi }) => ({
         form.append(`h:${name}`, value);
       }
 
+      // Magic Mail tracks these parts itself: Mailgun must not track them again.
+      const tracking = trackingAppliedOf(emailData);
+      if (tracking.opens) form.append('o:tracking-opens', 'no');
+      if (tracking.clicks) form.append('o:tracking-clicks', 'no');
+      // Metadata for Mailgun events/webhooks: allowlisted values only.
+      const type = EMAIL_TYPES.includes(emailData.type) ? emailData.type : 'transactional';
+      const priority = PRIORITIES.includes(emailData.priority) ? emailData.priority : 'normal';
+      form.append('v:magicmail_email_type', type);
+      form.append('v:magicmail_priority', priority);
+      const magicmailId = magicmailIdOf(emailData);
+      if (magicmailId) form.append('v:magicmail_id', magicmailId);
+      const tag = mailgunTag(type);
+      if (tag) form.append('o:tag', tag);
+
+      if (mailgunOptionBytes(form) > MAILGUN_MAX_OPTIONS_BYTES) {
+        throw messageTooLargeError(
+          'Headers and send options are larger than Mailgun accepts (16 KB in total)'
+        );
+      }
+
       for (const attachment of normalizeAttachments(emailData.attachments)) {
         form.append(
           attachment.cid ? 'inline' : 'attachment',
           new Blob([attachment.content], { type: attachment.contentType }),
           attachment.cid || attachment.filename
+        );
+      }
+
+      if (estimateMailgunMessageBytes(form) >= MAILGUN_MAX_MESSAGE_BYTES) {
+        throw messageTooLargeError(
+          'The message is larger than Mailgun accepts (25 MB including attachments)'
         );
       }
 
@@ -2536,7 +2927,16 @@ module.exports = ({ strapi }) => ({
       );
 
       if (!response.ok) {
-        strapi.log.error(`[magic-mail] Mailgun API request failed: ${response.status}`);
+        // The body (JSON `message` or the plain text "Forbidden") is not read:
+        // it can echo addresses and adds nothing a fixed hint does not say.
+        try {
+          await response.body?.cancel?.();
+        } catch {
+          // nothing to release
+        }
+        strapi.log.error(
+          `[magic-mail] Mailgun API request failed: ${response.status} (region ${region})`
+        );
         throw providerHttpError('Mailgun', response.status);
       }
 
@@ -2854,6 +3254,19 @@ module.exports = ({ strapi }) => ({
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
+  MAILGUN_MAX_MESSAGE_BYTES,
+  MAILGUN_MAX_OPTIONS_BYTES,
+  MAX_CUSTOM_HEADER_BYTES,
+  MAX_TOTAL_ATTACHMENT_BYTES,
+  SENDGRID_MAX_MESSAGE_BYTES,
+  estimateMailgunMessageBytes,
+  mailgunOptionBytes,
+  mailgunTag,
+  providerHttpError,
+  rateLimitResetMs,
+  readProviderErrorBody,
+  sendGridErrorDetails,
+  sendGridRecipients,
   createMessageId,
   buildOutboundHeaders,
   filterCustomHeaders,
