@@ -53,7 +53,6 @@ const MAILGUN_MAX_OPTIONS_BYTES = 16 * 1024;
 /** Raw (decoded) size of all attachments of one message, for every provider. */
 const MAX_TOTAL_ATTACHMENT_BYTES = 40 * 1024 * 1024;
 /** Bytes of all caller headers (names plus values), for every provider. */
-const MAX_CUSTOM_HEADER_BYTES = 8 * 1024;
 /** A provider error body is read up to this size, parsed, then discarded. */
 const PROVIDER_ERROR_BODY_MAX_BYTES = 4 * 1024;
 const PROVIDER_ERROR_BODY_TIMEOUT_MS = 2_000;
@@ -878,10 +877,7 @@ function toNodemailerAttachments(attachments) {
 
 /**
  * Filters caller headers to the allowlist (`X-*` except plugin-owned ones,
- * List-Id, Precedence, Auto-Submitted, In-Reply-To, References). At most
- * MAX_CUSTOM_HEADERS headers and MAX_CUSTOM_HEADER_BYTES bytes (names plus
- * values) are kept, so caller headers fit every provider (Mailgun allows
- * 16 KB for all send options). Headers beyond either limit are dropped.
+ * List-Id, Precedence, Auto-Submitted, In-Reply-To, References).
  *
  * @param {*} source
  * @returns {Record<string, string>}
@@ -891,7 +887,6 @@ function filterCustomHeaders(source) {
   if (!source || typeof source !== 'object' || Array.isArray(source)) return out;
 
   let count = 0;
-  let bytes = 0;
   for (const [rawName, rawValue] of Object.entries(source)) {
     if (count >= MAX_CUSTOM_HEADERS) break;
     const name = stripHeaderInjection(rawName);
@@ -906,9 +901,6 @@ function filterCustomHeaders(source) {
     else if (lower.startsWith('x-') && !RESERVED_X_HEADERS.has(lower)) canonical = name;
     if (!canonical) continue;
 
-    const size = Buffer.byteLength(canonical) + Buffer.byteLength(value);
-    if (bytes + size > MAX_CUSTOM_HEADER_BYTES) break;
-    bytes += size;
     out[canonical] = value;
     count += 1;
   }
@@ -3256,7 +3248,6 @@ module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
   MAILGUN_MAX_MESSAGE_BYTES,
   MAILGUN_MAX_OPTIONS_BYTES,
-  MAX_CUSTOM_HEADER_BYTES,
   MAX_TOTAL_ATTACHMENT_BYTES,
   SENDGRID_MAX_MESSAGE_BYTES,
   estimateMailgunMessageBytes,

@@ -127,23 +127,16 @@ test('SG-3: X-SG-ID and X-SG-EID are never passed on, in any spelling', async ()
   });
 });
 
-// ── MG-SEND-2: header budget ──────────────────────────────────────────────
+// ── MG-SEND-2: caller headers pass through unchanged ──────────────────────
 
-test('MG-SEND-2: caller headers are limited to 8 KB in total by the service; the Content API keeps its rules', () => {
-  const { filterCustomHeaders, MAX_CUSTOM_HEADER_BYTES } = routerInternals();
-  assert.equal(MAX_CUSTOM_HEADER_BYTES, 8192);
+test('MG-SEND-2: caller headers are never dropped or truncated for size', () => {
+  const { filterCustomHeaders } = routerInternals();
+  // 5 x 3000 characters (about 15 KB) is above any former budget but within
+  // the allowlist rules from 4.6.1 (20 headers, 4000 characters each).
   const big = {};
   for (let i = 0; i < 5; i += 1) big[`X-Big-${i}`] = 'v'.repeat(3000);
-  const kept = filterCustomHeaders(big);
-  const bytes = Object.entries(kept).reduce(
-    (sum, [k, v]) => sum + Buffer.byteLength(k) + Buffer.byteLength(v),
-    0
-  );
-  assert.equal(Object.keys(kept).length, 2);
-  assert.ok(bytes <= 8192);
+  assert.deepEqual(filterCustomHeaders(big), big);
 
-  // Content API: no extra total-size rule (would be a stricter public
-  // validation); the service budget and the Mailgun 16 KB precheck apply.
   const { validate } = require('../server/src/validation');
   const headersOf = (count) =>
     Object.fromEntries(Array.from({ length: count }, (_, i) => [`X-H${i}`, 'v'.repeat(1000)]));
@@ -154,6 +147,24 @@ test('MG-SEND-2: caller headers are limited to 8 KB in total by the service; the
     headers: headersOf(9),
   });
   assert.equal(Object.keys(ok.headers).length, 9);
+});
+
+test('MG-SEND-2: SendGrid receives large caller headers unchanged (no documented header limit)', async () => {
+  await withFetch(undefined, async (calls) => {
+    const { router } = createHarness([accountFor('sendgrid')]);
+    const headers = {};
+    for (let i = 0; i < 5; i += 1) headers[`X-Big-${i}`] = 'v'.repeat(3000);
+    await router.sendViaSendGrid(accountFor('sendgrid'), {
+      to: 'a@example.test',
+      subject: 's',
+      text: 't',
+      headers,
+    });
+    assert.equal(calls.length, 1);
+    for (const [name, value] of Object.entries(headers)) {
+      assert.equal(calls[0].json.headers[name], value);
+    }
+  });
 });
 
 test('MG-SEND-2: Mailgun send options above 16 KB are refused before any request', async () => {

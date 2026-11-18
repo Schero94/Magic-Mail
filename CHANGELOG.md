@@ -11,14 +11,13 @@
 * **SendGrid keeps recipient names.** `Ada Lovelace <ada@example.com>` arrives as "Ada Lovelace" instead of the bare address.
 * **Oversized emails are rejected before upload with a clear message.** SendGrid accepts less than 30 MB and Mailgun 25 MB per message. Magic Mail now checks the size before calling the provider and answers with a validation error (`MAGIC_MAIL_MESSAGE_TOO_LARGE`) instead of uploading the whole mail and getting a vague rejection. All attachments of one email together may be at most 40 MB raw with every provider (each file stays limited to 25 MB). A provider's own "too large" answer (HTTP 413) gets the same code.
 * **Magic Mail turns off Mailgun's and SendGrid's own open/click tracking when it tracks itself, so links are no longer wrapped twice** and opens are not counted twice. Only the part Magic Mail really applied is switched off; when Magic Mail does not track (tracking off, no public URL), the provider's tracking settings apply as before.
-* **Custom headers can no longer break Mailgun sends.** Mailgun allows 16 KB for all headers and options of one message. Magic Mail now sends at most 8 KB of caller headers (names plus values) per message; headers that do not fit are left out. A Mailgun message whose headers and options still exceed 16 KB is refused before sending with `MAGIC_MAIL_MESSAGE_TOO_LARGE`. The Content API accepts the same requests as before.
+* **Clear error when headers are too large for Mailgun.** Mailgun allows 16 KB for all headers and options of one message. A Mailgun message above that is now refused before sending with `MAGIC_MAIL_MESSAGE_TOO_LARGE` instead of a bare Mailgun 400. Custom headers are still sent exactly as before; nothing is dropped or shortened.
 * **SendGrid's reserved headers are filtered.** A caller header `X-SG-ID` or `X-SG-EID` used to make SendGrid reject the mail; Magic Mail now drops them like its own reserved headers.
 * **Clearer provider failures.** Failed SendGrid and Mailgun calls now carry the provider and, for SendGrid, the names of the rejected fields (for example `personalizations.0.cc`), never the provider's message text (it can contain addresses). The error message stays `SendGrid API request failed: <status>`. The server log names the region. When SendGrid answers 429 with a reset time, a queued retry waits at least until then.
 
 ### Migration
 
 * If you use a SendGrid EU regional subuser, set that account's region to **EU**.
-* If you send more than 8 KB of custom headers, the ones past that budget are no longer sent; keep custom headers short.
 * If you listen to SendGrid or Mailgun webhooks yourself, you will see the new `magicmail_*` custom arguments / variables and the Mailgun tag.
 
 ## [4.6.1](https://github.com/Schero94/Magic-Mail/compare/v4.6.0...v4.6.1) (2026-11-18)
