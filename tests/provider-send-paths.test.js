@@ -840,3 +840,36 @@ test('SG-5: the error-field allowlist runs in linear time on adversarial input',
   assert.deepEqual(result.providerFields, []);
   assert.ok(elapsedMs < 200, `took ${elapsedMs} ms`);
 });
+
+test('SG-8: the sent magicmail_id is what the webhook parsers read back', async () => {
+  const { parseSendGridEvents, parseMailgunEvent } =
+    require('../server/src/services/delivery-webhooks').__test__;
+  await withFetch(undefined, async (calls) => {
+    await createHarness([accountFor('sendgrid')], { logDocumentId: 'logdocABC1' }).router.send({
+      to: 'a@example.test',
+      subject: 's',
+      text: 't',
+    });
+    await createHarness([accountFor('mailgun')], { logDocumentId: 'logdocABC2' }).router.send({
+      to: 'a@example.test',
+      subject: 's',
+      text: 't',
+    });
+    // SendGrid adds custom_args as top-level event keys (Event Webhook reference).
+    const [sgEvent] = parseSendGridEvents([
+      { event: 'bounce', type: 'bounce', email: 'a@example.test', ...calls[0].json.custom_args },
+    ]);
+    assert.equal(sgEvent.magicmailId, 'logdocABC1');
+    // Mailgun reports v: variables as event-data `user-variables`.
+    const variables = Object.fromEntries(
+      calls[1].form.filter(([k]) => k.startsWith('v:')).map(([k, v]) => [k.slice(2), v])
+    );
+    const [mgEvent] = parseMailgunEvent({
+      event: 'failed',
+      severity: 'permanent',
+      recipient: 'a@example.test',
+      'user-variables': variables,
+    });
+    assert.equal(mgEvent.magicmailId, 'logdocABC2');
+  });
+});
