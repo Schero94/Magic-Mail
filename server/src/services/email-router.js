@@ -52,7 +52,6 @@ const MAILGUN_MAX_MESSAGE_BYTES = 25_000_000;
 const MAILGUN_MAX_OPTIONS_BYTES = 16 * 1024;
 /** Raw (decoded) size of all attachments of one message, for every provider. */
 const MAX_TOTAL_ATTACHMENT_BYTES = 40 * 1024 * 1024;
-/** Bytes of all caller headers (names plus values), for every provider. */
 /** A provider error body is read up to this size, parsed, then discarded. */
 const PROVIDER_ERROR_BODY_MAX_BYTES = 4 * 1024;
 const PROVIDER_ERROR_BODY_TIMEOUT_MS = 2_000;
