@@ -30,6 +30,13 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - **Several instances.** Railway replicas or pm2 workers on one database work without sticky sessions or Redis.
 - **Admin in five languages.** English, German, French, Spanish and Portuguese, in light and dark mode.
 
+## What's new
+
+- **SendGrid and Mailgun webhooks record more outcomes:** deferred, delivered and provider unsubscribes, besides bounces and complaints ([setup](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#bounces-and-complaints)).
+- **Provider hard bounces feed the suppression list** when _Block hard-bounced recipients_ is on.
+- **Analytics counts bounces** again, and SendGrid blocks are no longer shown as bounces.
+- **SendGrid batches up to 768 KB are accepted** (limit 1 MB, `webhooks.maxBodyBytes`).
+
 ## Contents
 
 - [Screenshots](#screenshots)
