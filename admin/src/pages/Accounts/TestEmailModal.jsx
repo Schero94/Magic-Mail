@@ -250,7 +250,11 @@ export const TestEmailModal = ({ account, onClose, onTest }) => {
         if (!open && !sending) onClose();
       }}
     >
-      <StyledModalContent onOpenAutoFocus={focusRecipient} onCloseAutoFocus={returnFocus}>
+      <StyledModalContent
+        onOpenAutoFocus={focusRecipient}
+        onCloseAutoFocus={returnFocus}
+        aria-describedby={undefined}
+      >
         <StyledModalHeader closeLabel={t('common.close', 'Close')}>
           <Modal.Title>{t('accounts.test.title', 'Test email account')}</Modal.Title>
         </StyledModalHeader>

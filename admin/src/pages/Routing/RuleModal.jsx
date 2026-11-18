@@ -226,7 +226,7 @@ export const RuleModal = ({
           if (!open) requestClose();
         }}
       >
-        <Modal.Content size="L" onCloseAutoFocus={returnFocus}>
+        <Modal.Content size="L" onCloseAutoFocus={returnFocus} aria-describedby={undefined}>
           <Modal.Header>
             <Modal.Title>
               <RuleModalHeading tag="span" alignItems="center" gap={2}>
