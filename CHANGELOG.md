@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Fixed
+
+* **Recipient names with commas, quotes or angle brackets arrive unchanged.** `"Doe, Jane" <jane@example.com>` in to, cc or bcc used to be split at the comma and partly lower-cased, so the recipient saw the name "doe,  Jane" (SMTP, Gmail, Outlook, Yahoo and Mailgun). Addresses are now read with the same RFC 5322 parser the transports use; only the address is lower-cased, never the name. Bare address lists are normalised exactly as before.
+
 ## [4.6.1](https://github.com/Schero94/Magic-Mail/compare/v4.6.0...v4.6.1) (2026-11-18)
 
 
