@@ -1,0 +1,1017 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mailgun API",
+    "description": "Mailgun API defined by OpenAPI Specification (OAS) 3.1.0",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.mailgun.net",
+      "description": "US Mailgun"
+    },
+    {
+      "url": "https://api.eu.mailgun.net",
+      "description": "EU Mailgun"
+    }
+  ],
+  "paths": {
+    "/v3/{domain_name}/templates": {
+      "get": {
+        "tags": ["Domain Templates"],
+        "summary": "Get templates",
+        "description": "Returns a list of templates for the domain.",
+        "operationId": "GET-v3--domain-name--templates",
+        "parameters": [
+          {
+            "name": "domain_name",
+            "in": "path",
+            "description": "Domain name to fetch the templates for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Name of the page to retrieve. Value can be `first`, `last`, `next`, or `previous`. Defaults to `first`.",
+            "schema": {
+              "type": "string",
+              "enum": ["first", "last", "next", "previous"],
+              "x-enumDescriptions": {
+                "first": "Get the first list's page",
+                "last": "Get the last list's page",
+                "next": "Get the next list's page",
+                "previous": "Get the previous list's page"
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of templates to retrieve. Default and max limit is 100.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Pivot used to retrieve the next page of templates.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A 200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-temple-httpapi-getPageResponse"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "items": [
+                        {
+                          "name": "template.0",
+                          "description": "Description for template 0",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "id": "48d63154-8c8f-4104-ab14-687d01dbf296"
+                        },
+                        {
+                          "name": "template.1",
+                          "description": "Description for template 1",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "id": "8d9c0f0d-7bf7-43a4-92a9-791a854d12a4"
+                        }
+                      ],
+                      "paging": {
+                        "previous": "https://api.mailgun.net/v3/{domain}/templates?page=previous&p=template.0&limit=10",
+                        "first": "https://api.mailgun.net/v3/{domain}/templates?limit=10",
+                        "next": "https://api.mailgun.net/v3/{domain}/templates?page=next&p=template.2&limit=10",
+                        "last": "https://api.mailgun.net/v3/{domain}/templates?page=last&limit=10"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A 401 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A 500 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/v3/{domain_name}/templates/{template_name}": {
+      "get": {
+        "tags": ["Domain Templates"],
+        "summary": "Get template",
+        "description": "Returns metadata information about the stored template specified in the url. If the active flag is provided, the content of the active version of the template is returned. If the version_name flag is provided, version information will be included as well. By default: the `version` field is not provided. To see available versions other than the active version, use the `/versions` API instead",
+        "operationId": "GET-v3--domain-name--templates--template-name-",
+        "parameters": [
+          {
+            "name": "domain_name",
+            "in": "path",
+            "description": "Domain name the template is stored under.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "template_name",
+            "in": "path",
+            "description": "Template name to fetch.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "If this flag is set to yes the active version of the template is included in the response.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A 200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-temple-httpapi-getTemplateOrVersionResponse"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "template": {
+                        "name": "template_name",
+                        "description": "This is the description of the template",
+                        "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                        "createdBy": "user-supplied-value",
+                        "id": "46565d87-68b6-4edb-8b3c-34554af4bb77",
+                        "domain": "header.tld",
+                        "version": {
+                          "tag": "tag",
+                          "template": "<html>template content</html>",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "comment": "Version comment",
+                          "active": true,
+                          "id": "3efd2b85-0f41-4a1d-9898-05d7e7459c4a",
+                          "headers": {
+                            "From": "from@header.tld",
+                            "Reply-To": "reply-to@header.tld",
+                            "Subject": "Subject Value"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A 401 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A 404 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A 500 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/v4/templates": {
+      "get": {
+        "tags": ["Account Templates"],
+        "summary": "Get account-level templates",
+        "description": "Returns a list of account-level templates.",
+        "operationId": "GET-v4-templates",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Name of the page to retrieve. Value can be `first`, `last`, `next`, or `previous`. Defaults to `first`.",
+            "schema": {
+              "type": "string",
+              "enum": ["first", "last", "next", "previous"],
+              "x-enumDescriptions": {
+                "first": "Get the first list's page",
+                "last": "Get the last list's page",
+                "next": "Get the next list's page",
+                "previous": "Get the previous list's page"
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of templates to retrieve. Default and max limit is 100.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Pivot used to retrieve the next page of templates.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A 200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-temple-httpapi-getPageResponse"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "items": [
+                        {
+                          "name": "template.0",
+                          "description": "Description for template 0",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "id": "48d63154-8c8f-4104-ab14-687d01dbf296"
+                        },
+                        {
+                          "name": "template.1",
+                          "description": "Description for template 1",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "id": "8d9c0f0d-7bf7-43a4-92a9-791a854d12a4"
+                        }
+                      ],
+                      "paging": {
+                        "previous": "https://api.mailgun.net/v4/templates?page=previous&p=template.0&limit=10",
+                        "first": "https://api.mailgun.net/v4/templates?limit=10",
+                        "next": "https://api.mailgun.net/v4/templates?page=next&p=template.2&limit=10",
+                        "last": "https://api.mailgun.net/v4/templates?page=last&limit=10"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A 401 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A 500 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/v4/templates/{template_name}": {
+      "get": {
+        "tags": ["Account Templates"],
+        "summary": "Get an account-level template",
+        "description": "Returns metadata information about the stored account-level template. If the active flag is provided, the content of the active version of the template is returned.",
+        "operationId": "GET-v4-templates--template-name-",
+        "parameters": [
+          {
+            "name": "template_name",
+            "in": "path",
+            "description": "Template name to fetch.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "If this flag is set to yes the active version of the template is included in the response.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A 200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-temple-httpapi-getTemplateOrVersionResponse"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "template": {
+                        "name": "template_name",
+                        "description": "This is the description of the template",
+                        "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                        "createdBy": "user-supplied-value",
+                        "id": "46565d87-68b6-4edb-8b3c-34554af4bb77",
+                        "domain": "header.tld",
+                        "version": {
+                          "tag": "tag",
+                          "template": "<html>template content</html>",
+                          "createdAt": "Sat, 12 Nov 1955 06:38:00 UTC",
+                          "comment": "Version comment",
+                          "active": true,
+                          "id": "3efd2b85-0f41-4a1d-9898-05d7e7459c4a",
+                          "headers": {
+                            "From": "from@header.tld",
+                            "Reply-To": "reply-to@header.tld",
+                            "Subject": "Subject Value"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A 401 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A 404 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A 500 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-GenericResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/v3/{domain_name}/messages": {
+      "post": {
+        "tags": ["Messages"],
+        "summary": "Send an email",
+        "description": "Pass the components of the messages such as To, From, Subject, HTML, text parts, attachments, etc. Mailgun will build a MIME representation of the message and send it. In order to send you must provide one of the following parameters: 'text', 'html', 'amp-html' or 'template'. Important: Send options (parameters starting with o:, h:, v:, or t:) are limited to 16KB total",
+        "operationId": "POST-v3--domain-name--messages",
+        "parameters": [
+          {
+            "name": "domain_name",
+            "in": "path",
+            "description": "Domain name used to send the message",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/POST-v3-domain_name-messages-multipart-form-data-RequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "A 200 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-influx-httpapi-SendMessageResponse"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "id": "message-id",
+                      "message": "Queued. Thank you."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A 400 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-influx-httpapi-GetMessageResponseNotFound"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "message": "A simple message describing the issue - A few examples:'to parameter is not a valid address. please check documentation.' 'Only one parameters 'html' or 'template' is allowed.' 'Need at least one of 'text', 'html', 'amp-html' or 'template' parameters specified.' 'from parameter is missing. ''Send options (parameters starting with o:, h:, or v:) are limited to 16KB total'"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A 401 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                },
+                "examples": {
+                  "Example": {
+                    "value": "Forbidden"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "A 429 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-influx-httpapi-GetMessageResponseNotFound"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "message": "Domain example.com is not allowed to send: account-requests-per-sec limit exceeded, try again after 120 seconds"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A 500 response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/github.com-mailgun-influx-httpapi-GetMessageResponseNotFound"
+                },
+                "examples": {
+                  "Example": {
+                    "value": {
+                      "message": "Internal Server Error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "github.com-mailgun-temple-httpapi-getPageResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": ["array", "null"],
+            "items": {
+              "$ref": "#/components/schemas/github.com-mailgun-temple-model-Template"
+            },
+            "description": "List of items"
+          },
+          "paging": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/github.com-mailgun-scaffold-httpapi-paging-PagingResponse"
+              }
+            ],
+            "description": "Pagination details"
+          }
+        },
+        "required": ["items", "paging"]
+      },
+      "github.com-mailgun-scaffold-httpapi-GenericResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Response message"
+          }
+        },
+        "required": ["message"]
+      },
+      "github.com-mailgun-temple-httpapi-getTemplateOrVersionResponse": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/github.com-mailgun-temple-model-Template"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Template details"
+          }
+        },
+        "required": ["template"]
+      },
+      "POST-v3-domain_name-messages-multipart-form-data-RequestBody": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Email address of the `From` header. Can include a friendly name using the format `Friendly Name <email@domain.com>`. Note: not required if sending with a template that has a pre-set From header, but will override the template's From header if provided. Friendly names (display names) with special characters, such as commas, should be enclosed in double quotes."
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Email address of the recipient(s). Supports friendly name format. Example: `Bob <bob@host.com>`. If a friendly name contains a comma, we recommend submitting each recipient in a separate `to` field. Alternatively, use commas to separate multiple recipients. Duplicate addresses are automatically ignored. We recommend enclosing friendly names (display names) in double quotes when they contain special characters, such as commas. For example: `\"Bob, Account Manager\" <bob@example.com>`. This follows RFC 5322 formatting and helps avoid ambiguity when specifying multiple recipients. Simple names such as `Bob <bob@example.com>` do not require quotes."
+          },
+          "cc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Same as `to` but for carbon copy recipients. Supports friendly name format. See `to` for guidance on quoting friendly names."
+          },
+          "bcc": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Same as `to` but for blind carbon copy recipients. Supports friendly name format. See `to` for guidance on quoting friendly names."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject. Note: not required if sending with a template that has a pre-set Subject header, but it will override it if provided."
+          },
+          "text": {
+            "type": "string",
+            "description": "Body of the message (text version)"
+          },
+          "html": {
+            "type": "string",
+            "description": "Body of the message (HTML version)"
+          },
+          "amp-html": {
+            "type": "string",
+            "description": "AMP part of the message.  Please follow Google guidelines to compose and send AMP emails"
+          },
+          "attachment": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "description": "File attachment.  You can post multiple `attachment` values.  **Important:** You must use `multipart/form-data` encoding for sending attachments"
+          },
+          "inline": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "format": "binary",
+            "description": "Attachment with `inline` disposition.  Can be used to send inline images (see example). You can post multiple `inline` values"
+          },
+          "template": {
+            "type": "string",
+            "description": "Name of a template stored via the Templates API to use to render the email body. See [Templates](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-templates) for more information"
+          },
+          "t:version": {
+            "type": "string",
+            "description": "Render a specific version of the given template instead of the latest version. `template` option must also be provided."
+          },
+          "t:text": {
+            "type": "string",
+            "enum": ["yes"],
+            "description": "Generates a plain text version of the template alongside the HTML version when sending templated emails. When set to 'yes', instructs Mailgun to create a text/plain MIME part based on the template content, ensuring compatibility with email clients that don't support HTML or have HTML rendering disabled. This improves email deliverability and accessibility by providing a fallback text version in multipart emails.",
+            "x-enumDescriptions": {
+              "yes": "Render template in the text part of the message"
+            }
+          },
+          "t:variables": {
+            "type": "string",
+            "description": "A valid JSON-encoded dictionary used as the input for template variable expansion.  See [Templates](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-templates) for more information"
+          },
+          "o:tag": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tag string.  See [Tagging](https://documentation.mailgun.com/docs/mailgun/user-manual/tracking-messages/track-tagging) for more information"
+          },
+          "o:dkim": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false"],
+            "description": "Enables or disables DKIM signatures on a per-message basis. Overrides the domain-level DKIM setting for this specific message.",
+            "x-enumDescriptions": {
+              "yes": "Enables DKIM signatures",
+              "no": "Disable DKIM signatures",
+              "true": "Enables DKIM signatures",
+              "false": "Disable DKIM signatures"
+            }
+          },
+          "o:secondary-dkim": {
+            "type": "string",
+            "description": "Specify a second domain key to sign the email with. The value is formatted as `signing_domain/selector`, e.g. `example.com/s1`. This tells Mailgun to sign the message with the signing domain `example.com` using the selector `s1`. Note: the domain key specified must have been previously created and activated."
+          },
+          "o:secondary-dkim-public": {
+            "type": "string",
+            "description": "Specify an alias of the domain key specified in `o:secondary-dkim`. Also formatted as `public_signing_domain/selector`. `o:secondary-dkim` option must also be provided. Mailgun will sign the message with the provided key of the secondary DKIM, but use the public secondary DKIM name and selector. Note: We will perform a DNS check prior to signing the message to ensure the public keys matches the secondary DKIM."
+          },
+          "o:deliverytime": {
+            "type": "string",
+            "description": "Specifies the scheduled delivery time in [RFC-2822 format](https://documentation.mailgun.com/docs/mailgun/api-reference/api-overview#date-format). Depending on your plan, you can schedule messages up to 3 or 7 days in advance. If your domain has a custom message_ttl (time-to-live) setting, this value determines the maximum scheduling duration. Example: 'Fri, 14 Oct 2011 12:00:00 +0000'"
+          },
+          "o:deliver-within": {
+            "type": "string",
+            "description": "Specifies the maximum time window for delivering the message. Accepts values in format `[0-9]+h[0-9]+m` (e.g., `1h30m`, `30m`, `24h`), with a minimum of `5m` and maximum of `24h`. For scheduled messages, the delivery window starts from the scheduled time. The standard retry schedule applies within this window, so shorter timeframes may result in fewer delivery attempts."
+          },
+          "o:deliverytime-optimize-period": {
+            "type": "string",
+            "description": "Toggles Send Time Optimization (STO) on a per-message basis.  String should be set to the number of hours in `[0-9]+h` format, with the minimum being `24h` and the maximum being `72h`.  This value defines the time window in which Mailgun will run the optimization algorithm based on prior engagement data of a given recipient. See [Sending a Message with STO](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-sto) for details. *Please note that STO is only available on certain plans. See www.mailgun.com/pricing for more info*"
+          },
+          "o:time-zone-localize": {
+            "type": "string",
+            "description": "Toggles Timezone Optimization (TZO) on a per message basis. String should be set to preferred delivery time in `HH:mm` or `hh:mmaa` format, where `HH:mm` is used for 24 hour format without AM/PM and hh:mmaa is used for 12 hour format with AM/PM. See [Sending a Message with TZO](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-tzo) for details. *Please note that TZO is only available on certain plans. See www.mailgun.com/pricing for more info*"
+          },
+          "o:testmode": {
+            "type": "string",
+            "enum": ["yes"],
+            "description": "Enables sending in test mode. Messages are processed normally but not actually delivered to recipients. Useful for testing without sending real emails. See [Sending in Test Mode](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/test-mode)",
+            "x-enumDescriptions": {
+              "yes": "Send in test mode"
+            }
+          },
+          "o:tracking": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false", "htmlonly"],
+            "description": "Toggles both click and open tracking on a per-message basis",
+            "x-enumDescriptions": {
+              "yes": "Enable tracking on a per-message basis",
+              "no": "Disable tracking on a per-message basis",
+              "true": "Enable tracking on a per-message basis",
+              "false": "Disable tracking on a per-message basis",
+              "htmlonly": "Use if you only want links rewritten in the HTML part of the message"
+            }
+          },
+          "o:tracking-clicks": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false", "htmlonly"],
+            "description": "Toggles click tracking on a per-message basis, see [Tracking Clicks](https://documentation.mailgun.com/docs/mailgun/user-manual/tracking-messages/tracking-clicks).  This overrides the domain-level click tracking setting.",
+            "x-enumDescriptions": {
+              "yes": "Enable tracking on a per-message basis",
+              "no": "Disable tracking on a per-message basis",
+              "true": "Enable tracking on a per-message basis",
+              "false": "Disable tracking on a per-message basis",
+              "htmlonly": "Use if you only want links rewritten in the HTML part of the message"
+            }
+          },
+          "o:tracking-opens": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false"],
+            "description": "Toggles opens tracking on a per-message basis, see [Tracking Opens](https://documentation.mailgun.com/docs/mailgun/user-manual/tracking-messages/tracking-opens).  Has higher priority than domain-level setting.",
+            "x-enumDescriptions": {
+              "yes": "Enables opens tracking",
+              "no": "Disable opens tracking",
+              "true": "Enables opens tracking",
+              "false": "Disable opens tracking"
+            }
+          },
+          "o:require-tls": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false"],
+            "description": "When set to 'yes', requires the message to be sent only over a TLS connection to the Email Service Provider. If TLS cannot be established, the message will not be delivered. When set to 'no' (default), Mailgun attempts TLS but falls back to plaintext SMTP if needed.",
+            "x-enumDescriptions": {
+              "yes": "Message only be sent over a TLS connection",
+              "no": "Message do not require to be sent over a TLS connection",
+              "true": "Message only be sent over a TLS connection",
+              "false": "Message do not require to be sent over a TLS connection"
+            }
+          },
+          "o:skip-verification": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false"],
+            "description": "If `true`, the certificate and hostname of the resolved MX Host will not be verified when trying to establish a TLS connection. If `false`, Mailgun will verify the certificate and hostname. If either one can not be verified, a TLS connection will not be established. The default is `false`",
+            "x-enumDescriptions": {
+              "yes": "Verification skipped",
+              "no": "Verification active",
+              "true": "Verification skipped",
+              "false": "Verification active"
+            }
+          },
+          "o:sending-ip": {
+            "type": "string",
+            "description": "Used to specify an IP Address to send an email that is owned by your account"
+          },
+          "o:sending-ip-pool": {
+            "type": "string",
+            "description": "If an IP Pool ID is provided, the email will be delivered with an IP that belongs in that pool"
+          },
+          "o:tracking-pixel-location-top": {
+            "type": "string",
+            "enum": ["yes", "no", "true", "false", "htmlonly"],
+            "description": "Places the tracking pixel at the top of emails instead of the bottom. Useful for long emails that may be truncated or have rendering issues, ensuring open tracking works accurately.",
+            "x-enumDescriptions": {
+              "yes": "Enables tracking",
+              "no": "Disable tracking",
+              "true": "Enables tracking",
+              "false": "Disable tracking",
+              "htmlonly": "Use if you only want links rewritten in the HTML part of the message"
+            }
+          },
+          "o:archive-to": {
+            "type": "string",
+            "description": "Sends a copy of successfully delivered messages to the specified URL via HTTP POST. The request uses Content-Type: application/mime and contains the exact message the recipient's SMTP server received. NOTE: These are accounted for and billed as delivered messages"
+          },
+          "o:suppress-headers": {
+            "type": "string",
+            "description": "Removes specified X-Mailgun headers from the delivered message. Provide header names separated by commas (e.g., 'X-Mailgun-Variables,X-Mailgun-Tag') or use 'all' to remove all X-Mailgun headers.Note: X-Mailgun-Sid header is currently used to process complains received via feedback loops."
+          },
+          "o:inbox-placement-test-key": {
+            "type": "string",
+            "description": "Triggers an Inbox Placement test for this message using the provided value as an idempotency key. Retried or duplicate send requests that use the same key will not create additional tests. Requires Inbox Placement to be enabled for your account."
+          },
+          "h:X-My-Header": {
+            "type": "string",
+            "description": "Adds custom headers to the email. Use 'h:' prefix followed by header name and value. Example: 'h:X-Custom-Header=my-value'"
+          },
+          "v:my-var": {
+            "type": "string",
+            "description": "Attaches custom data to the message using the 'v:' prefix followed by a variable name. When sending with templates, provides values for template variable substitution (overridden by 't:variables' if both are provided). When not using templates, treated as metadata and included in events/webhooks. Variables are visible in the delivered email's X-Mailgun-Variables header. Example: 'v:user-id=123'. NOTE: Anything over 4KB will be truncated in the event/webhooks."
+          },
+          "recipient-variables": {
+            "type": "string",
+            "description": "A JSON-encoded dictionary for batch sending with personalized variables per recipient. Each key is a recipient email address, each value is a dictionary of variables for that recipient. Variables can be referenced in the message using %recipient.variablename%. Example: '{\"alice@example.com\": {\"name\":\"Alice\", \"id\":1}, \"bob@example.com\": {\"name\":\"Bob\", \"id\":2}}'. Maximum 1,000 recipients per batch. See [Batch Sending](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/batch-sending) for more information"
+          }
+        },
+        "required": ["from", "to", "subject"],
+        "additionalProperties": true
+      },
+      "github.com-mailgun-influx-httpapi-SendMessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier of the message as defined by [RFC-2392](https://datatracker.ietf.org/doc/html/rfc2392)."
+          },
+          "message": {
+            "type": "string",
+            "description": "A success message"
+          }
+        },
+        "required": ["id", "message"]
+      },
+      "github.com-mailgun-influx-httpapi-GetMessageResponseNotFound": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "A failure message"
+          }
+        },
+        "required": ["message"]
+      },
+      "string": {
+        "type": "string"
+      },
+      "github.com-mailgun-temple-model-Template": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the template"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the template"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation date in RFC822 format",
+            "readOnly": true
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "Indicate who created the template"
+          },
+          "id": {
+            "type": "string",
+            "description": "Template ID",
+            "readOnly": true
+          },
+          "domain": {
+            "type": "string",
+            "description": "Domain of the template"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/github.com-mailgun-temple-model-Version"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active version information",
+            "readOnly": true
+          },
+          "versions": {
+            "type": ["array", "null"],
+            "items": {
+              "$ref": "#/components/schemas/github.com-mailgun-temple-model-Version"
+            },
+            "description": "List of template's versions",
+            "readOnly": true
+          }
+        },
+        "required": ["name"]
+      },
+      "github.com-mailgun-scaffold-httpapi-paging-PagingResponse": {
+        "type": "object",
+        "properties": {
+          "previous": {
+            "type": "string",
+            "description": "Previous page URL"
+          },
+          "first": {
+            "type": "string",
+            "description": "First page URL"
+          },
+          "next": {
+            "type": "string",
+            "description": "Next page URL"
+          },
+          "last": {
+            "type": "string",
+            "description": "Last page URL"
+          }
+        },
+        "required": ["previous", "first", "next", "last"]
+      },
+      "github.com-mailgun-temple-model-Version": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Tag of the version. Must be unique to the template"
+          },
+          "template": {
+            "type": "string",
+            "description": "Template content"
+          },
+          "engine": {
+            "type": "string",
+            "description": "Rendering engine"
+          },
+          "mjml": {
+            "type": "string",
+            "description": "Template source"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Creation date in RFC822 format",
+            "readOnly": true
+          },
+          "comment": {
+            "type": "string",
+            "description": "Comment related to the version"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "If this flag is true"
+          },
+          "id": {
+            "type": "string",
+            "description": "Template ID",
+            "readOnly": true
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Key value JSON object of headers to be stored with the template. Where key is the header name and value is the header value. The header names `From`"
+          }
+        },
+        "required": ["tag", "engine", "mjml", "createdAt", "comment", "active", "id"]
+      }
+    }
+  },
+  "x-magic-mail-source": {
+    "url": "https://documentation.mailgun.com/_bundle/docs/mailgun/api-reference/send/mailgun.json?download",
+    "sha256": "3bf29afd36c06a9a7998ed492838ed3fd4a1f4578799af285998ad73de1f8151",
+    "retrieved": "2026-11-17",
+    "operations": [
+      "GET /v3/{domain_name}/templates",
+      "GET /v3/{domain_name}/templates/{template_name}",
+      "GET /v4/templates",
+      "GET /v4/templates/{template_name}",
+      "POST /v3/{domain_name}/messages"
+    ]
+  }
+}
