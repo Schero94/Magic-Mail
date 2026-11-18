@@ -1,4 +1,10 @@
-## [Unreleased]
+# [4.8.0](https://github.com/Schero94/Magic-Mail/compare/v4.7.0...v4.8.0) (2026-11-18)
+
+
+### Features
+
+* provider templates for SendGrid and Mailgun ([#20](https://github.com/Schero94/Magic-Mail/issues/20)) ([184115d](https://github.com/Schero94/Magic-Mail/commit/184115dde3f513e72bec2343d2dacd9112c324e8))
+
 
 ### Added
 
