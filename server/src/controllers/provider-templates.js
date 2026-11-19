@@ -215,16 +215,18 @@ module.exports = ({ strapi }) => {
     },
 
     /**
-     * Design choice of both core mails (designer or provider template).
+     * Design choice of the core mails (designer or provider template).
      *
      * @route GET /magic-mail/designer/core-designs
      * @auth Admin JWT + plugin::magic-mail.read + plugin::users-permissions.email-templates.read
      * @param {import('koa').Context} ctx
-     * @returns {Promise<void>} 200 `{ data: { 'reset-password': {...}, 'email-confirmation': {...} } }`
+     * @returns {Promise<void>} 200 `{ data: { 'reset-password': {...}, 'email-confirmation': {...},
+     *   'admin-forgot-password': {...} } }`; each entry has `usable`, `problem` (error code or
+     *   null), `lastSyncedAt`, `checkedAt` (startup check) and `editable` for the signed-in admin
      */
     async coreDesigns(ctx) {
       try {
-        ctx.body = { data: await service().coreDesigns() };
+        ctx.body = { data: await service().coreDesigns(ctx.state?.user ?? null) };
       } catch (error) {
         handleControllerError(ctx, error, '[magic-mail] Core email designs could not be read');
       }
@@ -236,7 +238,8 @@ module.exports = ({ strapi }) => {
      * @route PUT /magic-mail/designer/core/:coreEmailType/design
      * @auth Admin JWT + plugin::magic-mail.manage + plugin::users-permissions.email-templates.update
      * @param {import('koa').Context} ctx - body `{ providerTemplate: key|null, fallbackToDesigner?: boolean }`
-     * @returns {Promise<void>} 200 `{ data }` (the new design); 400 invalid type or template
+     * @returns {Promise<void>} 200 `{ data }` (the new design); 400 invalid type or template;
+     *   403 admin-forgot-password for an admin who is not a super admin
      * @sideeffect Writes the plugin store; logs the change and emits
      *   `magic-mail.core-email.design.update` on the event hub.
      */

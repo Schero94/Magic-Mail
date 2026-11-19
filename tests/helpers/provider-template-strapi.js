@@ -39,7 +39,9 @@ function matches(row, filters = {}) {
 }
 
 /**
- * @param {{accounts?: object[], localTemplates?: object[], log?: object, upTemplate?: Function}} [options]
+ * @param {{accounts?: object[], localTemplates?: object[], log?: object, emailPlugin?: object,
+ *   usersPermissions?: object, config?: Record<string, unknown>, db?: object}} [options]
+ *   `config` answers strapi.config.get(key); `db` becomes strapi.db
  * @returns {{strapi: object, tables: object, logs: object[], store: Map, service: Function}}
  */
 function createStrapi({
@@ -48,6 +50,8 @@ function createStrapi({
   log = quietLog,
   emailPlugin = null,
   usersPermissions = null,
+  config = {},
+  db = null,
 } = {}) {
   let counter = 0;
   const nextId = () => `doc${(counter += 1)}`;
@@ -67,7 +71,10 @@ function createStrapi({
   const strapi = {
     log,
     magicMail: {},
-    config: { get: (key, fallback) => fallback },
+    config: {
+      get: (key, fallback) => (Object.hasOwn(config, key) ? config[key] : fallback),
+    },
+    ...(db ? { db } : {}),
     eventHub: { emit: (name, payload) => events.push({ name, payload }) },
     store: async ({ type, name }) => ({
       get: async ({ key }) => {

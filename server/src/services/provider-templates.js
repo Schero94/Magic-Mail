@@ -52,6 +52,52 @@ const MAX_LOCALES_PER_TEMPLATE = 50;
 /** Sample values for test sends; the same values local template tests use. */
 const SAMPLE_DATA = Object.freeze({ name: 'Test User' });
 
+/** Codes for a core email whose provider template can not be used. */
+const CORE_PROBLEM = Object.freeze({
+  UNKNOWN: 'MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN',
+  UNAVAILABLE: 'MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE',
+  NO_SUBJECT: 'MAGIC_MAIL_PROVIDER_TEMPLATE_NO_SUBJECT',
+});
+
+/** The admin forgot-password mail resets admin accounts: super admins only. */
+const SUPER_ADMIN_ONLY_CORE_TYPES = Object.freeze(['admin-forgot-password']);
+
+/**
+ * Whether an admin user holds the Super Admin role (`strapi-super-admin`).
+ *
+ * @param {unknown} adminUser - ctx.state.user (roles populated by Strapi)
+ * @returns {boolean}
+ */
+const isSuperAdmin = (adminUser) =>
+  Array.isArray(adminUser?.roles) &&
+  adminUser.roles.some((role) => role?.code === 'strapi-super-admin');
+
+/**
+ * Synthetic input for a core-mail sample payload (test sends, preview).
+ *
+ * @param {string} coreEmailType
+ * @param {string} to - Test recipient
+ * @returns {object}
+ */
+function coreSampleInput(coreEmailType, to) {
+  if (coreEmailType === 'admin-forgot-password') {
+    return {
+      url: 'https://api.example.test/admin/auth/reset-password?code=sample-token',
+      user: { id: 1, email: to, firstname: 'Test', lastname: 'User', username: 'test.user' },
+      adminUrl: 'https://api.example.test/admin',
+      serverUrl: 'https://api.example.test',
+    };
+  }
+  return {
+    URL: 'https://app.example.test/auth',
+    SERVER_URL: 'https://api.example.test',
+    ADMIN_URL: 'https://api.example.test/admin',
+    USER: { id: 1, email: to, username: 'test.user' },
+    TOKEN: 'sample-token',
+    CODE: 'sample-code',
+  };
+}
+
 /**
  * Turns a provider template name into the key slug: lower case ASCII letters,
  * digits and single dashes, at most 80 characters ('template' when empty).
@@ -136,7 +182,7 @@ module.exports = ({ strapi }) => ({
   /**
    * The plugin-store state (fallbacks, core-mail designs, sync bookkeeping).
    *
-   * @returns {Promise<{fallbacks: object, locales: object, coreMails: object, accounts: object, lastSyncedAt: string|null}>}
+   * @returns {Promise<{fallbacks: object, locales: object, coreMails: object, accounts: object, lastSyncedAt: string|null, coreCheck: object|null}>}
    */
   async getState() {
     const store = await strapi.store({ type: STORE.type, name: STORE.name });
@@ -147,6 +193,10 @@ module.exports = ({ strapi }) => ({
       coreMails: value.coreMails && typeof value.coreMails === 'object' ? value.coreMails : {},
       accounts: value.accounts && typeof value.accounts === 'object' ? value.accounts : {},
       lastSyncedAt: typeof value.lastSyncedAt === 'string' ? value.lastSyncedAt : null,
+      coreCheck:
+        value.coreCheck && typeof value.coreCheck === 'object' && !Array.isArray(value.coreCheck)
+          ? value.coreCheck
+          : null,
     };
   },
 
@@ -166,6 +216,7 @@ module.exports = ({ strapi }) => ({
         coreMails: { ...(current.coreMails || {}) },
         accounts: { ...(current.accounts || {}) },
         lastSyncedAt: current.lastSyncedAt || null,
+        coreCheck: current.coreCheck || null,
       });
     });
   },
@@ -539,9 +590,9 @@ module.exports = ({ strapi }) => ({
       })),
       variablesTruncated: best?.variables?.truncated === true,
       sampleData: sample,
-      coreMailVariables: group.usedByCoreMails.length
-        ? coreMailVariableNames(group.usedByCoreMails[0])
-        : [],
+      coreMailVariables: [
+        ...new Set(group.usedByCoreMails.flatMap((type) => coreMailVariableNames(type))),
+      ],
       copyWarnings: toMustacheWarnings.slice(0, 50),
       usage: `await strapi.plugin('magic-mail').service('email-router').send({\n  to: 'user@example.com',\n  providerTemplate: '${key}',\n  data: { name: 'Ada' },\n});`,
     };
@@ -549,7 +600,9 @@ module.exports = ({ strapi }) => ({
 
   /**
    * Sample template data for test sends: the local-template sample values,
-   * plus core-mail sample data when a core mail uses the template.
+   * plus core-mail sample data for every core mail that uses the template
+   * (merged in order, so each core mail's variables are present; for names
+   * two core mails share, such as `url` or `meta`, the first core mail wins).
    *
    * @param {{key: string, usedByCoreMails: string[]}} group
    * @param {string} to - Test recipient
@@ -557,23 +610,14 @@ module.exports = ({ strapi }) => ({
    */
   sampleData(group, to) {
     const base = { ...SAMPLE_DATA, email: to };
-    const coreType = group.usedByCoreMails?.[0];
-    if (!coreType) return base;
-    return {
-      ...base,
-      ...buildCoreMailPayload(
-        coreType,
-        {
-          URL: 'https://app.example.test/auth',
-          SERVER_URL: 'https://api.example.test',
-          ADMIN_URL: 'https://api.example.test/admin',
-          USER: { id: 1, email: to, username: 'test.user' },
-          TOKEN: 'sample-token',
-          CODE: 'sample-code',
-        },
-        { templateKey: group.key }
-      ),
-    };
+    const coreTypes = (group.usedByCoreMails || []).filter((type) =>
+      CORE_EMAIL_TYPES.includes(type)
+    );
+    if (coreTypes.length === 0) return base;
+    const samples = coreTypes.map((type) =>
+      buildCoreMailPayload(type, coreSampleInput(type, to), { templateKey: group.key })
+    );
+    return Object.assign({}, base, ...samples.reverse());
   },
 
   /**
@@ -817,25 +861,47 @@ module.exports = ({ strapi }) => ({
   /**
    * Core-mail design choices with the state of the chosen template.
    *
+   * @param {object} [adminUser] - With an admin user, each entry gets
+   *   `editable` (the admin forgot-password design is for super admins only)
    * @returns {Promise<Record<string, object>>}
    */
-  async coreDesigns() {
+  async coreDesigns(adminUser) {
     const [state, overview] = await Promise.all([this.getState(), this.overview()]);
     const out = {};
     for (const type of CORE_EMAIL_TYPES) {
       const choice = state.coreMails?.[type] || {};
       const key = isProviderTemplateKey(choice.providerTemplate) ? choice.providerTemplate : null;
       const group = key ? overview.templates.find((t) => t.key === key) : null;
+      // A Mailgun template without a Subject header can not send a core
+      // email: Magic Mail does not pass the Strapi subject on (it would
+      // override the template), and Mailgun requires a subject.
+      const noSubject =
+        Boolean(group?.usable) && group.provider === 'mailgun' && !String(group.subject || '');
+      const usable = key ? Boolean(group?.usable) && !noSubject : true;
       out[type] = {
         mode: key ? 'provider' : 'designer',
         providerTemplate: key,
         templateName: group?.name || null,
         provider: group?.provider || (key ? key.split(':')[0] : null),
         status: key ? (group ? group.status : 'missing') : null,
-        usable: key ? Boolean(group?.usable) : true,
+        usable,
+        // Why the template can not be used: not synced at all, or synced
+        // but deleted/unpublished at the provider or only on inactive accounts.
+        problem: usable
+          ? null
+          : noSubject
+            ? CORE_PROBLEM.NO_SUBJECT
+            : group
+              ? CORE_PROBLEM.UNAVAILABLE
+              : CORE_PROBLEM.UNKNOWN,
         fallbackToDesigner: choice.fallbackToDesigner === true,
         updatedAt: choice.updatedAt || null,
+        lastSyncedAt: key ? overview.lastSyncedAt || null : null,
+        checkedAt: key ? state.coreCheck?.checkedAt || null : null,
         variables: coreMailVariableNames(type),
+        ...(adminUser !== undefined
+          ? { editable: !SUPER_ADMIN_ONLY_CORE_TYPES.includes(type) || isSuperAdmin(adminUser) }
+          : {}),
       };
     }
     return out;
@@ -845,16 +911,23 @@ module.exports = ({ strapi }) => ({
    * Sets the design of a core mail: the Magic Mail designer (providerTemplate
    * null) or a synced provider template.
    *
-   * @param {'reset-password'|'email-confirmation'} coreEmailType
+   * @param {'reset-password'|'email-confirmation'|'admin-forgot-password'} coreEmailType
    * @param {{providerTemplate: string|null, fallbackToDesigner?: boolean}} input
    * @param {{id?: number|string}|undefined} adminUser - The admin making the change
    * @returns {Promise<object>} The new design entry (see coreDesigns())
    * @throws {errors.ValidationError} Unknown core type or template
+   * @throws {errors.ForbiddenError} admin-forgot-password by an admin who is
+   *   not a super admin
    * @sideeffect Writes the plugin store; logs the change (without personal data).
    */
   async setCoreDesign(coreEmailType, input, adminUser) {
     if (!CORE_EMAIL_TYPES.includes(coreEmailType)) {
       throw new errors.ValidationError('Invalid core email type');
+    }
+    if (SUPER_ADMIN_ONLY_CORE_TYPES.includes(coreEmailType) && !isSuperAdmin(adminUser)) {
+      throw new errors.ForbiddenError(
+        'Only super admins can change the design of the admin password reset email'
+      );
     }
     const key = input.providerTemplate ?? null;
     if (key !== null) {
@@ -894,7 +967,7 @@ module.exports = ({ strapi }) => ({
     } catch {
       // Listeners must not break the save.
     }
-    return (await this.coreDesigns())[coreEmailType];
+    return (await this.coreDesigns(adminUser))[coreEmailType];
   },
 
   /**
@@ -912,6 +985,63 @@ module.exports = ({ strapi }) => ({
       fallbackToDesigner: choice.fallbackToDesigner === true,
     };
   },
+
+  /**
+   * Checks every core email that uses a provider template (run once after
+   * start, see bootstrap). With `syncIfStale`, a template list older than
+   * 10 minutes (or never synced) is synced first, read-only at the provider.
+   * Each core email whose template is not synced or not usable is logged at
+   * warn level with its type, key and code (never values). The result is
+   * stored for the admin (`coreCheck`).
+   *
+   * @param {{syncIfStale?: boolean}} [options]
+   * @returns {Promise<{checkedAt: string|null, synced: boolean, syncError: string|null, problems: Array<{coreEmailType: string, key: string, code: string}>}>}
+   * @sideeffect May call the provider APIs (sync); writes the plugin store.
+   */
+  async checkCoreDesigns({ syncIfStale = true } = {}) {
+    const state = await this.getState();
+    const configured = CORE_EMAIL_TYPES.filter((type) =>
+      isProviderTemplateKey(state.coreMails?.[type]?.providerTemplate)
+    );
+    if (configured.length === 0) {
+      return { checkedAt: null, synced: false, syncError: null, problems: [] };
+    }
+    let synced = false;
+    let syncError = null;
+    const last = state.lastSyncedAt ? Date.parse(state.lastSyncedAt) : 0;
+    if (syncIfStale && (!last || Date.now() - last > STALE_AFTER_MS)) {
+      try {
+        await this.sync();
+        synced = true;
+      } catch (error) {
+        syncError = typeof error?.code === 'string' ? error.code : 'SYNC_FAILED';
+        strapi.log.warn(
+          `[magic-mail] Provider templates could not be synced at start (${syncError}); core emails are checked against the last sync`
+        );
+      }
+    }
+    const designs = await this.coreDesigns();
+    const problems = [];
+    for (const type of configured) {
+      const design = designs[type];
+      if (!design || design.usable) continue;
+      problems.push({ coreEmailType: type, key: design.providerTemplate, code: design.problem });
+      strapi.log.warn(
+        `[magic-mail] Core email ${type} uses provider template ${design.providerTemplate}, which is not usable (${design.problem}). These emails fail until the template is available and synced, or the core email uses the Magic Mail designer again`
+      );
+    }
+    const checkedAt = new Date().toISOString();
+    await this.updateState((current) => ({
+      ...current,
+      coreCheck: { checkedAt, problems: problems.slice(0, CORE_EMAIL_TYPES.length) },
+    }));
+    if (problems.length === 0) {
+      strapi.log.info(
+        `[magic-mail] Core email provider templates checked: ${configured.length} usable`
+      );
+    }
+    return { checkedAt, synced, syncError, problems };
+  },
 });
 
 module.exports.isProviderTemplateKey = isProviderTemplateKey;
@@ -919,3 +1049,4 @@ module.exports.slugify = slugify;
 module.exports.templateError = templateError;
 module.exports.STALE_AFTER_MS = STALE_AFTER_MS;
 module.exports.SAMPLE_DATA = SAMPLE_DATA;
+module.exports.CORE_PROBLEM = CORE_PROBLEM;

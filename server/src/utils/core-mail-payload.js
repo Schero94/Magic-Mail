@@ -9,19 +9,33 @@
  * moment users-permissions renders (see `createCoreMailCapture`) and, when a
  * core mail is set to use a provider template, sends them as template data.
  *
+ * The admin panel's forgot-password mail is rendered by
+ * `sendTemplatedEmail(options, template, { url, user })`; Magic Mail
+ * recognises that call (see bootstrap.js) and builds its payload directly.
+ *
  * Contract v1 (keys may be added later, never removed):
- * - the familiar users-permissions names: URL, SERVER_URL, ADMIN_URL, USER,
- *   TOKEN (password reset) or CODE (email confirmation);
- * - camelCase aliases: url (fully built link), baseUrl, serverUrl, adminUrl,
- *   user, token or code;
- * - meta: { templateKey, payloadVersion: 1, coreEmailType, locale? }.
+ * - users-permissions mails (reset-password, email-confirmation):
+ *   - the familiar users-permissions names: URL, SERVER_URL, ADMIN_URL, USER,
+ *     TOKEN (password reset) or CODE (email confirmation);
+ *   - camelCase aliases: url (fully built link), baseUrl, serverUrl, adminUrl,
+ *     user, token or code;
+ * - admin forgot password (admin-forgot-password): user, url (the finished
+ *   reset link Strapi built), token, adminUrl, serverUrl;
+ * - meta: { templateKey, payloadVersion: 1, coreEmailType, locale?,
+ *   strapiVersion? }.
  * USER/user carry only id, email, username and, when present, firstname and
  * lastname. The full user entity is never forwarded.
  */
 
 const crypto = require('crypto');
 
-const CORE_EMAIL_TYPES = Object.freeze(['reset-password', 'email-confirmation']);
+const CORE_EMAIL_TYPES = Object.freeze([
+  'reset-password',
+  'email-confirmation',
+  'admin-forgot-password',
+]);
+/** Core mails rendered by users-permissions (captured through template()). */
+const UP_CORE_EMAIL_TYPES = Object.freeze(['reset-password', 'email-confirmation']);
 const CORE_PAYLOAD_VERSION = 1;
 const USER_FIELDS = Object.freeze(['id', 'email', 'username', 'firstname', 'lastname']);
 const CAPTURE_TTL_MS = 5 * 60 * 1000;
@@ -75,17 +89,82 @@ function buildCoreLink(coreEmailType, baseUrl, secret) {
 }
 
 /**
+ * Returns the value when it is an absolute http(s) URL, else ''.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+function absoluteHttpUrl(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_FIELD_LENGTH) return '';
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The reset token of an admin forgot-password link (`?code=`), else ''.
+ *
+ * @param {string} url - Absolute link built by @strapi/admin
+ * @returns {string}
+ */
+function adminResetToken(url) {
+  if (!url) return '';
+  try {
+    return asText(new URL(url).searchParams.get('code') || '');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The common `meta` envelope of payload v1. `locale` and `strapiVersion` are
+ * only present when known.
+ *
+ * @param {string} coreEmailType
+ * @param {{templateKey?: string, locale?: string, strapiVersion?: string}} meta
+ * @returns {object}
+ */
+function buildMeta(coreEmailType, meta) {
+  return {
+    templateKey: String(meta.templateKey || ''),
+    payloadVersion: CORE_PAYLOAD_VERSION,
+    coreEmailType,
+    ...(typeof meta.locale === 'string' && meta.locale ? { locale: meta.locale } : {}),
+    ...(typeof meta.strapiVersion === 'string' && meta.strapiVersion
+      ? { strapiVersion: meta.strapiVersion.slice(0, 64) }
+      : {}),
+  };
+}
+
+/**
  * Builds the v1 template data for a core mail.
  *
- * @param {'reset-password'|'email-confirmation'} coreEmailType
+ * @param {'reset-password'|'email-confirmation'|'admin-forgot-password'} coreEmailType
  * @param {object} captured - Variables users-permissions rendered with
- *   ({ URL, SERVER_URL, ADMIN_URL, USER, TOKEN | CODE })
- * @param {{templateKey: string, locale?: string}} meta
- * @returns {object} Plain template data
+ *   ({ URL, SERVER_URL, ADMIN_URL, USER, TOKEN | CODE }); for
+ *   admin-forgot-password `{ url, user, adminUrl, serverUrl }` (the data
+ *   @strapi/admin passes to sendTemplatedEmail plus the configured URLs)
+ * @param {{templateKey: string, locale?: string, strapiVersion?: string}} meta
+ * @returns {object} Plain template data; `url` is '' when no absolute
+ *   http(s) link can be built
  * @throws {TypeError} For an unknown core email type
  */
 function buildCoreMailPayload(coreEmailType, captured = {}, meta = {}) {
   if (!CORE_EMAIL_TYPES.includes(coreEmailType)) throw new TypeError('Unknown core email type');
+  if (coreEmailType === 'admin-forgot-password') {
+    const url = absoluteHttpUrl(captured.url);
+    return {
+      user: allowlistUser(captured.user),
+      url,
+      token: adminResetToken(url),
+      adminUrl: asText(captured.adminUrl),
+      serverUrl: asText(captured.serverUrl),
+      meta: buildMeta(coreEmailType, meta),
+    };
+  }
   const user = allowlistUser(captured.USER);
   const baseUrl = asText(captured.URL);
   const serverUrl = asText(captured.SERVER_URL);
@@ -106,23 +185,38 @@ function buildCoreMailPayload(coreEmailType, captured = {}, meta = {}) {
     adminUrl,
     user: { ...user },
     ...(isReset ? { token: secret } : { code: secret }),
-    meta: {
-      templateKey: String(meta.templateKey || ''),
-      payloadVersion: CORE_PAYLOAD_VERSION,
-      coreEmailType,
-      ...(typeof meta.locale === 'string' && meta.locale ? { locale: meta.locale } : {}),
-    },
+    meta: buildMeta(coreEmailType, meta),
   };
   return payload;
 }
 
+const META_VARIABLES = Object.freeze([
+  'meta',
+  'meta.templateKey',
+  'meta.payloadVersion',
+  'meta.coreEmailType',
+  'meta.locale',
+  'meta.strapiVersion',
+]);
+
 /**
  * Variable names Magic Mail sends for a core mail (for the admin screen).
  *
- * @param {'reset-password'|'email-confirmation'} coreEmailType
+ * @param {'reset-password'|'email-confirmation'|'admin-forgot-password'} coreEmailType
  * @returns {string[]}
  */
 function coreMailVariableNames(coreEmailType) {
+  if (coreEmailType === 'admin-forgot-password') {
+    return [
+      'user',
+      ...USER_FIELDS.map((field) => `user.${field}`),
+      'url',
+      'token',
+      'adminUrl',
+      'serverUrl',
+      ...META_VARIABLES,
+    ];
+  }
   const isReset = coreEmailType === 'reset-password';
   return [
     'URL',
@@ -138,11 +232,7 @@ function coreMailVariableNames(coreEmailType) {
     'user',
     ...USER_FIELDS.map((field) => `user.${field}`),
     isReset ? 'token' : 'code',
-    'meta',
-    'meta.templateKey',
-    'meta.payloadVersion',
-    'meta.coreEmailType',
-    'meta.locale',
+    ...META_VARIABLES,
   ];
 }
 
@@ -234,8 +324,10 @@ function createCoreMailCapture({ now = () => Date.now() } = {}) {
 
 module.exports = {
   CORE_EMAIL_TYPES,
+  UP_CORE_EMAIL_TYPES,
   CORE_PAYLOAD_VERSION,
   USER_FIELDS,
+  absoluteHttpUrl,
   allowlistUser,
   buildCoreLink,
   buildCoreMailPayload,

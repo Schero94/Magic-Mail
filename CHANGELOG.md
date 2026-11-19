@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added
+
+* **Admin password reset through a provider template.** The admin panel's "Forgot password?" mail is the third core email (`admin-forgot-password`). Magic Mail recognises the `sendTemplatedEmail` call of `@strapi/admin` 5.x and, when a SendGrid or Mailgun template is chosen under **Email Templates → Core emails → Design** (super admins only), sends it with payload v1 `{ user, url, token, adminUrl, serverUrl, meta }`. Strict by default; **send the Strapi admin email instead** is the opt-in fallback. Without a choice nothing changes.
+* **Startup check of core-email templates.** About 20 seconds after start (non-blocking) every core email that uses a provider template is checked; a stale template list is synced first. Unsynced or unusable templates, and Mailgun templates without a Subject header (`MAGIC_MAIL_PROVIDER_TEMPLATE_NO_SUBJECT`; core emails do not pass the Strapi subject on), are logged with type, key and code (never values), and the dashboard and Core emails notices name each affected mail with its reason and the time of the check.
+* **Events** `magic-mail.provider-template.failed` and `magic-mail.provider-template.fallback` on `strapi.eventHub` with `{ key, code, coreEmailType, fallback? }` (no personal data).
+* **`meta.strapiVersion`** in the core-email payload v1 (additive), and a one-time warning per core email when `url` can not be built because the base URL is empty or relative.
+* **SendGrid subject for dynamic templates.** A `subject` passed with a SendGrid provider template is copied into `dynamic_template_data.subject` when the data has none, so a template whose subject line is `{{subject}}` renders it (SendGrid ignores the top-level subject for dynamic templates).
+* **Test sends** of a provider template used by several core emails include sample values for every one of them.
+* **Docs:** what a provider template replaces for core emails (subject, body, shipper email) and how Reply-To is kept; a short hint in the Core emails tab.
+
 ### Fixed
 
 * **Mailgun: a template deleted at Mailgun is no longer logged as sent.** Mailgun accepts a send that names a template it does not have (200 "Queued") and drops the message afterwards (event `failed`, delivery-status 621 "Template not found", retried every 10 minutes). Before a template send MagicMail now checks the template at Mailgun (`GET /v3/{domain}/templates/{name}?active=yes`, account-level templates `GET /v4/templates/{name}?active=yes`). A deleted template, or one without an active version, fails with `MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE` before any message is sent: another account that still has the template sends instead, else the configured Magic Mail fallback template, else the error is returned and the delivery log row is `failed`. A successful check is cached for 60 seconds per account and template (one extra request per template and minute for bulk sends, parallel sends share one check). If the check itself fails (network, timeout, 401/403, 429, 5xx), the send goes ahead and a warning is logged.
@@ -8,6 +18,8 @@
 ### Migration
 
 * Nothing to do. Mailgun template sends make one extra read request per template and minute; the API key needs read access to templates, which provider-template sync already requires. Addresses suppressed earlier because of a Mailgun `espblock` can be removed under **Plugin Settings → Bounces and recipient checks → Suppressed recipients** (source `mailgun`, reason code `MAILGUN_ESPBLOCK_*`).
+* Nothing to do. Core-email payload v1 only gains keys (`meta.strapiVersion`); existing keys and the golden SendGrid/Mailgun payloads are unchanged. `GET /designer/core-designs` returns a third entry `admin-forgot-password` and new fields (`problem`, `lastSyncedAt`, `checkedAt`, `editable`). SendGrid template sends with a `subject` and no `subject` in `data` now carry `subject` in `dynamic_template_data`; templates that do not use `{{subject}}` render as before.
+
 
 # [4.9.0](https://github.com/Schero94/Magic-Mail/compare/v4.8.0...v4.9.0) (2026-11-19)
 

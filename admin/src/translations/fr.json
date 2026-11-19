@@ -1151,5 +1151,16 @@
   "accounts.test.hint.credentials": "Les identifiants enregistrés ne peuvent pas être lus. Ouvrez le compte, saisissez de nouveau les identifiants et enregistrez.",
   "accounts.test.hint.auth": "Le fournisseur a refusé les identifiants. Vérifiez la clé et ses autorisations.",
   "accounts.test.hint.unavailable": "Le fournisseur n’a pas pu être joint. Vérifiez la connexion réseau du serveur, puis réessayez.",
-  "accountModal.providers.beta": "Bêta"
+  "accountModal.providers.beta": "Bêta",
+  "templates.core.adminForgotPassword.name": "Réinitialisation du mot de passe administrateur",
+  "templates.core.adminForgotPassword.description": "Envoyé lorsqu'un utilisateur du panneau d'administration demande la réinitialisation de son mot de passe. La version locale provient de la configuration d'administration de Strapi.",
+  "templates.core.providerHint": "Avec un modèle du fournisseur, l'objet et le corps de Users & Permissions ou de la configuration d'administration ne sont pas utilisés ; le modèle du fournisseur les génère. L'adresse d'expéditeur est toujours l'adresse vérifiée du compte Magic Mail. Le Reply-To défini dans Strapi est conservé.",
+  "templates.coreDesign.fallbackAdmin": "Si le modèle du fournisseur échoue, envoyer plutôt l'e-mail d'administration de Strapi",
+  "templates.coreDesign.problem.unknown": "non synchronisé",
+  "templates.coreDesign.problem.unavailable": "supprimé ou non publié chez le fournisseur",
+  "templates.coreDesign.problemItem": "{name} ({reason})",
+  "templates.coreDesign.checkedAt": "Dernière vérification : {date}.",
+  "templates.coreDesign.problem.noSubject": "le modèle Mailgun n'a pas d'en-tête Subject",
+  "templates.coreDesign.noSubject": "Ce modèle Mailgun n'a pas d'en-tête Subject. Les e-mails principaux envoyés avec lui échouent ; ajoutez un en-tête Subject au modèle chez Mailgun, puis synchronisez.",
+  "templates.coreDesign.badge.noSubject": "Pas d'en-tête Subject"
 }

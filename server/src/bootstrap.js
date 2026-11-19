@@ -3,12 +3,17 @@
 const crypto = require('crypto');
 const { createLogger } = require('./utils/logger');
 const coordination = require('./utils/coordination');
+const { canonicalLocale } = require('./utils/locale');
+const { emitProviderTemplateEvent } = require('./utils/provider-template-events');
+const { sanitizeErrorCode } = require('./utils/delivery-outcome');
 const { buildCoreMailPayload, createCoreMailCapture } = require('./utils/core-mail-payload');
 
 /** Marks functions installed by MagicMail so hot reloads never stack wrappers. */
 const WRAPPED = Symbol.for('magic-mail.email.send.wrapped');
 const QUOTA_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TRACKING_MAINTENANCE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Delay of the core-mail provider-template check after start (server is listening). */
+const CORE_DESIGN_CHECK_DELAY_MS = 20 * 1000;
 /** Random start delay so replicas and pm2 workers do not hit the database together. */
 const jitter = (maxMs) => Math.floor(Math.random() * maxMs);
 
@@ -144,6 +149,16 @@ module.exports = async ({ strapi }) => {
     log.error('[BOOTSTRAP] Bounce monitoring could not start:', err?.name || 'Error');
   }
 
+  // Core emails set to a provider template: checked once after start (not
+  // blocking the boot). Unusable or unsynced templates are logged with their
+  // key and code; a stale template list is synced first.
+  registerTimer(
+    setTimeout(
+      () => checkCoreDesignsAtStart(strapi, log),
+      CORE_DESIGN_CHECK_DELAY_MS + jitter(10 * 1000)
+    )
+  );
+
   // Roles that could read or manage Magic Mail before the outbox existed get
   // the matching outbox permission once (super admins get it from Strapi).
   try {
@@ -231,7 +246,16 @@ function installEmailInterception(strapi, log) {
       if (typeof original !== 'function' || original[WRAPPED]) continue;
       const shim = function magicMailServiceShim(...args) {
         wrapProvider();
-        return original.apply(this && this !== globalThis ? this : service, args);
+        const self = this && this !== globalThis ? this : service;
+        if (method === 'sendTemplatedEmail') {
+          const adminMail = adminForgotPasswordMail(strapi, args);
+          if (adminMail) {
+            return sendAdminForgotPassword(strapi, log, adminMail, args[0], () =>
+              original.apply(self, args)
+            );
+          }
+        }
+        return original.apply(self, args);
       };
       shim[WRAPPED] = true;
       registry.originalServiceMethods[method] = original;
@@ -300,22 +324,174 @@ function installCoreMailCapture(strapi, log) {
 }
 
 /**
- * Sends a core mail (password reset, email confirmation) through the
- * provider template chosen for it, with the v1 core-mail payload.
+ * Recognises the admin panel's forgot-password mail in a
+ * `sendTemplatedEmail(options, template, data)` call.
  *
- * Strict by default: a provider-template error reaches users-permissions and
- * no other body is sent. With "send the Magic Mail designer version instead"
- * enabled, the original mail is sent when no provider accepted the message.
+ * @strapi/admin 5.x (services/auth.js `forgotPassword`) calls
+ * `sendTemplatedEmail({ to, from, replyTo }, config('admin.forgotPassword.emailTemplate'),
+ * { url: `${admin.absoluteUrl}/auth/reset-password?code=TOKEN`, user })`.
+ * The call is recognised when the data has exactly `url` and `user` and
+ * either the template is the configured admin template (same object) or the
+ * link is the admin reset-password link.
+ *
+ * @param {object} strapi
+ * @param {unknown[]} args - sendTemplatedEmail arguments
+ * @returns {{url: string, user: object, adminUrl: string, serverUrl: string}|null}
+ */
+function adminForgotPasswordMail(strapi, args) {
+  const [options, template, data] = args;
+  if (!options || typeof options !== 'object' || !data || typeof data !== 'object') return null;
+  const keys = Object.keys(data);
+  if (keys.length !== 2 || typeof data.url !== 'string' || !data.user) return null;
+  if (typeof data.user !== 'object' || Array.isArray(data.user)) return null;
+  const config = (key) => {
+    try {
+      return strapi.config?.get?.(key);
+    } catch {
+      return undefined;
+    }
+  };
+  const adminUrl =
+    typeof config('admin.absoluteUrl') === 'string' ? config('admin.absoluteUrl') : '';
+  const configuredTemplate = config('admin.forgotPassword.emailTemplate');
+  const sameTemplate = Boolean(template) && template === configuredTemplate;
+  const resetLink =
+    Boolean(adminUrl) && data.url.startsWith(`${adminUrl}/auth/reset-password?code=`);
+  if (!sameTemplate && !resetLink) return null;
+  const serverUrl = config('server.absoluteUrl');
+  return {
+    url: data.url,
+    user: data.user,
+    adminUrl,
+    serverUrl: typeof serverUrl === 'string' ? serverUrl : '',
+  };
+}
+
+/**
+ * Admin user facts for the admin forgot-password payload: the id and the
+ * interface language (`preferedLanguage`). Best effort; never throws.
+ *
+ * @param {object} strapi
+ * @param {unknown} email - Recipient address
+ * @returns {Promise<{id?: number, locale?: string}>}
+ */
+async function adminUserFacts(strapi, email) {
+  try {
+    if (typeof email !== 'string' || !email) return {};
+    const user = await strapi.db.query('admin::user').findOne({
+      where: { email },
+      select: ['id', 'preferedLanguage'],
+    });
+    if (!user) return {};
+    return {
+      ...(Number.isInteger(user.id) ? { id: user.id } : {}),
+      ...(canonicalLocale(user.preferedLanguage)
+        ? { locale: canonicalLocale(user.preferedLanguage) }
+        : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Sends the admin forgot-password mail through its provider template when
+ * one is chosen; otherwise (or on opt-in fallback) Strapi renders and sends
+ * the local template as before.
  *
  * @param {object} strapi
  * @param {object} log
- * @param {{coreEmailType: string, data: object}} coreMail - Recorded variables
- * @param {object} payload - The mail users-permissions sends
+ * @param {{url: string, user: object, adminUrl: string, serverUrl: string}} adminMail
+ * @param {object} options - Addressing from @strapi/admin ({ to, from, replyTo })
+ * @param {() => Promise<any>} sendLocal - The original sendTemplatedEmail call
+ * @returns {Promise<any>}
+ * @throws {Error} The provider-template error (strict mode)
+ */
+async function sendAdminForgotPassword(strapi, log, adminMail, options, sendLocal) {
+  let design;
+  try {
+    design = await strapi
+      .plugin('magic-mail')
+      .service('provider-templates')
+      .coreDesignFor('admin-forgot-password');
+  } catch {
+    design = null;
+  }
+  // No provider template chosen: Strapi renders and sends as before.
+  if (!design) return sendLocal();
+  const facts = await adminUserFacts(strapi, options?.to);
+  const coreMail = {
+    coreEmailType: 'admin-forgot-password',
+    data: {
+      ...adminMail,
+      user: { ...(facts.id !== undefined ? { id: facts.id } : {}), ...adminMail.user },
+    },
+    locale: facts.locale,
+  };
+  const routed = await routeCoreMailToProviderTemplate(
+    strapi,
+    log,
+    coreMail,
+    { ...options },
+    sendLocal,
+    { sendDesignerVersion: sendLocal }
+  );
+  return routed ? routed.result : sendLocal();
+}
+
+/** Where the base URL of each core mail's link comes from (for the warning). */
+const CORE_URL_SOURCES = Object.freeze({
+  'reset-password': 'Users & Permissions > Advanced settings > Reset password page',
+  'email-confirmation': 'config/server (url) and the REST API prefix',
+  'admin-forgot-password': 'config/admin (url) and config/server (url)',
+});
+
+/**
+ * Warns once per process and core mail when the payload has no `url`
+ * (empty or relative base URL). Names the setting, never values.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @param {string} coreEmailType
+ */
+function warnMissingCoreUrlOnce(strapi, log, coreEmailType) {
+  const registry = strapi.magicMail || (strapi.magicMail = {});
+  registry.coreUrlWarned = registry.coreUrlWarned || new Set();
+  if (registry.coreUrlWarned.has(coreEmailType)) return;
+  registry.coreUrlWarned.add(coreEmailType);
+  log.warn(
+    `[EMAIL] Core email ${coreEmailType}: "url" can not be built because the base URL is empty or not an absolute http(s) URL. The template gets url "" until ${CORE_URL_SOURCES[coreEmailType] || 'the base URL'} is set`
+  );
+}
+
+/**
+ * Sends a core mail (password reset, email confirmation, admin forgot
+ * password) through the provider template chosen for it, with the v1
+ * core-mail payload.
+ *
+ * Strict by default: a provider-template error reaches the caller and no
+ * other body is sent. With "send the Magic Mail designer version instead"
+ * enabled, the local version is sent when no provider accepted the message,
+ * and `magic-mail.provider-template.fallback` is emitted.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @param {{coreEmailType: string, data: object, locale?: string}} coreMail - Recorded variables
+ * @param {object} payload - The mail users-permissions sends (or the admin addressing)
  * @param {() => Promise<any>} callOriginal - Native provider send
+ * @param {{sendDesignerVersion?: () => Promise<any>}} [options] - How to send
+ *   the local version on fallback (default: the payload through Magic Mail)
  * @returns {Promise<{result: object}|null>} null when the core mail uses the designer
  * @throws {Error} The provider-template error (strict mode)
  */
-async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, callOriginal) {
+async function routeCoreMailToProviderTemplate(
+  strapi,
+  log,
+  coreMail,
+  payload,
+  callOriginal,
+  options = {}
+) {
   let design;
   try {
     design = await strapi
@@ -331,25 +507,38 @@ async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, c
   const router = strapi.plugin('magic-mail').service('email-router');
   // The designer body and subject are replaced by the provider template.
   const { html, text, subject, data, templateData, ...rest } = payload;
-  // The user's stored locale (when the user content type has a `locale`
-  // attribute) picks the language version and is sent as meta.locale.
-  let locale;
-  try {
-    locale =
-      typeof router.recipientLocale === 'function'
-        ? await router.recipientLocale(payload.to)
-        : null;
-  } catch {
-    locale = null;
+  // Users & Permissions mails: the user's stored locale (when the user
+  // content type has a `locale` attribute). Admin mails: the admin's
+  // interface language. It picks the language version and is sent as
+  // meta.locale.
+  let locale = coreMail.locale || null;
+  if (!locale && coreMail.coreEmailType !== 'admin-forgot-password') {
+    try {
+      locale =
+        typeof router.recipientLocale === 'function'
+          ? await router.recipientLocale(payload.to)
+          : null;
+    } catch {
+      locale = null;
+    }
   }
+  let strapiVersion;
+  try {
+    strapiVersion = strapi.config?.get?.('info.strapi');
+  } catch {
+    strapiVersion = undefined;
+  }
+  const coreData = buildCoreMailPayload(coreMail.coreEmailType, coreMail.data, {
+    templateKey: design.providerTemplate,
+    ...(locale ? { locale } : {}),
+    ...(typeof strapiVersion === 'string' ? { strapiVersion } : {}),
+  });
+  if (!coreData.url) warnMissingCoreUrlOnce(strapi, log, coreMail.coreEmailType);
   const providerPayload = {
     ...rest,
     providerTemplate: design.providerTemplate,
     ...(locale ? { locale } : {}),
-    templateData: buildCoreMailPayload(coreMail.coreEmailType, coreMail.data, {
-      templateKey: design.providerTemplate,
-      ...(locale ? { locale } : {}),
-    }),
+    templateData: coreData,
   };
   log.debug('[EMAIL] Routing a core email through its provider template');
   try {
@@ -357,6 +546,7 @@ async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, c
       result: await router.send(providerPayload, {
         source: 'strapi-email',
         providerTemplateFallback: false,
+        coreEmailType: coreMail.coreEmailType,
       }),
     };
   } catch (error) {
@@ -364,11 +554,42 @@ async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, c
       log.warn(
         '[EMAIL] Provider template for a core email failed; sending the Magic Mail designer version'
       );
+      await emitProviderTemplateEvent(strapi, 'fallback', {
+        key: design.providerTemplate,
+        code: sanitizeErrorCode(error),
+        coreEmailType: coreMail.coreEmailType,
+        fallback: 'designer',
+      });
+      if (typeof options.sendDesignerVersion === 'function') {
+        return { result: await options.sendDesignerVersion() };
+      }
       return {
         result: await router.send(payload, { source: 'strapi-email', fallbackSend: callOriginal }),
       };
     }
     throw error;
+  }
+}
+
+/**
+ * Startup check of the core emails that use a provider template: syncs a
+ * stale template list (read-only at the provider) and logs every core email
+ * whose template is not synced or not usable, with key and code only.
+ * Never throws; runs after the server started.
+ *
+ * @param {object} strapi
+ * @param {object} log
+ * @returns {Promise<void>}
+ * @sideeffect May sync provider templates; writes the check result to the
+ *   plugin store (shown on the dashboard).
+ */
+async function checkCoreDesignsAtStart(strapi, log) {
+  try {
+    const service = strapi.plugin('magic-mail').service('provider-templates');
+    if (!service || typeof service.checkCoreDesigns !== 'function') return;
+    await service.checkCoreDesigns({ syncIfStale: true });
+  } catch (error) {
+    log.warn(`[EMAIL] Core email template check did not complete: ${error?.name || 'Error'}`);
   }
 }
 
@@ -559,6 +780,10 @@ function logSecretFingerprints(strapi) {
 module.exports.installEmailInterception = installEmailInterception;
 module.exports.installCoreMailCapture = installCoreMailCapture;
 module.exports.routeCoreMailToProviderTemplate = routeCoreMailToProviderTemplate;
+module.exports.adminForgotPasswordMail = adminForgotPasswordMail;
+module.exports.sendAdminForgotPassword = sendAdminForgotPassword;
+module.exports.emitProviderTemplateEvent = emitProviderTemplateEvent;
+module.exports.checkCoreDesignsAtStart = checkCoreDesignsAtStart;
 module.exports.uninstallEmailInterception = uninstallEmailInterception;
 module.exports.purgeSensitiveLinkMappings = purgeSensitiveLinkMappings;
 module.exports.WRAPPED = WRAPPED;

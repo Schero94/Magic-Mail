@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box } from '@strapi/design-system';
 import { TertiaryButton } from '../../../components/StyledButtons';
 import { useMagicMailIntl } from '../../../hooks/useMagicMailIntl';
+import { useFormatters } from '../../../hooks/useFormatters';
 import { Notice } from './Notice';
 
 const CORE_NAMES = {
@@ -12,18 +13,41 @@ const CORE_NAMES = {
     id: 'templates.core.emailConfirmation.name',
     label: 'Email address confirmation',
   },
+  'admin-forgot-password': {
+    id: 'templates.core.adminForgotPassword.name',
+    label: 'Admin password reset',
+  },
+};
+
+/** Reason text per problem code of a core email design. */
+export const CORE_DESIGN_PROBLEMS = {
+  MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN: {
+    id: 'templates.coreDesign.problem.unknown',
+    label: 'not synced',
+  },
+  MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE: {
+    id: 'templates.coreDesign.problem.unavailable',
+    label: 'deleted or unpublished at the provider',
+  },
+  MAGIC_MAIL_PROVIDER_TEMPLATE_NO_SUBJECT: {
+    id: 'templates.coreDesign.problem.noSubject',
+    label: 'the Mailgun template has no Subject header',
+  },
 };
 
 /**
- * Dashboard notice: a core email uses a provider template that is deleted or
- * has no active version, so those emails fail. Renders nothing otherwise, and
- * nothing without a SendGrid or Mailgun account (`enabled`).
+ * Dashboard notice: a core email uses a provider template that is not synced,
+ * deleted or has no active version, so those emails fail. Names each core
+ * email with the reason (the same check the server runs after start) and the
+ * time of the last check. Renders nothing otherwise, and nothing without a
+ * provider-template account (`enabled`).
  *
  * @param {{enabled: boolean}} props
  * @returns {import('react').ReactElement|null}
  */
 export const CoreDesignAlert = ({ enabled }) => {
   const { t } = useMagicMailIntl();
+  const { formatDateTime } = useFormatters();
   const { get } = useFetchClient();
   const navigate = useNavigate();
   const [designs, setDesigns] = useState(null);
@@ -47,6 +71,22 @@ export const CoreDesignAlert = ({ enabled }) => {
   const broken = Object.entries(designs ?? {}).filter(([, design]) => design?.usable === false);
   if (!enabled || broken.length === 0) return null;
 
+  const describe = ([type, design]) => {
+    const name = t(CORE_NAMES[type]?.id ?? type, CORE_NAMES[type]?.label ?? type);
+    const problem = CORE_DESIGN_PROBLEMS[design?.problem];
+    return problem
+      ? t('templates.coreDesign.problemItem', '{name} ({reason})', {
+          name,
+          reason: t(problem.id, problem.label),
+        })
+      : name;
+  };
+  const checkedAt = broken
+    .map(([, design]) => design?.checkedAt)
+    .filter((value) => typeof value === 'string' && !Number.isNaN(Date.parse(value)))
+    .sort()
+    .pop();
+
   return (
     <Box marginBottom={6}>
       <Notice
@@ -65,12 +105,16 @@ export const CoreDesignAlert = ({ enabled }) => {
         {t(
           'templates.coreDesign.staleBody',
           '{names}: these emails fail until the template is available again and synced, or until you switch back to the Magic Mail designer.',
-          {
-            names: broken
-              .map(([type]) => t(CORE_NAMES[type]?.id ?? type, CORE_NAMES[type]?.label ?? type))
-              .join(', '),
-          }
+          { names: broken.map(describe).join(', ') }
         )}
+        {checkedAt ? (
+          <>
+            {' '}
+            {t('templates.coreDesign.checkedAt', 'Last checked: {date}.', {
+              date: formatDateTime(checkedAt),
+            })}
+          </>
+        ) : null}
       </Notice>
     </Box>
   );
