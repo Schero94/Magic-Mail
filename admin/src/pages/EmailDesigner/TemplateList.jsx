@@ -72,6 +72,7 @@ import { useProviderTemplates } from './providerTemplates/useProviderTemplates';
 import { ProviderTemplatesSection } from './providerTemplates/ProviderTemplatesSection';
 import { ProviderTemplateDialog } from './providerTemplates/ProviderTemplateDialog';
 import { CoreDesignDialog } from './providerTemplates/CoreDesignDialog';
+import { CORE_DESIGN_PROBLEMS } from './providerTemplates/CoreDesignAlert';
 import { Notice } from './providerTemplates/Notice';
 import { providerName, statusInfo } from './providerTemplates/providerTemplateUtils';
 import {
@@ -172,6 +173,16 @@ const TemplateList = () => {
         'templates.core.emailConfirmation.description',
         'Sent to confirm a user email address'
       ),
+    },
+    {
+      type: 'admin-forgot-password',
+      name: t('templates.core.adminForgotPassword.name', 'Admin password reset'),
+      description: t(
+        'templates.core.adminForgotPassword.description',
+        'Sent when an admin panel user requests a password reset. The local version comes from the Strapi admin configuration.'
+      ),
+      // Rendered by @strapi/admin from config; Magic Mail only offers the design choice.
+      designOnly: true,
     },
   ];
 
@@ -781,6 +792,10 @@ const TemplateList = () => {
   };
 
   const showDesignColumn = providerEnabled && coreDesigns !== null;
+  // The admin password reset has no Magic Mail editor: listed only with the design column.
+  const visibleCoreEmails = coreEmailTypes.filter(
+    (coreEmail) => !coreEmail.designOnly || showDesignColumn
+  );
   const unusableCoreDesigns = showDesignColumn
     ? coreEmailTypes.filter((coreEmail) => coreDesigns[coreEmail.type]?.usable === false)
     : [];
@@ -795,7 +810,11 @@ const TemplateList = () => {
         </Typography>
       );
     }
-    const status = statusInfo(design.status);
+    // A usable template can still be unusable for core emails (Mailgun without Subject header).
+    const status =
+      design.problem === 'MAGIC_MAIL_PROVIDER_TEMPLATE_NO_SUBJECT'
+        ? { tone: 'danger', id: 'templates.coreDesign.badge.noSubject', label: 'No Subject header' }
+        : statusInfo(design.status);
     return (
       <Flex direction="column" alignItems="flex-start" gap={1}>
         <Typography variant="omega" textColor="neutral800">
@@ -887,6 +906,14 @@ const TemplateList = () => {
                   'Design the default Strapi system emails (password reset and email confirmation).'
                 )}
               </Typography>
+              {showDesignColumn ? (
+                <Typography variant="pi" textColor="neutral600" tag="p">
+                  {t(
+                    'templates.core.providerHint',
+                    'With a provider template, the subject and body from Users & Permissions or the admin configuration are not used; the provider template renders them. The sender address is always the verified address of the Magic Mail account. A Reply-To set in Strapi is kept.'
+                  )}
+                </Typography>
+              ) : null}
             </Flex>
 
             {unusableCoreDesigns.length > 0 ? (
@@ -902,14 +929,30 @@ const TemplateList = () => {
                   {t(
                     'templates.coreDesign.staleBody',
                     '{names}: these emails fail until the template is available again and synced, or until you switch back to the Magic Mail designer.',
-                    { names: unusableCoreDesigns.map((coreEmail) => coreEmail.name).join(', ') }
+                    {
+                      names: unusableCoreDesigns
+                        .map((coreEmail) => {
+                          const problem =
+                            CORE_DESIGN_PROBLEMS[coreDesigns?.[coreEmail.type]?.problem];
+                          return problem
+                            ? t('templates.coreDesign.problemItem', '{name} ({reason})', {
+                                name: coreEmail.name,
+                                reason: t(problem.id, problem.label),
+                              })
+                            : coreEmail.name;
+                        })
+                        .join(', '),
+                    }
                   )}
                 </Notice>
               </Box>
             ) : null}
 
             <DataTable aria-label={t('templates.core.heading', 'Core email templates')}>
-              <StyledTable colCount={showDesignColumn ? 3 : 2} rowCount={coreEmailTypes.length + 1}>
+              <StyledTable
+                colCount={showDesignColumn ? 3 : 2}
+                rowCount={visibleCoreEmails.length + 1}
+              >
                 <Thead>
                   <Tr>
                     <Th>{t('templates.core.table.type', 'Email type')}</Th>
@@ -922,7 +965,7 @@ const TemplateList = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {coreEmailTypes.map((coreEmail) => (
+                  {visibleCoreEmails.map((coreEmail) => (
                     <Tr key={coreEmail.type}>
                       <Td
                         className="cell-wrap"
@@ -947,7 +990,9 @@ const TemplateList = () => {
                       ) : null}
                       <Td data-label="">
                         <Flex gap={1} justifyContent="flex-end">
-                          {showDesignColumn && canManage ? (
+                          {showDesignColumn &&
+                          canManage &&
+                          coreDesigns?.[coreEmail.type]?.editable !== false ? (
                             <IconButton
                               label={t('templates.coreDesign.choose', 'Choose design of {name}', {
                                 name: coreEmail.name,
@@ -958,19 +1003,29 @@ const TemplateList = () => {
                               <Palette aria-hidden="true" />
                             </IconButton>
                           ) : null}
-                          <IconButton
-                            label={
-                              !canManage
-                                ? t('templates.core.view', 'View {name}', { name: coreEmail.name })
-                                : t('templates.core.edit', 'Edit {name}', { name: coreEmail.name })
-                            }
-                            variant="ghost"
-                            onClick={() =>
-                              navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
-                            }
-                          >
-                            {canManage ? <Pencil aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                          </IconButton>
+                          {coreEmail.designOnly ? null : (
+                            <IconButton
+                              label={
+                                !canManage
+                                  ? t('templates.core.view', 'View {name}', {
+                                      name: coreEmail.name,
+                                    })
+                                  : t('templates.core.edit', 'Edit {name}', {
+                                      name: coreEmail.name,
+                                    })
+                              }
+                              variant="ghost"
+                              onClick={() =>
+                                navigate(`/plugins/magic-mail/designer/core/${coreEmail.type}`)
+                              }
+                            >
+                              {canManage ? (
+                                <Pencil aria-hidden="true" />
+                              ) : (
+                                <Eye aria-hidden="true" />
+                              )}
+                            </IconButton>
+                          )}
                         </Flex>
                       </Td>
                     </Tr>

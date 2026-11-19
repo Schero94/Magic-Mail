@@ -606,3 +606,75 @@ test('plugin settings page: the provider-tracking switch appears only with a tem
   assert.equal(live(result.mountCalls, '/magic-mail/settings').length, 1);
   assert.equal(mutations(result.calls).length, 0, 'no mutation');
 });
+
+/** Core designs with the admin forgot-password row (RFC #27752). */
+const coreDesignsWithAdmin = ({ editable, broken = false }) => ({
+  ...Object.fromEntries(
+    Object.entries(CORE_DESIGNS).map(([type, design]) => [type, { ...design, editable: true }])
+  ),
+  'admin-forgot-password': broken
+    ? {
+        ...CORE_DESIGNS['reset-password'],
+        mode: 'provider',
+        providerTemplate: 'sendgrid:admin-reset',
+        templateName: null,
+        provider: 'sendgrid',
+        status: 'missing',
+        usable: false,
+        problem: 'MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE',
+        checkedAt: '2026-11-19T08:00:00.000Z',
+        editable,
+      }
+    : { ...CORE_DESIGNS['reset-password'], editable },
+});
+
+test('core emails: the admin password reset row offers the design choice to super admins only', async () => {
+  for (const editable of [true, false]) {
+    providerRoutes();
+    network.on('GET', '/magic-mail/designer/core-designs', {
+      data: coreDesignsWithAdmin({ editable }),
+    });
+    const result = await checkStrictEntry(<App />, {
+      path: '/plugins/magic-mail/designer',
+      permissions: ALL,
+      async whileMounted() {
+        await clickLabel('Core emails');
+        await wait(50);
+        assert.match(document.body.textContent, /Admin password reset/);
+        assert.match(document.body.textContent, /subject and body from Users & Permissions/);
+        assert.equal(button('Edit Admin password reset'), undefined, 'no local editor');
+        assert.ok(button('Edit Reset password'));
+        if (editable) {
+          await clickLabel('Choose design of Admin password reset');
+          assert.match(document.body.textContent, /Design of Admin password reset/);
+          await clickLabel('Close');
+          await wait(50);
+        } else {
+          assert.equal(button('Choose design of Admin password reset'), undefined);
+          assert.ok(button('Choose design of Reset password'));
+        }
+      },
+    });
+    assert.equal(mutations(result.calls).length, 0, 'no mutation');
+  }
+});
+
+test('dashboard: the core email alert names the admin mail with its reason and check time', async () => {
+  pluginRoutes();
+  network.on('GET', '/magic-mail/accounts', { data: [ACCOUNT, BREVO_ACCOUNT] });
+  network.on('GET', '/magic-mail/designer/core-designs', {
+    data: coreDesignsWithAdmin({ editable: true, broken: true }),
+  });
+  const result = await checkStrictEntry(<App />, {
+    path: '/plugins/magic-mail',
+    permissions: ALL,
+    async whileMounted() {
+      await wait(50);
+      const alert = document.querySelector('[role="alert"]');
+      assert.ok(alert, 'alert is shown');
+      assert.match(alert.textContent, /Admin password reset \(deleted or unpublished/);
+      assert.match(alert.textContent, /Last checked:/);
+    },
+  });
+  assert.equal(mutations(result.calls).length, 0, 'no mutation');
+});

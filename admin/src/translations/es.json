@@ -1151,5 +1151,16 @@
   "accounts.test.hint.credentials": "No se pueden leer las credenciales guardadas. Abra la cuenta, vuelva a introducir las credenciales y guarde.",
   "accounts.test.hint.auth": "El proveedor ha rechazado las credenciales. Compruebe la clave y sus permisos.",
   "accounts.test.hint.unavailable": "No se pudo contactar con el proveedor. Compruebe la conexión de red del servidor y vuelva a intentarlo.",
-  "accountModal.providers.beta": "Beta"
+  "accountModal.providers.beta": "Beta",
+  "templates.core.adminForgotPassword.name": "Restablecer contraseña de administrador",
+  "templates.core.adminForgotPassword.description": "Se envía cuando un usuario del panel de administración solicita restablecer su contraseña. La versión local procede de la configuración de administración de Strapi.",
+  "templates.core.providerHint": "Con una plantilla del proveedor no se usan el asunto ni el cuerpo de Users & Permissions o de la configuración de administración; los genera la plantilla del proveedor. La dirección del remitente es siempre la dirección verificada de la cuenta de Magic Mail. Se mantiene el Reply-To configurado en Strapi.",
+  "templates.coreDesign.fallbackAdmin": "Si la plantilla del proveedor falla, enviar en su lugar el correo de administración de Strapi",
+  "templates.coreDesign.problem.unknown": "no sincronizada",
+  "templates.coreDesign.problem.unavailable": "eliminada o no publicada en el proveedor",
+  "templates.coreDesign.problemItem": "{name} ({reason})",
+  "templates.coreDesign.checkedAt": "Última comprobación: {date}.",
+  "templates.coreDesign.problem.noSubject": "la plantilla de Mailgun no tiene encabezado Subject",
+  "templates.coreDesign.noSubject": "Esta plantilla de Mailgun no tiene encabezado Subject. Los correos principales enviados con ella fallan; añada un encabezado Subject a la plantilla en Mailgun y sincronice.",
+  "templates.coreDesign.badge.noSubject": "Sin encabezado Subject"
 }

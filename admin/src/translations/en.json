@@ -1151,5 +1151,16 @@
   "accounts.test.hint.credentials": "The stored credentials can not be read. Open the account, enter the credentials again and save.",
   "accounts.test.hint.auth": "The provider rejected the credentials. Check the key and its permissions.",
   "accounts.test.hint.unavailable": "The provider could not be reached. Check the network connection of the server and try again.",
-  "accountModal.providers.beta": "Beta"
+  "accountModal.providers.beta": "Beta",
+  "templates.core.adminForgotPassword.name": "Admin password reset",
+  "templates.core.adminForgotPassword.description": "Sent when an admin panel user requests a password reset. The local version comes from the Strapi admin configuration.",
+  "templates.core.providerHint": "With a provider template, the subject and body from Users & Permissions or the admin configuration are not used; the provider template renders them. The sender address is always the verified address of the Magic Mail account. A Reply-To set in Strapi is kept.",
+  "templates.coreDesign.fallbackAdmin": "If the provider template fails, send the Strapi admin email instead",
+  "templates.coreDesign.problem.unknown": "not synced",
+  "templates.coreDesign.problem.unavailable": "deleted or unpublished at the provider",
+  "templates.coreDesign.problemItem": "{name} ({reason})",
+  "templates.coreDesign.checkedAt": "Last checked: {date}.",
+  "templates.coreDesign.problem.noSubject": "the Mailgun template has no Subject header",
+  "templates.coreDesign.noSubject": "This Mailgun template has no Subject header. Core emails sent with it fail; add a Subject header to the template at Mailgun and sync.",
+  "templates.coreDesign.badge.noSubject": "No Subject header"
 }

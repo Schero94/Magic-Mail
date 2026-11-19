@@ -1151,5 +1151,16 @@
   "accounts.test.hint.credentials": "Die gespeicherten Zugangsdaten können nicht gelesen werden. Öffnen Sie das Konto, geben Sie die Zugangsdaten erneut ein und speichern Sie.",
   "accounts.test.hint.auth": "Der Anbieter hat die Zugangsdaten abgelehnt. Prüfen Sie den Schlüssel und seine Berechtigungen.",
   "accounts.test.hint.unavailable": "Der Anbieter war nicht erreichbar. Prüfen Sie die Netzwerkverbindung des Servers und versuchen Sie es erneut.",
-  "accountModal.providers.beta": "Beta"
+  "accountModal.providers.beta": "Beta",
+  "templates.core.adminForgotPassword.name": "Admin-Passwort zurücksetzen",
+  "templates.core.adminForgotPassword.description": "Wird gesendet, wenn ein Benutzer des Admin-Panels ein neues Passwort anfordert. Die lokale Version stammt aus der Strapi-Admin-Konfiguration.",
+  "templates.core.providerHint": "Mit einer Anbietervorlage werden Betreff und Inhalt aus Users & Permissions bzw. der Admin-Konfiguration nicht verwendet; die Anbietervorlage erzeugt sie. Als Absenderadresse dient immer die verifizierte Adresse des Magic-Mail-Kontos. Eine in Strapi festgelegte Antwortadresse (Reply-To) bleibt erhalten.",
+  "templates.coreDesign.fallbackAdmin": "Wenn die Anbietervorlage fehlschlägt, stattdessen die Strapi-Admin-E-Mail senden",
+  "templates.coreDesign.problem.unknown": "nicht synchronisiert",
+  "templates.coreDesign.problem.unavailable": "beim Anbieter gelöscht oder nicht veröffentlicht",
+  "templates.coreDesign.problemItem": "{name} ({reason})",
+  "templates.coreDesign.checkedAt": "Zuletzt geprüft: {date}.",
+  "templates.coreDesign.problem.noSubject": "die Mailgun-Vorlage hat keinen Subject-Header",
+  "templates.coreDesign.noSubject": "Diese Mailgun-Vorlage hat keinen Subject-Header. Kern-E-Mails mit dieser Vorlage schlagen fehl; ergänzen Sie bei Mailgun einen Subject-Header und synchronisieren Sie anschließend.",
+  "templates.coreDesign.badge.noSubject": "Kein Subject-Header"
 }

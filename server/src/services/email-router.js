@@ -12,6 +12,8 @@ const coordination = require('../utils/coordination');
 const { checkRecipientDomains } = require('../utils/recipient-domains');
 const { toPlainJson } = require('../utils/plain-json');
 const { canonicalLocale } = require('../utils/locale');
+const { emitProviderTemplateEvent } = require('../utils/provider-template-events');
+const { CORE_EMAIL_TYPES } = require('../utils/core-mail-payload');
 const { getAdapter, TEMPLATE_PROVIDERS } = require('../providers');
 const { checkMailgunTemplate } = require('../utils/provider-api');
 const {
@@ -1221,6 +1223,24 @@ function providerTemplateFor(account, emailData) {
 }
 
 /**
+ * SendGrid dynamic template data with the mail subject as `subject` when a
+ * subject is passed and the data has no own `subject` key (the data wins).
+ * SendGrid ignores the top-level subject for dynamic templates; a template
+ * whose subject line is `{{subject}}` (or `{{{subject}}}`) renders this value.
+ *
+ * @param {object} variables - Plain template data
+ * @param {unknown} subject - Caller subject
+ * @returns {object} The data (a copy when the subject was added)
+ */
+function withTemplateSubject(variables, subject) {
+  const data = variables && typeof variables === 'object' ? variables : {};
+  if (typeof subject !== 'string' || subject.trim() === '' || Object.hasOwn(data, 'subject')) {
+    return data;
+  }
+  return { ...data, subject: stripHeaderInjection(subject) };
+}
+
+/**
  * Message-ID for the account's domain. Queue sends pass a stable local part,
  * so every attempt of one queued message uses the same Message-ID.
  *
@@ -1840,16 +1860,39 @@ module.exports = ({ strapi }) => ({
             `Provider template "${key}" is not synced. Sync the provider templates in Magic Mail first`,
             'MAGIC_MAIL_PROVIDER_TEMPLATE_UNKNOWN'
           );
+      await this.emitProviderTemplateEvent('failed', key, error.code, options);
       if (prepared.fallbackTemplateReferenceId && options.providerTemplateFallback !== false) {
         strapi.log.warn(
           `[magic-mail] Provider template ${key} is not usable; sending the configured Magic Mail fallback template`
         );
+        await this.emitProviderTemplateEvent('fallback', key, error.code, options);
         return { ...prepared, useFallback: true, reason: error.code };
       }
       throw error;
     }
     if (!data.templateName) data.templateName = prepared.name;
     return prepared;
+  },
+
+  /**
+   * Emits `magic-mail.provider-template.failed` or `.fallback` (template key,
+   * error code and, for core emails, the core email type; no personal data).
+   *
+   * @param {'failed'|'fallback'} name
+   * @param {string} key - Provider template key
+   * @param {string|null} code - Error code
+   * @param {object} [options] - send() options (`coreEmailType` for core emails)
+   * @returns {Promise<void>}
+   */
+  async emitProviderTemplateEvent(name, key, code, options = {}) {
+    await emitProviderTemplateEvent(strapi, name, {
+      key,
+      code: typeof code === 'string' ? code : null,
+      coreEmailType: CORE_EMAIL_TYPES.includes(options.coreEmailType)
+        ? options.coreEmailType
+        : null,
+      ...(name === 'fallback' ? { fallback: 'magic-mail-template' } : {}),
+    });
   },
 
   /**
@@ -1938,6 +1981,8 @@ module.exports = ({ strapi }) => ({
     } catch {
       // frozen error
     }
+    const code = sanitizeErrorCode(error);
+    await this.emitProviderTemplateEvent('failed', prepared.key, code, options);
     if (
       safe &&
       prepared.fallbackTemplateReferenceId &&
@@ -1946,6 +1991,7 @@ module.exports = ({ strapi }) => ({
       strapi.log.warn(
         `[magic-mail] Provider template ${prepared.key} failed; sending the configured Magic Mail fallback template`
       );
+      await this.emitProviderTemplateEvent('fallback', prepared.key, code, options);
       return this.sendProviderTemplateFallback(input, options, prepared);
     }
     strapi.log.error(
@@ -3205,7 +3251,13 @@ module.exports = ({ strapi }) => ({
       if (template) {
         // Dynamic template: the provider renders subject and body from the
         // same data a local template gets (Handlebars, top-level keys).
-        personalization.dynamic_template_data = template.variables;
+        // SendGrid takes the subject from the template version, never from
+        // the top-level `subject`; a template that uses {{subject}} gets the
+        // caller's subject when the data does not set one itself.
+        personalization.dynamic_template_data = withTemplateSubject(
+          template.variables,
+          emailData.subject
+        );
       }
       const magicmailId = magicmailIdOf(emailData);
       const msg = {

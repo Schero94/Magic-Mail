@@ -1151,5 +1151,16 @@
   "accounts.test.hint.credentials": "Não é possível ler as credenciais armazenadas. Abra a conta, informe as credenciais novamente e salve.",
   "accounts.test.hint.auth": "O provedor recusou as credenciais. Verifique a chave e as permissões dela.",
   "accounts.test.hint.unavailable": "Não foi possível acessar o provedor. Verifique a conexão de rede do servidor e tente novamente.",
-  "accountModal.providers.beta": "Beta"
+  "accountModal.providers.beta": "Beta",
+  "templates.core.adminForgotPassword.name": "Redefinição de senha do administrador",
+  "templates.core.adminForgotPassword.description": "Enviado quando um usuário do painel de administração solicita a redefinição da senha. A versão local vem da configuração de administração do Strapi.",
+  "templates.core.providerHint": "Com um modelo do provedor, o assunto e o corpo de Users & Permissions ou da configuração de administração não são usados; o modelo do provedor os gera. O endereço do remetente é sempre o endereço verificado da conta do Magic Mail. O Reply-To definido no Strapi é mantido.",
+  "templates.coreDesign.fallbackAdmin": "Se o modelo do provedor falhar, enviar o e-mail de administração do Strapi",
+  "templates.coreDesign.problem.unknown": "não sincronizado",
+  "templates.coreDesign.problem.unavailable": "excluído ou não publicado no provedor",
+  "templates.coreDesign.problemItem": "{name} ({reason})",
+  "templates.coreDesign.checkedAt": "Última verificação: {date}.",
+  "templates.coreDesign.problem.noSubject": "o modelo do Mailgun não tem cabeçalho Subject",
+  "templates.coreDesign.noSubject": "Este modelo do Mailgun não tem cabeçalho Subject. Os e-mails principais enviados com ele falham; adicione um cabeçalho Subject ao modelo no Mailgun e sincronize.",
+  "templates.coreDesign.badge.noSubject": "Sem cabeçalho Subject"
 }

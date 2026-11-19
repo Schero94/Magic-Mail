@@ -182,6 +182,18 @@ export const CoreDesignDialog = ({ coreEmail, design, templates, onClose, onSave
                 </Notice>
               ) : null}
 
+              {choice !== DESIGNER &&
+              selected?.usable &&
+              selected.provider === 'mailgun' &&
+              !selected.subject ? (
+                <Notice tone="warning" role="alert">
+                  {t(
+                    'templates.coreDesign.noSubject',
+                    'This Mailgun template has no Subject header. Core emails sent with it fail; add a Subject header to the template at Mailgun and sync.'
+                  )}
+                </Notice>
+              ) : null}
+
               {choice !== DESIGNER ? (
                 <>
                   <Flex direction="column" alignItems="stretch" gap={2}>
@@ -230,10 +242,15 @@ export const CoreDesignDialog = ({ coreEmail, design, templates, onClose, onSave
                       onCheckedChange={(value) => setFallback(value === true)}
                       disabled={saving}
                     >
-                      {t(
-                        'templates.coreDesign.fallback',
-                        'If the provider template fails, send the Magic Mail designer version instead'
-                      )}
+                      {coreEmail?.type === 'admin-forgot-password'
+                        ? t(
+                            'templates.coreDesign.fallbackAdmin',
+                            'If the provider template fails, send the Strapi admin email instead'
+                          )
+                        : t(
+                            'templates.coreDesign.fallback',
+                            'If the provider template fails, send the Magic Mail designer version instead'
+                          )}
                     </Checkbox>
                     <Box paddingTop={1} paddingLeft={6}>
                       <Typography variant="pi" textColor="neutral600">
