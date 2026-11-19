@@ -1,5 +1,5 @@
-import { Box } from '@strapi/design-system';
-import { Check, Cloud, Mail, Server } from '@strapi/icons';
+import { Badge, Box } from '@strapi/design-system';
+import { Check, Cloud, Mail, PaperPlane, Server, Earth } from '@strapi/icons';
 import { useMagicMailIntl } from '../../hooks/useMagicMailIntl';
 import { byScheme } from '../../utils/theme';
 import {
@@ -17,7 +17,7 @@ import {
 
 const ICON_STYLE = { width: 26, height: 26 };
 
-const ProviderTile = ({ value, selected, onSelect, icon, name, tagline }) => (
+const ProviderTile = ({ value, selected, onSelect, icon, name, tagline, badge }) => (
   <ProviderCard
     type="button"
     $selected={selected}
@@ -31,7 +31,14 @@ const ProviderTile = ({ value, selected, onSelect, icon, name, tagline }) => (
     ) : null}
     {icon}
     <ProviderTextBlock>
-      <ProviderName tag="span">{name}</ProviderName>
+      <ProviderName tag="span">
+        {name}
+        {badge ? (
+          <Badge marginLeft={2} variant="secondary">
+            {badge}
+          </Badge>
+        ) : null}
+      </ProviderName>
       <ProviderTagline tag="span">{tagline}</ProviderTagline>
     </ProviderTextBlock>
   </ProviderCard>
@@ -48,7 +55,9 @@ const ProviderTile = ({ value, selected, onSelect, icon, name, tagline }) => (
 export const ProviderStep = ({ provider, onSelect }) => {
   const { t } = useMagicMailIntl();
 
-  const tile = (value, icon, name, tagline) => (
+  // Beta until a live run against the real API has passed (Brevo, Amazon SES).
+  const beta = t('accountModal.providers.beta', 'Beta');
+  const tile = (value, icon, name, tagline, badge) => (
     <ProviderTile
       key={value}
       value={value}
@@ -57,6 +66,7 @@ export const ProviderStep = ({ provider, onSelect }) => {
       icon={icon}
       name={name}
       tagline={tagline}
+      badge={badge}
     />
   );
 
@@ -174,6 +184,37 @@ export const ProviderStep = ({ provider, onSelect }) => {
             'accountModal.providers.mailgunTagline',
             'Developer-first API · EU/US regions · routes and webhooks'
           )
+        )}
+        {tile(
+          'brevo',
+          <ProviderIcon
+            $bgColor="rgba(11, 153, 107, 0.22)"
+            $color={byScheme('#0B7A55', '#3DD69B')}
+            $shadowColor="rgba(11, 153, 107, 0.3)"
+            aria-hidden="true"
+          >
+            <PaperPlane style={ICON_STYLE} />
+          </ProviderIcon>,
+          'Brevo',
+          t(
+            'accountModal.providers.brevoTagline',
+            'Transactional API · templates with params · webhooks'
+          ),
+          beta
+        )}
+        {tile(
+          'ses',
+          <ProviderIcon
+            $bgColor="rgba(255, 153, 0, 0.22)"
+            $color={byScheme('#A35C00', '#FFB547')}
+            $shadowColor="rgba(255, 153, 0, 0.3)"
+            aria-hidden="true"
+          >
+            <Earth style={ICON_STYLE} />
+          </ProviderIcon>,
+          'Amazon SES',
+          t('accountModal.providers.sesTagline', 'AWS regions · SES templates · SNS events'),
+          beta
         )}
       </ProvidersGrid>
     </Box>

@@ -448,3 +448,161 @@ test('plugin settings page: StrictMode mount shows the loaded form, clean unmoun
   assert.equal(live(result.mountCalls, '/magic-mail/settings').length, 1);
   assert.equal(mutations(result.calls).length, 0, 'no mutation');
 });
+
+const BREVO_ACCOUNT = {
+  ...ACCOUNT,
+  id: 2,
+  documentId: 'brevo-1',
+  name: 'Brevo Transactional',
+  provider: 'brevo',
+  fromEmail: 'noreply@brevo.example.test',
+  isPrimary: false,
+};
+const SES_ACCOUNT = {
+  ...ACCOUNT,
+  id: 3,
+  documentId: 'ses-1',
+  name: 'Amazon SES EU',
+  provider: 'ses',
+  fromEmail: 'noreply@ses.example.test',
+  isPrimary: false,
+};
+
+/**
+ * Opens an account in the wizard, goes to the credentials step and runs the
+ * read-only connection check.
+ * @param {string} name - Account name.
+ * @param {RegExp} heading - Heading of the credentials section.
+ * @param {RegExp} result - Text of the check result.
+ */
+const checkAccountConnection = async (name, heading, result) => {
+  await clickLabel(`Edit account ${name}`);
+  await wait(50);
+  await clickLabel('Continue');
+  await wait(50);
+  assert.match(document.body.textContent, heading);
+  await clickLabel('Check connection');
+  await wait(50);
+  assert.match(document.body.textContent, result);
+  await clickLabel('Close');
+  await wait(50);
+};
+
+test('accounts: Brevo and Amazon SES credentials steps and the connection check mount and close cleanly', async () => {
+  pluginRoutes();
+  network.on('GET', '/magic-mail/accounts', { data: [ACCOUNT, BREVO_ACCOUNT, SES_ACCOUNT] });
+  network.on('GET', '/magic-mail/accounts/brevo-1', {
+    data: { ...BREVO_ACCOUNT, config: { apiKey: '********', webhookToken: '********' } },
+  });
+  network.on('GET', '/magic-mail/accounts/ses-1', {
+    data: {
+      ...SES_ACCOUNT,
+      config: {
+        region: 'eu-west-1',
+        credentialSource: 'keys',
+        accessKeyId: 'AKIAEXAMPLE000000001',
+        secretAccessKey: '********',
+        configurationSetName: 'events',
+        snsTopicArn: '',
+      },
+    },
+  });
+  network.on('POST', '/magic-mail/accounts/brevo-1/check', {
+    ok: true,
+    provider: 'brevo',
+    details: {},
+  });
+  network.on('POST', '/magic-mail/accounts/ses-1/check', {
+    ok: true,
+    provider: 'ses',
+    details: { sandbox: true },
+  });
+  const result = await checkStrictEntry(<App />, {
+    path: '/plugins/magic-mail',
+    permissions: ALL,
+    async whileMounted() {
+      await checkAccountConnection(
+        'Brevo Transactional',
+        /Brevo API configuration/,
+        /Connected\. The credentials work\./
+      );
+      await checkAccountConnection('Amazon SES EU', /Amazon SES configuration/, /SES sandbox/);
+    },
+  });
+  const posts = mutations(result.calls).map((call) => call.pathname);
+  assert.deepEqual(posts.sort(), [
+    '/magic-mail/accounts/brevo-1/check',
+    '/magic-mail/accounts/ses-1/check',
+  ]);
+});
+
+test('provider templates: a Brevo template dialog with language versions opens and closes cleanly', async () => {
+  const brevoTemplate = {
+    ...PROVIDER_TEMPLATE,
+    key: 'brevo:welcome',
+    provider: 'brevo',
+    name: 'Welcome',
+    locales: [{ locale: 'de', key: 'brevo:welcome-de' }],
+    localeVariantOf: null,
+  };
+  const german = {
+    ...brevoTemplate,
+    key: 'brevo:welcome-de',
+    name: 'Welcome DE',
+    locales: [],
+    localeVariantOf: 'brevo:welcome',
+  };
+  pluginRoutes();
+  network.on('GET', '/magic-mail/provider-templates', {
+    data: { ...providerOverview(), templates: [brevoTemplate, german] },
+  });
+  network.on('GET', '/magic-mail/designer/core-designs', { data: CORE_DESIGNS });
+  network.on('GET', `/magic-mail/provider-templates/${encodeURIComponent('brevo:welcome')}`, {
+    data: {
+      ...brevoTemplate,
+      previewHtml: '<p>Hi {{ params.name }}</p>',
+      previewText: '',
+      previewTooLarge: false,
+      variables: [{ path: 'name', root: 'name', raw: false, scoped: false, inSample: true }],
+      variablesTruncated: false,
+      sampleData: { name: 'Ada' },
+      coreMailVariables: [],
+      copyWarnings: [],
+      usage: "send({ providerTemplate: 'brevo:welcome' })",
+    },
+  });
+  const result = await checkStrictEntry(<App />, {
+    path: '/plugins/magic-mail/designer',
+    permissions: ALL,
+    async whileMounted() {
+      await clickLabel('Open Welcome');
+      await wait(50);
+      assert.match(document.body.textContent, /Language versions/);
+      assert.match(document.body.textContent, /Welcome DE/);
+      assert.match(document.body.textContent, /Brevo reads your data under params/);
+      assert.equal(button('Copy as Magic Mail template'), undefined, 'no Mustache copy for Brevo');
+      await clickLabel('Close');
+      await wait(50);
+    },
+  });
+  assert.equal(mutations(result.calls).length, 0, 'no mutation');
+});
+
+test('plugin settings page: the provider-tracking switch appears only with a template provider account', async () => {
+  network.on('GET', '/magic-mail/settings', { data: {} });
+  network.on('GET', '/magic-mail/suppressions', {
+    data: [],
+    pagination: { page: 1, pageSize: 25, pageCount: 0, total: 0 },
+  });
+  network.on('GET', '/magic-mail/accounts', { data: [BREVO_ACCOUNT] });
+  const result = await checkStrictEntry(<PluginSettings />, {
+    path: '/settings/magic-mail/plugin-settings',
+    permissions: ALL,
+    async whileMounted() {
+      await wait(50);
+      assert.match(document.body.textContent, /Count provider opens and clicks/);
+    },
+  });
+  assert.equal(live(result.mountCalls, '/magic-mail/settings').length, 1);
+  assert.equal(mutations(result.calls).length, 0, 'no mutation');
+});

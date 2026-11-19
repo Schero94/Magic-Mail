@@ -36,7 +36,9 @@
         "yahoo-oauth",
         "sendgrid",
         "mailgun",
-        "nodemailer"
+        "nodemailer",
+        "brevo",
+        "ses"
       ],
       "required": true,
       "default": "smtp"

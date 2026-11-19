@@ -1,0 +1,609 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Accounts and Settings",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.brevo.com/v3",
+      "description": "https://api.brevo.com/v3"
+    }
+  ],
+  "paths": {
+    "/account": {
+      "get": {
+        "operationId": "account_getAccount",
+        "summary": "Get account details",
+        "description": "Retrieves details of your Brevo account.\n\n**Use this to:**\n- Get account information (email, name, company, address)\n- Check plan details (type, credits, expiration)\n- Get relay information (for transactional emails)\n- Check Marketing Automation status\n- Access organization and user identifiers\n\n**Key information returned:**\n- Complete account details (organization ID, user ID, company information)\n- Address and contact information\n- Plan configurations and credit allocations across different verticals\n- Marketing Automation settings and tracker key (when enabled)\n- SMTP relay configuration for transactional emails\n- Enterprise features availability status\n\n**Important considerations:**\n- Provides comprehensive account overview for billing and configuration management\n- Essential for understanding current plan limitations and feature availability\n- Marketing Automation key is only returned when Marketing Automation is enabled on the account\n- Plan verticals show detailed breakdown across Marketing, Chat, and CRM categories (only returned when plan verticals are available)\n- Relay configuration crucial for transactional email setup and deliverability\n- Enterprise status determines access to advanced features and sub-account management\n",
+        "tags": ["account"],
+        "responses": {
+          "200": {
+            "description": "Account information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account_getAccount_Response_200"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAccountRequestBadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ]
+      }
+    },
+    "/webhooks": {
+      "post": {
+        "operationId": "webhooks_createWebhook",
+        "summary": "Create a webhook",
+        "description": "Creates a new webhook to receive real-time notifications for specified events.\n\nUse this to:\n- Set up event notifications for transactional or marketing emails\n- Configure webhook endpoints for campaign tracking\n- Enable real-time monitoring of email delivery status\n- Subscribe to contact list changes and updates\n- Implement custom event handling and automation\n\nKey information returned:\n- Created webhook ID and configuration\n- Success confirmation and setup details",
+        "tags": ["webhooks"],
+        "responses": {
+          "201": {
+            "description": "successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhooks_createWebhook_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateWebhookRequestBadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Values to create a webhook",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "auth": {
+                    "$ref": "#/components/schemas/WebhooksPostRequestBodyContentApplicationJsonSchemaAuth",
+                    "description": "Add authentication on webhook url"
+                  },
+                  "batched": {
+                    "type": "boolean",
+                    "description": "To send batched webhooks"
+                  },
+                  "channel": {
+                    "$ref": "#/components/schemas/WebhooksPostRequestBodyContentApplicationJsonSchemaChannel",
+                    "default": "email",
+                    "description": "Channel of the webhook"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Description of the webhook"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Inbound domain of webhook, required in case of event type\n`inbound`"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WebhooksPostRequestBodyContentApplicationJsonSchemaEventsItems"
+                    },
+                    "description": "Events triggering the webhook. Required for transactional and\nmarketing types, optional for inbound type (defaults to\n`inboundEmailProcessed`). Possible values for **Transactional**\ntype webhook: `sent` OR `request`, `delivered`, `hardBounce`,\n`softBounce`, `blocked`, `spam`, `invalid`, `deferred`, `click`,\n`opened`, `uniqueOpened` and `unsubscribed`. Possible values for\n**Marketing** type webhook: `spam`, `opened`, `click`,\n`hardBounce`, `softBounce`, `unsubscribed`, `listAddition`,\n`delivered`, `contactUpdated` & `contactDeleted`. Possible values\nfor **Inbound** type webhook: `inboundEmailProcessed`."
+                  },
+                  "headers": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WebhooksPostRequestBodyContentApplicationJsonSchemaHeadersItems"
+                    },
+                    "description": "Custom headers to be send with webhooks"
+                  },
+                  "type": {
+                    "$ref": "#/components/schemas/WebhooksPostRequestBodyContentApplicationJsonSchemaType",
+                    "default": "transactional",
+                    "description": "Type of the webhook"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "url",
+                    "description": "URL of the webhook"
+                  }
+                },
+                "required": ["url"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Account_getAccount_Response_200": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Unique identifier for the organization"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Unique identifier for the user"
+          },
+          "enterprise": {
+            "type": "boolean",
+            "description": "Indicates if the account has enterprise features"
+          },
+          "companyName": {
+            "type": "string",
+            "description": "Name of the company"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Login Email"
+          },
+          "firstName": {
+            "type": "string",
+            "description": "First Name"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Last Name"
+          },
+          "address": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaAddress",
+            "description": "Address informations"
+          },
+          "marketingAutomation": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaMarketingAutomation"
+          },
+          "plan": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanItems"
+            },
+            "description": "Information about your plans and credits"
+          },
+          "planVerticals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItems"
+            },
+            "description": "Detailed information about different plan categories"
+          },
+          "relay": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaRelay",
+            "description": "Information about your transactional email account"
+          }
+        },
+        "required": [
+          "organization_id",
+          "user_id",
+          "enterprise",
+          "companyName",
+          "email",
+          "firstName",
+          "lastName",
+          "plan",
+          "relay"
+        ],
+        "title": "Account_getAccount_Response_200"
+      },
+      "GetAccountRequestBadRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaCode",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "GetAccountRequestBadRequestError"
+      },
+      "Webhooks_createWebhook_Response_201": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID of the object created"
+          }
+        },
+        "required": ["id"],
+        "title": "Webhooks_createWebhook_Response_201"
+      },
+      "CreateWebhookRequestBadRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/WebhooksPostResponsesContentApplicationJsonSchemaCode",
+            "description": "Error code displayed in case of a failure"
+          },
+          "message": {
+            "type": "string",
+            "description": "Readable message associated to the failure"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "CreateWebhookRequestBadRequestError"
+      },
+      "WebhooksPostRequestBodyContentApplicationJsonSchemaAuth": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Webhook authentication token"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of authentication"
+          }
+        },
+        "description": "Add authentication on webhook url",
+        "title": "WebhooksPostRequestBodyContentApplicationJsonSchemaAuth"
+      },
+      "WebhooksPostRequestBodyContentApplicationJsonSchemaChannel": {
+        "type": "string",
+        "enum": ["email", "sms"],
+        "default": "email",
+        "description": "Channel of the webhook",
+        "title": "WebhooksPostRequestBodyContentApplicationJsonSchemaChannel"
+      },
+      "WebhooksPostRequestBodyContentApplicationJsonSchemaEventsItems": {
+        "type": "string",
+        "enum": [
+          "sent",
+          "hardBounce",
+          "softBounce",
+          "blocked",
+          "spam",
+          "delivered",
+          "request",
+          "click",
+          "invalid",
+          "deferred",
+          "opened",
+          "uniqueOpened",
+          "unsubscribed",
+          "listAddition",
+          "contactUpdated",
+          "contactDeleted",
+          "inboundEmailProcessed",
+          "reply"
+        ],
+        "title": "WebhooksPostRequestBodyContentApplicationJsonSchemaEventsItems"
+      },
+      "WebhooksPostRequestBodyContentApplicationJsonSchemaHeadersItems": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Header key name"
+          },
+          "value": {
+            "type": "string",
+            "description": "Header value"
+          }
+        },
+        "title": "WebhooksPostRequestBodyContentApplicationJsonSchemaHeadersItems"
+      },
+      "WebhooksPostRequestBodyContentApplicationJsonSchemaType": {
+        "type": "string",
+        "enum": ["transactional", "marketing", "inbound"],
+        "default": "transactional",
+        "description": "Type of the webhook",
+        "title": "WebhooksPostRequestBodyContentApplicationJsonSchemaType"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaAddress": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "City information"
+          },
+          "country": {
+            "type": "string",
+            "description": "Country information"
+          },
+          "street": {
+            "type": "string",
+            "description": "Street information"
+          },
+          "zipCode": {
+            "type": "string",
+            "description": "Zip Code information"
+          }
+        },
+        "required": ["city", "country", "street", "zipCode"],
+        "description": "Address informations",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaAddress"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaMarketingAutomation": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Status of Marketing Automation Plateform activation\nfor your account (true=enabled, false=disabled)"
+          },
+          "key": {
+            "type": "string",
+            "description": "Marketing Automation Tracker ID"
+          }
+        },
+        "required": ["enabled"],
+        "title": "AccountGetResponsesContentApplicationJsonSchemaMarketingAutomation"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanItems": {
+        "type": "object",
+        "properties": {
+          "credits": {
+            "type": "string",
+            "title": "float",
+            "description": "Remaining credits of the user"
+          },
+          "creditsType": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanItemsCreditsType",
+            "description": "This is the type of the credit, \"Send Limit\" is one\nof the possible types of credit of a user. \"Send\nLimit\" implies the total number of emails you can\nsend to the subscribers in your account."
+          },
+          "endDate": {
+            "type": "string",
+            "description": "Date of the period from which the plan will end\n(Unix timestamp format)"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Date of the period from which the plan will start\n(Unix timestamp format)"
+          },
+          "type": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanItemsType",
+            "description": "Displays the plan type of the user"
+          }
+        },
+        "required": ["credits", "creditsType", "type"],
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanItems"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItems": {
+        "type": "object",
+        "properties": {
+          "planCategory": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsPlanCategory",
+            "description": "Category of the plan"
+          },
+          "planType": {
+            "type": "string",
+            "description": "Type of plan within the category"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the plan"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsStatus",
+            "description": "Current status of the plan"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Plan start date (Unix timestamp)"
+          },
+          "endDate": {
+            "type": "string",
+            "description": "Plan end date (Unix timestamp)"
+          },
+          "users": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsUsers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User seat information for the plan"
+          },
+          "credits": {
+            "type": "string",
+            "description": "Credits allocated for this plan category (optional, may not be present for all plan categories)"
+          }
+        },
+        "required": ["planCategory", "planType", "name", "status"],
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItems"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaRelay": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountGetResponsesContentApplicationJsonSchemaRelayData",
+            "description": "Data regarding the transactional email account"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Status of your transactional email Account\n(true=Enabled, false=Disabled)"
+          }
+        },
+        "required": ["data", "enabled"],
+        "description": "Information about your transactional email account",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaRelay"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaCode": {
+        "type": "string",
+        "enum": [
+          "invalid_parameter",
+          "missing_parameter",
+          "out_of_range",
+          "campaign_processing",
+          "campaign_sent",
+          "document_not_found",
+          "not_enough_credits",
+          "permission_denied",
+          "duplicate_parameter",
+          "duplicate_request",
+          "method_not_allowed",
+          "unauthorized",
+          "account_under_validation",
+          "not_acceptable",
+          "bad_request",
+          "unprocessable_entity",
+          "Domain does not exist",
+          "Contact email not found",
+          "Attribute not found",
+          "Category id not found",
+          "Invalid parameters passed",
+          "Record(s) for identifier not found",
+          "Returned when query params are invalid",
+          "Returned when invalid data posted",
+          "Feed not found",
+          "Campaign ID not found",
+          "api-key not found",
+          "DMARC policy requires domain authentication",
+          "DNS records not properly configured",
+          "Invalid OTP code provided",
+          "OTP code has expired",
+          "Domain already exists in your account",
+          "The sum of all IP weights must equal 100",
+          "Authentication failed",
+          "Insufficient credits",
+          "Request already processed"
+        ],
+        "description": "Error code displayed in case of a failure",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaCode"
+      },
+      "WebhooksPostResponsesContentApplicationJsonSchemaCode": {
+        "type": "string",
+        "enum": [
+          "invalid_parameter",
+          "missing_parameter",
+          "out_of_range",
+          "campaign_processing",
+          "campaign_sent",
+          "document_not_found",
+          "not_enough_credits",
+          "permission_denied",
+          "duplicate_parameter",
+          "duplicate_request",
+          "method_not_allowed",
+          "unauthorized",
+          "account_under_validation",
+          "not_acceptable",
+          "bad_request",
+          "unprocessable_entity",
+          "Domain does not exist",
+          "Contact email not found",
+          "Attribute not found",
+          "Category id not found",
+          "Invalid parameters passed",
+          "Record(s) for identifier not found",
+          "Returned when query params are invalid",
+          "Returned when invalid data posted",
+          "Feed not found",
+          "Campaign ID not found",
+          "api-key not found",
+          "DMARC policy requires domain authentication",
+          "DNS records not properly configured",
+          "Invalid OTP code provided",
+          "OTP code has expired",
+          "Domain already exists in your account",
+          "The sum of all IP weights must equal 100",
+          "Authentication failed",
+          "Insufficient credits",
+          "Request already processed"
+        ],
+        "description": "Error code displayed in case of a failure",
+        "title": "WebhooksPostResponsesContentApplicationJsonSchemaCode"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanItemsCreditsType": {
+        "type": "string",
+        "enum": ["sendLimit"],
+        "description": "This is the type of the credit, \"Send Limit\" is one\nof the possible types of credit of a user. \"Send\nLimit\" implies the total number of emails you can\nsend to the subscribers in your account.",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanItemsCreditsType"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanItemsType": {
+        "type": "string",
+        "enum": ["payAsYouGo", "free", "subscription", "sms"],
+        "description": "Displays the plan type of the user",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanItemsType"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsPlanCategory": {
+        "type": "string",
+        "enum": ["Marketing", "Chat", "CRM"],
+        "description": "Category of the plan",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsPlanCategory"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsStatus": {
+        "type": "string",
+        "enum": ["active", "inactive"],
+        "description": "Current status of the plan",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsStatus"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsUsers": {
+        "type": "object",
+        "properties": {
+          "purchasedSeats": {
+            "type": "string",
+            "description": "Number of purchased user seats"
+          },
+          "usedSeats": {
+            "type": "string",
+            "description": "Number of used user seats"
+          }
+        },
+        "required": ["purchasedSeats", "usedSeats"],
+        "description": "User seat information for the plan",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaPlanVerticalsItemsUsers"
+      },
+      "AccountGetResponsesContentApplicationJsonSchemaRelayData": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "description": "Port used for SMTP Relay"
+          },
+          "relay": {
+            "type": "string",
+            "description": "URL of the SMTP Relay"
+          },
+          "userName": {
+            "type": "string",
+            "format": "email",
+            "description": "Email to use as login on transactional platform"
+          }
+        },
+        "required": ["port", "relay", "userName"],
+        "description": "Data regarding the transactional email account",
+        "title": "AccountGetResponsesContentApplicationJsonSchemaRelayData"
+      }
+    }
+  },
+  "x-magic-mail-source": {
+    "url": "https://developers.brevo.com/openapi/accounts-and-settings.json",
+    "sha256": "e9f90329fafc6955a003f8e36987ab5142eb0cdd3fe4d512fa88257642faf736",
+    "retrieved": "2026-11-18",
+    "operations": ["GET /account", "POST /webhooks"]
+  }
+}

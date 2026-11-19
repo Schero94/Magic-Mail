@@ -1,5 +1,6 @@
 'use strict';
 
+const { errors } = require('@strapi/utils');
 const { validate, handleControllerError } = require('../validation');
 const { toAccountListDTO } = require('../utils/account-dto');
 const { toClientSendMessage, describeErrorForLog } = require('../utils/client-errors');
@@ -150,6 +151,70 @@ module.exports = {
         err,
         '[magic-mail] Error testing account',
         'Error testing email account'
+      );
+    }
+  },
+
+  /**
+   * Shows or rotates the Brevo webhook token (needed once, when the webhook
+   * is set up in Brevo). Only an admin signed in to the browser may do this;
+   * admin API tokens are refused.
+   *
+   * @route POST /magic-mail/accounts/:accountId/webhook-token
+   * @auth admin session only (strategy `admin`); permission plugin::magic-mail.manage
+   * @param {import('koa').Context} ctx - body `{ action: 'reveal'|'rotate' }`
+   * @returns {Promise<void>} 200 `{ data: { token, rotated } }`; 400 other
+   *   provider or invalid body; 403 admin API token; 404 unknown account
+   * @sideeffect rotate stores a new token; every call writes an audit log line.
+   */
+  async webhookToken(ctx) {
+    try {
+      if (ctx.state?.auth?.strategy?.name !== 'admin') {
+        throw new errors.ForbiddenError('Sign in to the admin panel to view webhook tokens');
+      }
+      const { action } = validate('accounts.webhookToken', ctx.request.body || {});
+      const accountManager = strapi.plugin('magic-mail').service('account-manager');
+      const result = await accountManager.webhookToken(
+        ctx.params.accountId,
+        action,
+        ctx.state.user
+      );
+      ctx.set('Cache-Control', 'no-store');
+      ctx.body = { data: { token: result.token, rotated: result.rotated } };
+    } catch (err) {
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error reading the webhook token',
+        'Error reading the webhook token'
+      );
+    }
+  },
+
+  /**
+   * Read-only connection check of a saved Brevo or Amazon SES account: the
+   * stored credentials are used for one read request (Brevo account, SES
+   * account details); no email is sent.
+   *
+   * @route POST /magic-mail/accounts/:accountId/check
+   * @auth admin session or admin API token; permission plugin::magic-mail.test-send
+   * @param {import('koa').Context} ctx - Admin request context
+   * @returns {Promise<void>} 200 `{ ok: true, details }` or
+   *   `{ ok: false, code, hintCode?, hint? }`; 404 unknown account; 400 for
+   *   providers without a connection check
+   * @sideeffect One read-only HTTPS request to the provider.
+   */
+  async check(ctx) {
+    try {
+      const { accountId } = ctx.params;
+      const accountManager = strapi.plugin('magic-mail').service('account-manager');
+      ctx.body = await accountManager.checkConnection(accountId);
+    } catch (err) {
+      handleControllerError(
+        ctx,
+        err,
+        '[magic-mail] Error checking account',
+        'Error checking email account'
       );
     }
   },

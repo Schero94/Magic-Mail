@@ -331,11 +331,24 @@ async function routeCoreMailToProviderTemplate(strapi, log, coreMail, payload, c
   const router = strapi.plugin('magic-mail').service('email-router');
   // The designer body and subject are replaced by the provider template.
   const { html, text, subject, data, templateData, ...rest } = payload;
+  // The user's stored locale (when the user content type has a `locale`
+  // attribute) picks the language version and is sent as meta.locale.
+  let locale;
+  try {
+    locale =
+      typeof router.recipientLocale === 'function'
+        ? await router.recipientLocale(payload.to)
+        : null;
+  } catch {
+    locale = null;
+  }
   const providerPayload = {
     ...rest,
     providerTemplate: design.providerTemplate,
+    ...(locale ? { locale } : {}),
     templateData: buildCoreMailPayload(coreMail.coreEmailType, coreMail.data, {
       templateKey: design.providerTemplate,
+      ...(locale ? { locale } : {}),
     }),
   };
   log.debug('[EMAIL] Routing a core email through its provider template');

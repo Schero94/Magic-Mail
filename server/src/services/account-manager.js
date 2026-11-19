@@ -14,6 +14,7 @@ const { MAILGUN_REGIONS, resolveMailgunRegion } = require('../utils/mailgun-regi
 const { SENDGRID_REGIONS, resolveSendGridRegion } = require('../utils/sendgrid-region');
 const { normalizeMailgunDomain, isValidMailgunDomain } = require('../utils/mailgun-domain');
 const coordination = require('../utils/coordination');
+const { getAdapter } = require('../providers');
 
 /**
  * Account writes that touch a cross-row invariant (one primary account,
@@ -35,7 +36,18 @@ const SECRET_MASK = '********';
  * admin redirect the SMTP password / API key / client secret to another
  * server (SEC-04), so the secret must then be re-entered.
  */
-const IDENTITY_FIELDS = ['host', 'port', 'user', 'clientId', 'tenantId', 'domain', 'allowInsecure'];
+const IDENTITY_FIELDS = [
+  'host',
+  'port',
+  'user',
+  'clientId',
+  'tenantId',
+  'domain',
+  'allowInsecure',
+  // Amazon SES: the access key id identifies the IAM user the secret belongs to.
+  'accessKeyId',
+  'credentialSource',
+];
 
 /**
  * IMAP identity (bounce monitoring). Changing it requires the IMAP password
@@ -124,6 +136,8 @@ const TRIMMED_API_FIELDS = ['apiKey', 'webhookSigningKey', 'webhookPublicKey'];
  * @throws {errors.ValidationError} When the Mailgun domain is missing or not a host name (400)
  */
 const normalizeApiProviderConfig = (provider, config, { requireDomain = false } = {}) => {
+  const adapter = getAdapter(provider);
+  if (adapter && config) return adapter.normalizeConfig(config, { creating: requireDomain });
   if ((provider !== 'mailgun' && provider !== 'sendgrid') || !config) return config;
   const out = { ...config };
   for (const field of TRIMMED_API_FIELDS) {
@@ -210,9 +224,11 @@ module.exports = ({ strapi }) => ({
     assertMailgunRegion(provider, accountData.config);
     assertSendGridRegion(provider, accountData.config);
     assertBounceMode(provider, bounceMonitor);
-    const config = normalizeApiProviderConfig(provider, accountData.config, {
+    let config = normalizeApiProviderConfig(provider, accountData.config, {
       requireDomain: true,
     });
+    const adapter = getAdapter(provider);
+    if (adapter?.prepareConfigForCreate && config) config = adapter.prepareConfigForCreate(config);
 
     // Encrypt sensitive config data
     const encryptedConfig = config ? encryptCredentials(config) : null;
@@ -304,11 +320,17 @@ module.exports = ({ strapi }) => ({
     assertMailgunRegion(provider ?? existingAccount.provider, accountData.config);
     assertSendGridRegion(provider ?? existingAccount.provider, accountData.config);
     assertBounceMode(provider ?? existingAccount.provider, bounceMonitor);
-    const config = normalizeApiProviderConfig(
+    let config = normalizeApiProviderConfig(
       provider ?? existingAccount.provider,
       accountData.config,
       { requireDomain: providerChanged }
     );
+    // A provider switch starts a new config: server-generated values (the
+    // Brevo webhook token) are created as on create.
+    const newAdapter = providerChanged ? getAdapter(provider) : null;
+    if (newAdapter?.prepareConfigForCreate && config) {
+      config = newAdapter.prepareConfigForCreate(config);
+    }
 
     let encryptedConfig = existingAccount.config;
     if (config) {
@@ -503,6 +525,114 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Shows or replaces the webhook token of an account whose provider
+   * authenticates webhooks with a Magic Mail token (Brevo). The token is a
+   * secret: it is masked in every other response and only returned here.
+   *
+   * @param {string|number} idOrDocumentId
+   * @param {'reveal'|'rotate'} action - rotate stores a new random token
+   * @param {{id?: number|string}} [adminUser] - for the audit line
+   * @returns {Promise<{token: string, provider: string, rotated: boolean}>}
+   * @throws {errors.NotFoundError} Unknown account
+   * @throws {errors.ValidationError} Provider without a webhook token, or
+   *   unreadable credentials
+   * @sideeffect rotate: re-encrypts and stores the config. Writes an audit
+   *   log line (account documentId and action, never the token).
+   */
+  async webhookToken(idOrDocumentId, action, adminUser) {
+    const documentId = await this.resolveDocumentId(idOrDocumentId);
+    const account = documentId
+      ? await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId })
+      : null;
+    if (!account) throw new errors.NotFoundError('Email account not found');
+    const adapter = getAdapter(account.provider);
+    if (!adapter?.SECRET_FIELDS?.includes('webhookToken') || !adapter.prepareConfigForCreate) {
+      throw new errors.ValidationError('This provider has no webhook token', {
+        provider: ['No webhook token'],
+      });
+    }
+    let plain;
+    try {
+      plain = decryptCredentials(account.config) || {};
+    } catch {
+      throw new errors.ValidationError(
+        'The stored credentials can not be read; save the account again',
+        {
+          config: ['credentialsUnreadable'],
+        }
+      );
+    }
+    let token = typeof plain.webhookToken === 'string' ? plain.webhookToken : '';
+    const rotate = action === 'rotate' || !token;
+    if (rotate) {
+      const next = adapter.prepareConfigForCreate({ ...plain, webhookToken: '' });
+      token = next.webhookToken;
+      await coordination.withLease(strapi, ACCOUNTS_LEASE, () =>
+        strapi.documents(EMAIL_ACCOUNT_UID).update({
+          documentId: account.documentId,
+          data: { config: encryptCredentials({ ...plain, webhookToken: token }) },
+        })
+      );
+    }
+    strapi.log.info(
+      `[magic-mail] [AUDIT] Webhook token ${rotate ? 'rotated' : 'revealed'} for account ${account.documentId} by admin ${adminUser?.id ?? 'unknown'}`
+    );
+    return { token, provider: account.provider, rotated: rotate };
+  },
+
+  /**
+   * Read-only connection check of a saved account (Brevo, Amazon SES).
+   *
+   * @param {string|number} idOrDocumentId
+   * @returns {Promise<{ok: true, provider: string, details: object}|{ok: false, provider: string, code: string, hintCode?: string, hint?: string}>}
+   * @throws {errors.NotFoundError} Unknown account
+   * @throws {errors.ValidationError} Provider without a connection check
+   * @sideeffect One read-only HTTPS request to the provider.
+   */
+  async checkConnection(idOrDocumentId) {
+    const documentId = await this.resolveDocumentId(idOrDocumentId);
+    const account = documentId
+      ? await strapi.documents(EMAIL_ACCOUNT_UID).findOne({ documentId })
+      : null;
+    if (!account) throw new errors.NotFoundError('Email account not found');
+    const adapter = getAdapter(account.provider);
+    if (!adapter) {
+      throw new errors.ValidationError('This provider has no connection check; send a test email', {
+        provider: ['No connection check'],
+      });
+    }
+    let config;
+    try {
+      config = adapter.normalizeConfig(decryptCredentials(account.config) || {}, {
+        creating: false,
+      });
+    } catch {
+      return {
+        ok: false,
+        provider: account.provider,
+        code: 'CREDENTIALS',
+        hintCode: 'CREDENTIALS',
+      };
+    }
+    try {
+      const result = await adapter.checkConnection(config);
+      return { ok: true, provider: account.provider, details: result?.details || {} };
+    } catch (error) {
+      const code = typeof error?.code === 'string' ? error.code : 'UNAVAILABLE';
+      strapi.log.warn(
+        `[magic-mail] Account connection check failed (${account.provider}, ${code})`
+      );
+      const hintCode = adapter.hintFor?.(error?.status, code) || null;
+      return {
+        ok: false,
+        provider: account.provider,
+        code,
+        ...(hintCode ? { hintCode, hint: adapter.HINTS?.[hintCode] } : {}),
+      };
+    }
+  },
+
+  /**
    * Get all accounts
    */
   async getAllAccounts() {
@@ -586,6 +716,9 @@ module.exports = ({ strapi }) => ({
     'access_token',
     'webhookSigningKey',
     'imapPass',
+    // Brevo webhook token, Amazon SES secret access key.
+    'webhookToken',
+    'secretAccessKey',
   ],
 
   /** The constant secret placeholder (see SECRET_MASK). */

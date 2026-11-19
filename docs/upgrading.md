@@ -10,6 +10,10 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). S
 
 The full list is in [CHANGELOG.md](../CHANGELOG.md). Upgrade one minor or major at a time and read each step.
 
+### Upgrading to the release with Brevo and Amazon SES
+
+Nothing to do. Two account types (`brevo`, `ses`) and two webhook routes are added; the email log gets an optional `providerTracking` flag and the settings an optional `providerTracking` switch (off). Existing SendGrid, Mailgun and SMTP sends are byte-identical (golden tests). Provider-template keys may now start with `brevo:` or `ses:`. `PUT /magic-mail/provider-templates/:key/settings` now also accepts `locales`; `fallbackTemplateReferenceId` became optional (at least one of them is required).
+
 ### Upgrading to the release with provider templates
 
 Nothing to do. A new collection `magic_mail_provider_templates` is created on start, and nothing changes for projects without a SendGrid or Mailgun account. Sends without a provider template produce the same provider requests as in the release with the SendGrid EU region and the safer SendGrid/Mailgun send paths. To sync SendGrid templates, the API key needs **Template Engine → Read Access** in addition to **Mail Send**.

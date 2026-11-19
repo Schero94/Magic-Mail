@@ -180,6 +180,8 @@ const providerEnum = z.enum([
   'yahoo-oauth',
   'sendgrid',
   'mailgun',
+  'brevo',
+  'ses',
 ]);
 
 // Bounded config record. Keys are limited to 64 chars to prevent abuse
@@ -291,6 +293,8 @@ const schemas = {
       bounceMonitor: bounceMonitorInput.optional(),
     })
     .strict(),
+
+  'accounts.webhookToken': z.object({ action: z.enum(['reveal', 'rotate']) }).strict(),
 
   'accounts.test': z
     .object({
@@ -518,6 +522,7 @@ const schemas = {
   'pluginSettings.update': z.object({
     enableLinkTracking: z.boolean().optional(),
     enableOpenTracking: z.boolean().optional(),
+    providerTracking: z.boolean().optional(),
     trackingBaseUrl: httpUrl.optional().or(z.literal('')),
     defaultFromName: headerSafe.optional(),
     defaultFromEmail: emailString.optional().or(z.literal('')),
@@ -637,7 +642,7 @@ const schemas = {
       key: z
         .string()
         .max(110)
-        .regex(/^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/),
+        .regex(/^(sendgrid|mailgun|brevo|ses):[a-z0-9][a-z0-9-]{0,99}$/),
     })
     .strict(),
   'providerTemplates.sync': z.object({ force: z.boolean().optional() }).strict(),
@@ -645,19 +650,42 @@ const schemas = {
     .object({
       to: emailString.optional(),
       accountName: safeString.optional(),
+      // Not named `locale`: validate() strips Strapi system fields such as `locale`.
+      language: z.string().max(35).optional(),
     })
     .strict(),
   'providerTemplates.settings': z
     .object({
-      fallbackTemplateReferenceId: z.number().int().positive().max(2_147_483_647).nullable(),
+      fallbackTemplateReferenceId: z
+        .number()
+        .int()
+        .positive()
+        .max(2_147_483_647)
+        .nullable()
+        .optional(),
+      // Language versions: language tag -> synced template key (same provider).
+      locales: z
+        .record(
+          z.string().min(2).max(35),
+          z
+            .string()
+            .max(110)
+            .regex(/^(sendgrid|mailgun|brevo|ses):[a-z0-9][a-z0-9-]{0,99}$/)
+        )
+        .refine((value) => Object.keys(value).length <= 50, { message: 'At most 50 locales' })
+        .optional(),
     })
-    .strict(),
+    .strict()
+    .refine(
+      (value) => value.fallbackTemplateReferenceId !== undefined || value.locales !== undefined,
+      { message: 'Nothing to update' }
+    ),
   'providerTemplates.coreDesign': z
     .object({
       providerTemplate: z
         .string()
         .max(110)
-        .regex(/^(sendgrid|mailgun):[a-z0-9][a-z0-9-]{0,99}$/)
+        .regex(/^(sendgrid|mailgun|brevo|ses):[a-z0-9][a-z0-9-]{0,99}$/)
         .nullable(),
       fallbackToDesigner: z.boolean().optional(),
     })

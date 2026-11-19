@@ -9,6 +9,8 @@ import { isValidEmailAddress } from './emailValidation.mjs';
 export const SETTINGS_DEFAULTS = Object.freeze({
   enableLinkTracking: true,
   enableOpenTracking: true,
+  // Provider templates: count the provider's own opens and clicks.
+  providerTracking: false,
   trackingBaseUrl: '',
   defaultFromName: '',
   defaultFromEmail: '',

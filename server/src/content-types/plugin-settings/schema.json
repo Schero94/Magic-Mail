@@ -29,6 +29,11 @@
       "default": true,
       "configurable": false
     },
+    "providerTracking": {
+      "type": "boolean",
+      "default": false,
+      "configurable": false
+    },
     "trackingBaseUrl": {
       "type": "string",
       "configurable": false

@@ -1,0 +1,1441 @@
+{
+  "x-magic-mail-source": {
+    "repository": "https://github.com/aws/api-models-aws",
+    "path": "models/sesv2/service/2019-09-27/sesv2-2019-09-27.json",
+    "commit": "9f371492a21b16552652248af39cb2efa4abcfc0",
+    "sha256": "f34aeda95c11bd696714f5ff2be180ecb5b48ad3bfdfd6fb73de31aa3d42b891",
+    "license": "Apache-2.0",
+    "retrieved": "2026-11-18",
+    "note": "Subset: shapes reachable from the operations below; documentation traits removed.",
+    "operations": ["SendEmail", "GetAccount", "ListEmailTemplates", "GetEmailTemplate"]
+  },
+  "smithy": "2.0",
+  "service": {
+    "aws.api#service": {
+      "sdkId": "SESv2",
+      "arnNamespace": "ses",
+      "cloudFormationName": "SESv2",
+      "cloudTrailEventSource": "sesv2.amazonaws.com",
+      "endpointPrefix": "email"
+    },
+    "aws.auth#sigv4": {
+      "name": "ses"
+    },
+    "aws.protocols#restJson1": {}
+  },
+  "shapes": {
+    "com.amazonaws.sesv2#AccountDetails": {
+      "type": "structure",
+      "members": {
+        "MailType": {
+          "target": "com.amazonaws.sesv2#MailType",
+          "traits": {}
+        },
+        "WebsiteURL": {
+          "target": "com.amazonaws.sesv2#WebsiteURL",
+          "traits": {}
+        },
+        "ContactLanguage": {
+          "target": "com.amazonaws.sesv2#ContactLanguage",
+          "traits": {}
+        },
+        "UseCaseDescription": {
+          "target": "com.amazonaws.sesv2#UseCaseDescription",
+          "traits": {}
+        },
+        "AdditionalContactEmailAddresses": {
+          "target": "com.amazonaws.sesv2#AdditionalContactEmailAddresses",
+          "traits": {}
+        },
+        "ReviewDetails": {
+          "target": "com.amazonaws.sesv2#ReviewDetails",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#AccountSharedPoolDeliveryMode": {
+      "type": "enum",
+      "members": {
+        "GLOBAL": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "GLOBAL"
+          }
+        },
+        "REGIONAL": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "REGIONAL"
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#AccountSuspendedException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#AdditionalContactEmailAddress": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 6,
+          "max": 254
+        },
+        "smithy.api#pattern": "^(.+)@(.+)$",
+        "smithy.api#sensitive": {}
+      }
+    },
+    "com.amazonaws.sesv2#AdditionalContactEmailAddresses": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#AdditionalContactEmailAddress"
+      },
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 4
+        },
+        "smithy.api#sensitive": {}
+      }
+    },
+    "com.amazonaws.sesv2#AmazonResourceName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1
+        }
+      }
+    },
+    "com.amazonaws.sesv2#Attachment": {
+      "type": "structure",
+      "members": {
+        "RawContent": {
+          "target": "com.amazonaws.sesv2#RawAttachmentData",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "ContentDisposition": {
+          "target": "com.amazonaws.sesv2#AttachmentContentDisposition",
+          "traits": {}
+        },
+        "FileName": {
+          "target": "com.amazonaws.sesv2#AttachmentFileName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "ContentDescription": {
+          "target": "com.amazonaws.sesv2#AttachmentContentDescription",
+          "traits": {}
+        },
+        "ContentId": {
+          "target": "com.amazonaws.sesv2#AttachmentContentId",
+          "traits": {}
+        },
+        "ContentTransferEncoding": {
+          "target": "com.amazonaws.sesv2#AttachmentContentTransferEncoding",
+          "traits": {}
+        },
+        "ContentType": {
+          "target": "com.amazonaws.sesv2#AttachmentContentType",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#AttachmentContentDescription": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 0,
+          "max": 1000
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentContentDisposition": {
+      "type": "enum",
+      "members": {
+        "ATTACHMENT": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "ATTACHMENT"
+          }
+        },
+        "INLINE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "INLINE"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentContentId": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 78
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentContentTransferEncoding": {
+      "type": "enum",
+      "members": {
+        "BASE64": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "BASE64"
+          }
+        },
+        "QUOTED_PRINTABLE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "QUOTED_PRINTABLE"
+          }
+        },
+        "SEVEN_BIT": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "SEVEN_BIT"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentContentType": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 78
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentFileName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 0,
+          "max": 255
+        }
+      }
+    },
+    "com.amazonaws.sesv2#AttachmentList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#Attachment"
+      }
+    },
+    "com.amazonaws.sesv2#BadRequestException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#Body": {
+      "type": "structure",
+      "members": {
+        "Text": {
+          "target": "com.amazonaws.sesv2#Content",
+          "traits": {}
+        },
+        "Html": {
+          "target": "com.amazonaws.sesv2#Content",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#CaseId": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#Charset": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#ConfigurationOverrides": {
+      "type": "structure",
+      "members": {
+        "Tracking": {
+          "target": "com.amazonaws.sesv2#TrackingConfigurationOverrides",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#ConfigurationSetName": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#ContactLanguage": {
+      "type": "enum",
+      "members": {
+        "EN": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "EN"
+          }
+        },
+        "JA": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "JA"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#ContactListName": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#Content": {
+      "type": "structure",
+      "members": {
+        "Data": {
+          "target": "com.amazonaws.sesv2#MessageData",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Charset": {
+          "target": "com.amazonaws.sesv2#Charset",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#DashboardAttributes": {
+      "type": "structure",
+      "members": {
+        "EngagementMetrics": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#DeliveryAttributes": {
+      "type": "structure",
+      "members": {
+        "SharedPoolDeliveryMode": {
+          "target": "com.amazonaws.sesv2#AccountSharedPoolDeliveryMode",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#Destination": {
+      "type": "structure",
+      "members": {
+        "ToAddresses": {
+          "target": "com.amazonaws.sesv2#EmailAddressList",
+          "traits": {}
+        },
+        "CcAddresses": {
+          "target": "com.amazonaws.sesv2#EmailAddressList",
+          "traits": {}
+        },
+        "BccAddresses": {
+          "target": "com.amazonaws.sesv2#EmailAddressList",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailAddress": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#EmailAddressList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#EmailAddress"
+      }
+    },
+    "com.amazonaws.sesv2#EmailContent": {
+      "type": "structure",
+      "members": {
+        "Simple": {
+          "target": "com.amazonaws.sesv2#Message",
+          "traits": {}
+        },
+        "Raw": {
+          "target": "com.amazonaws.sesv2#RawMessage",
+          "traits": {}
+        },
+        "Template": {
+          "target": "com.amazonaws.sesv2#Template",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateContent": {
+      "type": "structure",
+      "members": {
+        "Subject": {
+          "target": "com.amazonaws.sesv2#EmailTemplateSubject",
+          "traits": {}
+        },
+        "Text": {
+          "target": "com.amazonaws.sesv2#EmailTemplateText",
+          "traits": {}
+        },
+        "Html": {
+          "target": "com.amazonaws.sesv2#EmailTemplateHtml",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateData": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 0,
+          "max": 262144
+        }
+      }
+    },
+    "com.amazonaws.sesv2#EmailTemplateHtml": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateMetadata": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "target": "com.amazonaws.sesv2#EmailTemplateName",
+          "traits": {}
+        },
+        "CreatedTimestamp": {
+          "target": "com.amazonaws.sesv2#Timestamp",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateMetadataList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#EmailTemplateMetadata"
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1
+        }
+      }
+    },
+    "com.amazonaws.sesv2#EmailTemplateSubject": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#EmailTemplateText": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#Enabled": {
+      "type": "boolean",
+      "traits": {
+        "smithy.api#default": false
+      }
+    },
+    "com.amazonaws.sesv2#EndpointId": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#ErrorMessage": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#FeatureStatus": {
+      "type": "enum",
+      "members": {
+        "ENABLED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "ENABLED"
+          }
+        },
+        "DISABLED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "DISABLED"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#GeneralEnforcementStatus": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#GetAccount": {
+      "type": "operation",
+      "input": {
+        "target": "com.amazonaws.sesv2#GetAccountRequest"
+      },
+      "output": {
+        "target": "com.amazonaws.sesv2#GetAccountResponse"
+      },
+      "errors": [
+        {
+          "target": "com.amazonaws.sesv2#BadRequestException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#TooManyRequestsException"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v2/email/account",
+          "code": 200
+        }
+      }
+    },
+    "com.amazonaws.sesv2#GetAccountRequest": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.amazonaws.sesv2#GetAccountResponse": {
+      "type": "structure",
+      "members": {
+        "DedicatedIpAutoWarmupEnabled": {
+          "target": "com.amazonaws.sesv2#Enabled",
+          "traits": {
+            "smithy.api#default": false
+          }
+        },
+        "EnforcementStatus": {
+          "target": "com.amazonaws.sesv2#GeneralEnforcementStatus",
+          "traits": {}
+        },
+        "ProductionAccessEnabled": {
+          "target": "com.amazonaws.sesv2#Enabled",
+          "traits": {
+            "smithy.api#default": false
+          }
+        },
+        "SendQuota": {
+          "target": "com.amazonaws.sesv2#SendQuota",
+          "traits": {}
+        },
+        "SendingEnabled": {
+          "target": "com.amazonaws.sesv2#Enabled",
+          "traits": {
+            "smithy.api#default": false
+          }
+        },
+        "SuppressionAttributes": {
+          "target": "com.amazonaws.sesv2#SuppressionAttributes",
+          "traits": {}
+        },
+        "Details": {
+          "target": "com.amazonaws.sesv2#AccountDetails",
+          "traits": {}
+        },
+        "VdmAttributes": {
+          "target": "com.amazonaws.sesv2#VdmAttributes",
+          "traits": {}
+        },
+        "PricingAttributes": {
+          "target": "com.amazonaws.sesv2#PricingAttributes",
+          "traits": {}
+        },
+        "DeliveryAttributes": {
+          "target": "com.amazonaws.sesv2#DeliveryAttributes",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.amazonaws.sesv2#GetEmailTemplate": {
+      "type": "operation",
+      "input": {
+        "target": "com.amazonaws.sesv2#GetEmailTemplateRequest"
+      },
+      "output": {
+        "target": "com.amazonaws.sesv2#GetEmailTemplateResponse"
+      },
+      "errors": [
+        {
+          "target": "com.amazonaws.sesv2#BadRequestException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#NotFoundException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#TooManyRequestsException"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v2/email/templates/{TemplateName}",
+          "code": 200
+        }
+      }
+    },
+    "com.amazonaws.sesv2#GetEmailTemplateRequest": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "target": "com.amazonaws.sesv2#EmailTemplateName",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.amazonaws.sesv2#GetEmailTemplateResponse": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "target": "com.amazonaws.sesv2#EmailTemplateName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "TemplateContent": {
+          "target": "com.amazonaws.sesv2#EmailTemplateContent",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Tags": {
+          "target": "com.amazonaws.sesv2#TagList",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.amazonaws.sesv2#GuardianAttributes": {
+      "type": "structure",
+      "members": {
+        "OptimizedSharedDelivery": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#LimitExceededException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#ListEmailTemplates": {
+      "type": "operation",
+      "input": {
+        "target": "com.amazonaws.sesv2#ListEmailTemplatesRequest"
+      },
+      "output": {
+        "target": "com.amazonaws.sesv2#ListEmailTemplatesResponse"
+      },
+      "errors": [
+        {
+          "target": "com.amazonaws.sesv2#BadRequestException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#TooManyRequestsException"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v2/email/templates",
+          "code": 200
+        },
+        "smithy.api#paginated": {
+          "inputToken": "NextToken",
+          "outputToken": "NextToken",
+          "pageSize": "PageSize"
+        }
+      }
+    },
+    "com.amazonaws.sesv2#ListEmailTemplatesRequest": {
+      "type": "structure",
+      "members": {
+        "NextToken": {
+          "target": "com.amazonaws.sesv2#NextToken",
+          "traits": {
+            "smithy.api#httpQuery": "NextToken"
+          }
+        },
+        "PageSize": {
+          "target": "com.amazonaws.sesv2#MaxItems",
+          "traits": {
+            "smithy.api#httpQuery": "PageSize"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.amazonaws.sesv2#ListEmailTemplatesResponse": {
+      "type": "structure",
+      "members": {
+        "TemplatesMetadata": {
+          "target": "com.amazonaws.sesv2#EmailTemplateMetadataList",
+          "traits": {}
+        },
+        "NextToken": {
+          "target": "com.amazonaws.sesv2#NextToken",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.amazonaws.sesv2#ListManagementOptions": {
+      "type": "structure",
+      "members": {
+        "ContactListName": {
+          "target": "com.amazonaws.sesv2#ContactListName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "TopicName": {
+          "target": "com.amazonaws.sesv2#TopicName",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MailFromDomainNotVerifiedException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#MailType": {
+      "type": "enum",
+      "members": {
+        "MARKETING": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "MARKETING"
+          }
+        },
+        "TRANSACTIONAL": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "TRANSACTIONAL"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#Max24HourSend": {
+      "type": "double",
+      "traits": {
+        "smithy.api#default": 0
+      }
+    },
+    "com.amazonaws.sesv2#MaxItems": {
+      "type": "integer"
+    },
+    "com.amazonaws.sesv2#MaxSendRate": {
+      "type": "double",
+      "traits": {
+        "smithy.api#default": 0
+      }
+    },
+    "com.amazonaws.sesv2#Message": {
+      "type": "structure",
+      "members": {
+        "Subject": {
+          "target": "com.amazonaws.sesv2#Content",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Body": {
+          "target": "com.amazonaws.sesv2#Body",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Headers": {
+          "target": "com.amazonaws.sesv2#MessageHeaderList",
+          "traits": {}
+        },
+        "Attachments": {
+          "target": "com.amazonaws.sesv2#AttachmentList",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MessageData": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#MessageHeader": {
+      "type": "structure",
+      "members": {
+        "Name": {
+          "target": "com.amazonaws.sesv2#MessageHeaderName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Value": {
+          "target": "com.amazonaws.sesv2#MessageHeaderValue",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MessageHeaderList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#MessageHeader"
+      },
+      "traits": {
+        "smithy.api#length": {
+          "min": 0,
+          "max": 15
+        }
+      }
+    },
+    "com.amazonaws.sesv2#MessageHeaderName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 126
+        },
+        "smithy.api#pattern": "^[!-9;-@A-~]+$"
+      }
+    },
+    "com.amazonaws.sesv2#MessageHeaderValue": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 995
+        },
+        "smithy.api#pattern": "^[ -~]*$"
+      }
+    },
+    "com.amazonaws.sesv2#MessageRejected": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#MessageTag": {
+      "type": "structure",
+      "members": {
+        "Name": {
+          "target": "com.amazonaws.sesv2#MessageTagName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Value": {
+          "target": "com.amazonaws.sesv2#MessageTagValue",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MessageTagList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#MessageTag"
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MessageTagName": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#MessageTagValue": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#NextToken": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#NotFoundException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 404
+      }
+    },
+    "com.amazonaws.sesv2#OutboundMessageId": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#PricingAttributes": {
+      "type": "structure",
+      "members": {
+        "CurrentPlan": {
+          "target": "com.amazonaws.sesv2#PricingPlan",
+          "traits": {}
+        },
+        "NextPlan": {
+          "target": "com.amazonaws.sesv2#PricingPlan",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#PricingPlan": {
+      "type": "enum",
+      "members": {
+        "NONE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "NONE"
+          }
+        },
+        "ESSENTIALS": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "ESSENTIALS"
+          }
+        },
+        "PRO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "PRO"
+          }
+        },
+        "ENTERPRISE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "ENTERPRISE"
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#RawAttachmentData": {
+      "type": "blob"
+    },
+    "com.amazonaws.sesv2#RawMessage": {
+      "type": "structure",
+      "members": {
+        "Data": {
+          "target": "com.amazonaws.sesv2#RawMessageData",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#RawMessageData": {
+      "type": "blob",
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#ReviewDetails": {
+      "type": "structure",
+      "members": {
+        "Status": {
+          "target": "com.amazonaws.sesv2#ReviewStatus",
+          "traits": {}
+        },
+        "CaseId": {
+          "target": "com.amazonaws.sesv2#CaseId",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#ReviewStatus": {
+      "type": "enum",
+      "members": {
+        "PENDING": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "PENDING"
+          }
+        },
+        "FAILED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "FAILED"
+          }
+        },
+        "GRANTED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "GRANTED"
+          }
+        },
+        "DENIED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "DENIED"
+          }
+        }
+      }
+    },
+    "com.amazonaws.sesv2#SendEmail": {
+      "type": "operation",
+      "input": {
+        "target": "com.amazonaws.sesv2#SendEmailRequest"
+      },
+      "output": {
+        "target": "com.amazonaws.sesv2#SendEmailResponse"
+      },
+      "errors": [
+        {
+          "target": "com.amazonaws.sesv2#AccountSuspendedException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#BadRequestException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#LimitExceededException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#MailFromDomainNotVerifiedException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#MessageRejected"
+        },
+        {
+          "target": "com.amazonaws.sesv2#NotFoundException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#SendingPausedException"
+        },
+        {
+          "target": "com.amazonaws.sesv2#TooManyRequestsException"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/v2/email/outbound-emails",
+          "code": 200
+        }
+      }
+    },
+    "com.amazonaws.sesv2#SendEmailRequest": {
+      "type": "structure",
+      "members": {
+        "FromEmailAddress": {
+          "target": "com.amazonaws.sesv2#EmailAddress",
+          "traits": {}
+        },
+        "FromEmailAddressIdentityArn": {
+          "target": "com.amazonaws.sesv2#AmazonResourceName",
+          "traits": {}
+        },
+        "Destination": {
+          "target": "com.amazonaws.sesv2#Destination",
+          "traits": {}
+        },
+        "ReplyToAddresses": {
+          "target": "com.amazonaws.sesv2#EmailAddressList",
+          "traits": {}
+        },
+        "FeedbackForwardingEmailAddress": {
+          "target": "com.amazonaws.sesv2#EmailAddress",
+          "traits": {}
+        },
+        "FeedbackForwardingEmailAddressIdentityArn": {
+          "target": "com.amazonaws.sesv2#AmazonResourceName",
+          "traits": {}
+        },
+        "Content": {
+          "target": "com.amazonaws.sesv2#EmailContent",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "EmailTags": {
+          "target": "com.amazonaws.sesv2#MessageTagList",
+          "traits": {}
+        },
+        "ConfigurationSetName": {
+          "target": "com.amazonaws.sesv2#ConfigurationSetName",
+          "traits": {}
+        },
+        "EndpointId": {
+          "target": "com.amazonaws.sesv2#EndpointId",
+          "traits": {
+            "smithy.rules#contextParam": {
+              "name": "EndpointId"
+            }
+          }
+        },
+        "TenantName": {
+          "target": "com.amazonaws.sesv2#TenantName",
+          "traits": {}
+        },
+        "ListManagementOptions": {
+          "target": "com.amazonaws.sesv2#ListManagementOptions",
+          "traits": {}
+        },
+        "ConfigurationOverrides": {
+          "target": "com.amazonaws.sesv2#ConfigurationOverrides",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.amazonaws.sesv2#SendEmailResponse": {
+      "type": "structure",
+      "members": {
+        "MessageId": {
+          "target": "com.amazonaws.sesv2#OutboundMessageId",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.amazonaws.sesv2#SendQuota": {
+      "type": "structure",
+      "members": {
+        "Max24HourSend": {
+          "target": "com.amazonaws.sesv2#Max24HourSend",
+          "traits": {
+            "smithy.api#default": 0
+          }
+        },
+        "MaxSendRate": {
+          "target": "com.amazonaws.sesv2#MaxSendRate",
+          "traits": {
+            "smithy.api#default": 0
+          }
+        },
+        "SentLast24Hours": {
+          "target": "com.amazonaws.sesv2#SentLast24Hours",
+          "traits": {
+            "smithy.api#default": 0
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SendingPausedException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.amazonaws.sesv2#SentLast24Hours": {
+      "type": "double",
+      "traits": {
+        "smithy.api#default": 0
+      }
+    },
+    "com.amazonaws.sesv2#SuppressionAttributes": {
+      "type": "structure",
+      "members": {
+        "SuppressedReasons": {
+          "target": "com.amazonaws.sesv2#SuppressionListReasons",
+          "traits": {}
+        },
+        "ValidationAttributes": {
+          "target": "com.amazonaws.sesv2#SuppressionValidationAttributes"
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SuppressionConditionThreshold": {
+      "type": "structure",
+      "members": {
+        "ConditionThresholdEnabled": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "OverallConfidenceThreshold": {
+          "target": "com.amazonaws.sesv2#SuppressionConfidenceThreshold",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SuppressionConfidenceThreshold": {
+      "type": "structure",
+      "members": {
+        "ConfidenceVerdictThreshold": {
+          "target": "com.amazonaws.sesv2#SuppressionConfidenceVerdictThreshold",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SuppressionConfidenceVerdictThreshold": {
+      "type": "enum",
+      "members": {
+        "MEDIUM": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "MEDIUM"
+          }
+        },
+        "HIGH": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "HIGH"
+          }
+        },
+        "MANAGED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "MANAGED"
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SuppressionListReason": {
+      "type": "enum",
+      "members": {
+        "BOUNCE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "BOUNCE"
+          }
+        },
+        "COMPLAINT": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "COMPLAINT"
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#SuppressionListReasons": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#SuppressionListReason"
+      }
+    },
+    "com.amazonaws.sesv2#SuppressionValidationAttributes": {
+      "type": "structure",
+      "members": {
+        "ConditionThreshold": {
+          "target": "com.amazonaws.sesv2#SuppressionConditionThreshold",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#Tag": {
+      "type": "structure",
+      "members": {
+        "Key": {
+          "target": "com.amazonaws.sesv2#TagKey",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "Value": {
+          "target": "com.amazonaws.sesv2#TagValue",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#TagKey": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#TagList": {
+      "type": "list",
+      "member": {
+        "target": "com.amazonaws.sesv2#Tag"
+      }
+    },
+    "com.amazonaws.sesv2#TagValue": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#Template": {
+      "type": "structure",
+      "members": {
+        "TemplateName": {
+          "target": "com.amazonaws.sesv2#EmailTemplateName",
+          "traits": {}
+        },
+        "TemplateArn": {
+          "target": "com.amazonaws.sesv2#AmazonResourceName",
+          "traits": {}
+        },
+        "TemplateContent": {
+          "target": "com.amazonaws.sesv2#EmailTemplateContent",
+          "traits": {}
+        },
+        "TemplateData": {
+          "target": "com.amazonaws.sesv2#EmailTemplateData",
+          "traits": {}
+        },
+        "Headers": {
+          "target": "com.amazonaws.sesv2#MessageHeaderList",
+          "traits": {}
+        },
+        "Attachments": {
+          "target": "com.amazonaws.sesv2#AttachmentList",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#TenantName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1
+        }
+      }
+    },
+    "com.amazonaws.sesv2#Timestamp": {
+      "type": "timestamp"
+    },
+    "com.amazonaws.sesv2#TooManyRequestsException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "com.amazonaws.sesv2#ErrorMessage"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 429
+      }
+    },
+    "com.amazonaws.sesv2#TopicName": {
+      "type": "string"
+    },
+    "com.amazonaws.sesv2#TrackingConfigurationOverrides": {
+      "type": "structure",
+      "members": {
+        "OpenTrackingEnabled": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {}
+        },
+        "ClickTrackingEnabled": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#UseCaseDescription": {
+      "type": "string",
+      "traits": {
+        "smithy.api#deprecated": {
+          "message": "Use case description is optional and deprecated"
+        },
+        "smithy.api#length": {
+          "min": 0,
+          "max": 5000
+        },
+        "smithy.api#sensitive": {}
+      }
+    },
+    "com.amazonaws.sesv2#VdmAttributes": {
+      "type": "structure",
+      "members": {
+        "VdmEnabled": {
+          "target": "com.amazonaws.sesv2#FeatureStatus",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "DashboardAttributes": {
+          "target": "com.amazonaws.sesv2#DashboardAttributes",
+          "traits": {}
+        },
+        "GuardianAttributes": {
+          "target": "com.amazonaws.sesv2#GuardianAttributes",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.amazonaws.sesv2#WebsiteURL": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 1000
+        },
+        "smithy.api#pattern": "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?$",
+        "smithy.api#sensitive": {}
+      }
+    }
+  }
+}
