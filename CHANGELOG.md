@@ -1,4 +1,10 @@
-## [Unreleased]
+# [4.9.0](https://github.com/Schero94/Magic-Mail/compare/v4.8.0...v4.9.0) (2026-11-19)
+
+
+### Features
+
+* Brevo and Amazon SES accounts, template languages and provider open/click tracking ([#28](https://github.com/Schero94/Magic-Mail/issues/28)) ([b2c8253](https://github.com/Schero94/Magic-Mail/commit/b2c8253a04d5e51af00b425e9853a23f613057ec))
+
 
 ### Added
 
