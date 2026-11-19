@@ -1,3 +1,14 @@
+## [Unreleased]
+
+### Fixed
+
+* **Mailgun: a template deleted at Mailgun is no longer logged as sent.** Mailgun accepts a send that names a template it does not have (200 "Queued") and drops the message afterwards (event `failed`, delivery-status 621 "Template not found", retried every 10 minutes). Before a template send MagicMail now checks the template at Mailgun (`GET /v3/{domain}/templates/{name}?active=yes`, account-level templates `GET /v4/templates/{name}?active=yes`). A deleted template, or one without an active version, fails with `MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE` before any message is sent: another account that still has the template sends instead, else the configured Magic Mail fallback template, else the error is returned and the delivery log row is `failed`. A successful check is cached for 60 seconds per account and template (one extra request per template and minute for bulk sends, parallel sends share one check). If the check itself fails (network, timeout, 401/403, 429, 5xx), the send goes ahead and a warning is logged.
+* **Mailgun webhooks: ESP blocks and soft bounces no longer suppress the recipient.** A permanent failure with reason `espblock` (the recipient's provider refused the sender, for example `550 5.7.40`) is now recorded as **Blocked** and never added to the suppression list; Mailgun itself does not put such addresses on its bounce list. A permanent failure that Mailgun classifies as `bounce-type: soft` is still recorded as **Bounced** but not suppressed. Only permanent hard bounces suppress, as before. Template-not-found failures (code 621) get the reason code `MAILGUN_TEMPLATE_NOT_FOUND` (Deferred while Mailgun retries, Failed when final) and never suppress.
+
+### Migration
+
+* Nothing to do. Mailgun template sends make one extra read request per template and minute; the API key needs read access to templates, which provider-template sync already requires. Addresses suppressed earlier because of a Mailgun `espblock` can be removed under **Plugin Settings → Bounces and recipient checks → Suppressed recipients** (source `mailgun`, reason code `MAILGUN_ESPBLOCK_*`).
+
 # [4.9.0](https://github.com/Schero94/Magic-Mail/compare/v4.8.0...v4.9.0) (2026-11-19)
 
 

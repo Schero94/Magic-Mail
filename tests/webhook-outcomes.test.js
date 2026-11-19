@@ -715,6 +715,87 @@ test('Mailgun failed permanent: Bounced; suppress-* and old reasons are not supp
   });
 });
 
+// Shapes observed live against a Mailgun US sandbox domain on 2026-11-19
+// (events API and signed webhook posts; addresses and ids replaced).
+test('Mailgun severity and bounce type: only permanent hard bounces suppress', async () => {
+  await withKey(async ({ encryptCredentials }) => {
+    const cases = [
+      {
+        label: 'temporary 621 template not found',
+        severity: 'temporary',
+        reason: 'generic',
+        status: { code: 621, 'retry-seconds': 600, 'enhanced-code': '' },
+        expect: { status: 'deferred', reasonCode: 'MAILGUN_TEMPLATE_NOT_FOUND', topic: 'deferred' },
+      },
+      {
+        label: 'temporary 421 mailbox busy',
+        severity: 'temporary',
+        reason: 'generic',
+        status: { code: 421, 'bounce-type': 'soft' },
+        expect: { status: 'deferred', reasonCode: 'MAILGUN_DEFERRED_421', topic: 'deferred' },
+      },
+      {
+        label: 'permanent espblock (550 5.7.40, soft)',
+        severity: 'permanent',
+        reason: 'espblock',
+        status: { code: 550, 'enhanced-code': '5.7.40', 'bounce-type': 'soft' },
+        expect: { status: 'blocked', reasonCode: 'MAILGUN_ESPBLOCK_550', topic: 'blocked' },
+      },
+      {
+        label: 'permanent soft bounce',
+        severity: 'permanent',
+        reason: 'bounce',
+        status: { code: 552, 'bounce-type': 'soft' },
+        expect: { status: 'bounced', reasonCode: 'MAILGUN_BOUNCE_552', topic: 'bounced' },
+      },
+      {
+        label: 'permanent 621 template not found',
+        severity: 'permanent',
+        reason: 'generic',
+        status: { code: 621 },
+        expect: { status: 'failed', reasonCode: 'MAILGUN_TEMPLATE_NOT_FOUND', topic: 'dropped' },
+      },
+      {
+        label: 'permanent hard bounce',
+        severity: 'permanent',
+        reason: 'bounce',
+        status: { code: 550, 'enhanced-code': '5.1.1', 'bounce-type': 'hard' },
+        expect: { status: 'bounced', reasonCode: 'MAILGUN_BOUNCE_550', topic: 'bounced' },
+        suppressed: true,
+      },
+    ];
+    for (const item of cases) {
+      deliveryService.__test__.resetSeen();
+      const event = clone(MAILGUN.failedPermanent);
+      Object.assign(event, {
+        severity: item.severity,
+        reason: item.reason,
+        recipient: 'joan@example.test',
+        'delivery-status': { 'attempt-no': 1, message: '', ...item.status },
+      });
+      const host = createHost({
+        provider: 'mailgun',
+        logs: [
+          {
+            documentId: 'log1',
+            providerMessageId: event.message.headers['message-id'],
+            recipient: 'joan@example.test',
+          },
+        ],
+        settings: { suppressHardBounces: true },
+        encryptCredentials,
+      });
+      const result = await sendMailgun(host, event);
+      assert.equal(result.status, 200, item.label);
+      assert.equal(host.log().deliveryStatus, item.expect.status, item.label);
+      assert.equal(host.log().bounceReason, item.expect.reasonCode, item.label);
+      assert.equal(host.log().bounced === true, item.expect.status === 'bounced', item.label);
+      assert.deepEqual(topics(host), [`magic-mail.delivery.${item.expect.topic}`], item.label);
+      assert.equal(host.suppressed().length, item.suppressed ? 1 : 0, item.label);
+    }
+  });
+});
+
 test('Mailgun failed temporary -> deferred; delivered -> confirmation; never downgrades', async () => {
   await withKey(async ({ encryptCredentials }) => {
     deliveryService.__test__.resetSeen();

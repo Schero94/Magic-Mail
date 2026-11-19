@@ -5,9 +5,10 @@ Part of the [MagicMail documentation](https://schero94.github.io/Magic-Mail/). H
 The unit tests replay the providers' published sample events with locally
 generated signatures. They cannot prove how your real SendGrid or Mailgun
 account behaves. This page lists the checks you can run yourself against a
-real account. MagicMail's maintainers have not run them; every step marked
-**unverified** is not covered by the providers' official documentation, so
-write down what you observe.
+real account. Every step marked **unverified** is not covered by the
+providers' official documentation, so write down what you observe. The
+maintainers' own Mailgun run (US sandbox domain, 2026-11-19) is recorded in
+[Mailgun live acceptance](./acceptance/2026-11-19-mailgun-live.md).
 
 ## Before you start
 
@@ -84,8 +85,9 @@ Neither SendGrid sandbox mode nor the providers' test buttons create real
 delivery events (SendGrid: sandbox requests "will not generate events in either
 Event Webhook or Email Activity",
 <https://www.twilio.com/docs/sendgrid/for-developers/sending-email/sandbox-mode>).
-**Unverified:** whether Mailgun test mode (`o:testmode`) emits webhooks; the
-official docs do not say. So this check sends real mail.
+Mailgun test mode (`o:testmode`) does emit `delivered` webhooks (code 650,
+`is-test-mode: true`; observed 2026-11-19, the official docs do not say), but
+no failures, so this check sends real mail.
 
 Setup:
 
