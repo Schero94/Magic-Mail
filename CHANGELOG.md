@@ -1,3 +1,10 @@
+# [4.10.0](https://github.com/Schero94/Magic-Mail/compare/v4.9.1...v4.10.0) (2026-11-19)
+
+
+### Features
+
+* admin password reset, startup check and events for provider-template core emails ([#30](https://github.com/Schero94/Magic-Mail/issues/30)) ([cf3ef8a](https://github.com/Schero94/Magic-Mail/commit/cf3ef8a34dc4639c5f1f0a47d2d56a18eb780d59))
+
 ## [4.9.1](https://github.com/Schero94/Magic-Mail/compare/v4.9.0...v4.9.1) (2026-11-19)
 
 
