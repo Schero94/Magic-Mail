@@ -1,0 +1,61 @@
+# MagicMail for Strapi 5
+
+> MagicMail (npm: strapi-plugin-magic-mail) is a free, MIT-licensed Strapi 5 plugin that sends every Strapi email through several SMTP and API accounts, with routing rules, hourly and daily quotas, failover that never sends a mail twice, an outbox with retries, templates and a delivery log in the Strapi admin.
+
+It sends email only. The current version is on npm (link below).
+
+What it does:
+
+- Accounts: Gmail, Microsoft 365 and Yahoo with OAuth 2.0, any SMTP server (optional DKIM), SendGrid, Mailgun, Brevo and Amazon SES. Credentials are encrypted with AES-256-GCM and never reach the browser.
+- Routing rules pick the account by email type, recipient, subject, template or a custom value, with a fallback account per rule.
+- Quotas per account (hourly and daily), reserved atomically. Failover tries the next account only when the error proves the provider did not take the mail.
+- Outbox with retries, opt-in per send (`queue: true`) or for every failed send: 3 retries by default after 1, 5 and 15 minutes, idempotency keys, and an Outbox tab to retry, discard or mark uncertain mails as sent.
+- Delivery webhooks for SendGrid, Mailgun, Brevo and Amazon SES (SNS) record bounces, complaints, deferrals, deliveries and unsubscribes.
+- Templates: visual editor (Unlayer) or plain HTML and text, Mustache variables, versions, import and export. Provider templates from SendGrid, Mailgun, Brevo and Amazon SES appear read-only.
+- Drop-in: `strapi.plugin('email').service('email').send()`, `sendTemplatedEmail()`, the admin password reset and the Users & Permissions mails are routed through MagicMail without code changes.
+- Several instances (Railway replicas, pm2 workers) on one database work without sticky sessions or Redis.
+
+Requirements:
+
+- Strapi `^5.57.0` with `@strapi/plugin-users-permissions`
+- Node.js `>=22.12.0 <=26.x.x`
+- PostgreSQL, MySQL 8 or SQLite
+- `MAGIC_MAIL_ENCRYPTION_KEY` (32+ bytes), required unless `NODE_ENV` is unset, `development` or `test`
+
+Install:
+
+```bash
+npm install strapi-plugin-magic-mail
+```
+
+```javascript
+// config/plugins.js
+module.exports = () => ({
+  'magic-mail': { enabled: true },
+});
+```
+
+Then `npm run build`, `npm run develop`, open MagicMail → Email Accounts, add an account and send a test.
+
+Configuration essentials:
+
+- Admin permissions: `plugin::magic-mail.access`, `read`, `manage`, `test-send`, `queue.read`, `queue.manage`.
+- Set Strapi `server.url` to the public URL (OAuth redirects, tracking links) and `server.proxy.koa: true` behind a reverse proxy.
+- Keep `MAGIC_MAIL_ENCRYPTION_KEY` stable; without it stored account credentials cannot be read.
+
+## Docs
+
+- [Documentation site](https://schero94.github.io/Magic-Mail/): overview, screenshots, install, outbox, bounces, several instances, configuration, security, API, FAQ
+- [README](https://github.com/Schero94/Magic-Mail#readme): features, quick start, compatibility, permissions, environment variables, security and privacy
+- [Sending, providers, routing and templates](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md)
+- [Tracking, bounces and the outbox](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md)
+- [Content API and Admin API](https://github.com/Schero94/Magic-Mail/blob/main/docs/api.md): every route with request, response and error examples
+- [Configuration and several instances](https://github.com/Schero94/Magic-Mail/blob/main/docs/configuration.md)
+- [CHANGELOG](https://github.com/Schero94/Magic-Mail/blob/main/CHANGELOG.md)
+- [npm package](https://www.npmjs.com/package/strapi-plugin-magic-mail)
+
+## Optional
+
+- [Troubleshooting and FAQ](https://github.com/Schero94/Magic-Mail/blob/main/docs/troubleshooting.md)
+- [Upgrading](https://github.com/Schero94/Magic-Mail/blob/main/docs/upgrading.md): migration notes since 4.0.0
+- [Plugin hub overview](https://schero94.github.io/plugins/magic-mail/)
