@@ -2,7 +2,7 @@
 
 > MagicMail (npm: strapi-plugin-magic-mail) is a free, MIT-licensed Strapi 5 plugin that sends every Strapi email through several SMTP and API accounts, with routing rules, hourly and daily quotas, failover that never sends a mail twice, an outbox with retries, templates and a delivery log in the Strapi admin.
 
-It sends email only. The current version is on npm (link below).
+It sends email only. Current version: __PACKAGE_VERSION__ (npm).
 
 What it does:
 
