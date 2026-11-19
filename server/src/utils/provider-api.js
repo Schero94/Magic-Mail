@@ -99,17 +99,18 @@ async function readBounded(response, maxBytes) {
  *
  * @param {string} url - Absolute URL on a fixed provider host
  * @param {Record<string, string>} headers - Authorization header
+ * @param {{timeoutMs?: number}} [options] - Request timeout (default 15 s)
  * @returns {Promise<any>} Parsed JSON
  * @throws {ProviderApiError}
  */
-async function getJson(url, headers) {
+async function getJson(url, headers, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   let response;
   try {
     response = await fetch(url, {
       method: 'GET',
       headers: { Accept: 'application/json', ...headers },
       redirect: 'error',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     throw new ProviderApiError('NETWORK');
@@ -344,10 +345,70 @@ async function listMailgunTemplates(config, region, { pageSize = MAILGUN_PAGE_LI
   return { templates, accountScopeError };
 }
 
+/** Timeout of the pre-send template check: short, a slow check must not stall sends. */
+const MAILGUN_TEMPLATE_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * Checks that a Mailgun template still exists and has an active version,
+ * right before a template send. Mailgun accepts a send with an unknown
+ * template name (200 "Queued") and drops the message later (event `failed`,
+ * delivery-status code 621 "Template not found"), so the send path asks
+ * first.
+ *
+ * Domain templates: GET /v3/{domain}/templates/{name}?active=yes.
+ * Account templates: GET /v4/templates/{name}?active=yes (the account-level
+ * get takes the template name, like the domain one). Both answer 404
+ * `{"message":"template not found"}` for a missing template, and 200 without
+ * `template.version` for a template that has no version (verified against the
+ * US API on 2026-11-19).
+ *
+ * @param {{apiKey: string, domain: string}} config - Decrypted account config
+ * @param {'us'|'eu'} region - Resolved Mailgun region
+ * @param {{name: string, scope?: string}} template - Template name and scope ('account' or domain)
+ * @param {{timeoutMs?: number}} [options]
+ * @returns {Promise<'available'|'missing'|'no-active-version'>}
+ * @throws {ProviderApiError} For every other outcome (auth, rate limit, 5xx,
+ *   network, unreadable body); callers decide whether that blocks a send
+ * @sideeffect One HTTPS GET to the Mailgun API of the region.
+ */
+async function checkMailgunTemplate(
+  config,
+  region,
+  template,
+  { timeoutMs = MAILGUN_TEMPLATE_CHECK_TIMEOUT_MS } = {}
+) {
+  const base = mailgunApiBaseUrl(region);
+  const domain = String(config.domain).trim().toLowerCase();
+  const path =
+    template.scope === 'account'
+      ? `/v4/templates/${encodeURIComponent(template.name)}`
+      : `/v3/${encodeURIComponent(domain)}/templates/${encodeURIComponent(template.name)}`;
+  const url = new URL(path, base);
+  url.searchParams.set('active', 'yes');
+  let body;
+  try {
+    body = await getJson(
+      url.toString(),
+      { Authorization: `Basic ${Buffer.from(`api:${config.apiKey}`).toString('base64')}` },
+      { timeoutMs }
+    );
+  } catch (error) {
+    if (error instanceof ProviderApiError && error.code === 'NOT_FOUND') return 'missing';
+    throw error;
+  }
+  const found = body?.template;
+  if (!found || typeof found !== 'object') throw new ProviderApiError('BAD_RESPONSE');
+  const version = found.version && typeof found.version === 'object' ? found.version : null;
+  if (!version || version.active === false) return 'no-active-version';
+  return 'available';
+}
+
 module.exports = {
+  MAILGUN_TEMPLATE_CHECK_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,
   ProviderApiError,
   SENDGRID_REGIONS,
+  checkMailgunTemplate,
   codeForStatus,
   listMailgunTemplates,
   listSendGridTemplates,

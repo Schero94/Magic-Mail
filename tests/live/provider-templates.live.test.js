@@ -250,7 +250,7 @@ liveSendGrid('an unknown SendGrid template key fails in the plugin', async () =>
 });
 
 liveMailgun(
-  'an unknown Mailgun key fails in the plugin; an unknown id is refused by the provider',
+  'an unknown Mailgun key fails in the plugin; a template deleted at Mailgun is refused before sending',
   async () => {
     await assert.rejects(
       harness()
@@ -268,12 +268,25 @@ liveMailgun(
       remoteScope: 'domain',
     };
     rows.push(ghost);
+    // Mailgun itself answers 200 "Queued" for an unknown template name and
+    // drops the message later (event `failed`, delivery-status 621 "Template
+    // not found"; checked 2026-11-19). Magic Mail must ask Mailgun first
+    // (GET /v3/{domain}/templates/{name}?active=yes -> 404) and send nothing.
+    const before = live.sent.mailgun.length;
     await assert.rejects(
       harness()
         .service('email-router')
         .send({ to: env.LIVE_TEST_RECIPIENT, providerTemplate: 'mailgun:ghost', subject: 'x' }),
-      (error) => Number(error.status) >= 400 && Number(error.status) < 500
+      (error) => error.code === 'MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE'
     );
+    assert.equal(live.sent.mailgun.length, before, 'no message request reached Mailgun');
+    // The request log masks the domain and the (long) template name.
+    const check = live.results.at(-1);
+    assert.ok(
+      check?.method === 'GET' && check.path.startsWith('/v3/<domain>/templates/'),
+      'the last request was the template check'
+    );
+    assert.equal(check.status, 404, 'Mailgun reports the deleted template as 404');
   }
 );
 

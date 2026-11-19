@@ -22,8 +22,9 @@ const { getAdapter, WEBHOOK_PROVIDERS } = require('../providers');
  *   provider's next retry is processed. The in-memory map is a first-level
  *   cache in front of the table.
  * - Outcomes (see README "Bounces and complaints"):
- *   bounced (hard bounce), blocked (SendGrid block, final), dropped (SendGrid
- *   drop for a sender-side reason, final), deferred, delivered, complained,
+ *   bounced (hard bounce), blocked (SendGrid block or Mailgun `espblock`,
+ *   final), dropped (SendGrid drop for a sender-side reason, or a Mailgun
+ *   template that no longer exists, final), deferred, delivered, complained,
  *   unsubscribed, resubscribed. Each is stored on the email log (primary
  *   recipient only) plus one email event, and emitted on `strapi.eventHub` as
  *   `magic-mail.delivery.<outcome>` with
@@ -45,6 +46,9 @@ const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 
 const PROVIDERS = new Set(WEBHOOK_PROVIDERS);
 const ACCOUNT_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
+/** Mailgun delivery-status code for "Template not found" (Mailgun-internal, not SMTP). */
+const MAILGUN_TEMPLATE_NOT_FOUND_CODE = 621;
+
 /** Log documentId sent as SendGrid custom_args / Mailgun v: variable `magicmail_id`. */
 const MAGICMAIL_ID_PATTERN = /^[A-Za-z0-9]{1,64}$/;
 const EVENT_ID_PATTERN = /^[\x21-\x7e]{1,128}$/;
@@ -340,11 +344,22 @@ function parseSendGridEvents(payload) {
  * Maps one Mailgun webhook (`event-data`) to a delivery event.
  *
  * Sources: https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhooks
- * (event types) and the Mailgun API bundle `EventSeverityType` (temporary =
- * Mailgun retries, permanent = no retry).
+ * (event types), the Mailgun API bundle `EventSeverityType` (temporary =
+ * Mailgun retries, permanent = no retry) and the Mailgun OpenAPI metrics
+ * (`hard_bounces` / `soft_bounces` by `delivery-status.bounce-type`,
+ * `esp_block` by reason `espblock`).
  * - failed + permanent -> bounced; suppressible unless the reason is
- *   `suppress-*` (Mailgun's own list already blocked it) or `old`.
- * - failed + temporary -> deferred.
+ *   `suppress-*` (Mailgun's own list already blocked it) or `old`, or
+ *   Mailgun classified it as a soft bounce (`bounce-type: soft`).
+ * - failed + permanent + reason `espblock` -> blocked, never suppressed: the
+ *   recipient's provider refused the sender (reputation, authentication),
+ *   not the address. Seen live 2026-11-19: 550 5.7.40 with `bounce-type:
+ *   soft`; Mailgun did not add the address to its own bounce list.
+ * - failed + delivery-status code 621 ("Template not found", a Mailgun code,
+ *   not SMTP; seen live 2026-11-19 as severity temporary, retried every
+ *   600 s) -> deferred while temporary, dropped (failed) when permanent;
+ *   reason code MAILGUN_TEMPLATE_NOT_FOUND, never suppressed.
+ * - failed + temporary -> deferred, never suppressed.
  * - complained, unsubscribed, delivered.
  * - opened, clicked (counted only for provider-tracked logs).
  *
@@ -368,10 +383,24 @@ function parseMailgunEvent(eventData) {
     suppress: null,
     notDelivered: false,
   };
-  const smtp = eventData['delivery-status'] && eventData['delivery-status'].code;
+  const status =
+    eventData['delivery-status'] && typeof eventData['delivery-status'] === 'object'
+      ? eventData['delivery-status']
+      : {};
+  const smtp = status.code;
+  const templateMissing = Number(smtp) === MAILGUN_TEMPLATE_NOT_FOUND_CODE;
   if (eventData.event === 'failed' && eventData.severity === 'permanent') {
     const reason = typeof eventData.reason === 'string' ? eventData.reason : '';
-    const suppressible = !reason.startsWith('suppress-') && reason !== 'old';
+    if (templateMissing) {
+      return [
+        { ...base, kind: 'dropped', reasonCode: reasonCode('mailgun', 'template-not-found') },
+      ];
+    }
+    if (reason === 'espblock') {
+      return [{ ...base, kind: 'blocked', reasonCode: reasonCode('mailgun', reason, smtp) }];
+    }
+    const suppressible =
+      !reason.startsWith('suppress-') && reason !== 'old' && status['bounce-type'] !== 'soft';
     return [
       {
         ...base,
@@ -382,7 +411,15 @@ function parseMailgunEvent(eventData) {
     ];
   }
   if (eventData.event === 'failed' && eventData.severity === 'temporary') {
-    return [{ ...base, kind: 'deferred', reasonCode: reasonCode('mailgun', 'deferred', smtp) }];
+    return [
+      {
+        ...base,
+        kind: 'deferred',
+        reasonCode: templateMissing
+          ? reasonCode('mailgun', 'template-not-found')
+          : reasonCode('mailgun', 'deferred', smtp),
+      },
+    ];
   }
   if (eventData.event === 'complained') {
     return [
