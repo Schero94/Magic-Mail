@@ -18,7 +18,14 @@ import {
 } from './styles';
 import { getWebhookUrl, validateCredentials } from './wizardState';
 
-const code = (chunks) => <code>{chunks}</code>;
+/**
+ * Inline code for a message value. Keyed, because react-intl returns the
+ * message parts as an array.
+ *
+ * @param {string} text
+ * @param {string} key
+ */
+const code = (text, key) => <code key={key}>{text}</code>;
 
 /**
  * Absolute webhook URL of a saved account, or null before the first save.
@@ -351,8 +358,8 @@ export const BrevoFields = ({ form, onChange, isEditMode, accountId, unreadableA
             'accountModal.brevo.resourcesBody',
             'The From address must be a verified sender or belong to an authenticated domain in Brevo. Brevo templates use {code1}: Magic Mail sends your data under params, so the key name becomes {code2}. Open and click tracking is an account setting in Brevo.',
             {
-              code1: code('{{ params.name }}'),
-              code2: code('params.name'),
+              code1: code('{{ params.name }}', 'code1'),
+              code2: code('params.name', 'code2'),
             }
           )}
         </StaticAlert>
@@ -454,9 +461,9 @@ export const SesFields = ({ form, onChange, isEditMode, accountId, unreadableAle
               'accountModal.ses.environmentBody',
               'Magic Mail reads {a}, {b} and, for temporary role credentials, {c} from the environment of the Strapi process at every request. Use this when your platform injects role credentials as environment variables. Magic Mail never queries the EC2 instance metadata or ECS credential endpoints.',
               {
-                a: code('AWS_ACCESS_KEY_ID'),
-                b: code('AWS_SECRET_ACCESS_KEY'),
-                c: code('AWS_SESSION_TOKEN'),
+                a: code('AWS_ACCESS_KEY_ID', 'a'),
+                b: code('AWS_SECRET_ACCESS_KEY', 'b'),
+                c: code('AWS_SESSION_TOKEN', 'c'),
               }
             )}
           </StaticAlert>
@@ -616,7 +623,7 @@ export const SesFields = ({ form, onChange, isEditMode, accountId, unreadableAle
           {t(
             'accountModal.ses.resourcesBody',
             'SES templates use the same {code1} variables as Magic Mail, so your data keys stay the same. Test sends to success@simulator.amazonses.com work in the sandbox.',
-            { code1: code('{{name}}') }
+            { code1: code('{{name}}', 'code1') }
           )}
         </StaticAlert>
       </Flex>
