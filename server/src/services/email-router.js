@@ -13,6 +13,7 @@ const { checkRecipientDomains } = require('../utils/recipient-domains');
 const { toPlainJson } = require('../utils/plain-json');
 const { canonicalLocale } = require('../utils/locale');
 const { getAdapter, TEMPLATE_PROVIDERS } = require('../providers');
+const { checkMailgunTemplate } = require('../utils/provider-api');
 const {
   classifyDeliveryError,
   combineOutcome,
@@ -53,6 +54,19 @@ const MAX_ROUTING_CANDIDATES = 25;
 const SENDGRID_MAX_MESSAGE_BYTES = 30_000_000;
 const MAILGUN_MAX_MESSAGE_BYTES = 25_000_000;
 const MAILGUN_MAX_OPTIONS_BYTES = 16 * 1024;
+
+/**
+ * Pre-send Mailgun template check cache: positive results only, per
+ * account + region + domain + scope + template name, for 60 s, so a bulk
+ * send makes one extra request per template and minute, not one per mail.
+ * Per process; a template deleted at Mailgun is noticed within the TTL.
+ */
+const MAILGUN_TEMPLATE_CHECK_TTL_MS = 60_000;
+const MAILGUN_TEMPLATE_CHECK_MAX_ENTRIES = 1000;
+/** @type {Map<string, number>} cache key -> expiry (ms since epoch) */
+const mailgunTemplateChecks = new Map();
+/** @type {Map<string, Promise<string>>} checks in flight, shared by parallel sends */
+const mailgunTemplateChecksInFlight = new Map();
 /** Raw (decoded) size of all attachments of one message, for every provider. */
 const MAX_TOTAL_ATTACHMENT_BYTES = 40 * 1024 * 1024;
 /** A provider error body is read up to this size, parsed, then discarded. */
@@ -3319,7 +3333,10 @@ module.exports = ({ strapi }) => ({
    * @throws {Error} Account configuration error (key, domain, region)
    * @throws {errors.ValidationError} Invalid message, or MAGIC_MAIL_MESSAGE_TOO_LARGE
    * @throws {Error} "Mailgun API request failed: <status>" with `status` and `provider`
-   * @sideeffect One HTTPS request to Mailgun with the recipients and content.
+   * @throws {Error} ProviderTemplateError MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE when a
+   *   template send names a template that is gone at Mailgun (see ensureMailgunTemplateAvailable)
+   * @sideeffect One HTTPS request to Mailgun with the recipients and content; for a
+   *   template send, first a cached template check (GET, at most once a minute).
    */
   async sendViaMailgun(account, emailData) {
     const config = readAccountSecret(account.config);
@@ -3347,6 +3364,10 @@ module.exports = ({ strapi }) => ({
     }
 
     this.validateEmailSecurity(emailData);
+
+    if (template) {
+      await this.ensureMailgunTemplateAvailable(account, { ...config, domain }, region, template);
+    }
 
     try {
       const form = new FormData();
@@ -3457,6 +3478,80 @@ module.exports = ({ strapi }) => ({
       strapi.log.error(`[magic-mail] Mailgun send failed: ${err?.name || 'Error'}`);
       throw err;
     }
+  },
+
+  /**
+   * Refuses a Mailgun template send when the template was deleted at Mailgun
+   * (or lost its active version) after Magic Mail synced it. Mailgun accepts
+   * such a send with 200 "Queued" and drops the message later (event
+   * `failed`, delivery-status 621 "Template not found"), so without this
+   * check the mail would be logged as sent and be lost.
+   *
+   * Positive results are cached for 60 s per account and template. A 404 or a
+   * template without an active version throws MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE
+   * before any message request: marked pre-dispatch (the next account that
+   * has the template may send) and fallback-safe (the configured Magic Mail
+   * fallback template applies). Any other outcome of the check (network,
+   * timeout, 401/403, 429, 5xx, unreadable body) does not block the send: it
+   * logs a warning and the send goes ahead.
+   *
+   * @param {object} account - Mailgun account (documentId keys the cache)
+   * @param {{apiKey: string, domain: string}} config - Decrypted config, normalised domain
+   * @param {'us'|'eu'} region
+   * @param {{name: string, scope: string}} template - Result of providerTemplateFor()
+   * @returns {Promise<void>}
+   * @throws {Error} ProviderTemplateError MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE
+   * @sideeffect At most one HTTPS GET to Mailgun per account, template and minute.
+   */
+  async ensureMailgunTemplateAvailable(account, config, region, template) {
+    const scope = template.scope === 'account' ? 'account' : 'domain';
+    const cacheKey = [
+      account.documentId || account.id || '',
+      region,
+      config.domain,
+      scope,
+      template.name,
+    ].join('\u0000');
+    const now = Date.now();
+    const expiresAt = mailgunTemplateChecks.get(cacheKey);
+    if (expiresAt && expiresAt > now) return;
+    if (expiresAt) mailgunTemplateChecks.delete(cacheKey);
+
+    let pending = mailgunTemplateChecksInFlight.get(cacheKey);
+    if (!pending) {
+      pending = checkMailgunTemplate(config, region, { name: template.name, scope });
+      mailgunTemplateChecksInFlight.set(cacheKey, pending);
+      pending.finally(() => mailgunTemplateChecksInFlight.delete(cacheKey)).catch(() => {});
+    }
+
+    let state;
+    try {
+      state = await pending;
+    } catch (error) {
+      strapi.log.warn(
+        `[magic-mail] Mailgun template check failed (${error?.code || error?.name || 'Error'}); sending without it`
+      );
+      return;
+    }
+
+    if (state === 'available') {
+      if (mailgunTemplateChecks.size >= MAILGUN_TEMPLATE_CHECK_MAX_ENTRIES) {
+        // Map keeps insertion order: drop the oldest entry.
+        mailgunTemplateChecks.delete(mailgunTemplateChecks.keys().next().value);
+      }
+      mailgunTemplateChecks.set(cacheKey, Date.now() + MAILGUN_TEMPLATE_CHECK_TTL_MS);
+      return;
+    }
+
+    strapi.log.warn(
+      `[magic-mail] Mailgun template is ${state === 'missing' ? 'deleted' : 'without an active version'} at the provider; message not sent`
+    );
+    throw tagPreDispatch(
+      providerTemplateError(
+        `The Mailgun template "${template.name}" is deleted or has no active version at Mailgun. Sync the provider templates in Magic Mail`,
+        'MAGIC_MAIL_PROVIDER_TEMPLATE_UNAVAILABLE'
+      )
+    );
   },
 
   /** @returns {string} Configured quota time zone (default UTC) */
@@ -3765,6 +3860,12 @@ module.exports = ({ strapi }) => ({
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
+  MAILGUN_TEMPLATE_CHECK_TTL_MS,
+  /** Empties the pre-send Mailgun template check cache (tests only). */
+  resetMailgunTemplateChecks: () => {
+    mailgunTemplateChecks.clear();
+    mailgunTemplateChecksInFlight.clear();
+  },
   providerSendHelpers,
   MAILGUN_MAX_MESSAGE_BYTES,
   MAILGUN_MAX_OPTIONS_BYTES,
