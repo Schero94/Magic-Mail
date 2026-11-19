@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.9.1](https://github.com/Schero94/Magic-Mail/compare/v4.9.0...v4.9.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **mailgun:** refuse deleted Mailgun templates before sending; no suppression for ESP blocks ([#29](https://github.com/Schero94/Magic-Mail/issues/29)) ([4ac0ba3](https://github.com/Schero94/Magic-Mail/commit/4ac0ba39c5a6c603c199e4e7100c8a01833b1655))
+
 
 ### Fixed
 
