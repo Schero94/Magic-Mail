@@ -61,6 +61,7 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 - [Security and privacy](#security-and-privacy)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
+- [Showcase your company](#showcase-your-company)
 
 ## Screenshots
 
@@ -311,6 +312,12 @@ The gate script runs from the default branch and reads lockfiles and reports as 
 **Maintenance status.** Actively maintained. Releases follow semantic versioning and support the Strapi 5 line.
 
 **Languages.** The admin UI is available in English, German, French, Spanish and Portuguese.
+
+## Showcase your company
+
+Using MagicMail in production? [Add your company](https://github.com/Schero94/Magic-Mail/issues/new?template=showcase.yml) to the "Used by" section of the [documentation site](https://schero94.github.io/Magic-Mail/#used-by). The form asks for the company name, the website, a logo (PNG, JPEG or WebP, uploaded to the issue) and an optional one-line description.
+
+A maintainer reviews every request and approves it with the `showcase-approved` label. `.github/workflows/showcase.yml` then validates the issue with `.github/scripts/showcase.mjs`, converts the logo to a WebP of at most 320 x 160 pixels and opens a `docs:` pull request that changes `docs/site/showcase.json`. The logo appears on the site after that pull request is merged. Website links carry `rel="ugc noopener"`. To remove an entry, open an issue that names the company; a maintainer then applies the `showcase-remove` label.
 
 ## License
 

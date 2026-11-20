@@ -43,6 +43,10 @@ Configuration essentials:
 - Set Strapi `server.url` to the public URL (OAuth redirects, tracking links) and `server.proxy.koa: true` behind a reverse proxy.
 - Keep `MAGIC_MAIL_ENCRYPTION_KEY` stable; without it stored account credentials cannot be read.
 
+## Used by
+
+No companies are listed yet. Using MagicMail in production? Add your company: https://github.com/Schero94/Magic-Mail/issues/new?template=showcase.yml
+
 ## Docs
 
 - [Documentation site](https://schero94.github.io/Magic-Mail/): overview, screenshots, install, outbox, bounces, several instances, configuration, security, API, FAQ
