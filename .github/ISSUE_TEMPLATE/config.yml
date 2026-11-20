@@ -12,3 +12,6 @@ contact_links:
   - name: ⭐ Star on GitHub
     url: https://github.com/Schero94/Magic-Mail
     about: Show your support by starring the repository
+  - name: 🏢 Used by
+    url: https://schero94.github.io/Magic-Mail/#used-by
+    about: See the companies that use MagicMail. To add yours, choose "Showcase your company" above.
