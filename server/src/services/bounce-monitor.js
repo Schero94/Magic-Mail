@@ -31,6 +31,7 @@ const { parseBounce, looksLikeBounce, MAX_RAW_BYTES } = require('../utils/bounce
 const { decryptCredentials, purposeHmac } = require('../utils/encryption');
 const { normalizeMessageId } = require('../utils/message-id');
 const { describeErrorForLog } = require('../utils/client-errors');
+const { isLogRecipient } = require('../utils/log-recipients');
 
 const ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -50,6 +51,8 @@ const MAX_MESSAGES_PER_POLL = 500;
 const MAX_DOWNLOADS_PER_POLL = 100;
 const HTTP_TIMEOUT_MS = 20_000;
 const MATCH_WINDOW_MS = 7 * 24 * 3600_000;
+/** Log matches that prove the report refers to a mail we sent (MM-SA-04). */
+const STRONG_MATCHES = new Set(['outbox', 'message-id']);
 /** Folder names: 1-200 characters without control characters. */
 const isSafeFolder = (value) =>
   typeof value === 'string' &&
@@ -419,6 +422,7 @@ module.exports = ({ strapi }) => {
       'bounced',
       'deliveryStatus',
       'recipient',
+      'metadata',
     ];
     if (parsed.outboxId) {
       const row = await strapi.db
@@ -602,7 +606,12 @@ module.exports = ({ strapi }) => {
       if (hard) counts.bounced += 1;
       else counts.deferred += 1;
 
-      if (hard && global.suppressHardBounces) {
+      // Anyone can mail the monitored mailbox a delivery report. Only a report
+      // bound to a mail we sent (outbox header or its random Message-ID) may
+      // suppress, and only an address that mail went to (MM-SA-04).
+      const trusted =
+        Boolean(log) && STRONG_MATCHES.has(quality) && isLogRecipient(log, recipient.address);
+      if (hard && global.suppressHardBounces && trusted) {
         await suppressAddress({
           address: recipient.address,
           reasonCode: recipient.reasonCode,

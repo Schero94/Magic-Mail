@@ -1253,7 +1253,7 @@ function createMessageId(account, localPart) {
   if (typeof localPart === 'string' && /^[a-z0-9]{8,64}$/.test(localPart)) {
     return `<${localPart}@${domain}>`;
   }
-  return `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
+  return `<${Date.now()}.${crypto.randomBytes(12).toString('hex')}@${domain}>`;
 }
 
 /**
@@ -2190,6 +2190,12 @@ module.exports = ({ strapi }) => ({
         templateName: data.templateName || renderedTemplate?.templateName || null,
         accountId: null,
         accountName: null,
+        // Hashed into the log only (MM-SA-04); cc/bcc are never stored in clear.
+        recipientAddresses: [
+          ...listAddresses(data.to),
+          ...listAddresses(data.cc),
+          ...listAddresses(data.bcc),
+        ],
         messageIdLocal: data.__messageIdLocal,
         ...(data.__providerTracking === true ? { providerTracking: true } : {}),
         metadata: {

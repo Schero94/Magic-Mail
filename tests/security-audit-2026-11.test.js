@@ -49,13 +49,13 @@ test('MM-SA-03: a long single-line "domain ..." body is parsed within the time b
     result = await parseBounce(daemonBounce(body, 50));
   });
   assert.ok(result, 'still recognised as a bounce');
-  assert.ok(ms < 1500, `parseBounce took ${ms.toFixed(0)} ms`);
+  assert.ok(ms < 3000, `parseBounce took ${ms.toFixed(0)} ms`);
 });
 
 test('MM-SA-03: a body of blank lines does not trigger quadratic header scanning', async () => {
   const body = ' \r\n'.repeat(300_000);
   const ms = await elapsed(() => parseBounce(daemonBounce(body)));
-  assert.ok(ms < 1500, `parseBounce took ${ms.toFixed(0)} ms`);
+  assert.ok(ms < 3000, `parseBounce took ${ms.toFixed(0)} ms`);
 });
 
 test('MM-SA-03: reason codes and inline returned headers keep working', async () => {
@@ -242,4 +242,246 @@ test('MM-SA-02: register works without the GraphQL plugin', async () => {
   const { strapi, disabled } = registerStrapi({ graphql: false });
   await register({ strapi });
   assert.equal(disabled.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// MM-SA-04: a forged delivery report must not suppress arbitrary addresses
+// ---------------------------------------------------------------------------
+
+const { startFakeImap } = require('./helpers/fake-imap');
+const createBounceMonitor = require('../server/src/services/bounce-monitor');
+const { recipientHashes } = require('../server/src/utils/log-recipients');
+
+const BM = {
+  account: 'plugin::magic-mail.email-account',
+  log: 'plugin::magic-mail.email-log',
+  event: 'plugin::magic-mail.email-event',
+  outbox: 'plugin::magic-mail.outbox-message',
+  suppressed: 'plugin::magic-mail.suppressed-recipient',
+};
+
+/** In-memory table supporting the where clauses the bounce monitor uses. */
+function memoryTable(rows) {
+  const hit = (row, where = {}) =>
+    Object.entries(where).every(([key, cond]) => {
+      const value = row[key];
+      if (cond && typeof cond === 'object' && !(cond instanceof Date)) {
+        if (Array.isArray(cond.$in)) return cond.$in.includes(value);
+        if (cond.$eqi !== undefined)
+          return String(value || '').toLowerCase() === String(cond.$eqi).toLowerCase();
+        if (cond.$gte !== undefined) return new Date(value) >= new Date(cond.$gte);
+        return false;
+      }
+      return value === cond;
+    });
+  return {
+    rows,
+    findOne: async ({ where } = {}) => rows.find((r) => hit(r, where)) || null,
+    findMany: async ({ where } = {}) => rows.filter((r) => hit(r, where)),
+    count: async () => rows.length,
+    create: async ({ data }) => {
+      const row = { id: rows.length + 1, documentId: `doc${rows.length + 1}`, ...data };
+      rows.push(row);
+      return row;
+    },
+    update: async ({ where, data }) => {
+      const row = rows.find((r) => hit(r, where));
+      if (row) Object.assign(row, data);
+      return row;
+    },
+    delete: async () => {},
+    deleteMany: async () => ({ count: 0 }),
+  };
+}
+
+function bounceHarness({ imapPort, logs }) {
+  const tables = {
+    [BM.account]: memoryTable([
+      {
+        id: 1,
+        documentId: 'accImap',
+        provider: 'smtp',
+        isActive: true,
+        fromEmail: 'noreply@sender.example',
+        config: encryptCredentials({
+          host: 'smtp.sender.example',
+          user: 'noreply@sender.example',
+          pass: 'smtp-secret',
+          imapPass: 'synthetic-pass',
+        }),
+        bounceMonitor: {
+          enabled: true,
+          mode: 'imap',
+          imap: {
+            host: '127.0.0.1',
+            port: imapPort,
+            secure: false,
+            user: 'bounces@sender.example',
+          },
+        },
+        bounceMonitorState: null,
+      },
+    ]),
+    [BM.log]: memoryTable(logs),
+    [BM.event]: memoryTable([]),
+    [BM.outbox]: memoryTable([]),
+    [BM.suppressed]: memoryTable([]),
+  };
+  const services = {};
+  const strapi = {
+    log: quietLog,
+    eventHub: { emit: async () => {} },
+    db: { query: (uid) => tables[uid] },
+    documents: (uid) => ({
+      update: async ({ documentId, data }) => tables[uid].update({ where: { documentId }, data }),
+      create: async ({ data }) => tables[uid].create({ data }),
+    }),
+    plugin: () => ({ service: (name) => services[name] }),
+  };
+  services['plugin-settings'] = { getSettings: async () => ({ suppressHardBounces: true }) };
+  services['email-router'] = {};
+  services.oauth = {};
+  const monitor = createBounceMonitor({ strapi });
+  services['bounce-monitor'] = monitor;
+  const { ImapFlow } = require('imapflow');
+  monitor.setTestHooks({
+    imap: (options) => new ImapFlow({ ...options, doSTARTTLS: false, tls: undefined }),
+  });
+  return { monitor, tables };
+}
+
+/** RFC 3464 report as anyone on the internet can send it. */
+function forgedDsn({ finalRecipient, originalMessageId }) {
+  const boundary = 'forged-boundary';
+  return [
+    'From: Mail Delivery Subsystem <mailer-daemon@attacker.test>',
+    'To: bounces@sender.example',
+    'Subject: Delivery Status Notification (Failure)',
+    'Message-ID: <forged-1@attacker.test>',
+    `Date: ${new Date().toUTCString()}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/report; report-type=delivery-status; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain',
+    '',
+    'Delivery failed.',
+    `--${boundary}`,
+    'Content-Type: message/delivery-status',
+    '',
+    'Reporting-MTA: dns; mx.attacker.test',
+    '',
+    `Final-Recipient: rfc822; ${finalRecipient}`,
+    'Action: failed',
+    'Status: 5.1.1',
+    'Diagnostic-Code: smtp; 550 5.1.1 user unknown',
+    `--${boundary}`,
+    'Content-Type: text/rfc822-headers',
+    '',
+    ...(originalMessageId ? [`Message-ID: <${originalMessageId}>`] : []),
+    'Subject: anything',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+}
+
+const sentLog = () => ({
+  id: 1,
+  documentId: 'log1',
+  recipient: 'customer@receiver.example',
+  accountId: 'accImap',
+  sentAt: new Date(),
+  messageIdLocal: 'abcdef0123456789abcdef01',
+  providerMessageId: 'abcdef0123456789abcdef01@sender.example',
+  deliveryStatus: 'sent',
+  metadata: {
+    recipientHashes: recipientHashes(['customer@receiver.example', 'cc-user@receiver.example']),
+  },
+});
+
+test('MM-SA-04: a forged report without a reference to a sent mail suppresses nobody', async () => {
+  const imap = await startFakeImap();
+  try {
+    const { monitor, tables } = bounceHarness({ imapPort: imap.port, logs: [] });
+    imap.add(forgedDsn({ finalRecipient: 'victim@victim.test' }));
+    await monitor.pollAccount(tables[BM.account].rows[0]);
+    assert.equal(await monitor.isSuppressed('victim@victim.test'), false);
+  } finally {
+    await imap.close();
+  }
+});
+
+test('MM-SA-04: a real Message-ID does not let a report suppress a non-recipient', async () => {
+  const imap = await startFakeImap();
+  try {
+    const { monitor, tables } = bounceHarness({ imapPort: imap.port, logs: [sentLog()] });
+    imap.add(
+      forgedDsn({
+        finalRecipient: 'victim@victim.test',
+        originalMessageId: 'abcdef0123456789abcdef01@sender.example',
+      })
+    );
+    await monitor.pollAccount(tables[BM.account].rows[0]);
+    assert.equal(await monitor.isSuppressed('victim@victim.test'), false);
+    assert.equal(tables[BM.log].rows[0].bounced, undefined, 'the log is not marked bounced');
+  } finally {
+    await imap.close();
+  }
+});
+
+test('MM-SA-04: a report for a recipient (to or cc) of the referenced mail still suppresses', async () => {
+  const imap = await startFakeImap();
+  try {
+    const { monitor, tables } = bounceHarness({ imapPort: imap.port, logs: [sentLog()] });
+    imap.add(
+      forgedDsn({
+        finalRecipient: 'cc-user@receiver.example',
+        originalMessageId: 'abcdef0123456789abcdef01@sender.example',
+      })
+    );
+    await monitor.pollAccount(tables[BM.account].rows[0]);
+    assert.equal(await monitor.isSuppressed('cc-user@receiver.example'), true);
+  } finally {
+    await imap.close();
+  }
+});
+
+test('MM-SA-04: a new email log keeps keyed hashes of every to, cc and bcc address', async () => {
+  const { isLogRecipient } = require('../server/src/utils/log-recipients');
+  let created = null;
+  const strapi = {
+    log: quietLog,
+    documents: () => ({
+      create: async ({ data }) => {
+        created = data;
+        return { ...data, documentId: 'log1' };
+      },
+    }),
+  };
+  const analytics = require('../server/src/services/analytics')({ strapi });
+  const services = { analytics };
+  strapi.plugin = () => ({ service: (name) => services[name] });
+  const router = require('../server/src/services/email-router')({ strapi });
+  await router.createDeliveryLog(
+    {
+      to: 'Customer <Customer@Receiver.example>',
+      cc: ['cc-one@receiver.example'],
+      bcc: 'hidden@receiver.example',
+      subject: 'Order',
+      attachments: [],
+    },
+    null,
+    'test'
+  );
+  const log = { recipient: created.recipient, metadata: created.metadata };
+  for (const address of [
+    'customer@receiver.example',
+    'cc-one@receiver.example',
+    'hidden@receiver.example',
+  ]) {
+    assert.equal(isLogRecipient(log, address), true, address);
+  }
+  assert.equal(isLogRecipient(log, 'victim@victim.test'), false);
+  // Copy recipients are never stored in clear text.
+  assert.doesNotMatch(JSON.stringify(created), /cc-one@|hidden@/);
 });

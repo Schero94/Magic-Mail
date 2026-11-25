@@ -16,6 +16,7 @@ const path = require('node:path');
 process.env.MAGIC_MAIL_ENCRYPTION_KEY = 'synthetic-encryption-key-0123456789abcdef0123';
 
 const { encryptCredentials } = require('../server/src/utils/encryption');
+const { recipientHashes } = require('../server/src/utils/log-recipients');
 const { startFakeImap } = require('./helpers/fake-imap');
 const createBounceMonitor = require('../server/src/services/bounce-monitor');
 
@@ -234,6 +235,10 @@ test('IMAP: a bounce for a CC recipient leaves the primary log untouched (MM-DO-
           messageIdLocal: 'a1b2c3d4e5f6a7b8c9d0e1f2',
           providerMessageId: 'a1b2c3d4e5f6a7b8c9d0e1f2@sender.example',
           deliveryStatus: 'sent',
+          // createEmailLog keeps keyed hashes of every to/cc/bcc (MM-SA-04).
+          metadata: {
+            recipientHashes: recipientHashes(['primary@nowhere.test', 'pool-user-1@nowhere.test']),
+          },
         },
       ],
       settings: { suppressHardBounces: true },
