@@ -28,6 +28,8 @@ const { normalizeMessageId } = require('./message-id');
 /** Raw messages above this size are never parsed (bounces are small). */
 const MAX_RAW_BYTES = 1024 * 1024;
 const MAX_RECIPIENTS = 50;
+/** Diagnostic text inspected for a reason code (the start is enough). */
+const MAX_DIAGNOSTIC_CHARS = 4096;
 const ADDRESS_PATTERN = /^[^\s@<>()",;:]{1,64}@[^\s@<>()",;:]{1,253}$/;
 const BOUNCE_SENDER_PATTERN =
   /(^|[<\s"])(mailer-daemon|postmaster|mail[-.]?delivery[-.]?(subsystem|system)?|microsoftexchange[0-9a-f]{0,40})@/i;
@@ -97,9 +99,14 @@ function cleanAddress(value) {
  * @returns {string}
  */
 function reasonCodeFor(status, diagnostic) {
-  const text = String(diagnostic || '');
+  // Only the start of a diagnostic text carries the reason; bodies of
+  // non-standard bounces can be up to MAX_RAW_BYTES of attacker-chosen text.
+  const text = String(diagnostic || '').slice(0, MAX_DIAGNOSTIC_CHARS);
+  // Every quantifier is bounded: `domain .* could not be found` was
+  // quadratic on long single-line bodies (one remote mail blocked the event
+  // loop for minutes).
   if (
-    /NXDOMAIN|domain name not found|host or domain name not found|domain .* (couldn't|could not) be found|no such domain/i.test(
+    /NXDOMAIN|domain name not found|host or domain name not found|domain [^\r\n]{0,200}? (?:couldn't|could not) be found|no such domain/i.test(
       text
     )
   ) {
@@ -246,20 +253,23 @@ async function parseBounce(raw) {
   // Non-standard bounce: only from a mailer daemon with X-Failed-Recipients.
   const failed = headerValue(email.headers, 'x-failed-recipients');
   if (!fromDaemon || !failed) return null;
+  // One status and reason for the whole message (the body is shared by all
+  // listed recipients): computed once, not once per recipient.
+  const statusMatch = textBody.match(STATUS_PATTERN);
+  const status = statusMatch ? statusMatch[0] : null;
+  const kind = status && status.startsWith('4') ? 'soft' : 'hard';
+  const reasonCode = reasonCodeFor(status, textBody);
   const recipients = [];
   for (const part of failed.split(',')) {
     if (recipients.length >= MAX_RECIPIENTS) break;
     const address = cleanAddress(part);
     if (!address) continue;
-    const statusMatch = textBody.match(STATUS_PATTERN);
-    const status = statusMatch ? statusMatch[0] : null;
-    const kind = status && status.startsWith('4') ? 'soft' : 'hard';
     recipients.push({
       address,
       action: kind === 'hard' ? 'failed' : 'delayed',
       status,
       kind,
-      reasonCode: reasonCodeFor(status, textBody),
+      reasonCode,
     });
   }
   if (!recipients.length) return null;
@@ -283,10 +293,21 @@ async function parseBounce(raw) {
  */
 function parseInlineReturnedHeaders(text) {
   const out = {};
-  const messageId = String(text).match(/^\s*Message-ID:\s*(<[^>\s]{1,255}>)/im);
-  if (messageId) out['message-id'] = messageId[1];
-  const outbox = String(text).match(/^\s*X-MagicMail-Outbox:\s*([A-Za-z0-9]{1,64})\s*$/im);
-  if (outbox) out['x-magicmail-outbox'] = outbox[1];
+  // Line by line: a multiline `^\s*` regex rescans every following line from
+  // each line start (quadratic on bodies made of blank lines).
+  for (const rawLine of String(text).split('\n')) {
+    if (out['message-id'] && out['x-magicmail-outbox']) break;
+    const line = rawLine.replace(/^[ \t]+/, '');
+    if (line.length > 400) continue;
+    if (!out['message-id']) {
+      const messageId = line.match(/^Message-ID:[ \t]*(<[^>\s]{1,255}>)/i);
+      if (messageId) out['message-id'] = messageId[1];
+    }
+    if (!out['x-magicmail-outbox']) {
+      const outbox = line.match(/^X-MagicMail-Outbox:[ \t]*([A-Za-z0-9]{1,64})[ \t\r]*$/i);
+      if (outbox) out['x-magicmail-outbox'] = outbox[1];
+    }
+  }
   return out;
 }
 
