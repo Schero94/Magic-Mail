@@ -198,3 +198,48 @@ test('MM-SA-01: unchanged hosts, port changes and the server-derived IMAP host n
   });
   assert.equal(accounts[0].bounceMonitor.imap.port, 143);
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-02: GraphQL shadow CRUD must not expose the plugin's content types
+// ---------------------------------------------------------------------------
+
+/** Strapi stub for server/src/register.js with an optional GraphQL plugin. */
+function registerStrapi({ graphql }) {
+  const disabled = [];
+  const plugins = {
+    graphql: graphql
+      ? {
+          service: (name) =>
+            name === 'extension'
+              ? { shadowCRUD: (uid) => ({ disable: () => disabled.push(uid) }) }
+              : null,
+        }
+      : undefined,
+  };
+  return {
+    disabled,
+    strapi: {
+      server: { use() {} },
+      config: { get: (_key, fallback) => fallback },
+      admin: { services: { permission: { actionProvider: { registerMany: async () => {} } } } },
+      plugin: (name) => plugins[name],
+    },
+  };
+}
+
+test('MM-SA-02: register disables GraphQL shadow CRUD for every Magic Mail content type', async () => {
+  const register = require('../server/src/register');
+  const contentTypes = require('../server/src/content-types');
+  const { strapi, disabled } = registerStrapi({ graphql: true });
+  await register({ strapi });
+  const expected = Object.keys(contentTypes).map((name) => `plugin::magic-mail.${name}`);
+  assert.ok(expected.includes('plugin::magic-mail.email-log'));
+  assert.deepEqual([...disabled].sort(), [...expected].sort());
+});
+
+test('MM-SA-02: register works without the GraphQL plugin', async () => {
+  const register = require('../server/src/register');
+  const { strapi, disabled } = registerStrapi({ graphql: false });
+  await register({ strapi });
+  assert.equal(disabled.length, 0);
+});

@@ -2,8 +2,35 @@
 
 const { getRestPrefix } = require('./services/analytics');
 const { createWebhookRawBodyMiddleware, DEFAULT_LIMIT_BYTES } = require('./utils/webhook-raw-body');
+const contentTypes = require('./content-types');
 
-module.exports = ({ strapi }) => {
+/**
+ * Keeps every Magic Mail content type out of the GraphQL schema (MM-SA-02).
+ *
+ * `@strapi/plugin-graphql` builds shadow CRUD queries and mutations for every
+ * content type except `admin::` ones. Magic Mail's types are internal admin
+ * data (email logs with recipients and subjects, events, link targets,
+ * suppressions, templates, routing rules, settings, outbox): exposed, any
+ * read-only API token could read them and a full-access token could change
+ * them, bypassing the plugin's admin permissions. Must run in `register`,
+ * before the GraphQL plugin builds its schema in `bootstrap`.
+ *
+ * @param {object} strapi
+ * @returns {string[]} the content type uids that were disabled
+ * @sideeffect Disables GraphQL shadow CRUD for `plugin::magic-mail.*`.
+ */
+const disableGraphqlShadowCrud = (strapi) => {
+  const graphql = strapi.plugin?.('graphql');
+  const extension = graphql?.service?.('extension');
+  if (!extension || typeof extension.shadowCRUD !== 'function') return [];
+  const uids = Object.keys(contentTypes).map((name) => `plugin::magic-mail.${name}`);
+  for (const uid of uids) extension.shadowCRUD(uid).disable();
+  return uids;
+};
+
+const register = ({ strapi }) => {
+  disableGraphqlShadowCrud(strapi);
+
   // Delivery webhooks are verified over the exact request bytes. This runs
   // before the global strapi::body parser, which is registered at bootstrap.
   // The limit comes from the validated plugin config (webhooks.maxBodyBytes).
@@ -59,3 +86,6 @@ module.exports = ({ strapi }) => {
     },
   ]);
 };
+
+module.exports = register;
+module.exports.disableGraphqlShadowCrud = disableGraphqlShadowCrud;
