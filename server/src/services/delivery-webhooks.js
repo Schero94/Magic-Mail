@@ -42,6 +42,14 @@ const { getAdapter, WEBHOOK_PROVIDERS } = require('../providers');
 
 const EMAIL_ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
+/**
+ * Providers whose event payload is not signed by the provider (MM-SA-07):
+ * Brevo authenticates with a static bearer token and Mailgun signs only
+ * timestamp + token, not the event data. Their events may only touch logs of
+ * the webhook's own account. SendGrid (ECDSA) and SES (SNS) sign the whole
+ * payload, so a shared webhook URL may report mail of several accounts.
+ */
+const UNSIGNED_PAYLOAD_PROVIDERS = new Set(['brevo', 'mailgun']);
 const EMAIL_EVENT_UID = 'plugin::magic-mail.email-event';
 
 const PROVIDERS = new Set(WEBHOOK_PROVIDERS);
@@ -832,7 +840,9 @@ module.exports = ({ strapi }) => ({
     if (!lookup.candidates.length && !lookup.smtpCandidates.length && !lookup.magicmailId) {
       return false;
     }
-    const log = await this._findLog(lookup, context.accountId);
+    const log = await this._findLog(lookup, context.accountId, {
+      scoped: UNSIGNED_PAYLOAD_PROVIDERS.has(provider),
+    });
     if (!log || log.providerTracking !== true) return false;
     if (!isPrimaryRecipient(log, event.recipient)) return false;
 
@@ -906,13 +916,17 @@ module.exports = ({ strapi }) => ({
    * @private
    * @param {{candidates: string[], smtpCandidates: string[], magicmailId: string|null}} lookup
    * @param {string|undefined} accountId - webhook account; binds the magicmail_id lookup
+   * @param {{scoped?: boolean}} [options] - scoped: message ids are matched only
+   *   against logs of `accountId` (providers whose event payload is not signed
+   *   by the provider, MM-SA-07)
    * @returns {Promise<Record<string, any>|null>}
    */
-  async _findLog(lookup, accountId) {
+  async _findLog(lookup, accountId, { scoped = false } = {}) {
+    if (scoped && !accountId) return null;
     const byIds = async (ids) => {
       if (!ids.length) return null;
       const rows = await strapi.db.query(EMAIL_LOG_UID).findMany({
-        where: { providerMessageId: { $in: ids } },
+        where: { providerMessageId: { $in: ids }, ...(scoped ? { accountId } : {}) },
         select: LOG_FIELDS,
         limit: ids.length,
       });
@@ -952,7 +966,9 @@ module.exports = ({ strapi }) => ({
    * @returns {Promise<boolean>}
    */
   async _applyEvent(provider, event, lookup, eventId, context) {
-    const log = await this._findLog(lookup, context.accountId);
+    const log = await this._findLog(lookup, context.accountId, {
+      scoped: UNSIGNED_PAYLOAD_PROVIDERS.has(provider),
+    });
     const at = new Date(event.occurredAt ?? Date.now());
     const messageId =
       log?.providerMessageId ||
