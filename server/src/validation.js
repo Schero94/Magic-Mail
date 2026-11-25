@@ -70,6 +70,8 @@ const recipientListInput = (maxRecipients, { allowEmptyString = false } = {}) =>
   ]);
 const safeString = z.string().max(1000);
 const safeText = z.string().max(100000);
+/** Templates accepted in one import request. */
+const MAX_IMPORT_TEMPLATES = 100;
 
 /**
  * Validates that a string contains no newlines (prevents header injection).
@@ -432,8 +434,10 @@ const schemas = {
     templateIds: z.array(z.union([z.string(), z.number()])).optional(),
   }),
 
+  // Each entry is normalised and then checked with emailDesigner.create in
+  // the service (MM-SA-09); the count is bounded here.
   'emailDesigner.importTemplates': z.object({
-    templates: z.array(z.record(z.string(), z.unknown())).min(1),
+    templates: z.array(z.record(z.string(), z.unknown())).min(1).max(MAX_IMPORT_TEMPLATES),
   }),
 
   'emailDesigner.updateCoreTemplate': z

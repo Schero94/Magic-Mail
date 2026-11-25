@@ -110,7 +110,43 @@ const EMAIL_PATTERN = /^[^\s@<>()",;:\\[\]]+@[^\s@<>()",;:\\[\]]+\.[^\s@<>()",;:
  * of these is dropped entirely.
  */
 const UNSAFE_CSS =
-  /expression\s*\(|javascript\s*:|vbscript\s*:|@import|behavior\s*:|-moz-binding|<\s*\/?\s*(?:script|style)/i;
+  /expression\s*\(|javascript\s*:|vbscript\s*:|@import|behavior\s*:|-moz-binding|<\s*(?:\/\s*)?(?:script|style)/i;
+
+/**
+ * Removes CSS comments and resolves CSS escapes (`\69` = "i", `\:` = ":") so
+ * `@\69mport` or `java\73 cript:` can not hide from UNSAFE_CSS. Linear: an
+ * indexOf scan for comments, one bounded pass per escape form (MM-SA-05).
+ *
+ * @param {string} css
+ * @returns {string}
+ */
+function normalizeCssForCheck(css) {
+  const text = String(css || '');
+  let withoutComments = '';
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf('/*', at);
+    if (open === -1) {
+      withoutComments += text.slice(at);
+      break;
+    }
+    withoutComments += text.slice(at, open);
+    const close = text.indexOf('*/', open + 2);
+    if (close === -1) break;
+    at = close + 2;
+  }
+  return withoutComments
+    .replace(/\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?/g, (_match, hex) => {
+      const code = parseInt(hex, 16);
+      return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
+        ? String.fromCodePoint(code)
+        : '\ufffd';
+    })
+    .replace(/\\([^\r\n\f])/g, '$1');
+}
+
+/** @param {string} css @returns {boolean} true when the CSS must be dropped */
+const isUnsafeCss = (css) => UNSAFE_CSS.test(normalizeCssForCheck(css));
 const SAFE_DATA_IMAGE = /^data:image\/(?:png|jpe?g|gif|webp);base64,/i;
 
 /**
@@ -228,11 +264,11 @@ const HTML_SANITIZE_OPTIONS = {
   allowedSchemesAppliedToAttributes: ['href', 'src', 'cite', 'background'],
   allowProtocolRelative: false,
   disallowedTagsMode: 'discard',
-  exclusiveFilter: (frame) => frame.tag === 'style' && UNSAFE_CSS.test(frame.text || ''),
+  exclusiveFilter: (frame) => frame.tag === 'style' && isUnsafeCss(frame.text || ''),
   transformTags: {
     '*': (tagName, attribs) => {
       const next = { ...attribs };
-      if (typeof next.style === 'string' && UNSAFE_CSS.test(next.style)) delete next.style;
+      if (typeof next.style === 'string' && isUnsafeCss(next.style)) delete next.style;
       if (
         tagName === 'img' &&
         typeof next.src === 'string' &&
@@ -1253,7 +1289,7 @@ function createMessageId(account, localPart) {
   if (typeof localPart === 'string' && /^[a-z0-9]{8,64}$/.test(localPart)) {
     return `<${localPart}@${domain}>`;
   }
-  return `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
+  return `<${Date.now()}.${crypto.randomBytes(12).toString('hex')}@${domain}>`;
 }
 
 /**
@@ -2190,6 +2226,12 @@ module.exports = ({ strapi }) => ({
         templateName: data.templateName || renderedTemplate?.templateName || null,
         accountId: null,
         accountName: null,
+        // Hashed into the log only (MM-SA-04); cc/bcc are never stored in clear.
+        recipientAddresses: [
+          ...listAddresses(data.to),
+          ...listAddresses(data.cc),
+          ...listAddresses(data.bcc),
+        ],
         messageIdLocal: data.__messageIdLocal,
         ...(data.__providerTracking === true ? { providerTracking: true } : {}),
         metadata: {
@@ -3912,6 +3954,7 @@ module.exports = ({ strapi }) => ({
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
+  isUnsafeCss,
   MAILGUN_TEMPLATE_CHECK_TTL_MS,
   /** Empties the pre-send Mailgun template check cache (tests only). */
   resetMailgunTemplateChecks: () => {

@@ -333,6 +333,7 @@ module.exports = ({ strapi }) => ({
     }
 
     let encryptedConfig = existingAccount.config;
+    let mergedPlain = null;
     if (config) {
       // A key change since the account was saved makes the stored secrets
       // unreadable; every secret must then be entered again (a mask has no
@@ -350,7 +351,20 @@ module.exports = ({ strapi }) => ({
         }
       }
       const merged = this._mergeConfig(existingPlain, config, { providerChanged, unreadable });
+      mergedPlain = merged;
       encryptedConfig = encryptCredentials(merged);
+    }
+
+    // The IMAP target of bounce monitoring lives outside `config`, so the
+    // SEC-04 identity check above never saw it (MM-SA-01).
+    if (bounceMonitor) {
+      this._assertImapSecretFresh({
+        provider: provider ?? existingAccount.provider,
+        existingAccount,
+        bounceMonitor,
+        mergedPlain,
+        incomingConfig: accountData.config,
+      });
     }
 
     const data = {
@@ -765,6 +779,60 @@ module.exports = ({ strapi }) => ({
    */
   _isMask(value) {
     return value === SECRET_MASK;
+  },
+
+  /**
+   * Rejects a bounce-monitoring change that would send a stored secret to a
+   * new IMAP host (MM-SA-01, same rule as SEC-04 for `config`).
+   *
+   * Polling logs in with the SMTP password (`useSmtpLogin`) or `imapPass` at
+   * `bounceMonitor.imap.host` (or the host suggested for the SMTP server).
+   * When that host or the choice of secret changes, the secret that will be
+   * sent must be part of this request. The host the server derives from the
+   * account's own SMTP host is not caller-chosen and needs no re-entry.
+   *
+   * @param {{provider: string, existingAccount: object, bounceMonitor: object,
+   *   mergedPlain: object|null, incomingConfig: object|undefined}} input
+   * @returns {void}
+   * @throws {errors.ValidationError} When the secret must be entered again
+   */
+  _assertImapSecretFresh({
+    provider,
+    existingAccount,
+    bounceMonitor,
+    mergedPlain,
+    incomingConfig,
+  }) {
+    const { settingsFor, suggestImapHost } = require('./bounce-monitor');
+    let storedPlain = {};
+    if (existingAccount.config) {
+      try {
+        storedPlain = decryptCredentials(existingAccount.config) || {};
+      } catch {
+        // Unreadable secrets can not be sent anywhere.
+        storedPlain = {};
+      }
+    }
+    const nextPlain = mergedPlain || storedPlain;
+    const target = (account, plain) => {
+      const settings = settingsFor(account);
+      return {
+        host: (settings.imap.host || suggestImapHost(plain.host)).toLowerCase(),
+        useSmtpLogin: settings.imap.useSmtpLogin,
+      };
+    };
+    const before = target(existingAccount, storedPlain);
+    const after = target({ ...existingAccount, provider, bounceMonitor }, nextPlain);
+    if (before.host === after.host && before.useSmtpLogin === after.useSmtpLogin) return;
+    if (after.host && after.host === suggestImapHost(nextPlain.host)) return;
+
+    const secretKey = after.useSmtpLogin ? 'pass' : 'imapPass';
+    const fresh = incomingConfig?.[secretKey];
+    const enteredNow = typeof fresh === 'string' && fresh !== '' && !this._isMask(fresh);
+    if (!nextPlain[secretKey] || enteredNow) return;
+    throw new errors.ValidationError(`Re-enter the stored secret(s): ${secretKey}`, {
+      config: [`${secretKey}: Enter the secret again: the bounce monitoring server changed`],
+    });
   },
 
   /**

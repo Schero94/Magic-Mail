@@ -31,6 +31,7 @@ const { parseBounce, looksLikeBounce, MAX_RAW_BYTES } = require('../utils/bounce
 const { decryptCredentials, purposeHmac } = require('../utils/encryption');
 const { normalizeMessageId } = require('../utils/message-id');
 const { describeErrorForLog } = require('../utils/client-errors');
+const { isLogRecipient } = require('../utils/log-recipients');
 
 const ACCOUNT_UID = 'plugin::magic-mail.email-account';
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -50,6 +51,10 @@ const MAX_MESSAGES_PER_POLL = 500;
 const MAX_DOWNLOADS_PER_POLL = 100;
 const HTTP_TIMEOUT_MS = 20_000;
 const MATCH_WINDOW_MS = 7 * 24 * 3600_000;
+/** Error codes reported to the client as CONNECTION_FAILED (MM-SA-08). */
+const CONNECTION_CLASS_CODES = new Set(['CONNECTION_FAILED', 'TIMEOUT', 'TLS_FAILED']);
+/** Log matches that prove the report refers to a mail we sent (MM-SA-04). */
+const STRONG_MATCHES = new Set(['outbox', 'message-id']);
 /** Folder names: 1-200 characters without control characters. */
 const isSafeFolder = (value) =>
   typeof value === 'string' &&
@@ -185,6 +190,35 @@ function maskAddress(address) {
   const [local, domain] = String(address).split('@');
   if (!domain) return '***';
   return `${local.slice(0, 1)}***@${domain}`.slice(0, 120);
+}
+
+/**
+ * Reads a raw message body, stopping as soon as it exceeds MAX_RAW_BYTES. A
+ * chunked response has no Content-Length, and `arrayBuffer()` would load a
+ * message of any size into memory before the size check (MM-SA-12).
+ *
+ * @param {{body?: {getReader?: Function}, arrayBuffer: Function}} response
+ * @returns {Promise<Buffer|null>} null when the message is too large
+ */
+async function readRawCapped(response) {
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return buffer.byteLength > MAX_RAW_BYTES ? null : buffer;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_RAW_BYTES) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
 }
 
 /**
@@ -354,8 +388,7 @@ module.exports = ({ strapi }) => {
     if (raw) {
       const length = Number(response.headers?.get?.('content-length') || 0);
       if (length > MAX_RAW_BYTES) return null;
-      const buffer = Buffer.from(await response.arrayBuffer());
-      return buffer.byteLength > MAX_RAW_BYTES ? null : buffer;
+      return readRawCapped(response);
     }
     return response.json();
   };
@@ -419,6 +452,7 @@ module.exports = ({ strapi }) => {
       'bounced',
       'deliveryStatus',
       'recipient',
+      'metadata',
     ];
     if (parsed.outboxId) {
       const row = await strapi.db
@@ -602,7 +636,12 @@ module.exports = ({ strapi }) => {
       if (hard) counts.bounced += 1;
       else counts.deferred += 1;
 
-      if (hard && global.suppressHardBounces) {
+      // Anyone can mail the monitored mailbox a delivery report. Only a report
+      // bound to a mail we sent (outbox header or its random Message-ID) may
+      // suppress, and only an address that mail went to (MM-SA-04).
+      const trusted =
+        Boolean(log) && STRONG_MATCHES.has(quality) && isLogRecipient(log, recipient.address);
+      if (hard && global.suppressHardBounces && trusted) {
         await suppressAddress({
           address: recipient.address,
           reasonCode: recipient.reasonCode,
@@ -1025,7 +1064,17 @@ module.exports = ({ strapi }) => {
         }
         return { ok: true, ...result, cursor: undefined };
       } catch (error) {
-        const code = errorCodeFor(error);
+        const detail = errorCodeFor(error);
+        // Refused, unreachable, timed out and TLS failures look the same to
+        // the client (as for the SMTP account test, SEC-12): distinct codes
+        // turned the test button into a port scanner for internal hosts
+        // (MM-SA-08). The detail stays in the server log.
+        const code = CONNECTION_CLASS_CODES.has(detail) ? 'CONNECTION_FAILED' : detail;
+        if (code !== detail) {
+          log.warn(
+            `[magic-mail] [BOUNCES] Mailbox connection failed for account ${account.documentId} (${detail})`
+          );
+        }
         if (!testOnly) {
           await saveState(account, {
             lastPollAt: new Date(clock()).toISOString(),
@@ -1161,3 +1210,4 @@ module.exports.suggestImapHost = suggestImapHost;
 module.exports.settingsFor = settingsFor;
 module.exports.statusFor = statusFor;
 module.exports.MODES = MODES;
+module.exports.readRawCapped = readRawCapped;

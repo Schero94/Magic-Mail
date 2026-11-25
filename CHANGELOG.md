@@ -1,3 +1,35 @@
+## [Unreleased]
+
+### Security
+
+Findings of the November 2026 security audit (IDs `MM-SA-*`, each with a regression test in `tests/security-audit-2026-11.test.js` or next to the code it covers).
+
+* **MM-SA-01 (high): changing the bounce-monitoring IMAP host no longer sends a stored secret to the new host.** The rule that a changed server or identity requires the stored secret again only covered `config`. An admin with `manage` could set `bounceMonitor.imap.host` to their own server, and the next poll logged in there with the stored SMTP password ("Use the SMTP login") or IMAP password. When the effective IMAP host or the choice of secret changes, the secret that will be sent must now be entered in the same request. The host the server derives from the account's own SMTP host needs no re-entry.
+* **MM-SA-02 (high with `@strapi/plugin-graphql`): the plugin's content types are no longer in the GraphQL schema.** GraphQL generates queries and mutations for every content type except `admin::` ones. Email logs (recipients, subjects), events, link targets, suppressions, templates, routing rules, settings and the outbox were readable with any read-only API token and writable with a full-access token, bypassing the plugin's admin permissions. `register()` now disables GraphQL shadow CRUD for every `plugin::magic-mail.*` type.
+* **MM-SA-03 (high when bounce monitoring is on): ReDoS in the bounce parser.** Anyone can mail the monitored mailbox. A fake mailer-daemon message with a long single-line body, or a body of blank lines, blocked the Strapi event loop for minutes (quadratic `domain .* could not be found` and multiline `^\s*` patterns, the first one once per listed recipient). The patterns are bounded and the header scan is line based.
+* **MM-SA-04 (medium): a forged delivery report can no longer suppress any address.** With "Block hard-bounced recipients" on, a hand-written RFC 3464 report naming any address put it on the suppression list, so password-reset and confirmation mails to that person were silently dropped. A mailbox report now suppresses only when it refers to a mail Magic Mail sent (outbox header or that mail's random Message-ID) and names one of that mail's recipients. Recipient-only matches are still recorded, but no longer suppress.
+* **MM-SA-05 (medium): the outbound CSS check is linear and sees through CSS escapes.** One 100 000-character `style` value in content-API HTML blocked the event loop for about 5 seconds per send. `@\69mport`, `@im/**/port` and `java\73 cript:` also slipped past the check. Comments are removed and escapes resolved before the check, and the pattern has no overlapping quantifiers.
+* **MM-SA-06 (medium, admin): core-template validation is linear and as strict as users-permissions.** An unclosed `{{` or `<%=` followed by a long run of whitespace blocked the event loop for minutes in one request. `$${...}` passed although users-permissions rejects every `${...}`. Placeholder decoding at send time was quadratic on unclosed `{{`.
+* **MM-SA-07 (low to medium): Brevo and Mailgun events only touch their own account's logs.** Mailgun signs only timestamp and token, and Brevo uses a static bearer token. Whoever held one account's webhook secret could mark mail sent through another account as bounced, emit delivery events for it and suppress its recipient. SendGrid and SES sign the whole payload and still match across accounts, so a shared webhook URL keeps working there.
+* **MM-SA-08 (low, admin): the mailbox test is no longer a port scanner.** It answered `CONNECTION_FAILED`, `TIMEOUT` and `TLS_FAILED` for refused, filtered and open non-TLS ports on any host and port. All three now reach the client as `CONNECTION_FAILED`, with the detail in the server log, as the SMTP account test already did.
+* **MM-SA-09 (low, admin): template import uses the create rules.** Each imported template is validated like a created one (lengths, no CR/LF in the subject, numeric reference id), with at most 100 per request. Before, a reference id such as `{"$gt": 0}` became a query operator that selected an existing template to overwrite. Failed entries return fixed texts instead of raw error messages.
+* **MM-SA-10 (low): linear JWT detection in tracked links.** The JWT pattern in the tracking-link policy was polynomial: about 80 ms per check for an 8 KB link fragment.
+* **MM-SA-11 (low): webhook answers no longer reveal account ids.** For a known Mailgun or SES account a malformed body answered 400, while every other id answered 401. Every failure before the request is authenticated now answers 401.
+* **MM-SA-12 (low): Microsoft Graph raw downloads are capped while streaming.** Without a `Content-Length`, a large message matching the bounce heuristics was read into memory in full before the 1 MB check.
+* Fallback Message-IDs use `crypto.randomBytes` instead of `Math.random()`.
+
+### Migration
+
+* **Bounce monitoring:** saving a new IMAP host, or switching to "Use the SMTP login", now asks for the password that will be used (SMTP or IMAP) again. Turning monitoring on with the suggested host of the SMTP server, and port or TLS changes on the same host, need no re-entry.
+* **Suppression from the mailbox:** only reports bound to a sent mail suppress. New email logs keep keyed hashes of every to/cc/bcc address in `metadata.recipientHashes` (HMAC with a purpose key derived from `MAGIC_MAIL_ENCRYPTION_KEY`; cc and bcc addresses are never stored in clear text), so cc and bcc bounces keep suppressing. For mail sent before this version, only reports for the `to` recipients suppress.
+* **GraphQL:** Magic Mail types disappear from the GraphQL schema. If you queried them on purpose, use the admin API instead.
+* **Brevo and Mailgun:** an event for mail sent through another Magic Mail account is now reported as unmatched. Point each account's webhook at its own URL (`/api/magic-mail/webhooks/<provider>/<accountId>`).
+* **Bounce monitor status:** `TIMEOUT` and `TLS_FAILED` are reported as `CONNECTION_FAILED`. Template import returns `error: "Invalid template data"` (with `details`) or `"Import failed"` for a failed entry.
+
+### Verification
+
+* Each finding is reproduced by a regression test that fails on v4.10.0 and passes with this change. MM-SA-01 to MM-SA-09 and MM-SA-11 were also reproduced on v4.10.0 and shown fixed on an isolated Strapi 5.64.0 host built from the packed tarballs (with `@strapi/plugin-graphql` 5.64.0, SQLite, random secrets, outbound connections blocked, local fake SMTP, IMAPS and Mailgun webhook requests, synthetic data). On v4.10.0 the host stalled for about 36 s on one bounce mail (MM-SA-03), 5.5 s on one API send (MM-SA-05) and 6.5 s on one core-template save (MM-SA-06); with this change each took under 60 ms. MM-SA-10 is too small to measure end to end there, and MM-SA-12 needs the Microsoft Graph host; both are covered by their unit tests only.
+
 # [4.10.0](https://github.com/Schero94/Magic-Mail/compare/v4.9.1...v4.10.0) (2026-11-19)
 
 

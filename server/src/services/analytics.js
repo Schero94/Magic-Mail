@@ -13,6 +13,7 @@ const {
   redactUrlForLog,
 } = require('../utils/tracking-url-policy');
 const coordination = require('../utils/coordination');
+const { recipientHashes } = require('../utils/log-recipients');
 
 // Content Type UIDs
 const EMAIL_LOG_UID = 'plugin::magic-mail.email-log';
@@ -561,6 +562,10 @@ module.exports = ({ strapi }) => ({
     if (allRecipients.length > 1 || (allRecipients[0] && allRecipients[0] !== recipient)) {
       metadata.recipients = allRecipients.slice(0, 100);
     }
+    // Keyed hashes of every to/cc/bcc address: bounce reports may only
+    // suppress addresses the mail was really sent to (MM-SA-04).
+    const hashes = recipientHashes(data.recipientAddresses);
+    if (hashes.length > 0) metadata.recipientHashes = hashes;
     if (
       data.templateId !== undefined &&
       data.templateId !== null &&

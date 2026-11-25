@@ -972,3 +972,44 @@ test('Mailgun HMAC known answer (securing-webhooks recipe)', () => {
   assert.equal(verifyMailgunSignature({ ...input, signingKey: 'key-other' }), false);
   assert.equal(verifyMailgunSignature({ ...input, timestamp: '1700000001' }), false);
 });
+
+// MM-SA-07: Mailgun signs only timestamp + token (Brevo: a static bearer
+// token), so a valid request for account acc1 may not change logs that were
+// sent through another account. SendGrid/SES sign the whole payload.
+test('MM-SA-07: a Mailgun event can not mark a log of another account bounced', async () => {
+  await withKey(async ({ encryptCredentials }) => {
+    deliveryService.__test__.resetSeen();
+    const event = clone(MAILGUN.failedPermanent);
+    event.recipient = 'joan@example.test';
+    const host = createHost({
+      provider: 'mailgun',
+      logs: [
+        {
+          documentId: 'foreign',
+          accountId: 'acc-other',
+          providerMessageId: event.message.headers['message-id'],
+          recipient: 'joan@example.test',
+        },
+      ],
+      encryptCredentials,
+    });
+    const result = await sendMailgun(host, event);
+    assert.equal(result.status, 200);
+    assert.equal(host.log('foreign').deliveryStatus, 'sent');
+    assert.equal(host.events().length, 0);
+    assert.equal(result.unmatched, 1);
+  });
+});
+
+test('MM-SA-07: signed SendGrid events still match logs of another account (shared webhook)', async () => {
+  await withKey(async ({ encryptCredentials }) => {
+    deliveryService.__test__.resetSeen();
+    const host = createHost({
+      logs: [sgLog({ accountId: 'acc-other' })],
+      encryptCredentials,
+    });
+    const result = await sendSendGrid(host, [sg('bounce')]);
+    assert.equal(result.status, 200);
+    assert.equal(host.log().deliveryStatus, 'bounced');
+  });
+});

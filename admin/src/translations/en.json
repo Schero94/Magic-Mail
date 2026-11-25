@@ -869,7 +869,7 @@
   "accountModal.bounce.checkBusy": "A check is already running. Try again shortly.",
   "accountModal.bounce.error.AUTH_FAILED": "The mailbox rejected the login. Check the IMAP user and password.",
   "accountModal.bounce.error.TIMEOUT": "The mailbox server did not answer in time.",
-  "accountModal.bounce.error.CONNECTION_FAILED": "The mailbox server could not be reached. Check host and port.",
+  "accountModal.bounce.error.CONNECTION_FAILED": "The mailbox server could not be reached. Check host, port and TLS settings.",
   "accountModal.bounce.error.TLS_FAILED": "The secure connection to the mailbox server failed.",
   "accountModal.bounce.error.FOLDER_NOT_FOUND": "The folder does not exist in this mailbox.",
   "accountModal.bounce.error.IMAP_NOT_CONFIGURED": "Enter the IMAP host and login first.",

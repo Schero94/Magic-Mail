@@ -869,7 +869,7 @@
   "accountModal.bounce.checkBusy": "Ya hay una comprobación en curso. Inténtalo de nuevo en breve.",
   "accountModal.bounce.error.AUTH_FAILED": "El buzón rechazó el inicio de sesión. Revisa el usuario y la contraseña IMAP.",
   "accountModal.bounce.error.TIMEOUT": "El servidor del buzón no respondió a tiempo.",
-  "accountModal.bounce.error.CONNECTION_FAILED": "No se puede acceder al servidor del buzón. Revisa el host y el puerto.",
+  "accountModal.bounce.error.CONNECTION_FAILED": "No se puede acceder al servidor del buzón. Revisa el host, el puerto y la configuración TLS.",
   "accountModal.bounce.error.TLS_FAILED": "Falló la conexión segura con el servidor del buzón.",
   "accountModal.bounce.error.FOLDER_NOT_FOUND": "La carpeta no existe en este buzón.",
   "accountModal.bounce.error.IMAP_NOT_CONFIGURED": "Introduce primero el host y el inicio de sesión IMAP.",

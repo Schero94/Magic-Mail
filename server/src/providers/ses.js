@@ -1106,15 +1106,17 @@ async function webhook({ config, rawBody, headers = {}, now = Date.now(), fetchI
       ? config.snsTopicArn
       : null;
   if (!topicArn) return { status: 401, events: [] };
+  // Every failure before the signature is verified answers 401, so the
+  // status does not reveal which account ids exist (MM-SA-11).
   const message = sns.parseSnsMessage(rawBody);
-  if (!message) return { status: 400, events: [] };
+  if (!message) return { status: 401, events: [] };
   if (message.TopicArn !== topicArn) return { status: 401, events: [] };
   // SNS signs with the certificate of the topic's region and links to it.
   const topicRegion = TOPIC_ARN_PATTERN.exec(topicArn)[2];
   const certHost = sns.signingCertUrl(message.SigningCertURL)?.hostname;
   if (certHost !== `sns.${topicRegion}.amazonaws.com`) return { status: 401, events: [] };
   const declared = headers['x-amz-sns-message-type'];
-  if (declared !== undefined && declared !== message.Type) return { status: 400, events: [] };
+  if (declared !== undefined && declared !== message.Type) return { status: 401, events: [] };
   const options = { now, ...(fetchImpl ? { fetchImpl } : {}) };
   if (!(await sns.verifySnsMessage(message, options))) return { status: 401, events: [] };
 

@@ -869,7 +869,7 @@
   "accountModal.bounce.checkBusy": "Eine Prüfung läuft bereits. Gleich noch einmal versuchen.",
   "accountModal.bounce.error.AUTH_FAILED": "Das Postfach hat die Anmeldung abgelehnt. IMAP-Benutzer und Passwort prüfen.",
   "accountModal.bounce.error.TIMEOUT": "Der Postfachserver hat nicht rechtzeitig geantwortet.",
-  "accountModal.bounce.error.CONNECTION_FAILED": "Der Postfachserver ist nicht erreichbar. Host und Port prüfen.",
+  "accountModal.bounce.error.CONNECTION_FAILED": "Der Postfachserver ist nicht erreichbar. Host, Port und TLS-Einstellungen prüfen.",
   "accountModal.bounce.error.TLS_FAILED": "Die sichere Verbindung zum Postfachserver ist fehlgeschlagen.",
   "accountModal.bounce.error.FOLDER_NOT_FOUND": "Der Ordner existiert in diesem Postfach nicht.",
   "accountModal.bounce.error.IMAP_NOT_CONFIGURED": "Zuerst IMAP-Host und Anmeldung eintragen.",

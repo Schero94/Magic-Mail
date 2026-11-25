@@ -68,6 +68,7 @@
     "accountId": null,
     "accountName": null,
     "messageIdLocal": "<MSGID-LOCAL>",
+    "recipientAddresses": ["ada@example.test"],
     "metadata": {
       "type": "transactional",
       "priority": "normal",
