@@ -419,7 +419,7 @@ const PluginSettingsContent = () => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const pageTitle = <PluginPageTitle>{t('settings.pageTitle', 'Plugin Settings')}</PluginPageTitle>;
+  const pageTitle = <PluginPageTitle>{t('settings.pageTitle', 'Plugin settings')}</PluginPageTitle>;
 
   if (loading || rbacLoading) {
     return (
@@ -434,7 +434,7 @@ const PluginSettingsContent = () => {
 
   const header = (
     <PageHeader>
-      <PageTitle tag="h1">{t('settings.title', 'Plugin Settings')}</PageTitle>
+      <PageTitle tag="h1">{t('settings.title', 'Plugin settings')}</PageTitle>
       <PageSubtitle tag="p">
         {t(
           'settings.subtitle',
@@ -521,7 +521,7 @@ const PluginSettingsContent = () => {
               loading={saving}
               disabled={!hasChanges || !canManage || !isValid}
             >
-              {t('settings.save', 'Save Changes')}
+              {t('settings.save', 'Save changes')}
             </GradientButton>
           )}
         </ActionButtons>
@@ -535,7 +535,7 @@ const PluginSettingsContent = () => {
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-link-tracking">
-              {t('settings.linkTracking.title', 'Link Tracking')}
+              {t('settings.linkTracking.title', 'Link tracking')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
               {t(
@@ -549,7 +549,7 @@ const PluginSettingsContent = () => {
           <SettingRow alignItems="center">
             <SettingInfo>
               <SettingLabel>
-                {t('settings.linkTracking.label', 'Enable Link Tracking')}
+                {t('settings.linkTracking.label', 'Enable link tracking')}
               </SettingLabel>
               <SettingDescription>
                 {t(
@@ -563,7 +563,7 @@ const PluginSettingsContent = () => {
                 checked={settings.enableLinkTracking}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableLinkTracking', checked)}
-                aria-label={t('settings.linkTracking.label', 'Enable Link Tracking')}
+                aria-label={t('settings.linkTracking.label', 'Enable link tracking')}
                 onLabel={t('settings.switch.on', 'Enabled')}
                 offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
@@ -590,7 +590,7 @@ const PluginSettingsContent = () => {
                   }
                 >
                   <Field.Label>
-                    {t('settings.trackingBaseUrl.label', 'Tracking Base URL')}
+                    {t('settings.trackingBaseUrl.label', 'Tracking base URL')}
                   </Field.Label>
                   <TextInput
                     type="url"
@@ -613,7 +613,7 @@ const PluginSettingsContent = () => {
                   fontWeight="medium"
                   style={{ display: 'block' }}
                 >
-                  {t('settings.override.title', 'Per-Email Override')}
+                  {t('settings.override.title', 'Per-email override')}
                 </Typography>
                 <Typography
                   variant="pi"
@@ -640,7 +640,7 @@ const PluginSettingsContent = () => {
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-open-tracking">
-              {t('settings.openTracking.title', 'Open Tracking')}
+              {t('settings.openTracking.title', 'Open tracking')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
               {t('settings.openTracking.subtitle', 'Track when recipients open your emails')}
@@ -651,7 +651,7 @@ const PluginSettingsContent = () => {
           <SettingRow alignItems="center">
             <SettingInfo>
               <SettingLabel>
-                {t('settings.openTracking.label', 'Enable Open Tracking')}
+                {t('settings.openTracking.label', 'Enable open tracking')}
               </SettingLabel>
               <SettingDescription>
                 {t(
@@ -665,7 +665,7 @@ const PluginSettingsContent = () => {
                 checked={settings.enableOpenTracking}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableOpenTracking', checked)}
-                aria-label={t('settings.openTracking.label', 'Enable Open Tracking')}
+                aria-label={t('settings.openTracking.label', 'Enable open tracking')}
                 onLabel={t('settings.switch.on', 'Enabled')}
                 offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
@@ -712,7 +712,7 @@ const PluginSettingsContent = () => {
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-unsubscribe">
-              {t('settings.unsubscribe.title', 'Unsubscribe Settings')}
+              {t('settings.unsubscribe.title', 'Unsubscribe settings')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
               {t(
@@ -726,7 +726,7 @@ const PluginSettingsContent = () => {
           <SettingRow alignItems="center">
             <SettingInfo>
               <SettingLabel>
-                {t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}
+                {t('settings.unsubscribe.label', 'Enable List-Unsubscribe header')}
               </SettingLabel>
               <SettingDescription>
                 {t(
@@ -740,7 +740,7 @@ const PluginSettingsContent = () => {
                 checked={settings.enableUnsubscribeHeader}
                 disabled={!canManage}
                 onCheckedChange={(checked) => handleChange('enableUnsubscribeHeader', checked)}
-                aria-label={t('settings.unsubscribe.label', 'Enable List-Unsubscribe Header')}
+                aria-label={t('settings.unsubscribe.label', 'Enable List-Unsubscribe header')}
                 onLabel={t('settings.switch.on', 'Enabled')}
                 offLabel={t('settings.switch.off', 'Disabled')}
                 visibleLabels={false}
@@ -783,7 +783,7 @@ const PluginSettingsContent = () => {
           </SectionIcon>
           <Flex direction="column" alignItems="flex-start" gap={1}>
             <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-sender">
-              {t('settings.sender.title', 'Default Sender')}
+              {t('settings.sender.title', 'Default sender')}
             </Typography>
             <Typography variant="pi" textColor="neutral600">
               {t(
@@ -800,10 +800,10 @@ const PluginSettingsContent = () => {
               error={errorMessage(t, errors.defaultFromName)}
               hint={t('settings.fromName.hint', "The sender name shown in recipients' inboxes")}
             >
-              <Field.Label>{t('settings.fromName.label', 'Default From Name')}</Field.Label>
+              <Field.Label>{t('settings.fromName.label', 'Default from name')}</Field.Label>
               <TextInput
                 autoComplete="organization"
-                placeholder={t('settings.fromName.placeholder', 'Your Company')}
+                placeholder={t('settings.fromName.placeholder', 'Your company')}
                 value={settings.defaultFromName}
                 onChange={(e) => handleChange('defaultFromName', e.target.value)}
                 disabled={!canManage}
@@ -819,7 +819,7 @@ const PluginSettingsContent = () => {
                 "Reference only. Emails are always sent from the selected account's address."
               )}
             >
-              <Field.Label>{t('settings.fromEmail.label', 'Default From Email')}</Field.Label>
+              <Field.Label>{t('settings.fromEmail.label', 'Default from email')}</Field.Label>
               <TextInput
                 type="email"
                 autoComplete="email"

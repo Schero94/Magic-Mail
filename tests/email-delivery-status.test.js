@@ -43,8 +43,8 @@ test('analytics rates and sent totals exclude pending and failed delivery attemp
 
 test('analytics UI labels failed attempts instead of presenting every log as sent', () => {
   const ui = readFileSync(path.join(__dirname, '../admin/src/pages/Analytics.jsx'), 'utf8');
-  assert.match(ui, /Delivery Status/);
-  assert.match(ui, /Attempted At/);
+  assert.match(ui, /Delivery status/);
+  assert.match(ui, /Attempted at/);
   assert.match(ui, /if \(deliveryStatus === 'failed'\).*label: 'Failed'/);
   assert.match(ui, /if \(deliveryStatus === 'pending'\).*label: 'Pending'/);
   assert.match(ui, /if \(!deliveryStatus && !deliveredAt\).*label: 'Unverified'/);

@@ -135,3 +135,49 @@ test('the Outbox tab uses the same page container as the other tabs', () => {
   assert.match(src, /import \{ Container \} from '\.\.\/Accounts\/styles';/);
   assert.match(src, /<Container>\s*<OutboxView \/>\s*<\/Container>/);
 });
+
+test('tries count the failed direct send of a captured mail', () => {
+  // Regression: a captured mail that failed once (SMTP_451) and was then sent
+  // by the queue showed "1 of 3" although two tries happened.
+  assert.deepEqual(
+    utils.outboxTries({
+      status: 'sent',
+      attempts: 1,
+      maxAttempts: 3,
+      createdVia: 'capture-on-failure',
+    }),
+    { total: 2, max: 4, failed: 1, open: false }
+  );
+  assert.deepEqual(
+    utils.outboxTries({ status: 'sent', attempts: 1, maxAttempts: 3, createdVia: 'queue-option' }),
+    {
+      total: 1,
+      max: 3,
+      failed: 0,
+      open: false,
+    }
+  );
+  assert.deepEqual(
+    utils.outboxTries({
+      status: 'pending',
+      attempts: 1,
+      maxAttempts: 3,
+      createdVia: 'capture-on-failure',
+    }),
+    { total: 2, max: 4, failed: 2, open: true }
+  );
+  assert.deepEqual(utils.outboxTries({ status: 'failed', attempts: 3, maxAttempts: 3 }), {
+    total: 3,
+    max: 3,
+    failed: 3,
+    open: false,
+  });
+  assert.equal(utils.outboxTries({ status: 'uncertain', attempts: 1, maxAttempts: 3 }).failed, 0);
+  assert.equal(utils.outboxTries({}).total, 0);
+});
+
+test('every queue source has a plain label', () => {
+  for (const source of ['service', 'strapi-email', 'content-api', 'queue']) {
+    assert.ok(utils.SOURCE_KEYS[source], source);
+  }
+});

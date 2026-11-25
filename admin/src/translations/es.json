@@ -785,7 +785,6 @@
   "queue.empty.filteredBody": "Elija otro estado o muestre todos los correos.",
   "queue.empty.body": "Los correos aparecen aquí cuando un envío se pone en cola o cuando un envío fallido se guarda para un reintento (Configuración, «Poner en cola los envíos fallidos»).",
   "queue.empty.clear": "Mostrar todos los estados",
-  "queue.attempts": "{attempts} de {max}",
   "queue.pagination.label": "Páginas de la bandeja de salida",
   "queue.discard.title": "¿Descartar este correo?",
   "queue.discard.body": "El correo a {name} no se envía y su contenido se elimina. No se puede deshacer.",
@@ -802,7 +801,7 @@
   "queue.detail.nextAttempt": "Próximo intento",
   "queue.detail.notAfter": "No enviar después de",
   "queue.detail.account": "Cuenta utilizada",
-  "queue.detail.source": "Origen",
+  "queue.detail.source": "Enviado por",
   "queue.detail.sentAt": "Enviado el",
   "queue.detail.close": "Cerrar detalles",
   "queue.detail.title": "Correo de la bandeja de salida",
@@ -1162,5 +1161,11 @@
   "templates.coreDesign.checkedAt": "Última comprobación: {date}.",
   "templates.coreDesign.problem.noSubject": "la plantilla de Mailgun no tiene encabezado Subject",
   "templates.coreDesign.noSubject": "Esta plantilla de Mailgun no tiene encabezado Subject. Los correos principales enviados con ella fallan; añada un encabezado Subject a la plantilla en Mailgun y sincronice.",
-  "templates.coreDesign.badge.noSubject": "Sin encabezado Subject"
+  "templates.coreDesign.badge.noSubject": "Sin encabezado Subject",
+  "queue.tries.open": "{total} de {max} intentos{failed, plural, =0 {} one {, # fallido} other {, # fallidos}}",
+  "queue.tries.done": "{total, plural, one {# intento} other {# intentos}}{failed, plural, =0 {} one {, # fallido} other {, # fallidos}}",
+  "queue.source.service": "Servicio del plugin en el código del servidor",
+  "queue.source.strapiEmail": "Plugin de correo de Strapi",
+  "queue.source.contentApi": "Content API (token de API)",
+  "queue.source.queue": "Bandeja de salida"
 }

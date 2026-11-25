@@ -1,3 +1,16 @@
+## [Unreleased]
+
+### Fixed
+
+* Outbox: the try count includes the failed direct send of a captured mail. A mail that failed once (for example `SMTP_451`) and was then sent by the queue showed "1 of 3"; it now reads "2 tries, 1 failed". The server's `attempts` still counts queue tries only (API unchanged); the admin adds the first try for `createdVia: capture-on-failure`. Waiting mails read "2 of 4 tries, 2 failed".
+* Outbox mail drawer: the "Error history" heading no longer sits on its first card (12px heading gap, 24px between sections), and the drawer body uses the header's 24px padding so title and content share one edge. The version history drawer uses the same padding.
+* Outbox mail drawer: "Next try" is shown only while the mail waits for one, and "Not sent after" is hidden once the mail was sent or discarded.
+
+### Changed
+
+* "Source: service" (monospace) reads "Sent by: Plugin service in server code"; the other sources are "Strapi email plugin" and "Content API (API token)".
+* English labels use sentence case like the rest of the admin (tabs "Email accounts", "Routing rules", "Email templates"; the routing rule dialog; settings titles; analytics table headers).
+
 ## [4.10.1](https://github.com/Schero94/Magic-Mail/compare/v4.10.0...v4.10.1) (2026-11-25)
 
 

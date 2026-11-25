@@ -15,13 +15,19 @@ import {
   VersionSheetHeader,
   VersionSheetTitle,
 } from '../EmailDesigner/editorStyles';
-import { ERROR_CLASS_KEYS, outboxStatusPresentation } from './outboxUtils';
+import {
+  ERROR_CLASS_KEYS,
+  SOURCE_KEYS,
+  outboxStatusPresentation,
+  outboxTries,
+} from './outboxUtils';
+import { TriesText } from './TriesText';
 
 const FactList = styled.dl`
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: ${space(2)} ${space(4)};
-  margin: 0 0 ${space(6)};
+  margin: 0;
 
   dt,
   dd {
@@ -29,6 +35,25 @@ const FactList = styled.dl`
     min-width: 0;
     overflow-wrap: anywhere;
   }
+`;
+
+/**
+ * Drawer body: facts, notes and the error history as sections with one
+ * vertical rhythm (24px between sections, 12px from a heading to its
+ * content). The heading used to sit directly on the first history card.
+ */
+const DrawerSections = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${space(6)};
+  min-width: 0;
+`;
+
+const DrawerSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: ${space(3)};
+  min-width: 0;
 `;
 
 const HistoryList = styled.ol`
@@ -44,7 +69,7 @@ const HistoryItem = styled.li`
   display: flex;
   flex-direction: column;
   gap: ${space(1)};
-  padding: ${space(3)};
+  padding: ${space(4)};
   border: 1px solid ${color('neutral200')};
   border-radius: ${theme.borderRadius.md};
   min-width: 0;
@@ -64,7 +89,7 @@ const HistoryItem = styled.li`
  */
 export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
   const { t } = useMagicMailIntl();
-  const { formatDateTime, formatNumber } = useFormatters();
+  const { formatDateTime } = useFormatters();
   const { get } = useFetchClient();
   const isOpen = Boolean(documentId);
   const returnFocus = useReturnFocus(isOpen);
@@ -113,6 +138,15 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
   };
   const presentation = detail ? outboxStatusPresentation(detail) : null;
 
+  const tries = detail ? outboxTries(detail) : null;
+  const sourceText = (source) => {
+    const entry = SOURCE_KEYS[source];
+    return entry ? t(entry[0], entry[1]) : source;
+  };
+
+  // Facts that do not apply to the mail's state are left out instead of
+  // showing "—": no next try unless it waits for one, no send deadline once
+  // it was sent or discarded.
   const facts = detail
     ? [
         [t('queue.column.recipient', 'Recipient'), detail.recipient || none],
@@ -123,29 +157,26 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
             {t(presentation.labelKey, presentation.label)}
           </StatusBadge>,
         ],
-        [
-          t('queue.column.attempts', 'Attempts'),
-          t('queue.attempts', '{attempts} of {max}', {
-            attempts: formatNumber(detail.attempts || 0),
-            max: formatNumber(detail.maxAttempts || 0),
-          }),
-        ],
-        [
-          t('queue.detail.nextAttempt', 'Next try'),
-          detail.nextAttemptAt ? formatDateTime(detail.nextAttemptAt) : none,
-        ],
-        [
-          t('queue.detail.notAfter', 'Not sent after'),
-          detail.notAfter ? formatDateTime(detail.notAfter) : none,
-        ],
+        [t('queue.column.attempts', 'Tries'), <TriesText key="tries" tries={tries} />],
+        detail.status === 'pending'
+          ? [
+              t('queue.detail.nextAttempt', 'Next try'),
+              detail.nextAttemptAt ? formatDateTime(detail.nextAttemptAt) : none,
+            ]
+          : null,
+        detail.notAfter && !['sent', 'discarded'].includes(detail.status)
+          ? [t('queue.detail.notAfter', 'Not sent after'), formatDateTime(detail.notAfter)]
+          : null,
         [t('queue.detail.account', 'Account used'), detail.accountUsed || none],
-        [
-          t('queue.detail.source', 'Source'),
-          detail.source ? <MonoText>{detail.source}</MonoText> : none,
-        ],
+        [t('queue.detail.source', 'Sent by'), detail.source ? sourceText(detail.source) : none],
         [t('queue.column.created', 'Queued at'), formatDateTime(detail.createdAt)],
-        [t('queue.detail.sentAt', 'Sent at'), detail.sentAt ? formatDateTime(detail.sentAt) : none],
-      ]
+        detail.status === 'sent' || detail.sentAt
+          ? [
+              t('queue.detail.sentAt', 'Sent at'),
+              detail.sentAt ? formatDateTime(detail.sentAt) : none,
+            ]
+          : null,
+      ].filter(Boolean)
     : [];
 
   return (
@@ -175,7 +206,7 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
               </TertiaryButton>
             </Flex>
           ) : (
-            <>
+            <DrawerSections>
               <FactList>
                 {facts.map(([label, value]) => (
                   <Fragment key={label}>
@@ -190,7 +221,7 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
               </FactList>
 
               {detail.status === 'uncertain' && (
-                <Box marginBottom={6}>
+                <Box>
                   <Typography variant="omega" textColor="neutral800" tag="p">
                     {t(
                       'queue.detail.uncertainHint',
@@ -200,38 +231,45 @@ export const OutboxDetailDrawer = ({ documentId, reloadKey, onClose }) => {
                 </Box>
               )}
 
-              <Typography variant="delta" tag="h3" textColor="neutral800">
-                {t('queue.detail.history', 'Error history')}
-              </Typography>
-              {detail.errorHistory?.length ? (
-                <HistoryList>
-                  {[...detail.errorHistory].reverse().map((entry, index) => (
-                    <HistoryItem key={`${entry.at}-${index}`}>
-                      <Flex gap={2} wrap="wrap" alignItems="center">
-                        <MonoText>{entry.code}</MonoText>
-                        <Typography variant="pi" textColor="neutral600">
-                          {formatDateTime(entry.at)}
-                        </Typography>
-                      </Flex>
-                      <Typography variant="pi" textColor="neutral800">
-                        {classText(entry.class)}
-                      </Typography>
-                      {entry.account && (
-                        <Typography variant="pi" textColor="neutral600">
-                          {t('queue.detail.historyAccount', 'Account: {account}', {
-                            account: entry.account,
-                          })}
-                        </Typography>
-                      )}
-                    </HistoryItem>
-                  ))}
-                </HistoryList>
-              ) : (
-                <Typography variant="omega" textColor="neutral600" tag="p">
-                  {t('queue.detail.noHistory', 'No failed attempts recorded.')}
+              <DrawerSection aria-labelledby="magic-mail-outbox-history">
+                <Typography
+                  id="magic-mail-outbox-history"
+                  variant="delta"
+                  tag="h3"
+                  textColor="neutral800"
+                >
+                  {t('queue.detail.history', 'Error history')}
                 </Typography>
-              )}
-            </>
+                {detail.errorHistory?.length ? (
+                  <HistoryList>
+                    {[...detail.errorHistory].reverse().map((entry, index) => (
+                      <HistoryItem key={`${entry.at}-${index}`}>
+                        <Flex gap={2} wrap="wrap" alignItems="center">
+                          <MonoText>{entry.code}</MonoText>
+                          <Typography variant="pi" textColor="neutral600">
+                            {formatDateTime(entry.at)}
+                          </Typography>
+                        </Flex>
+                        <Typography variant="pi" textColor="neutral800">
+                          {classText(entry.class)}
+                        </Typography>
+                        {entry.account && (
+                          <Typography variant="pi" textColor="neutral600">
+                            {t('queue.detail.historyAccount', 'Account: {account}', {
+                              account: entry.account,
+                            })}
+                          </Typography>
+                        )}
+                      </HistoryItem>
+                    ))}
+                  </HistoryList>
+                ) : (
+                  <Typography variant="omega" textColor="neutral600" tag="p">
+                    {t('queue.detail.noHistory', 'No failed attempts recorded.')}
+                  </Typography>
+                )}
+              </DrawerSection>
+            </DrawerSections>
           )}
         </VersionModalContent>
       </VersionSheet>

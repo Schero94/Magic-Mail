@@ -173,8 +173,8 @@ test('filterRules searches name, description, value and both accounts and applie
 });
 
 test('match-type labels are translated and unknown types still show a label', () => {
-  assert.equal(utils.getMatchTypeLabel('emailType', fakeT), 'Email Type');
-  assert.equal(utils.getMatchTypeLabel('custom', fakeT), 'Custom Field');
+  assert.equal(utils.getMatchTypeLabel('emailType', fakeT), 'Email type');
+  assert.equal(utils.getMatchTypeLabel('custom', fakeT), 'Custom field');
   assert.equal(utils.getMatchTypeLabel('legacyType', fakeT), 'legacyType');
 });
 

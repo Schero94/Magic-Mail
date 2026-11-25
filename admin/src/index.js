@@ -45,7 +45,7 @@ export default {
         {
           intlLabel: {
             id: getTranslation('plugin.settings.pluginSettings'),
-            defaultMessage: 'Plugin Settings',
+            defaultMessage: 'Plugin settings',
           },
           id: 'plugin-settings',
           to: `${pluginId}/plugin-settings`,

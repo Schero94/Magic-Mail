@@ -215,8 +215,8 @@ export const RuleModal = ({
   });
 
   const title = isEditMode
-    ? t('routing.form.editTitle', 'Edit Routing Rule')
-    : t('routing.form.createTitle', 'Create Routing Rule');
+    ? t('routing.form.editTitle', 'Edit routing rule')
+    : t('routing.form.createTitle', 'Create routing rule');
 
   return (
     <>
@@ -247,7 +247,7 @@ export const RuleModal = ({
                   width="100%"
                   hint={t('routing.form.name.hint', 'A descriptive name for this routing rule')}
                 >
-                  <Field.Label>{t('routing.form.name.label', 'Rule Name')}</Field.Label>
+                  <Field.Label>{t('routing.form.name.label', 'Rule name')}</Field.Label>
                   <TextInput
                     placeholder={t(
                       'routing.form.name.placeholder',
@@ -285,7 +285,7 @@ export const RuleModal = ({
                   width="100%"
                   hint={getMatchTypeHelp()}
                 >
-                  <Field.Label>{t('routing.form.matchType.label', 'Match Type')}</Field.Label>
+                  <Field.Label>{t('routing.form.matchType.label', 'Match type')}</Field.Label>
                   <SingleSelect
                     value={formData.matchType}
                     onChange={(value) => handleChange('matchType', value)}
@@ -311,7 +311,7 @@ export const RuleModal = ({
                     'The value to match against. Case-insensitive for recipient and subject.'
                   )}
                 >
-                  <Field.Label>{t('routing.form.matchValue.label', 'Match Value')}</Field.Label>
+                  <Field.Label>{t('routing.form.matchValue.label', 'Match value')}</Field.Label>
                   <TextInput
                     placeholder={
                       MATCH_VALUE_PLACEHOLDERS[formData.matchType] ??
@@ -342,7 +342,7 @@ export const RuleModal = ({
                         )
                   }
                 >
-                  <Field.Label>{t('routing.form.account.label', 'Target Account')}</Field.Label>
+                  <Field.Label>{t('routing.form.account.label', 'Target account')}</Field.Label>
                   <SingleSelect
                     value={formData.accountName || null}
                     placeholder={t('routing.form.account.placeholder', 'Select account...')}
@@ -369,7 +369,7 @@ export const RuleModal = ({
                   )}
                 >
                   <Field.Label>
-                    {t('routing.form.fallback.label', 'Fallback Account (optional)')}
+                    {t('routing.form.fallback.label', 'Fallback account (optional)')}
                   </Field.Label>
                   <SingleSelect
                     value={formData.fallbackAccountName || NO_FALLBACK}
@@ -405,7 +405,7 @@ export const RuleModal = ({
                     priorityRange
                   )}
                 >
-                  <Field.Label>{t('routing.form.priority.label', 'Rule Priority')}</Field.Label>
+                  <Field.Label>{t('routing.form.priority.label', 'Rule priority')}</Field.Label>
                   <NumberInput
                     value={formData.priority ?? undefined}
                     onValueChange={(value) => handleChange('priority', value ?? null)}
@@ -429,7 +429,7 @@ export const RuleModal = ({
                   <Flex gap={3} alignItems="center" justifyContent="space-between">
                     <Box style={{ flex: 1, minWidth: 0 }}>
                       <Typography tag="p" fontWeight="semiBold">
-                        {t('routing.form.active.label', 'Rule Active')}
+                        {t('routing.form.active.label', 'Rule active')}
                       </Typography>
                       <Typography variant="pi" tag="p" textColor="neutral600" marginTop={1}>
                         {formData.isActive
@@ -471,8 +471,8 @@ export const RuleModal = ({
                 startIcon={<CheckIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
               >
                 {isEditMode
-                  ? t('routing.form.submit.update', 'Update Rule')
-                  : t('routing.form.submit.create', 'Create Rule')}
+                  ? t('routing.form.submit.update', 'Update rule')
+                  : t('routing.form.submit.create', 'Create rule')}
               </GradientButton>
             </Flex>
           </Modal.Footer>

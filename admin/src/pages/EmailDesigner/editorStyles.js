@@ -424,10 +424,15 @@ export const VersionSheetTitle = styled.div`
   }
 `;
 
+/**
+ * Body of the side sheets (version history, outbox mail). 24px padding, the
+ * same as VersionSheetHeader, so the title and the content share one left
+ * edge (the body used 16px and sat 8px left of the title).
+ */
 export const VersionModalContent = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 24px;
 `;
 
 export const VersionList = styled.ul`
