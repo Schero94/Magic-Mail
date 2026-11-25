@@ -267,7 +267,11 @@ test(
     try {
       const events = [];
       const emitted = [];
-      const logs = [{ id: 1, documentId: 'log1', providerMessageId: 'a.b@mg.example.test' }];
+      const logs = [
+        { id: 1, documentId: 'log1', accountId: 'acc1', providerMessageId: 'a.b@mg.example.test' },
+      ];
+      // handleWebhook always passes the webhook's account (MM-SA-07).
+      const context = () => ({ accountId: 'acc1' });
       let failCreate = false;
       const strapi = strapiFor(knex, {
         query: (uid) => ({
@@ -300,17 +304,20 @@ test(
 
       deliveryService.__test__.resetSeen();
       failCreate = true;
-      await assert.rejects(deliveryService({ strapi }).recordEvent('mailgun', event));
+      await assert.rejects(deliveryService({ strapi }).recordEvent('mailgun', event, context()));
       failCreate = false;
 
       deliveryService.__test__.resetSeen();
       assert.equal(
-        await deliveryService({ strapi }).recordEvent('mailgun', event),
+        await deliveryService({ strapi }).recordEvent('mailgun', event, context()),
         true,
         'a failed attempt released its claim, so the retry is processed'
       );
       deliveryService.__test__.resetSeen(); // "another process": empty memory
-      assert.equal(await deliveryService({ strapi }).recordEvent('mailgun', event), false);
+      assert.equal(
+        await deliveryService({ strapi }).recordEvent('mailgun', event, context()),
+        false
+      );
       assert.equal(events.length, 1);
       assert.deepEqual(emitted, ['magic-mail.delivery.bounced']);
     } finally {
