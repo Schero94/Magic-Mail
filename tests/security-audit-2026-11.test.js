@@ -681,3 +681,44 @@ test('MM-SA-09: one import request is capped at 100 templates', () => {
     (err) => err.name === 'ValidationError'
   );
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-08: the mailbox connection test is not a port-scan oracle
+// ---------------------------------------------------------------------------
+
+test('MM-SA-08: refused and non-TLS ports report the same code to the client', async () => {
+  const net = require('node:net');
+  const { ImapFlow } = require('imapflow');
+  // A closed port (refused) and an open port that does not speak TLS.
+  const closed = await new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+  const plain = net.createServer((socket) => socket.end('SSH-2.0-OpenSSH_9.6\r\n'));
+  await new Promise((resolve) => plain.listen(0, '127.0.0.1', resolve));
+  try {
+    const codes = [];
+    for (const port of [closed, plain.address().port]) {
+      const { monitor, tables } = bounceHarness({ imapPort: port, logs: [] });
+      monitor.setTestHooks({
+        imap: (options) =>
+          new ImapFlow({
+            ...options,
+            secure: true,
+            connectionTimeout: 3000,
+            greetingTimeout: 3000,
+          }),
+      });
+      const error = await monitor
+        .pollAccount(tables[BM.account].rows[0], { testOnly: true })
+        .catch((err) => err);
+      codes.push(error?.code);
+    }
+    assert.deepEqual(codes, ['CONNECTION_FAILED', 'CONNECTION_FAILED']);
+  } finally {
+    plain.close();
+  }
+});

@@ -869,7 +869,7 @@
   "accountModal.bounce.checkBusy": "Une vérification est déjà en cours. Réessayez dans un instant.",
   "accountModal.bounce.error.AUTH_FAILED": "La boîte a refusé la connexion. Vérifiez l'utilisateur et le mot de passe IMAP.",
   "accountModal.bounce.error.TIMEOUT": "Le serveur de la boîte n'a pas répondu à temps.",
-  "accountModal.bounce.error.CONNECTION_FAILED": "Le serveur de la boîte est injoignable. Vérifiez l'hôte et le port.",
+  "accountModal.bounce.error.CONNECTION_FAILED": "Le serveur de la boîte est injoignable. Vérifiez l'hôte, le port et les réglages TLS.",
   "accountModal.bounce.error.TLS_FAILED": "La connexion sécurisée au serveur de la boîte a échoué.",
   "accountModal.bounce.error.FOLDER_NOT_FOUND": "Ce dossier n'existe pas dans cette boîte.",
   "accountModal.bounce.error.IMAP_NOT_CONFIGURED": "Saisissez d'abord l'hôte et l'identifiant IMAP.",

@@ -51,6 +51,8 @@ const MAX_MESSAGES_PER_POLL = 500;
 const MAX_DOWNLOADS_PER_POLL = 100;
 const HTTP_TIMEOUT_MS = 20_000;
 const MATCH_WINDOW_MS = 7 * 24 * 3600_000;
+/** Error codes reported to the client as CONNECTION_FAILED (MM-SA-08). */
+const CONNECTION_CLASS_CODES = new Set(['CONNECTION_FAILED', 'TIMEOUT', 'TLS_FAILED']);
 /** Log matches that prove the report refers to a mail we sent (MM-SA-04). */
 const STRONG_MATCHES = new Set(['outbox', 'message-id']);
 /** Folder names: 1-200 characters without control characters. */
@@ -1034,7 +1036,17 @@ module.exports = ({ strapi }) => {
         }
         return { ok: true, ...result, cursor: undefined };
       } catch (error) {
-        const code = errorCodeFor(error);
+        const detail = errorCodeFor(error);
+        // Refused, unreachable, timed out and TLS failures look the same to
+        // the client (as for the SMTP account test, SEC-12): distinct codes
+        // turned the test button into a port scanner for internal hosts
+        // (MM-SA-08). The detail stays in the server log.
+        const code = CONNECTION_CLASS_CODES.has(detail) ? 'CONNECTION_FAILED' : detail;
+        if (code !== detail) {
+          log.warn(
+            `[magic-mail] [BOUNCES] Mailbox connection failed for account ${account.documentId} (${detail})`
+          );
+        }
         if (!testOnly) {
           await saveState(account, {
             lastPollAt: new Date(clock()).toISOString(),

@@ -869,7 +869,7 @@
   "accountModal.bounce.checkBusy": "Já está a decorrer uma verificação. Tente novamente daqui a pouco.",
   "accountModal.bounce.error.AUTH_FAILED": "A caixa de correio recusou o login. Verifique o utilizador e a palavra-passe IMAP.",
   "accountModal.bounce.error.TIMEOUT": "O servidor da caixa de correio não respondeu a tempo.",
-  "accountModal.bounce.error.CONNECTION_FAILED": "Não foi possível contactar o servidor da caixa de correio. Verifique o servidor e a porta.",
+  "accountModal.bounce.error.CONNECTION_FAILED": "Não foi possível contactar o servidor da caixa de correio. Verifique o servidor, a porta e as definições TLS.",
   "accountModal.bounce.error.TLS_FAILED": "A ligação segura ao servidor da caixa de correio falhou.",
   "accountModal.bounce.error.FOLDER_NOT_FOUND": "A pasta não existe nesta caixa de correio.",
   "accountModal.bounce.error.IMAP_NOT_CONFIGURED": "Introduza primeiro o servidor e o login IMAP.",
