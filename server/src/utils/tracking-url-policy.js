@@ -113,8 +113,26 @@ const SENSITIVE_PARAM_WORDS = new Set([
   'session',
 ]);
 
-// A JWT-looking triple of base64url segments.
-const JWT_LIKE = /\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/;
+/**
+ * True when the text contains a JWT-looking triple of base64url segments
+ * (three dot-separated runs of at least 10 base64url characters). A token
+ * scan instead of `\b[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b`, which was
+ * polynomial on long `0-0-0-...` runs (MM-SA-10).
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function looksLikeJwt(text) {
+  for (const token of String(text || '').split(/[^A-Za-z0-9_.-]+/)) {
+    if (token.length < 32) continue;
+    let run = 0;
+    for (const part of token.split('.')) {
+      run = part.length >= 10 ? run + 1 : 0;
+      if (run >= 3) return true;
+    }
+  }
+  return false;
+}
 
 const MAX_INSPECTED_PARAMS = 200;
 
@@ -188,7 +206,7 @@ function hasSensitiveParams(params) {
     // A bare token used as the parameter name (`?<token>` or `#<token>`).
     if (looksLikeSecretValue(name)) return true;
     if (looksLikeSecretValue(value)) return true;
-    if (JWT_LIKE.test(value)) return true;
+    if (looksLikeJwt(value)) return true;
   }
   return false;
 }
@@ -235,7 +253,7 @@ function isSensitiveTrackingUrl(rawUrl) {
 
   const fragment = url.hash ? url.hash.slice(1) : '';
   if (fragment) {
-    if (JWT_LIKE.test(fragment)) return true;
+    if (looksLikeJwt(fragment)) return true;
     const queryPart = fragment.includes('?') ? fragment.slice(fragment.indexOf('?') + 1) : fragment;
     try {
       if (hasSensitiveParams(new URLSearchParams(queryPart))) return true;
@@ -244,7 +262,7 @@ function isSensitiveTrackingUrl(rawUrl) {
     }
   }
 
-  if (JWT_LIKE.test(url.search) || JWT_LIKE.test(path)) return true;
+  if (looksLikeJwt(url.search) || looksLikeJwt(path)) return true;
 
   return false;
 }

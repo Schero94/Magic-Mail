@@ -586,3 +586,28 @@ test('MM-SA-06: "$" followed by "${...}" is rejected like users-permissions does
   });
   assert.equal(box.value.reset_password.options.message, '<%= URL %> <%= TOKEN %> <%= CODE %>');
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-10: JWT detection in tracked links is linear
+// ---------------------------------------------------------------------------
+
+const { isSensitiveTrackingUrl } = require('../server/src/utils/tracking-url-policy');
+
+test('MM-SA-10: a long "0-0-0-..." link is classified within the time budget', async () => {
+  // Just under the 8192-character cap above which links are not tracked at all.
+  // Long query and path values already count as secrets; the fragment reached the regex.
+  const url = `https://shop.example.test/p#${'0-'.repeat(4000)}`;
+  assert.ok(url.length < 8192);
+  const ms = await elapsed(() => {
+    for (let i = 0; i < 12; i += 1) isSensitiveTrackingUrl(url);
+  });
+  assert.ok(ms < 200, `12 checks took ${ms.toFixed(0)} ms`);
+});
+
+test('MM-SA-10: JWT-looking values in path, query and fragment are still sensitive', () => {
+  const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlLXZhbHVl';
+  assert.equal(isSensitiveTrackingUrl(`https://app.example.test/go/${jwt}`), true);
+  assert.equal(isSensitiveTrackingUrl(`https://app.example.test/go?x=${jwt}`), true);
+  assert.equal(isSensitiveTrackingUrl(`https://app.example.test/go#${jwt}`), true);
+  assert.equal(isSensitiveTrackingUrl('https://shop.example.test/products/blue-shirt'), false);
+});
