@@ -73,3 +73,128 @@ test('MM-SA-03: reason codes and inline returned headers keep working', async ()
   assert.equal(result.originalMessageId, 'abcdef0123456789abcdef01@sender.example');
   assert.equal(result.outboxId, 'qxq9ilna62s28w7z4ickgfqx');
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-01: changing the bounce-monitoring IMAP host must not send a stored
+// secret to the new host without re-entering it
+// ---------------------------------------------------------------------------
+
+const { encryptCredentials, decryptCredentials } = require('../server/src/utils/encryption');
+
+const quietLog = { debug() {}, info() {}, warn() {}, error() {} };
+
+/** Minimal Strapi for account-manager.updateAccount (one in-memory table). */
+function accountStrapi(accounts) {
+  return {
+    log: quietLog,
+    documents: () => ({
+      findOne: async ({ documentId }) => accounts.find((r) => r.documentId === documentId) || null,
+      findMany: async () => [],
+      create: async ({ data }) => data,
+      update: async ({ documentId, data }) => {
+        const row = accounts.find((r) => r.documentId === documentId);
+        Object.assign(row, data);
+        return { ...row };
+      },
+    }),
+    plugin: () => ({ service: () => ({}) }),
+  };
+}
+
+function smtpAccount(bounceMonitor) {
+  return {
+    documentId: 'acc1',
+    name: 'SMTP',
+    provider: 'smtp',
+    fromEmail: 'noreply@sender.example',
+    config: encryptCredentials({
+      host: 'smtp.sender.example',
+      port: 587,
+      user: 'noreply@sender.example',
+      pass: 'stored-smtp-secret',
+      imapPass: 'stored-imap-secret',
+    }),
+    bounceMonitor,
+  };
+}
+
+const monitorAt = (host, extra = {}) => ({
+  enabled: true,
+  mode: 'imap',
+  imap: { host, port: 993, secure: true, ...extra },
+});
+
+test('MM-SA-01: a new IMAP host with "use the SMTP login" requires the SMTP password again', async () => {
+  const accounts = [smtpAccount(monitorAt('imap.sender.example', { useSmtpLogin: true }))];
+  const manager = require('../server/src/services/account-manager')({
+    strapi: accountStrapi(accounts),
+  });
+  // No `config` at all: the old code stored the new host unchecked.
+  await assert.rejects(
+    manager.updateAccount('acc1', {
+      bounceMonitor: monitorAt('imap.attacker.example', { useSmtpLogin: true }),
+    }),
+    (err) => err.name === 'ValidationError' && /pass/.test(err.message)
+  );
+  // The admin UI path: mirrored host plus an empty imapPass.
+  await assert.rejects(
+    manager.updateAccount('acc1', {
+      config: { pass: '********', imapHost: 'imap.attacker.example', imapPass: '' },
+      bounceMonitor: monitorAt('imap.attacker.example', { useSmtpLogin: true }),
+    }),
+    (err) => err.name === 'ValidationError'
+  );
+  assert.equal(accounts[0].bounceMonitor.imap.host, 'imap.sender.example', 'nothing stored');
+});
+
+test('MM-SA-01: switching an existing IMAP host to the SMTP login requires the SMTP password', async () => {
+  const accounts = [smtpAccount(monitorAt('imap.other.example', { user: 'b@sender.example' }))];
+  const manager = require('../server/src/services/account-manager')({
+    strapi: accountStrapi(accounts),
+  });
+  await assert.rejects(
+    manager.updateAccount('acc1', {
+      bounceMonitor: monitorAt('imap.other.example', { useSmtpLogin: true }),
+    }),
+    (err) => err.name === 'ValidationError' && /pass/.test(err.message)
+  );
+});
+
+test('MM-SA-01: a separate IMAP password must be re-entered for a new host; fresh secrets pass', async () => {
+  const accounts = [smtpAccount(monitorAt('imap.sender.example', { user: 'b@sender.example' }))];
+  const manager = require('../server/src/services/account-manager')({
+    strapi: accountStrapi(accounts),
+  });
+  await assert.rejects(
+    manager.updateAccount('acc1', {
+      bounceMonitor: monitorAt('imap.attacker.example', { user: 'b@sender.example' }),
+    }),
+    (err) => err.name === 'ValidationError' && /imapPass/.test(err.message)
+  );
+  await manager.updateAccount('acc1', {
+    config: { imapPass: 'fresh-imap-secret' },
+    bounceMonitor: monitorAt('imap.new.example', { user: 'b@sender.example' }),
+  });
+  assert.equal(accounts[0].bounceMonitor.imap.host, 'imap.new.example');
+  assert.equal(decryptCredentials(accounts[0].config).imapPass, 'fresh-imap-secret');
+});
+
+test('MM-SA-01: unchanged hosts, port changes and the server-derived IMAP host need no re-entry', async () => {
+  const accounts = [smtpAccount(null)];
+  const manager = require('../server/src/services/account-manager')({
+    strapi: accountStrapi(accounts),
+  });
+  // First enable: empty host = imap.<smtp domain>, derived by the server.
+  await manager.updateAccount('acc1', { bounceMonitor: monitorAt('', { useSmtpLogin: true }) });
+  await manager.updateAccount('acc1', {
+    bounceMonitor: monitorAt('imap.sender.example', { useSmtpLogin: true }),
+  });
+  await manager.updateAccount('acc1', {
+    bounceMonitor: monitorAt('imap.sender.example', {
+      useSmtpLogin: true,
+      port: 143,
+      secure: false,
+    }),
+  });
+  assert.equal(accounts[0].bounceMonitor.imap.port, 143);
+});
