@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.10.2](https://github.com/Schero94/Magic-Mail/compare/v4.10.1...v4.10.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **admin:** clearer click paths, consistent wording and spacing ([#39](https://github.com/Schero94/Magic-Mail/issues/39)) ([d77ed79](https://github.com/Schero94/Magic-Mail/commit/d77ed796344a72ac9c15382372825142e82a5ae8))
+
 
 ### Fixed
 
