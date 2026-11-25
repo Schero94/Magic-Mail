@@ -1,4 +1,10 @@
-## [Unreleased]
+## [4.10.1](https://github.com/Schero94/Magic-Mail/compare/v4.10.0...v4.10.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* security audit 2026-11 (IMAP secret re-entry, GraphQL types off, bounce and CSS ReDoS, forged bounce suppression, webhook scoping) ([#37](https://github.com/Schero94/Magic-Mail/issues/37)) ([678b4c4](https://github.com/Schero94/Magic-Mail/commit/678b4c4cf94886b49a23eebc4e653c09f42e773c))
+
 
 ### Security
 
