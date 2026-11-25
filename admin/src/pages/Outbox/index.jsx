@@ -46,7 +46,9 @@ import {
   buildOutboxUrl,
   outboxActions,
   outboxStatusPresentation,
+  outboxTries,
 } from './outboxUtils';
+import { TriesText } from './TriesText';
 
 const SummaryRow = styled.div`
   display: flex;
@@ -200,7 +202,7 @@ const OutboxView = () => {
     recipient: t('queue.column.recipient', 'Recipient'),
     subject: t('queue.column.subject', 'Subject'),
     status: t('queue.column.status', 'Status'),
-    attempts: t('queue.column.attempts', 'Attempts'),
+    attempts: t('queue.column.attempts', 'Tries'),
     next: t('queue.column.next', 'Next try / last error'),
     created: t('queue.column.created', 'Queued at'),
     actions: t('queue.column.actions', 'Actions'),
@@ -425,10 +427,7 @@ const OutboxView = () => {
                     <Td data-label={columnLabels.status}>{renderStatus(row)}</Td>
                     <Td data-label={columnLabels.attempts}>
                       <Typography variant="omega">
-                        {t('queue.attempts', '{attempts} of {max}', {
-                          attempts: formatNumber(row.attempts || 0),
-                          max: formatNumber(row.maxAttempts || 0),
-                        })}
+                        <TriesText tries={outboxTries(row)} />
                       </Typography>
                     </Td>
                     <Td className="cell-wrap" data-label={columnLabels.next}>

@@ -24,7 +24,7 @@ export const MATCH_TYPES = ['emailType', 'recipient', 'subject', 'template', 'cu
 export const getMatchTypeLabel = (matchType, t) => {
   switch (matchType) {
     case 'emailType':
-      return t('routing.matchType.emailType', 'Email Type');
+      return t('routing.matchType.emailType', 'Email type');
     case 'recipient':
       return t('routing.matchType.recipient', 'Recipient');
     case 'subject':
@@ -32,7 +32,7 @@ export const getMatchTypeLabel = (matchType, t) => {
     case 'template':
       return t('routing.matchType.template', 'Template');
     case 'custom':
-      return t('routing.matchType.custom', 'Custom Field');
+      return t('routing.matchType.custom', 'Custom field');
     default:
       return String(matchType ?? '');
   }

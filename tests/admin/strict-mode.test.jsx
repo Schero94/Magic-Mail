@@ -170,11 +170,11 @@ test('plugin page: switching through every section tab mounts and unmounts clean
     permissions: ALL,
     async whileMounted() {
       for (const tab of [
-        'Routing Rules',
-        'Email Templates',
+        'Routing rules',
+        'Email templates',
         'Analytics',
         'Outbox',
-        'Email Accounts',
+        'Email accounts',
       ]) {
         await click(button(tab));
         await wait(50);

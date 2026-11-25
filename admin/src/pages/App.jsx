@@ -57,12 +57,12 @@ const App = () => {
   };
 
   const tabs = [
-    { value: 'accounts', Icon: EnvelopeIcon, label: t('app.tabs.accounts', 'Email Accounts') },
-    { value: 'routing', Icon: FunnelIcon, label: t('app.tabs.routing', 'Routing Rules') },
+    { value: 'accounts', Icon: EnvelopeIcon, label: t('app.tabs.accounts', 'Email accounts') },
+    { value: 'routing', Icon: FunnelIcon, label: t('app.tabs.routing', 'Routing rules') },
     {
       value: 'templates',
       Icon: DocumentTextIcon,
-      label: t('app.tabs.templates', 'Email Templates'),
+      label: t('app.tabs.templates', 'Email templates'),
     },
     { value: 'analytics', Icon: ChartBarIcon, label: t('app.tabs.analytics', 'Analytics') },
     // The outbox has its own grant (queue.read); a direct link without it

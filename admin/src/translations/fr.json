@@ -785,7 +785,6 @@
   "queue.empty.filteredBody": "Choisissez un autre statut ou affichez tous les e-mails.",
   "queue.empty.body": "Les e-mails apparaissent ici lorsqu'un envoi est mis en file ou qu'un envoi échoué est conservé pour une nouvelle tentative (Paramètres, « Mettre en file les envois échoués »).",
   "queue.empty.clear": "Afficher tous les statuts",
-  "queue.attempts": "{attempts} sur {max}",
   "queue.pagination.label": "Pages de la boîte d'envoi",
   "queue.discard.title": "Abandonner cet e-mail ?",
   "queue.discard.body": "L'e-mail à {name} n'est pas envoyé et son contenu est supprimé. Cette action est irréversible.",
@@ -802,7 +801,7 @@
   "queue.detail.nextAttempt": "Prochaine tentative",
   "queue.detail.notAfter": "Pas envoyé après",
   "queue.detail.account": "Compte utilisé",
-  "queue.detail.source": "Source",
+  "queue.detail.source": "Envoyé par",
   "queue.detail.sentAt": "Envoyé le",
   "queue.detail.close": "Fermer les détails",
   "queue.detail.title": "E-mail de la boîte d'envoi",
@@ -1162,5 +1161,11 @@
   "templates.coreDesign.checkedAt": "Dernière vérification : {date}.",
   "templates.coreDesign.problem.noSubject": "le modèle Mailgun n'a pas d'en-tête Subject",
   "templates.coreDesign.noSubject": "Ce modèle Mailgun n'a pas d'en-tête Subject. Les e-mails principaux envoyés avec lui échouent ; ajoutez un en-tête Subject au modèle chez Mailgun, puis synchronisez.",
-  "templates.coreDesign.badge.noSubject": "Pas d'en-tête Subject"
+  "templates.coreDesign.badge.noSubject": "Pas d'en-tête Subject",
+  "queue.tries.open": "{total} sur {max} tentatives{failed, plural, =0 {} other {, # en échec}}",
+  "queue.tries.done": "{total, plural, one {# tentative} other {# tentatives}}{failed, plural, =0 {} other {, # en échec}}",
+  "queue.source.service": "Service du plugin dans le code serveur",
+  "queue.source.strapiEmail": "Plugin e-mail de Strapi",
+  "queue.source.contentApi": "Content API (jeton d'API)",
+  "queue.source.queue": "Boîte d'envoi"
 }

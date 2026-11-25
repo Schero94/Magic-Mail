@@ -785,7 +785,6 @@
   "queue.empty.filteredBody": "Anderen Status wählen oder alle Mails anzeigen.",
   "queue.empty.body": "Mails erscheinen hier, wenn ein Versand eingereiht wird oder ein fehlgeschlagener Versand für einen erneuten Versuch aufbewahrt wird (Einstellungen, „Fehlgeschlagene Sendungen einreihen“).",
   "queue.empty.clear": "Alle Status anzeigen",
-  "queue.attempts": "{attempts} von {max}",
   "queue.pagination.label": "Seiten des Postausgangs",
   "queue.discard.title": "Diese Mail verwerfen?",
   "queue.discard.body": "Die Mail an {name} wird nicht gesendet und ihr Inhalt gelöscht. Das kann nicht rückgängig gemacht werden.",
@@ -802,7 +801,7 @@
   "queue.detail.nextAttempt": "Nächster Versuch",
   "queue.detail.notAfter": "Nicht senden nach",
   "queue.detail.account": "Verwendetes Konto",
-  "queue.detail.source": "Quelle",
+  "queue.detail.source": "Gesendet über",
   "queue.detail.sentAt": "Gesendet am",
   "queue.detail.close": "Details schließen",
   "queue.detail.title": "Mail im Postausgang",
@@ -1162,5 +1161,11 @@
   "templates.coreDesign.checkedAt": "Zuletzt geprüft: {date}.",
   "templates.coreDesign.problem.noSubject": "die Mailgun-Vorlage hat keinen Subject-Header",
   "templates.coreDesign.noSubject": "Diese Mailgun-Vorlage hat keinen Subject-Header. Kern-E-Mails mit dieser Vorlage schlagen fehl; ergänzen Sie bei Mailgun einen Subject-Header und synchronisieren Sie anschließend.",
-  "templates.coreDesign.badge.noSubject": "Kein Subject-Header"
+  "templates.coreDesign.badge.noSubject": "Kein Subject-Header",
+  "queue.tries.open": "{total} von {max} Versuchen{failed, plural, =0 {} other {, # fehlgeschlagen}}",
+  "queue.tries.done": "{total, plural, one {# Versuch} other {# Versuche}}{failed, plural, =0 {} other {, # fehlgeschlagen}}",
+  "queue.source.service": "Plugin-Service im Servercode",
+  "queue.source.strapiEmail": "Strapi-E-Mail-Plugin",
+  "queue.source.contentApi": "Content API (API-Token)",
+  "queue.source.queue": "Postausgang"
 }

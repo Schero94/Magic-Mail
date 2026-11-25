@@ -837,7 +837,7 @@ const TemplateList = () => {
           <div>
             <Title variant="alpha" tag="h1">
               <DocumentTextIcon aria-hidden="true" />
-              {t('templates.title', 'Email Templates')}
+              {t('templates.title', 'Email templates')}
             </Title>
             {stats && (
               <Subtitle variant="epsilon" tag="p">

@@ -13,7 +13,7 @@ const editorSource = readFileSync(
 test('visual editor load failure has an accessible plain-text fallback', () => {
   assert.ok(editorSource.includes('designerLoadError'), 'track visual editor load failure');
   assert.ok(editorSource.includes('role="alert"'), 'announce the load failure accessibly');
-  assert.ok(editorSource.includes('Switch to Plain Text'), 'offer the working text editor');
+  assert.ok(editorSource.includes('Switch to plain text'), 'offer the working text editor');
   assert.ok(
     editorSource.includes("setActiveTab('text')"),
     'the fallback action selects plain text'

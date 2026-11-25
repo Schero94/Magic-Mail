@@ -785,7 +785,6 @@
   "queue.empty.filteredBody": "Escolha outro estado ou mostre todos os e-mails.",
   "queue.empty.body": "Os e-mails aparecem aqui quando um envio é colocado na fila ou quando um envio falhado é guardado para nova tentativa (Definições, «Colocar envios falhados na fila»).",
   "queue.empty.clear": "Mostrar todos os estados",
-  "queue.attempts": "{attempts} de {max}",
   "queue.pagination.label": "Páginas da caixa de saída",
   "queue.discard.title": "Descartar este e-mail?",
   "queue.discard.body": "O e-mail para {name} não é enviado e o seu conteúdo é eliminado. Não pode ser anulado.",
@@ -802,7 +801,7 @@
   "queue.detail.nextAttempt": "Próxima tentativa",
   "queue.detail.notAfter": "Não enviar depois de",
   "queue.detail.account": "Conta utilizada",
-  "queue.detail.source": "Origem",
+  "queue.detail.source": "Enviado por",
   "queue.detail.sentAt": "Enviado em",
   "queue.detail.close": "Fechar detalhes",
   "queue.detail.title": "E-mail da caixa de saída",
@@ -1162,5 +1161,11 @@
   "templates.coreDesign.checkedAt": "Última verificação: {date}.",
   "templates.coreDesign.problem.noSubject": "o modelo do Mailgun não tem cabeçalho Subject",
   "templates.coreDesign.noSubject": "Este modelo do Mailgun não tem cabeçalho Subject. Os e-mails principais enviados com ele falham; adicione um cabeçalho Subject ao modelo no Mailgun e sincronize.",
-  "templates.coreDesign.badge.noSubject": "Sem cabeçalho Subject"
+  "templates.coreDesign.badge.noSubject": "Sem cabeçalho Subject",
+  "queue.tries.open": "{total} de {max} tentativas{failed, plural, =0 {} one {, # com falha} other {, # com falha}}",
+  "queue.tries.done": "{total, plural, one {# tentativa} other {# tentativas}}{failed, plural, =0 {} other {, # com falha}}",
+  "queue.source.service": "Serviço do plugin no código do servidor",
+  "queue.source.strapiEmail": "Plugin de e-mail do Strapi",
+  "queue.source.contentApi": "Content API (token de API)",
+  "queue.source.queue": "Caixa de saída"
 }

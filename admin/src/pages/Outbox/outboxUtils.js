@@ -126,3 +126,38 @@ export const apiErrorCode = (error) => {
   const code = error?.response?.data?.error?.details?.code;
   return typeof code === 'string' ? code : null;
 };
+
+/**
+ * Tries of one outbox mail, as the user counts them. The server's `attempts`
+ * counts only queue tries: a mail captured after a failed direct send
+ * (`createdVia: 'capture-on-failure'`) had one more try before it entered the
+ * queue, and the queue then allows `maxAttempts` tries of its own
+ * (services/queue.js: insert with attempts 0, retry while attempts < maxAttempts).
+ * So "1 of 3" for a captured mail that was then sent hid the failed first try.
+ *
+ * @param {{status?: string, attempts?: number, maxAttempts?: number, createdVia?: string|null}} row
+ * @returns {{total: number, max: number, failed: number, open: boolean}}
+ *   total tries so far, the most tries possible, tries that failed, and
+ *   whether more tries can follow (pending or sending)
+ */
+export const outboxTries = (row) => {
+  const captured = row?.createdVia === 'capture-on-failure' ? 1 : 0;
+  const total = Math.max(0, Number(row?.attempts) || 0) + captured;
+  const max = Math.max(0, Number(row?.maxAttempts) || 0) + captured;
+  // The last try of a sent mail succeeded; an uncertain one may have.
+  const lastNotFailed = row?.status === 'sent' || row?.status === 'uncertain' ? 1 : 0;
+  return {
+    total,
+    max: Math.max(max, total),
+    failed: Math.max(0, total - lastNotFailed),
+    open: row?.status === 'pending' || row?.status === 'sending',
+  };
+};
+
+/** Plain labels for the queue `source` (who handed the mail to Magic Mail). */
+export const SOURCE_KEYS = Object.freeze({
+  service: ['queue.source.service', 'Plugin service in server code'],
+  'strapi-email': ['queue.source.strapiEmail', 'Strapi email plugin'],
+  'content-api': ['queue.source.contentApi', 'Content API (API token)'],
+  queue: ['queue.source.queue', 'Outbox'],
+});

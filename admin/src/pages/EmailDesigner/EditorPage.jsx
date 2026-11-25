@@ -956,11 +956,11 @@ const EditorPage = () => {
             <Tabs.List aria-label={t('editor.tabs.label', 'Editor mode')}>
               <Tabs.Trigger value="html">
                 <SparklesIcon aria-hidden="true" />
-                {t('editor.tabs.visual', 'Visual Designer')}
+                {t('editor.tabs.visual', 'Visual designer')}
               </Tabs.Trigger>
               <Tabs.Trigger value="text">
                 <DocumentTextIcon aria-hidden="true" />
-                {t('editor.tabs.text', 'Plain Text')}
+                {t('editor.tabs.text', 'Plain text')}
               </Tabs.Trigger>
             </Tabs.List>
           </TabListWrapper>
@@ -990,7 +990,7 @@ const EditorPage = () => {
                     )}
                   </Typography>
                   <Button size="S" onClick={() => setActiveTab('text')}>
-                    {t('editor.designer.switchToText', 'Switch to Plain Text')}
+                    {t('editor.designer.switchToText', 'Switch to plain text')}
                   </Button>
                 </OverlayState>
               )}

@@ -235,10 +235,10 @@ const RoutingRulesPage = () => {
 
   const columnLabels = {
     status: t('routing.table.status', 'Status'),
-    name: t('routing.table.name', 'Rule Name'),
-    matchType: t('routing.table.matchType', 'Match Type'),
-    matchValue: t('routing.table.matchValue', 'Match Value'),
-    account: t('routing.table.account', 'Target Account'),
+    name: t('routing.table.name', 'Rule name'),
+    matchType: t('routing.table.matchType', 'Match type'),
+    matchValue: t('routing.table.matchValue', 'Match value'),
+    account: t('routing.table.account', 'Target account'),
     priority: t('routing.table.priority', 'Priority'),
     actions: t('routing.table.actions', 'Actions'),
   };
@@ -353,7 +353,7 @@ const RoutingRulesPage = () => {
       return (
         <EmptyState
           icon={Filter}
-          title={t('routing.empty.title', 'No Routing Rules Yet')}
+          title={t('routing.empty.title', 'No routing rules yet')}
           description={
             canManage
               ? t(
@@ -369,7 +369,7 @@ const RoutingRulesPage = () => {
                 onClick={() => setShowModal(true)}
                 disabled={!canEditRules}
               >
-                {t('routing.empty.cta', 'Create First Rule')}
+                {t('routing.empty.cta', 'Create first rule')}
               </GradientButton>
             ) : null
           }
@@ -456,7 +456,7 @@ const RoutingRulesPage = () => {
       <RulesContainer>
         <Box marginBottom={4}>
           <SectionBar justifyContent="space-between" alignItems="center">
-            <SectionHeading>{t('routing.section.title', 'Routing Rules')}</SectionHeading>
+            <SectionHeading>{t('routing.section.title', 'Routing rules')}</SectionHeading>
             {canManage && !loadError && (
               <GradientButton
                 startIcon={<PlusIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
@@ -464,7 +464,7 @@ const RoutingRulesPage = () => {
                 disabled={!canEditRules}
                 data-mm-focus-fallback
               >
-                {t('routing.actions.create', 'Create Rule')}
+                {t('routing.actions.create', 'Create rule')}
               </GradientButton>
             )}
           </SectionBar>
@@ -537,7 +537,7 @@ const RoutingRulesPage = () => {
                 onChange={(value) => setFilterStatus(String(value))}
               >
                 <SingleSelectOption value="all">
-                  {t('routing.filters.allStatuses', 'All Rules')}
+                  {t('routing.filters.allStatuses', 'All rules')}
                 </SingleSelectOption>
                 <SingleSelectOption value="active">
                   {t('routing.status.active', 'Active')}
@@ -555,7 +555,7 @@ const RoutingRulesPage = () => {
                 onChange={(value) => setFilterMatchType(String(value))}
               >
                 <SingleSelectOption value="all">
-                  {t('routing.filters.allTypes', 'All Types')}
+                  {t('routing.filters.allTypes', 'All types')}
                 </SingleSelectOption>
                 {knownMatchTypes.map((type) => (
                   <SingleSelectOption key={type} value={type}>
@@ -582,7 +582,7 @@ const RoutingRulesPage = () => {
           <Flex direction="column" alignItems="flex-start" gap={2}>
             <Title tag="h1">
               <FunnelIcon aria-hidden="true" />
-              {t('routing.title', 'Email Routing Rules')}
+              {t('routing.title', 'Email routing rules')}
             </Title>
             <Subtitle tag="p">
               {t(

@@ -646,9 +646,9 @@ const Analytics = () => {
   const columnLabels = {
     recipient: t('analytics.table.recipient', 'Recipient'),
     subject: t('analytics.table.subject', 'Subject'),
-    deliveryStatus: t('analytics.table.deliveryStatus', 'Delivery Status'),
+    deliveryStatus: t('analytics.table.deliveryStatus', 'Delivery status'),
     template: t('analytics.table.template', 'Template'),
-    attemptedAt: t('analytics.table.attemptedAt', 'Attempted At'),
+    attemptedAt: t('analytics.table.attemptedAt', 'Attempted at'),
     opened: t('analytics.table.opened', 'Opened'),
     clicked: t('analytics.table.clicked', 'Clicked'),
   };
@@ -718,7 +718,7 @@ const Analytics = () => {
           <div>
             <Title variant="alpha" tag="h1">
               <ChartBarIcon aria-hidden="true" />
-              {t('analytics.title', 'Email Analytics')}
+              {t('analytics.title', 'Email analytics')}
             </Title>
             <Subtitle variant="epsilon" tag="p">
               {t('analytics.subtitle', 'Track your email performance and engagement')}
@@ -825,7 +825,7 @@ const Analytics = () => {
               onClick={() => setShowClearDialog(true)}
               disabled={isDeleting}
             >
-              {t('analytics.clear.button', 'Clear All')}
+              {t('analytics.clear.button', 'Clear all')}
             </Button>
           </FilterActions>
         )}
@@ -926,7 +926,7 @@ const Analytics = () => {
           'analytics.clear.body',
           'Are you sure you want to delete all email logs? This action cannot be undone.'
         )}
-        confirmLabel={t('analytics.clear.confirm', 'Delete All')}
+        confirmLabel={t('analytics.clear.confirm', 'Delete all')}
         confirmIcon={<TrashIcon style={ICON_16} aria-hidden="true" />}
       >
         {totalLogs !== null
