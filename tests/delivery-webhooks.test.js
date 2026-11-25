@@ -519,7 +519,8 @@ test('Mailgun webhook handles permanent failures, records temporary ones and rej
           headers: {},
         })
       ).status,
-      400
+      // Unauthenticated: same answer as an unknown account (MM-SA-11).
+      401
     );
   });
 });

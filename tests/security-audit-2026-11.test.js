@@ -722,3 +722,52 @@ test('MM-SA-08: refused and non-TLS ports report the same code to the client', a
     plain.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-11: webhook answers do not reveal which account ids exist
+// ---------------------------------------------------------------------------
+
+test('MM-SA-11: a malformed body for a known account answers like an unknown account', async () => {
+  const deliveryService = require('../server/src/services/delivery-webhooks');
+  const accounts = {
+    mg1: {
+      documentId: 'mg1',
+      provider: 'mailgun',
+      config: encryptCredentials({
+        apiKey: 'key',
+        domain: 'mg.example.test',
+        webhookSigningKey: 'synthetic-signing-key',
+      }),
+    },
+    ses1: {
+      documentId: 'ses1',
+      provider: 'ses',
+      config: encryptCredentials({
+        accessKeyId: 'AKIAEXAMPLEEXAMPLE00',
+        secretAccessKey: 'synthetic',
+        region: 'eu-west-1',
+        snsTopicArn: 'arn:aws:sns:eu-west-1:123456789012:magic-mail-events',
+      }),
+    },
+  };
+  const strapi = {
+    log: quietLog,
+    config: { get: (_key, fallback) => fallback },
+    documents: () => ({ findOne: async ({ documentId }) => accounts[documentId] || null }),
+    plugin: () => ({ service: () => ({}) }),
+  };
+  const service = deliveryService({ strapi });
+  const status = async (provider, accountId) =>
+    (
+      await service.handleWebhook({
+        provider,
+        accountId,
+        rawBody: Buffer.from('not json'),
+        headers: {},
+      })
+    ).status;
+  assert.equal(await status('mailgun', 'unknownAccount1'), 401);
+  assert.equal(await status('mailgun', 'mg1'), 401);
+  assert.equal(await status('ses', 'unknownAccount2'), 401);
+  assert.equal(await status('ses', 'ses1'), 401);
+});

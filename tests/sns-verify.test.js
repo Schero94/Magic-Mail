@@ -248,9 +248,11 @@ test('webhook: a certificate from another region than the topic is 401 without a
   assert.equal(calls.length, 0);
 });
 
-test('webhook: malformed bodies and a mismatching message-type header are 400', async () => {
+// Failures before the signature check answer 401 like an unknown account,
+// so the status does not reveal which account ids exist (MM-SA-11).
+test('webhook: malformed bodies and a mismatching message-type header are 401', async () => {
   const { fetchImpl } = certFetch();
-  assert.equal((await ses.webhook({ config, rawBody: Buffer.from('{'), fetchImpl })).status, 400);
+  assert.equal((await ses.webhook({ config, rawBody: Buffer.from('{'), fetchImpl })).status, 401);
   const message = sesNotification(EXAMPLES.sesEvents.Delivery);
   const result = await ses.webhook({
     config,
@@ -258,7 +260,7 @@ test('webhook: malformed bodies and a mismatching message-type header are 400', 
     headers: { 'x-amz-sns-message-type': 'SubscriptionConfirmation' },
     fetchImpl,
   });
-  assert.equal(result.status, 400);
+  assert.equal(result.status, 401);
 });
 
 test('webhook: a verified notification yields events and the SNS MessageId as replay key', async () => {

@@ -711,8 +711,10 @@ module.exports = ({ strapi }) => ({
         if (wasSeen(replayKey)) return { status: 200, processed: 0, unmatched: 0 };
       }
     } else {
+      // The signature is inside the body: an unparsable body can not be
+      // authenticated and answers 401 like an unknown account (MM-SA-11).
       const payload = parseJson(rawBody);
-      if (!payload || typeof payload !== 'object') return rejected(400);
+      if (!payload || typeof payload !== 'object') return rejected(401);
       const signature = payload.signature || {};
       const valid = verifyMailgunSignature({
         signingKey: config.webhookSigningKey,
