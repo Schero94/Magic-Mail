@@ -485,3 +485,44 @@ test('MM-SA-04: a new email log keeps keyed hashes of every to, cc and bcc addre
   // Copy recipients are never stored in clear text.
   assert.doesNotMatch(JSON.stringify(created), /cc-one@|hidden@/);
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-05: the outbound HTML sanitiser's CSS check (content-API input)
+// ---------------------------------------------------------------------------
+
+const sanitizeHtml = require('sanitize-html');
+const { HTML_SANITIZE_OPTIONS } = require('../server/src/services/email-router').__test__;
+
+test('MM-SA-05: a 100 000-character style attribute is sanitised within the time budget', async () => {
+  // `<\s*\/?\s*(script|style)` was quadratic: ~5 s per send at the html cap.
+  const html = `<p style="<${'\t'.repeat(99_980)}:">x</p>`;
+  const ms = await elapsed(() => sanitizeHtml(html, HTML_SANITIZE_OPTIONS));
+  assert.ok(ms < 500, `sanitizeHtml took ${ms.toFixed(0)} ms`);
+});
+
+test('MM-SA-05: CSS escapes and comments can not hide unsafe CSS', () => {
+  const clean = (html) => sanitizeHtml(html, HTML_SANITIZE_OPTIONS);
+  assert.doesNotMatch(
+    clean('<style>@\\69mport url(https://evil.example/x.css);</style>'),
+    /import/
+  );
+  assert.doesNotMatch(clean('<style>@im/**/port url(https://evil.example/x.css);</style>'), /port/);
+  assert.doesNotMatch(
+    clean('<p style="background:url(java\\73 cript:alert(1))">x</p>'),
+    /style=/,
+    'escaped javascript: is dropped'
+  );
+  assert.doesNotMatch(clean('<p style="width:expr\\65ssion(alert(1))">x</p>'), /style=/);
+});
+
+test('MM-SA-05: ordinary email CSS is kept', () => {
+  const clean = (html) => sanitizeHtml(html, HTML_SANITIZE_OPTIONS);
+  assert.match(
+    clean('<p style="color:#333;font-family:Arial, sans-serif;padding:8px">x</p>'),
+    /style="color:#333;font-family:Arial, sans-serif;padding:8px"/
+  );
+  assert.match(
+    clean('<style>/* layout */ .btn { background: #4f46e5; }</style><p>x</p>'),
+    /\.btn \{ background: #4f46e5; \}/
+  );
+});
