@@ -608,3 +608,56 @@ test(
     }
   }
 );
+
+test('MM-SA-12: Microsoft Graph stops reading a chunked raw message above 1 MB', async () => {
+  const { monitor, tables } = makeStrapi({
+    accounts: [oauthAccount('microsoft-oauth', 'Mail.Send Mail.Read User.Read')],
+  });
+  const CHUNK = 64 * 1024;
+  const TOTAL = 50 * 1024 * 1024;
+  let pulled = 0;
+  monitor.setTestHooks({
+    clock: () => Date.parse('2026-11-11T00:00:00Z'),
+    fetch: async (url) => {
+      if (url.includes('/$value')) {
+        // Chunked transfer: no Content-Length.
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          body: {
+            getReader: () => ({
+              read: async () => {
+                if (pulled >= TOTAL) return { done: true };
+                pulled += CHUNK;
+                return { done: false, value: new Uint8Array(CHUNK) };
+              },
+              cancel: async () => {},
+            }),
+          },
+          arrayBuffer: async () => {
+            pulled = TOTAL;
+            return new ArrayBuffer(TOTAL);
+          },
+        };
+      }
+      if (url.includes('/mailFolders/inbox/messages')) {
+        return jsonResponse({
+          value: [
+            {
+              id: 'big1',
+              receivedDateTime: '2026-11-10T08:00:00Z',
+              from: {
+                emailAddress: { name: 'Mail Delivery System', address: 'mailer-daemon@x.test' },
+              },
+              subject: 'Undeliverable: huge',
+            },
+          ],
+        });
+      }
+      return jsonResponse({}, 404);
+    },
+  });
+  await monitor.pollAccount(tables[ACCOUNT_UID].rows[0]);
+  assert.ok(pulled <= 1024 * 1024 + CHUNK, `read ${pulled} bytes`);
+});

@@ -193,6 +193,35 @@ function maskAddress(address) {
 }
 
 /**
+ * Reads a raw message body, stopping as soon as it exceeds MAX_RAW_BYTES. A
+ * chunked response has no Content-Length, and `arrayBuffer()` would load a
+ * message of any size into memory before the size check (MM-SA-12).
+ *
+ * @param {{body?: {getReader?: Function}, arrayBuffer: Function}} response
+ * @returns {Promise<Buffer|null>} null when the message is too large
+ */
+async function readRawCapped(response) {
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return buffer.byteLength > MAX_RAW_BYTES ? null : buffer;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_RAW_BYTES) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
  * Maps an error to a stable code without provider text.
  *
  * @param {*} error
@@ -359,8 +388,7 @@ module.exports = ({ strapi }) => {
     if (raw) {
       const length = Number(response.headers?.get?.('content-length') || 0);
       if (length > MAX_RAW_BYTES) return null;
-      const buffer = Buffer.from(await response.arrayBuffer());
-      return buffer.byteLength > MAX_RAW_BYTES ? null : buffer;
+      return readRawCapped(response);
     }
     return response.json();
   };
@@ -1182,3 +1210,4 @@ module.exports.suggestImapHost = suggestImapHost;
 module.exports.settingsFor = settingsFor;
 module.exports.statusFor = statusFor;
 module.exports.MODES = MODES;
+module.exports.readRawCapped = readRawCapped;
