@@ -100,7 +100,41 @@ const decodeHtmlEntities = (value) => {
  */
 const decodeMustacheTags = (html) => {
   if (typeof html !== 'string') return '';
-  return html.replace(/\{\{\{?[\s\S]*?\}?\}\}/g, (tag) => decodeHtmlEntities(tag));
+  // indexOf scan: the former lazy regex rescanned to the end of the text from
+  // every unclosed `{{` (quadratic, run on every send of a template).
+  let out = '';
+  let at = 0;
+  for (;;) {
+    const open = html.indexOf('{{', at);
+    const close = open === -1 ? -1 : html.indexOf('}}', open + 2);
+    if (close === -1) {
+      out += html.slice(at);
+      return out;
+    }
+    const end = html[close + 2] === '}' ? close + 3 : close + 2;
+    out += html.slice(at, open) + decodeHtmlEntities(html.slice(open, end));
+    at = end;
+  }
+};
+
+/**
+ * Inner texts of every `<%= ... %>` interpolation, trimmed (linear scan; a
+ * `<%=\s*([\s\S]+?)\s*%>` regex was polynomial on long whitespace runs).
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+const coreInterpolations = (text) => {
+  const keys = [];
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf('<%=', at);
+    if (open === -1) return keys;
+    const close = text.indexOf('%>', open + 3);
+    if (close === -1) return keys;
+    keys.push(text.slice(open + 3, close).trim());
+    at = close + 2;
+  }
 };
 
 /**
@@ -172,17 +206,20 @@ const editorToCore = (value, field) => {
   const input = typeof value === 'string' ? decodeMustacheTags(value) : '';
   const problems = [];
 
-  const converted = input.replace(/\{\{\{?\s*=?\s*([^{}]*?)\s*\}?\}\}/g, (match, key) => {
+  // `[^{}]*` can not overlap the delimiters, so this is linear; the key is
+  // trimmed in the callback instead of with adjacent `\s*` (MM-SA-06).
+  const converted = input.replace(/\{\{\{?([^{}]*)\}?\}\}/g, (match, inner) => {
+    const key = inner.trim().replace(/^=/, '').trim();
     if (CORE_TEMPLATE_KEYS.includes(key)) return `<%= ${key} %>`;
     problems.push(`Unknown placeholder ${match.slice(0, 60)}`);
     return match;
   });
 
   if (/<%(?!=)/.test(converted)) problems.push('Evaluation blocks (<% %>) are not allowed');
-  if (/(?<!\$)\$\{[^{}]*\}/.test(converted)) problems.push('${...} expressions are not allowed');
-  for (const [, key] of converted.matchAll(/<%=\s*([\s\S]+?)\s*%>/g)) {
-    if (!CORE_TEMPLATE_KEYS.includes(key.trim()))
-      problems.push(`Unknown placeholder ${key.trim().slice(0, 60)}`);
+  // Same rule as users-permissions' isValidEmailTemplate: any `${...}`.
+  if (/\$\{[^{}]*\}/.test(converted)) problems.push('${...} expressions are not allowed');
+  for (const key of coreInterpolations(converted)) {
+    if (!CORE_TEMPLATE_KEYS.includes(key)) problems.push(`Unknown placeholder ${key.slice(0, 60)}`);
   }
 
   if (problems.length > 0) {

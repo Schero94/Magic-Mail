@@ -526,3 +526,63 @@ test('MM-SA-05: ordinary email CSS is kept', () => {
     /\.btn \{ background: #4f46e5; \}/
   );
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-06: core (users-permissions) template validation is linear and as
+// strict as users-permissions itself
+// ---------------------------------------------------------------------------
+
+/** users-permissions store stub for email-designer.updateCoreTemplate. */
+function coreTemplateStrapi() {
+  const box = { value: {}, sets: 0 };
+  return {
+    box,
+    strapi: {
+      log: quietLog,
+      plugin: (name) => (name === 'users-permissions' ? {} : null),
+      store: async () => ({
+        get: async () => box.value,
+        set: async ({ value }) => {
+          box.value = value;
+          box.sets += 1;
+        },
+      }),
+    },
+  };
+}
+
+test('MM-SA-06: unclosed placeholders with long whitespace runs are validated within the time budget', async () => {
+  const { strapi } = coreTemplateStrapi();
+  const designer = require('../server/src/services/email-designer')({ strapi });
+  const inputs = [
+    { subject: 'x', message: '<%=' + ' '.repeat(20_000) + 'x' },
+    { subject: '{{' + ' '.repeat(990) + 'x', message: 'ok' },
+    { subject: 'x', message: '{{'.repeat(40_000) + ' {{ URL }}' },
+  ];
+  for (const data of inputs) {
+    const ms = await elapsed(() =>
+      designer.updateCoreTemplate('reset-password', data).catch(() => {})
+    );
+    assert.ok(ms < 500, `updateCoreTemplate took ${ms.toFixed(0)} ms`);
+  }
+});
+
+test('MM-SA-06: "$" followed by "${...}" is rejected like users-permissions does', async () => {
+  const { strapi, box } = coreTemplateStrapi();
+  const designer = require('../server/src/services/email-designer')({ strapi });
+  const dollarExpression = '$$' + '{process}';
+  await assert.rejects(
+    designer.updateCoreTemplate('reset-password', {
+      subject: 'x',
+      message: `<p>${dollarExpression}</p> {{ URL }}`,
+    }),
+    (err) => err.name === 'ValidationError'
+  );
+  assert.equal(box.sets, 0);
+  // Placeholders keep converting, including triple braces and "=".
+  await designer.updateCoreTemplate('reset-password', {
+    subject: 'Hi {{USER.username}}',
+    message: '{{{ URL }}} {{= TOKEN }} {{  CODE  }}',
+  });
+  assert.equal(box.value.reset_password.options.message, '<%= URL %> <%= TOKEN %> <%= CODE %>');
+});
