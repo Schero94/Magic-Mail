@@ -611,3 +611,73 @@ test('MM-SA-10: JWT-looking values in path, query and fragment are still sensiti
   assert.equal(isSensitiveTrackingUrl(`https://app.example.test/go#${jwt}`), true);
   assert.equal(isSensitiveTrackingUrl('https://shop.example.test/products/blue-shirt'), false);
 });
+
+// ---------------------------------------------------------------------------
+// MM-SA-09: template import applies the create rules to every entry
+// ---------------------------------------------------------------------------
+
+/** One-table template store; records every Document Service filter it sees. */
+function importStrapi() {
+  const rows = [{ id: 1, documentId: 'tplA', templateReferenceId: 5, name: 'Existing' }];
+  const filters = [];
+  return {
+    rows,
+    filters,
+    strapi: {
+      log: quietLog,
+      documents: () => ({
+        findMany: async ({ filters: where = {} } = {}) => {
+          filters.push(where);
+          const ref = where.templateReferenceId;
+          if (ref && typeof ref === 'object') return rows; // operator objects match everything
+          return rows.filter((row) => ref === undefined || row.templateReferenceId === Number(ref));
+        },
+        findOne: async ({ documentId }) => rows.find((r) => r.documentId === documentId) || null,
+        findFirst: async () => null,
+        create: async ({ data }) => {
+          const row = { id: rows.length + 1, documentId: `tpl${rows.length + 1}`, ...data };
+          rows.push(row);
+          return row;
+        },
+        update: async ({ documentId, data }) => {
+          const row = rows.find((r) => r.documentId === documentId);
+          Object.assign(row, data);
+          return row;
+        },
+        count: async () => rows.length,
+      }),
+      db: { query: () => ({ findOne: async () => null, findMany: async () => [] }) },
+    },
+  };
+}
+
+test('MM-SA-09: an imported reference id can not be a query operator', async () => {
+  const store = importStrapi();
+  const designer = require('../server/src/services/email-designer')({ strapi: store.strapi });
+  const results = await designer.importTemplates([
+    { name: 'Overwrite', templateReferenceId: { $gt: 0 }, bodyHtml: '<p>x</p>' },
+  ]);
+  assert.equal(results[0].success, false);
+  assert.equal(store.rows[0].name, 'Existing', 'the existing template is untouched');
+  assert.ok(store.filters.every((where) => typeof where.templateReferenceId !== 'object'));
+});
+
+test('MM-SA-09: imported subjects with CR/LF are rejected and errors are fixed texts', async () => {
+  const store = importStrapi();
+  const designer = require('../server/src/services/email-designer')({ strapi: store.strapi });
+  const results = await designer.importTemplates([
+    { name: 'Header', subject: 'Hi\r\nBcc: victim@victim.test', bodyHtml: '<p>x</p>' },
+  ]);
+  assert.equal(results[0].success, false);
+  assert.equal(results[0].error, 'Invalid template data');
+  assert.equal(store.rows.length, 1);
+});
+
+test('MM-SA-09: one import request is capped at 100 templates', () => {
+  const { validate } = require('../server/src/validation');
+  const templates = Array.from({ length: 101 }, (_, i) => ({ name: `T${i}` }));
+  assert.throws(
+    () => validate('emailDesigner.importTemplates', { templates }),
+    (err) => err.name === 'ValidationError'
+  );
+});

@@ -12,6 +12,7 @@ const Mustache = require('mustache');
 const htmlToTextLib = require('html-to-text');
 const { errors } = require('@strapi/utils');
 const coordination = require('../utils/coordination');
+const { validate } = require('../validation');
 
 // Content Type UIDs
 const EMAIL_TEMPLATE_UID = 'plugin::magic-mail.email-template';
@@ -1046,8 +1047,11 @@ module.exports = ({ strapi }) => ({
 
     for (const rawData of templates) {
       try {
-        // Normalize template data - support different export formats
-        const templateData = this.normalizeImportData(rawData);
+        // Normalize template data - support different export formats, then
+        // apply the same field rules as a normal create (MM-SA-09): bounded
+        // strings, no CR/LF in the subject, and a numeric reference id (an
+        // object such as {"$gt": 0} was used as a query operator).
+        const templateData = validate('emailDesigner.create', this.normalizeImportData(rawData));
 
         // Assign an int4-safe unique reference id when the import omitted one.
         if (!templateData.templateReferenceId) {
@@ -1070,14 +1074,15 @@ module.exports = ({ strapi }) => ({
           strapi.log.info(`[magic-mail] [SUCCESS] Created: "${templateData.name}"`);
         }
       } catch (error) {
-        strapi.log.error(
-          `[magic-mail] [ERROR] Import failed for "${rawData.name}": ${error.message}`
-        );
+        const invalid = error?.name === 'ValidationError';
+        strapi.log.error(`[magic-mail] [ERROR] Template import failed: ${error?.name || 'Error'}`);
         results.push({
           success: false,
           action: 'failed',
-          error: error.message,
-          templateName: rawData.name,
+          // Fixed texts: database and provider errors never reach the client.
+          error: invalid ? 'Invalid template data' : 'Import failed',
+          ...(invalid && error.details ? { details: error.details } : {}),
+          templateName: typeof rawData.name === 'string' ? rawData.name.slice(0, 255) : null,
         });
       }
     }
