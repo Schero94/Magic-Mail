@@ -146,6 +146,12 @@ Keep the encryption key stable: without it the stored account credentials cannot
 - The packed plugin installs with npm into a Strapi 5.63.0 project without plugin warnings, and its admin builds there (checked 2026-11-18). The yarn 1 and pnpm install check dates from Strapi 5.61.
 - The minimum Strapi version is 5.57.0, the first release whose admin ships Design System 2.2.4, the version the MagicMail admin uses. CI also installs that floor (Strapi 5.57.0 with Design System 2.2.4) and runs the tests and the build against it.
 
+### Compatibility canary
+
+A scheduled workflow, `.github/workflows/canary.yml`, runs every Monday at 04:17 UTC and on demand (Actions → Compatibility canary → Run workflow). It installs the newest Strapi 5.x release over the lockfile and tests the plugin on the newest Node.js release, the newest LTS and every LTS line inside `engines.node`: the tests (including the integration tests that boot Strapi), the admin tests, the build and both verify scripts, as the `verify` job of `ci.yml` runs them.
+
+A failure opens or updates one issue labelled `compat` ("Compatibility: Strapi X.Y.Z / Node A.B.C") with the failing jobs, the failing step and a log excerpt; the next green run closes it. The last passing and the last run are recorded in the closed issue "Compatibility canary state". A manual run can force a Strapi version (`strapi`) or Node.js versions (`node`), and `dry-run` prints the plan instead of writing issues. Pull requests that change the canary run it as a dry run. The logic lives in `.github/scripts/compat-canary.mjs` (byte-identical in every plugin of the workbench, unit-tested in `compat-canary.test.mjs`).
+
 ## Sending email
 
 MagicMail wraps the provider of `@strapi/email` at startup, so existing code keeps working:
