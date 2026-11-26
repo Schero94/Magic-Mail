@@ -9,6 +9,7 @@ import {
   SingleSelect,
   SingleSelectOption,
   Switch,
+  Textarea,
   TextInput,
   Field,
 } from '@strapi/design-system';
@@ -26,6 +27,7 @@ import {
   EnvelopeIcon,
   InboxStackIcon,
   ShieldExclamationIcon,
+  DocumentMagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { SuppressionList } from '../components/SuppressionList';
 import styled, { keyframes, css } from 'styled-components';
@@ -36,6 +38,7 @@ import { motionSafe } from '../components/shared/motion';
 import { accent, color, fontSize } from '../utils/theme';
 import {
   BOUNCE_INTERVAL_RANGE,
+  CONTENT_RETENTION_RANGE,
   QUEUE_MAX_ATTEMPTS_RANGE,
   SETTINGS_DEFAULTS,
   diffSettings,
@@ -289,6 +292,16 @@ const errorMessage = (t, code) => {
         min: BOUNCE_INTERVAL_RANGE.min,
         max: BOUNCE_INTERVAL_RANGE.max,
       });
+    case 'invalidRetention':
+      return t('settings.errors.invalidRange', 'Enter a whole number from {min} to {max}', {
+        min: CONTENT_RETENTION_RANGE.min,
+        max: CONTENT_RETENTION_RANGE.max,
+      });
+    case 'invalidKeyList':
+      return t(
+        'settings.errors.invalidKeyList',
+        'Use at most 100 names with letters, digits, _, - and . only, one per line'
+      );
     default:
       return undefined;
   }
@@ -832,6 +845,144 @@ const PluginSettingsContent = () => {
               <Field.Error />
             </Field.Root>
           </Flex>
+        </SectionContent>
+      </SettingsSection>
+
+      {/* Email preview (Analytics) and what is stored for it */}
+      <SettingsSection tag="section" aria-labelledby="mm-settings-preview">
+        <SectionHeader alignItems="center">
+          <SectionIcon $bgColor="rgba(147, 51, 234, 0.12)" $tone="secondary">
+            <DocumentMagnifyingGlassIcon aria-hidden="true" />
+          </SectionIcon>
+          <Flex direction="column" alignItems="flex-start" gap={1}>
+            <Typography variant="delta" fontWeight="bold" tag="h2" id="mm-settings-preview">
+              {t('settings.preview.title', 'Email preview and privacy')}
+            </Typography>
+            <Typography variant="pi" textColor="neutral600">
+              {t(
+                'settings.preview.subtitle',
+                'What is kept so that Analytics can show an email as it was sent'
+              )}
+            </Typography>
+          </Flex>
+        </SectionHeader>
+        <SectionContent>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>
+                {t('settings.preview.variables.label', 'Keep variables for the preview')}
+              </SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.preview.variables.description',
+                  'Stores the variables of each sent email, so Analytics can rebuild it from its template. Passwords, tokens, codes and sign-in links are hidden before storing and can never be shown.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.storeEmailVariables}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('storeEmailVariables', checked)}
+                aria-label={t('settings.preview.variables.label', 'Keep variables for the preview')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="center">
+            <SettingInfo>
+              <SettingLabel>
+                {t('settings.preview.copy.label', 'Store a copy of sent emails')}
+              </SettingLabel>
+              <SettingDescription>
+                {t(
+                  'settings.preview.copy.description',
+                  'Also keeps the final HTML and text of each email, compressed and up to 512 KB. Use it for emails sent without a template. Links with tokens are hidden, but other personal data in the email is stored.'
+                )}
+              </SettingDescription>
+            </SettingInfo>
+            <SwitchWrapper>
+              <Switch
+                checked={settings.storeFullEmail}
+                disabled={!canManage}
+                onCheckedChange={(checked) => handleChange('storeFullEmail', checked)}
+                aria-label={t('settings.preview.copy.label', 'Store a copy of sent emails')}
+                onLabel={t('settings.switch.on', 'Enabled')}
+                offLabel={t('settings.switch.off', 'Disabled')}
+                visibleLabels={false}
+              />
+            </SwitchWrapper>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="emailContentRetentionDays"
+              width="100%"
+              error={errorMessage(t, errors.emailContentRetentionDays)}
+              hint={t(
+                'settings.preview.retention.hint',
+                '{min} to {max} days. Older variables and copies are deleted automatically, and never kept longer than the email log.',
+                { min: CONTENT_RETENTION_RANGE.min, max: CONTENT_RETENTION_RANGE.max }
+              )}
+            >
+              <Field.Label>
+                {t('settings.preview.retention.label', 'Keep email content for (days)')}
+              </Field.Label>
+              <NumberInput
+                value={settings.emailContentRetentionDays}
+                onValueChange={(value) => handleChange('emailContentRetentionDays', value)}
+                step={1}
+                disabled={!canManage}
+              />
+              <Field.Hint />
+              <Field.Error />
+            </Field.Root>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="variableDenylist"
+              width="100%"
+              error={errorMessage(t, errors.variableDenylist)}
+              hint={t(
+                'settings.preview.denylist.hint',
+                'One variable name or path per line, for example customerNumber or order.iban. These are always hidden.'
+              )}
+            >
+              <Field.Label>
+                {t('settings.preview.denylist.label', 'Always hide these variables')}
+              </Field.Label>
+              <Textarea
+                value={settings.variableDenylist}
+                onChange={(event) => handleChange('variableDenylist', event.target.value)}
+                disabled={!canManage}
+              />
+              <Field.Hint />
+              <Field.Error />
+            </Field.Root>
+          </SettingRow>
+          <SettingRow alignItems="flex-start" direction="column">
+            <Field.Root
+              name="variableAllowlist"
+              width="100%"
+              error={errorMessage(t, errors.variableAllowlist)}
+              hint={t(
+                'settings.preview.allowlist.hint',
+                'For names that are hidden by mistake, for example promoCode. Links with tokens and JWTs stay hidden.'
+              )}
+            >
+              <Field.Label>
+                {t('settings.preview.allowlist.label', 'Never hide these variables')}
+              </Field.Label>
+              <Textarea
+                value={settings.variableAllowlist}
+                onChange={(event) => handleChange('variableAllowlist', event.target.value)}
+                disabled={!canManage}
+              />
+              <Field.Hint />
+              <Field.Error />
+            </Field.Root>
+          </SettingRow>
         </SectionContent>
       </SettingsSection>
 

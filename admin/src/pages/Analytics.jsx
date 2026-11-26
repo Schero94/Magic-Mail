@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { useMagicMailRBAC } from '../hooks/useMagicMailRBAC';
 import { useMagicMailIntl } from '../hooks/useMagicMailIntl';
@@ -17,6 +18,7 @@ import {
   Td,
   Th,
   Thead,
+  Tooltip,
   Tr,
   Typography,
 } from '@strapi/design-system';
@@ -31,6 +33,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   TrashIcon,
+  InformationCircleIcon,
+  MinusCircleIcon,
 } from '@heroicons/react/24/outline';
 import { TertiaryButton } from '../components/StyledButtons';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
@@ -60,6 +64,8 @@ import {
   clearAllEmailLogsInBatches,
   normalizeSearch,
 } from '../utils/analyticsLogs';
+import { shortTemplateName, trackingCell, trackingHint } from '../utils/emailPreview.mjs';
+import { EmailDetailDrawer } from '../components/EmailDetail/EmailDetailDrawer';
 
 /**
  * Presents a stored delivery state with a neutral fallback for legacy logs.
@@ -416,8 +422,94 @@ const ToneText = styled(Typography)`
   }
 `;
 
+/** Notice under the stat cards: neutral (tracking hint) or danger (load error). */
+const TrackingNotice = styled(Flex)`
+  margin: -${theme.spacing.sm} 0 ${theme.spacing.xl};
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    margin: -12px 0 24px;
+  }
+
+  padding: 12px 16px;
+  border-radius: ${theme.borderRadius.md};
+  border: 1px solid ${color('neutral200')};
+  background: ${color('neutral100')};
+  flex-wrap: wrap;
+  gap: ${theme.spacing.sm};
+
+  & > div:first-child > svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: ${accent.primary};
+  }
+`;
+
+/**
+ * Clickable rows: the whole row opens the email details (mouse), Enter or
+ * Space on any focused cell opens them (keyboard; the DS grid moves focus
+ * between cells with the arrow keys, so the table keeps one tab stop).
+ */
+const ClickableRow = styled(Tr)`
+  cursor: pointer;
+`;
+
+/** The subject is the row's real button (screen readers, single tab stop). */
+const SubjectButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: ${fontSize(2)};
+  font-weight: 600;
+  line-height: 1.43;
+  text-align: left;
+  color: ${color('neutral800')};
+  cursor: pointer;
+  overflow-wrap: anywhere;
+
+  &:hover,
+  &:focus-visible {
+    color: ${color('primary600')};
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${color('primary600')};
+    outline-offset: 2px;
+    border-radius: ${theme.borderRadius.sm};
+  }
+
+  @media screen and (max-width: ${breakpoints.mobile}) {
+    min-height: 32px;
+  }
+`;
+
+const ListHint = styled(Typography)`
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.xs};
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+`;
+
 const Analytics = () => {
-  const { canManage, isLoading: rbacLoading, error: rbacError } = useMagicMailRBAC();
+  const {
+    canManage,
+    canReadContent,
+    isLoading: rbacLoading,
+    error: rbacError,
+  } = useMagicMailRBAC();
+  const navigate = useNavigate();
+  const [selectedLog, setSelectedLog] = useState(null);
   const { t } = useMagicMailIntl();
   const { formatDateTime, formatNumber } = useFormatters();
   const { get, del } = useFetchClient();
@@ -626,8 +718,51 @@ const Analytics = () => {
     },
   ];
 
-  const renderCount = (count, tone) =>
-    count > 0 ? (
+  /**
+   * Status badge text, tone and readable reason of one log row (table and
+   * detail view share it).
+   */
+  const presentDelivery = (log) => {
+    const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt, {
+      bounced: log.bounced,
+      complained: log.complained,
+    });
+    const reason =
+      (delivery.label === 'Bounced' ||
+        delivery.label === 'Deferred' ||
+        delivery.label === 'Failed') &&
+      typeof log.bounceReason === 'string' &&
+      /^[A-Z0-9_]{2,64}$/.test(log.bounceReason)
+        ? bounceReasonText(t, log.bounceReason)
+        : null;
+    return {
+      text: t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label),
+      tone: delivery.tone,
+      reason,
+    };
+  };
+
+  const hint = statsError ? null : trackingHint(stats?.tracking);
+
+  const openDetails = (log) => setSelectedLog(log);
+  const rowKeyDown = (log) => (event) => {
+    // Enter/Space on a focused cell (the DS grid focuses cells, not rows).
+    // Buttons inside the row handle their own keys.
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.target?.getAttribute?.('role') !== 'gridcell') return;
+    event.preventDefault();
+    openDetails(log);
+  };
+
+  const renderCount = (count, tone, log, kind) =>
+    trackingCell(log, kind) === 'notTracked' ? (
+      <CountCell alignItems="center" gap={2}>
+        <MinusCircleIcon aria-hidden="true" />
+        <Typography variant="pi" textColor="neutral600">
+          {t('analytics.table.notTracked', 'Not tracked')}
+        </Typography>
+      </CountCell>
+    ) : count > 0 ? (
       <CountCell alignItems="center" gap={2} $tone={tone}>
         <CheckCircleIcon aria-hidden="true" />
         <ToneText variant="pi" fontWeight="semiBold" $tone={tone}>
@@ -685,30 +820,38 @@ const Analytics = () => {
   );
 
   const renderDelivery = (log) => {
-    const delivery = getDeliveryStatusPresentation(log.deliveryStatus, log.deliveredAt, {
-      bounced: log.bounced,
-      complained: log.complained,
-    });
-    const reason =
-      (delivery.label === 'Bounced' ||
-        delivery.label === 'Deferred' ||
-        delivery.label === 'Failed') &&
-      typeof log.bounceReason === 'string' &&
-      /^[A-Z0-9_]{2,64}$/.test(log.bounceReason)
-        ? log.bounceReason
-        : null;
+    const delivery = presentDelivery(log);
     return (
       <Flex direction="column" alignItems="flex-start" gap={1}>
-        <StatusBadge $tone={delivery.tone ?? 'neutral'}>
-          {t(DELIVERY_LABEL_KEYS[delivery.label], delivery.label)}
-        </StatusBadge>
-        {reason ? (
-          <Typography variant="pi" textColor="neutral600" title={bounceReasonText(t, reason)}>
-            {bounceReasonText(t, reason)}
+        <StatusBadge $tone={delivery.tone ?? 'neutral'}>{delivery.text}</StatusBadge>
+        {delivery.reason ? (
+          <Typography variant="pi" textColor="neutral600" title={delivery.reason}>
+            {delivery.reason}
           </Typography>
         ) : null}
       </Flex>
     );
+  };
+
+  const renderTemplate = (log) => {
+    const name = shortTemplateName(log.templateName);
+    if (!name.text) {
+      return (
+        <Typography
+          variant="omega"
+          textColor="neutral600"
+          aria-label={t('analytics.table.noTemplate', 'No template')}
+        >
+          —
+        </Typography>
+      );
+    }
+    const text = (
+      <Typography variant="omega" textColor="neutral600">
+        {name.text}
+      </Typography>
+    );
+    return name.shortened ? <Tooltip label={name.full}>{text}</Tooltip> : text;
   };
 
   return (
@@ -762,6 +905,28 @@ const Analytics = () => {
         </StatsNotice>
       )}
 
+      {hint && (
+        <TrackingNotice role="status" alignItems="center" justifyContent="space-between">
+          <Flex alignItems="center" gap={2} style={{ minWidth: 0, flex: '1 1 320px' }}>
+            <InformationCircleIcon aria-hidden="true" />
+            <Typography variant="omega" textColor="neutral800">
+              {hint === 'off'
+                ? t(
+                    'analytics.tracking.off',
+                    'Tracking is off, so opens and clicks are not counted. Turn it on in the settings.'
+                  )
+                : t(
+                    'analytics.tracking.noPublicUrl',
+                    'Opens and clicks are not counted: Magic Mail has no public URL for its tracking links. Set the tracking base URL in the settings.'
+                  )}
+            </Typography>
+          </Flex>
+          <TertiaryButton onClick={() => navigate('/settings/magic-mail/plugin-settings')}>
+            {t('analytics.tracking.openSettings', 'Open settings')}
+          </TertiaryButton>
+        </TrackingNotice>
+      )}
+
       {/* Email logs: section heading, filter bar and the shared table layer */}
       <SectionHeaderRow>
         <SectionHeading>
@@ -775,6 +940,15 @@ const Analytics = () => {
                   count: formatNumber(total, undefined, '0'),
                 })}
         </SectionHeading>
+        {emailLogs.length > 0 && !logsError && (
+          <ListHint variant="pi" textColor="neutral600" tag="p">
+            <InformationCircleIcon aria-hidden="true" />
+            {t(
+              'analytics.logs.openHint',
+              'Select an email to see its details, the email as sent and its variables.'
+            )}
+          </ListHint>
+        )}
         {rbacError && !rbacLoading && (
           <Typography variant="pi" textColor="danger600" role="alert">
             {t(
@@ -875,18 +1049,31 @@ const Analytics = () => {
               </Thead>
               <Tbody>
                 {emailLogs.map((log) => (
-                  <Tr key={log.id}>
+                  <ClickableRow
+                    key={log.id}
+                    onClick={() => openDetails(log)}
+                    onKeyDown={rowKeyDown(log)}
+                  >
                     <Td className="cell-wrap" data-label={columnLabels.recipient}>
                       {renderRecipient(log)}
                     </Td>
                     <Td className="cell-wrap" data-label={columnLabels.subject}>
-                      <Typography variant="omega">{log.subject || '-'}</Typography>
+                      <SubjectButton
+                        type="button"
+                        aria-label={t('analytics.table.openDetails', 'Show details: {subject}', {
+                          subject: log.subject || t('analytics.table.noSubject', 'No subject'),
+                        })}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openDetails(log);
+                        }}
+                      >
+                        {log.subject || t('analytics.table.noSubject', 'No subject')}
+                      </SubjectButton>
                     </Td>
                     <Td data-label={columnLabels.deliveryStatus}>{renderDelivery(log)}</Td>
                     <Td className="cell-wrap" data-label={columnLabels.template}>
-                      <Typography variant="omega" textColor="neutral600">
-                        {log.templateName || '-'}
-                      </Typography>
+                      {renderTemplate(log)}
                     </Td>
                     <Td className="cell-date" data-label={columnLabels.attemptedAt}>
                       <Typography variant="pi" textColor="neutral800">
@@ -894,12 +1081,12 @@ const Analytics = () => {
                       </Typography>
                     </Td>
                     <Td data-label={columnLabels.opened}>
-                      {renderCount(log.openCount, 'success')}
+                      {renderCount(log.openCount, 'success', log, 'opens')}
                     </Td>
                     <Td data-label={columnLabels.clicked}>
-                      {renderCount(log.clickCount, 'primary')}
+                      {renderCount(log.clickCount, 'primary', log, 'clicks')}
                     </Td>
-                  </Tr>
+                  </ClickableRow>
                 ))}
               </Tbody>
             </StyledTable>
@@ -914,6 +1101,13 @@ const Analytics = () => {
           </>
         )}
       </DataTable>
+
+      <EmailDetailDrawer
+        log={selectedLog}
+        canReadContent={canReadContent}
+        presentDelivery={presentDelivery}
+        onClose={() => setSelectedLog(null)}
+      />
 
       {/* Clear All Confirmation Dialog */}
       <ConfirmDialog
