@@ -79,6 +79,13 @@ const register = ({ strapi }) => {
     },
     {
       section: 'plugins',
+      displayName: 'View email content (preview and variables of sent emails)',
+      uid: 'content.read',
+      subCategory: 'Email content',
+      pluginName: 'magic-mail',
+    },
+    {
+      section: 'plugins',
       displayName: 'Retry, discard or resolve outbox mails',
       uid: 'queue.manage',
       subCategory: 'Outbox',

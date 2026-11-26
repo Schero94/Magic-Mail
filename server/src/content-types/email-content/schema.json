@@ -1,0 +1,87 @@
+{
+  "kind": "collectionType",
+  "collectionName": "magic_mail_email_contents",
+  "info": {
+    "singularName": "email-content",
+    "pluralName": "email-contents",
+    "displayName": "Email Content",
+    "description": "Masked re-render data (and an optional compressed copy) of a sent email for the admin preview"
+  },
+  "options": {
+    "draftAndPublish": false,
+    "timestamps": true
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "emailId": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "maxLength": 64,
+      "private": true,
+      "configurable": false
+    },
+    "templateDocumentId": {
+      "type": "string",
+      "maxLength": 64,
+      "private": true,
+      "configurable": false
+    },
+    "templateHash": {
+      "type": "string",
+      "maxLength": 64,
+      "private": true,
+      "configurable": false
+    },
+    "templateName": {
+      "type": "string",
+      "maxLength": 255,
+      "private": true,
+      "configurable": false
+    },
+    "variablesState": {
+      "type": "enumeration",
+      "enum": ["stored", "none", "tooLarge", "disabled"],
+      "private": true,
+      "configurable": false
+    },
+    "variables": {
+      "type": "json",
+      "private": true,
+      "configurable": false
+    },
+    "maskedPaths": {
+      "type": "json",
+      "private": true,
+      "configurable": false
+    },
+    "systemTags": {
+      "type": "json",
+      "private": true,
+      "configurable": false
+    },
+    "copyState": {
+      "type": "enumeration",
+      "enum": ["none", "stored", "tooLarge"],
+      "private": true,
+      "configurable": false
+    },
+    "htmlCopy": {
+      "type": "text",
+      "private": true,
+      "configurable": false
+    },
+    "textCopy": {
+      "type": "text",
+      "private": true,
+      "configurable": false
+    }
+  }
+}

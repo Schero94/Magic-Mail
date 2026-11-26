@@ -121,6 +121,21 @@ const contentId = z
   .max(128)
   .regex(/^[A-Za-z0-9._%+\-@]+$/, { message: 'Invalid content id' });
 
+/**
+ * Variable names or dotted paths for the email preview's mask lists
+ * (letters, digits, `_`, `-`, `.`; at most 100 entries of 100 characters).
+ */
+const variableKeyList = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[A-Za-z0-9_.-]+$/, { message: 'Use letters, digits, _, - and . only' })
+  )
+  .max(100);
+
 const httpUrl = z
   .string()
   .url()
@@ -503,6 +518,12 @@ const schemas = {
     })
     .strict(),
 
+  'analytics.contentQuery': z
+    .object({
+      images: z.enum(['0', '1']).optional(),
+    })
+    .strict(),
+
   'analytics.logsQuery': z
     .object({
       userId: z.string().max(255).optional(),
@@ -545,6 +566,12 @@ const schemas = {
     checkRecipientDomains: z.boolean().optional(),
     allowReservedRecipientDomains: z.boolean().nullable().optional(),
     verifyRecipientMx: z.boolean().optional(),
+    // Email preview and its privacy rules (see utils/content-privacy).
+    storeEmailVariables: z.boolean().optional(),
+    storeFullEmail: z.boolean().optional(),
+    emailContentRetentionDays: z.number().int().min(1).max(365).optional(),
+    variableDenylist: variableKeyList.optional(),
+    variableAllowlist: variableKeyList.optional(),
   }),
 
   // ── Content-API send payloads ───────────────────────────────────────────

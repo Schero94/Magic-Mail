@@ -10,6 +10,7 @@ const deliveryWebhooks = require('./delivery-webhooks');
 const queue = require('./queue');
 const bounceMonitor = require('./bounce-monitor');
 const providerTemplates = require('./provider-templates');
+const emailContent = require('./email-content');
 
 module.exports = {
   'email-router': emailRouter,
@@ -22,4 +23,5 @@ module.exports = {
   queue,
   'bounce-monitor': bounceMonitor,
   'provider-templates': providerTemplates,
+  'email-content': emailContent,
 };
