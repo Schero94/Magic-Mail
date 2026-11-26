@@ -1,4 +1,10 @@
-## [Unreleased]
+# [4.11.0](https://github.com/Schero94/Magic-Mail/compare/v4.10.2...v4.11.0) (2026-11-26)
+
+
+### Features
+
+* preview sent emails with their variables, masked at store time, with a View email content permission ([#40](https://github.com/Schero94/Magic-Mail/issues/40)) ([f4a6f39](https://github.com/Schero94/Magic-Mail/commit/f4a6f396b7c6c70e66453b39e5fd4ccfa2c68a49))
+
 
 ### Added
 
