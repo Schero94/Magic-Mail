@@ -97,23 +97,27 @@ module.exports = () => ({
 
 **Settings → MagicMail → Plugin Settings**, stored in the database (`GET`/`PUT /magic-mail/settings`):
 
-| Setting                         | Default   | Effect                                                                                                                                   |
-| ------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Link tracking / Open tracking   | on        | Rewrite links / add the open pixel                                                                                                       |
-| Count provider opens and clicks | off       | Provider templates: the provider tracks opens and clicks and its events are counted ([details](./delivery.md#provider-opens-and-clicks)) |
-| Tracking base URL               | empty     | Public base for tracking URLs (else `server.url`)                                                                                        |
-| Default from name               | empty     | Display name when neither the account nor the caller sets one                                                                            |
-| Default from email              | empty     | Reference only; emails always go out from the selected account's address                                                                 |
-| Unsubscribe header              | on        | Send `List-Unsubscribe` for every email type and use the plugin-wide URL                                                                 |
-| Unsubscribe URL                 | empty     | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient                                                                       |
-| `trackingFallbackUrl` (API)     | empty     | Where expired or unknown tracking links redirect; empty shows a static page                                                              |
-| Queue failed sends              | off       | Store sends that failed after failover and retry them ([details](./delivery.md#retries-and-the-outbox))                                  |
-| Retries per mail                | 3         | Retries after the first try, 1 to 10                                                                                                     |
-| Check recipient domains         | on        | Reject typo and reserved test domains ([details](./delivery.md#recipient-checks-before-sending))                                         |
-| Test domains                    | automatic | Automatic: allowed outside production, rejected in production; or always allow / reject                                                  |
-| Look up mail servers (MX)       | off       | Reject domains without a mail server                                                                                                     |
-| Block hard-bounced recipients   | off       | Reject sends to addresses on the suppression list                                                                                        |
-| Bounce check interval           | 5         | Minutes between mailbox checks, 1 to 60 ([details](./delivery.md#bounce-monitoring-mailbox))                                             |
+| Setting                             | Default   | Effect                                                                                                                                   |
+| ----------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Link tracking / Open tracking       | on        | Rewrite links / add the open pixel                                                                                                       |
+| Count provider opens and clicks     | off       | Provider templates: the provider tracks opens and clicks and its events are counted ([details](./delivery.md#provider-opens-and-clicks)) |
+| Tracking base URL                   | empty     | Public base for tracking URLs (else `server.url`)                                                                                        |
+| Default from name                   | empty     | Display name when neither the account nor the caller sets one                                                                            |
+| Default from email                  | empty     | Reference only; emails always go out from the selected account's address                                                                 |
+| Unsubscribe header                  | on        | Send `List-Unsubscribe` for every email type and use the plugin-wide URL                                                                 |
+| Unsubscribe URL                     | empty     | Plugin-wide unsubscribe URL; `{{email}}` is replaced per recipient                                                                       |
+| `trackingFallbackUrl` (API)         | empty     | Where expired or unknown tracking links redirect; empty shows a static page                                                              |
+| Queue failed sends                  | off       | Store sends that failed after failover and retry them ([details](./delivery.md#retries-and-the-outbox))                                  |
+| Retries per mail                    | 3         | Retries after the first try, 1 to 10                                                                                                     |
+| Check recipient domains             | on        | Reject typo and reserved test domains ([details](./delivery.md#recipient-checks-before-sending))                                         |
+| Test domains                        | automatic | Automatic: allowed outside production, rejected in production; or always allow / reject                                                  |
+| Look up mail servers (MX)           | off       | Reject domains without a mail server                                                                                                     |
+| Block hard-bounced recipients       | off       | Reject sends to addresses on the suppression list                                                                                        |
+| Bounce check interval               | 5         | Minutes between mailbox checks, 1 to 60 ([details](./delivery.md#bounce-monitoring-mailbox))                                             |
+| Keep variables for the preview      | on        | Store the masked template data of each send for the Analytics preview                                                                    |
+| Store a copy of sent emails         | off       | Also store the final HTML and text (masked, compressed, 512 KB cap)                                                                      |
+| Keep email content for (days)       | 30        | Retention of stored variables and copies, 1 to 365, never longer than `tracking.logRetentionDays`                                        |
+| Always / Never hide these variables | empty     | Extra variable names or dotted paths to mask, or to keep readable (JWTs and token links stay masked)                                     |
 
 ### Account fields
 
