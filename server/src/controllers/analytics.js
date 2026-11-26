@@ -253,11 +253,27 @@ module.exports = ({ strapi }) => ({
       // Remove null values
       Object.keys(filters).forEach((key) => filters[key] === null && delete filters[key]);
 
-      const stats = await strapi.plugin('magic-mail').service('analytics').getStats(filters);
+      const analyticsService = strapi.plugin('magic-mail').service('analytics');
+      const stats = await analyticsService.getStats(filters);
+
+      // Whether opens and clicks can be counted at all, so the admin shows
+      // "tracking is off" instead of misleading zeros. Flags only, no URL.
+      let tracking = null;
+      try {
+        const settings =
+          (await strapi.plugin('magic-mail').service('plugin-settings').getSettings()) || {};
+        tracking = {
+          openTracking: settings.enableOpenTracking !== false,
+          linkTracking: settings.enableLinkTracking !== false,
+          publicUrl: Boolean(analyticsService.getTrackingEndpoint(settings)),
+        };
+      } catch {
+        tracking = null;
+      }
 
       return ctx.send({
         success: true,
-        data: stats,
+        data: { ...stats, tracking },
       });
     } catch (error) {
       handleControllerError(
@@ -331,9 +347,14 @@ module.exports = ({ strapi }) => ({
         return ctx.notFound('Email log not found');
       }
 
+      const account = await strapi
+        .plugin('magic-mail')
+        .service('email-content')
+        .accountSummary(emailLog.accountId);
+
       return ctx.send({
         success: true,
-        data: emailLog,
+        data: { ...emailLog, accountProvider: account?.provider || null },
       });
     } catch (error) {
       handleControllerError(
@@ -341,6 +362,70 @@ module.exports = ({ strapi }) => ({
         error,
         '[magic-mail] Error getting email log',
         'Error fetching email log'
+      );
+    }
+  },
+
+  /**
+   * Preview and variables of one sent email.
+   *
+   * @route GET /magic-mail/analytics/emails/:emailId/content
+   * @auth admin (session or admin API token)
+   * @access plugin::magic-mail.read AND plugin::magic-mail.content.read (route policies)
+   * @param {string} ctx.params.emailId - 32 lower-case hex characters
+   * @param {'0'|'1'} [ctx.query.images] - '1' keeps remote images in the preview
+   * @returns {{success: true, data: object}} 200 with the preview DTO (states:
+   *   copy, rerendered, templateMissing, noTemplate, copyTooLarge, notStored);
+   *   400 ValidationError for unknown query keys; 403 without content.read;
+   *   404 for a malformed or unknown id
+   * @sideeffect Writes one `[AUDIT]` log line (log documentId, admin id,
+   *   auth strategy) and emits `magic-mail.email-content.viewed` on the
+   *   event hub. No content, recipient or variable is logged. The
+   *   preview never requests a tracking URL.
+   */
+  async getEmailContent(ctx) {
+    try {
+      const { emailId } = ctx.params || {};
+      if (!isTrackingId(emailId)) {
+        return ctx.notFound('Email log not found');
+      }
+      const query = validate('analytics.contentQuery', ctx.query || {});
+
+      const emailLog = await strapi.db.query(EMAIL_LOG_UID).findOne({
+        select: ['id', 'documentId', 'emailId', 'subject'],
+        where: { emailId },
+      });
+      if (!emailLog) {
+        return ctx.notFound('Email log not found');
+      }
+
+      const data = await strapi
+        .plugin('magic-mail')
+        .service('email-content')
+        .preview(emailLog, { allowImages: query.images === '1' });
+
+      strapi.log.info(
+        `[magic-mail] [AUDIT] Email content viewed: log ${emailLog.documentId} by admin ${
+          ctx.state?.user?.id ?? 'unknown'
+        } (${ctx.state?.auth?.strategy?.name || 'unknown'})`
+      );
+      // Hook for host audit trails (no content, recipient or variable).
+      try {
+        strapi.eventHub?.emit?.('magic-mail.email-content.viewed', {
+          emailLogDocumentId: emailLog.documentId,
+          adminUserId: ctx.state?.user?.id ?? null,
+        });
+      } catch {
+        // an audit listener never blocks the response
+      }
+      ctx.set('Cache-Control', 'no-store');
+      return ctx.send({ success: true, data });
+    } catch (error) {
+      handleControllerError(
+        ctx,
+        error,
+        '[magic-mail] Error getting email content',
+        'Error fetching email content'
       );
     }
   },

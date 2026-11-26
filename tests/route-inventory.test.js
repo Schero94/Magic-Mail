@@ -13,7 +13,7 @@ const expected = {
   oauth: 8,
   designer: 22,
   'provider-templates': 6,
-  analytics: 7,
+  analytics: 8,
   settings: 2,
   outbox: 7,
   'content-send': 2,
@@ -153,7 +153,10 @@ test('admin routes require the matching least-privilege capability', () => {
         ? [
             `plugin::users-permissions.email-templates.${route.method === 'GET' ? 'read' : 'update'}`,
           ]
-        : [];
+        : // Email content (preview, variables) also needs its own grant.
+          route.path === '/analytics/emails/:emailId/content'
+          ? ['plugin::magic-mail.content.read']
+          : [];
     assert.deepEqual(
       permissionPolicies[0].config.actions,
       [`plugin::magic-mail.${expectedCapability}`, ...extra],
@@ -183,6 +186,7 @@ test('server and admin register read, manage and test-send grants separately fro
 
   assert.deepEqual(registered.map(({ uid }) => uid).sort(), [
     'access',
+    'content.read',
     'manage',
     'queue.manage',
     'queue.read',

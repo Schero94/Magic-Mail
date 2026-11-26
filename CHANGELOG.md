@@ -1,3 +1,40 @@
+## [Unreleased]
+
+### Added
+
+* **Email preview with variables (Analytics).** Click a row in "Recent emails" (or press Enter or Space on a focused cell) to open the email's details in a side sheet with three tabs:
+  * **Overview:** delivery status and reason, account and provider, accounts tried, template, attempted and accepted times, opens and clicks.
+  * **Preview:** the email as it was sent, in a sandboxed frame (`sandbox=""`, no scripts, no links, strict CSP). Remote images stay blocked until you choose "Load images", so viewing never loads a tracking pixel or reveals the admin's IP. Desktop and mobile width, and a plain-text view.
+  * **Variables:** a key and value list of the data the email was rendered with. Nested values expand, long values have "Show more", and hidden values show a "Hidden" badge.
+* **How the preview is built.** For each send, Magic Mail now stores the template (documentId plus a hash of the exact content that was rendered, which finds the right version in the version history), the template data and the `{{system.*}}` tags. The preview re-renders with the same Mustache function and the same outbound sanitiser as sending. If that template version no longer exists, the preview says so and still shows the subject and the variables. The subject and account come from the delivery log.
+* **Optional exact copy.** The new setting "Store a copy of sent emails" (off by default) also keeps the final HTML and text, Brotli-compressed and capped at 512 KB. The preview then shows it as "Exact copy". It is stored before tracking is added, and the preview removes tracking again in any case.
+* **Privacy at store time.** Secrets are masked before anything is written, so the database never holds them:
+  * keys that name a secret (password, token, secret, otp, jwt, key, code, reset, confirmation, session, cookie, auth, nonce, ticket, signature, credential, pin, cvv, iban and similar; harmless compounds such as postalCode or countryCode stay readable);
+  * values that look like tokens (JWTs, 32+ hex characters, UUIDs, long random strings);
+  * URLs with tokens: query parameters such as `code`, `confirmation`, `token`, `loginToken`, `access_token` or `signature`, token-like path segments and fragments. This covers the Strapi reset-password and email-confirmation links and magic links;
+  * in the optional copy, the same URLs plus every value that was masked in the variables.
+  
+  New settings "Always hide these variables" (denylist) and "Never hide these variables" (allowlist) take names or dotted paths. The allowlist never unmasks JWTs or token links.
+* **New permission "View email content"** (`plugin::magic-mail.content.read`, section "Email content"). Super Admins have it automatically. Without it, a row still opens the Overview, but Preview and Variables say "No permission" and the API answers 403. Every view of email content writes an `[AUDIT]` server log line (log documentId, admin id, auth strategy; no content, recipient or variable).
+* **Retention.** Stored variables and copies are deleted after `emailContentRetentionDays` (setting, default 30, 1 to 365) and never outlive their log (`tracking.logRetentionDays`, single delete and "Clear all" remove them too). The cleanup runs in the existing tracking maintenance job, under a database lease, so one process does it across replicas.
+* `GET /magic-mail/analytics/emails/:emailId/content[?images=1]` (admin API, `read` + `content.read`). The content type is private, not in the Content API and not in GraphQL (shadow CRUD stays disabled for every Magic Mail type).
+* `npm run test:http`: HTTP tests against a running isolated Strapi host (401, 403, masking, no tracking, Content API and GraphQL closed).
+
+### Changed
+
+* **Analytics list readability.** Rows are visibly clickable; the subject is the row's button. Long template names are shortened with a tooltip. A hint above the list explains what a click shows.
+* **Opened / Clicked are honest about tracking.** Each new log records what tracking Magic Mail really added (`metadata.trackingApplied`). When the pixel or the link rewriting was not applied, the cell shows "Not tracked" instead of a misleading "No". When tracking is switched off, or Magic Mail has no public URL for its tracking links, a notice above the list says so and links to the settings. `GET /magic-mail/analytics/stats` returns a new `tracking` object (`openTracking`, `linkTracking`, `publicUrl` booleans).
+* `GET /magic-mail/analytics/emails/:emailId` also returns `accountProvider`.
+
+### Migration
+
+* **New table** `magic_mail_email_contents` (content type `plugin::magic-mail.email-content`). Strapi creates it on start; no manual step.
+* **New settings columns** on `magic_mail_settings`: `store_email_variables` (default on), `store_full_email` (default off), `email_content_retention_days` (default 30), `variable_denylist`, `variable_allowlist`. Existing rows read the defaults.
+* **Grant "View email content"** to every role other than Super Admin that should see the preview; it is not granted automatically.
+* **Existing logs** have no stored variables. Their preview says so; nothing is filled in retroactively.
+* If your host's admin CSP blocks remote images, "Load images" can only show images from hosts allowed in `img-src` (`config/middlewares.js`, `strapi::security`).
+* Mails sent through the Content API only get click tracking for hosts in `tracking.allowedLinkHosts` (unchanged security rule since 4.0). Their Clicked cell now reads "Not tracked".
+
 ## [4.10.2](https://github.com/Schero94/Magic-Mail/compare/v4.10.1...v4.10.2) (2026-11-25)
 
 

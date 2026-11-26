@@ -8,6 +8,7 @@ import pluginId from './pluginId';
  * - test-send: send test emails
  * - queue.read: see the outbox (queued, failed and uncertain mails)
  * - queue.manage: retry, discard or resolve outbox mails
+ * - content.read: view the preview and variables of a sent email
  *
  * UI code reads capabilities through useMagicMailRBAC(); only route-level
  * <Page.Protect> and menu/settings registration use these arrays directly.
@@ -19,6 +20,7 @@ const pluginPermissions = {
   testSend: [{ action: `plugin::${pluginId}.test-send`, subject: null }],
   queueRead: [{ action: `plugin::${pluginId}.queue.read`, subject: null }],
   queueManage: [{ action: `plugin::${pluginId}.queue.manage`, subject: null }],
+  contentRead: [{ action: `plugin::${pluginId}.content.read`, subject: null }],
 };
 
 export default pluginPermissions;

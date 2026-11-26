@@ -1277,6 +1277,14 @@ module.exports = ({ strapi }) => ({
   async deleteEmailLogsByIds(ids) {
     const logIds = (ids || []).filter((id) => id !== null && id !== undefined);
     if (logIds.length === 0) return 0;
+    // Preview content (masked variables, optional copy) goes with its log.
+    const contentService = strapi.plugin?.('magic-mail')?.service?.('email-content');
+    if (contentService && typeof contentService.deleteForEmailIds === 'function') {
+      const rows = await strapi.db
+        .query(EMAIL_LOG_UID)
+        .findMany({ select: ['emailId'], where: { id: { $in: logIds } } });
+      await contentService.deleteForEmailIds((rows || []).map((row) => row.emailId));
+    }
     for (const uid of [EMAIL_EVENT_UID, EMAIL_LINK_UID]) {
       const query = strapi.db.query(uid);
       for (let guard = 0; guard < 100000; guard += 1) {
@@ -1417,8 +1425,9 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * Scheduled maintenance: legacy privacy migration plus retention purge.
-   * Never throws.
+   * Scheduled maintenance: legacy privacy migration, email preview
+   * retention and tracking retention. Runs under the `tracking-maintenance`
+   * database lease (one process across all replicas). Never throws.
    *
    * @returns {Promise<void>}
    */
@@ -1431,6 +1440,18 @@ module.exports = ({ strapi }) => ({
       strapi.log.warn(
         `[magic-mail] Tracking privacy migration failed; it runs again later: ${error?.name || 'Error'}`
       );
+    }
+    try {
+      const contentService = strapi.plugin?.('magic-mail')?.service?.('email-content');
+      const removed =
+        contentService && typeof contentService.purgeExpired === 'function'
+          ? await contentService.purgeExpired()
+          : 0;
+      if (removed > 0) {
+        strapi.log.info(`[magic-mail] [RETENTION] Removed ${removed} stored email preview(s)`);
+      }
+    } catch (error) {
+      strapi.log.warn(`[magic-mail] Email preview retention failed: ${error?.name || 'Error'}`);
     }
     try {
       const { events, links, logs } = await this.purgeExpiredTrackingData();

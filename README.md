@@ -34,6 +34,8 @@ MagicMail sends email only. It is MIT licensed, with no license key, tiers or us
 
 ## What's new
 
+- **See every sent email as the customer got it:** click a row in Analytics to open its details, a safe preview (no scripts, no tracking, images only on request, desktop and mobile width, plain text) and its variables. Passwords, tokens, codes and sign-in links are hidden before anything is stored ([privacy](#security-and-privacy)).
+- **Honest open and click columns:** "Not tracked" instead of a zero when tracking was not applied, and a notice when tracking is off or has no public URL.
 - **Brevo and Amazon SES accounts:** send, check the connection without sending, sync their templates and receive bounces, complaints and deliveries (Brevo with a MagicMail webhook token, SES through SNS with signature checks) ([Brevo](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#brevo), [Amazon SES](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#amazon-ses)).
 - **Language versions of provider templates:** map `de`, `fr`, `pt-BR` … to translated templates; MagicMail picks the version from `locale` or the user's stored locale, falling back to the language and then the default ([details](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#language-versions)).
 - **Opens and clicks for provider templates:** with _Count provider opens and clicks_ on, the provider tracks the mails it renders and its open and click events appear in Email Analytics ([details](https://github.com/Schero94/Magic-Mail/blob/main/docs/delivery.md#provider-opens-and-clicks)).
@@ -190,7 +192,7 @@ All send options, attachments, unsubscribe headers, provider setup, routing rule
 
 ## Permissions
 
-MagicMail registers six admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
+MagicMail registers seven admin actions under **Settings → Administration Panel → Roles → Plugins → MagicMail**:
 
 | Action                            | Grants                                                                                                                                                              |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -200,6 +202,7 @@ MagicMail registers six admin actions under **Settings → Administration Panel 
 | `plugin::magic-mail.test-send`    | Send test emails (account test, Strapi-service test, template and provider-template test) and run the read-only Brevo/SES connection check; 10 per minute per admin |
 | `plugin::magic-mail.queue.read`   | The Outbox tab and queue statistics (no mail content)                                                                                                               |
 | `plugin::magic-mail.queue.manage` | Retry, discard, mark as sent and delete outbox mails                                                                                                                |
+| `plugin::magic-mail.content.read` | View email content: the Preview and Variables tabs of a sent email (needs `read` too). Not granted automatically, except to Super Admins                            |
 
 Typical roles:
 
@@ -240,6 +243,7 @@ Every plugin config key, the admin settings and the multi-instance setup are in 
 - **Webhooks.** SendGrid and Mailgun requests are verified with the provider signature and a one-hour timestamp window; Brevo requests need the account's random webhook token (compared in constant time; shown only to admins with `manage` in a browser session, every reveal is audit-logged); Amazon SES (SNS) messages need the configured topic ARN and a valid SNS signature from an AWS SNS certificate host; replays are ignored and bodies are capped (1 MiB by default). Provider messages are not stored; addresses only as a keyed hash plus a masked form (suppression list) or a masked form (events for cc/bcc recipients). Brevo and Mailgun events only update mail of their own account.
 - **Bounce mailbox.** Anyone can write to it, so a delivery report suppresses an address only when it refers to a mail MagicMail sent (outbox header or its random Message-ID) and names one of that mail's recipients. Email logs keep keyed hashes of the to/cc/bcc addresses for this check, never cc/bcc in clear text.
 - **Tracking.** Open and click events keep IPs truncated to /24 or /48 and no location, and expire after 90 days (links after 180 days). Authentication links are never tracked. Mention tracking in your privacy notice.
+- **Email preview.** For each send MagicMail stores the template version (a content hash), the template data and the `{{system.*}}` tags, so Analytics can re-render the email. Secrets are masked before storing: keys that name a secret (password, token, secret, otp, jwt, key, code, reset, confirmation, session, auth and similar), values that look like tokens (JWTs, long hex or random strings, UUIDs) and URLs with tokens (`?code=`, `?confirmation=`, `?token=`, `?loginToken=`, signatures, token path segments), which covers Strapi reset-password, email-confirmation and magic links. Add names to _Always hide these variables_ or _Never hide these variables_ in the settings. _Store a copy of sent emails_ (off by default) also keeps the final HTML and text, masked and compressed (512 KB cap). Everything follows _Keep email content for_ (30 days by default) and never outlives the log. The preview runs in a sandboxed frame without links, removes tracking pixels, and blocks remote images until "Load images". Viewing needs `content.read` and is audit-logged.
 - **Outbox.** Queued mails are stored encrypted and deleted once sent or discarded; the admin API and the Outbox tab never show mail content. `forgetRecipient(address)` removes a recipient's queued mails.
 - **Logs.** MagicMail's log lines carry error names and codes, not recipient addresses or message content.
 - **Third parties.** Mails go only to the providers you configure. The visual template editor loads Unlayer's editor in the admin's browser (see [the visual editor and privacy](https://github.com/Schero94/Magic-Mail/blob/main/docs/sending.md#the-visual-editor-unlayer-and-privacy)); the plain HTML editor needs no third party.

@@ -59,6 +59,7 @@
     "test:admin": "node --import ./tests/admin/harness/setup.mjs --test \"tests/admin/*.test.jsx\"",
     "test:multi-instance": "node --test tests/multi-instance.test.js tests/multi-instance-units.test.js tests/multi-instance-queue.test.js tests/bounce-monitor.test.js tests/analytics-stats-sqlite.test.js",
     "test:live": "node --test --test-concurrency=1 tests/live/*.live.test.js",
+    "test:http": "node --test --test-concurrency=1 tests/http/*.http.test.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

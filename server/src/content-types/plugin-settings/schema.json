@@ -96,6 +96,31 @@
       "type": "boolean",
       "default": false,
       "configurable": false
+    },
+    "storeEmailVariables": {
+      "type": "boolean",
+      "default": true,
+      "configurable": false
+    },
+    "storeFullEmail": {
+      "type": "boolean",
+      "default": false,
+      "configurable": false
+    },
+    "emailContentRetentionDays": {
+      "type": "integer",
+      "default": 30,
+      "min": 1,
+      "max": 365,
+      "configurable": false
+    },
+    "variableDenylist": {
+      "type": "json",
+      "configurable": false
+    },
+    "variableAllowlist": {
+      "type": "json",
+      "configurable": false
     }
   }
 }

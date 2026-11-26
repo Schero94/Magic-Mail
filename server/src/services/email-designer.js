@@ -13,6 +13,7 @@ const htmlToTextLib = require('html-to-text');
 const { errors } = require('@strapi/utils');
 const coordination = require('../utils/coordination');
 const { validate } = require('../validation');
+const { templateContentHash } = require('../utils/email-preview');
 
 // Content Type UIDs
 const EMAIL_TEMPLATE_UID = 'plugin::magic-mail.email-template';
@@ -265,6 +266,56 @@ const sameSnapshot = (a, b) => {
   return VERSION_FIELDS.every(
     (field) => JSON.stringify(a[field] ?? null) === JSON.stringify(b[field] ?? null)
   );
+};
+
+/**
+ * Renders stored template content with Mustache: the HTML body keeps
+ * Mustache's HTML escaping; text body and subject are rendered unescaped
+ * (they are not HTML). Shared by sending and the admin preview, so a
+ * re-render with the same data gives the same output.
+ *
+ * @param {{bodyHtml?: string, bodyText?: string, subject?: string}} content
+ * @param {object} [data]
+ * @returns {{html: string, text: string, subject: string}}
+ */
+const renderTemplateContent = (content, data = {}) => {
+  let bodyHtml = content?.bodyHtml || '';
+  let bodyText = content?.bodyText || '';
+  let subject = content?.subject || '';
+
+  // Convert <% %> to {{ }} for Mustache
+  bodyHtml = bodyHtml.replace(/<%/g, '{{').replace(/%>/g, '}}');
+  bodyText = bodyText.replace(/<%/g, '{{').replace(/%>/g, '}}');
+  subject = subject.replace(/<%/g, '{{').replace(/%>/g, '}}');
+
+  if ((!bodyText || !bodyText.length) && bodyHtml && bodyHtml.length) {
+    bodyText = convertHtmlToText(bodyHtml, { wordwrap: 130 });
+  }
+
+  // Only Mustache tags are entity-decoded (editors store `{{ a &amp;&amp; b }}`
+  // or `{{ x.&quot;y&quot; }}`). Decoding the whole body turned literal
+  // escaped text such as `&lt;b&gt;` into real markup.
+  const decodedHtml = decodeMustacheTags(bodyHtml);
+  // Text body and subject are not HTML, so stored entities are decoded.
+  const decodedText = decodeHtmlEntities(bodyText);
+  const decodedSubject = decodeHtmlEntities(subject);
+
+  // HTML body keeps Mustache's default HTML escaping. Plain text and the
+  // subject line are NOT HTML, so escaping there corrupts values (e.g.
+  // "Tom & Jerry" -> "Tom &amp; Jerry"). Render those with escaping disabled.
+  const renderedHtml = Mustache.render(decodedHtml, data);
+
+  const previousEscape = Mustache.escape;
+  Mustache.escape = (value) => value;
+  let renderedText;
+  let renderedSubject;
+  try {
+    renderedText = Mustache.render(decodedText, data);
+    renderedSubject = Mustache.render(decodedSubject, data);
+  } finally {
+    Mustache.escape = previousEscape;
+  }
+  return { html: renderedHtml, text: renderedText, subject: renderedSubject };
 };
 
 // ============================================================
@@ -944,7 +995,15 @@ module.exports = ({ strapi }) => ({
   // ============================================================
 
   /**
-   * Render template with dynamic data using Mustache
+   * Render template with dynamic data using Mustache.
+   *
+   * @param {string|number} templateReferenceId
+   * @param {object} [data] - Template data (plus server-owned `system`)
+   * @returns {Promise<{html: string, text: string, subject: string, templateName: string,
+   *   category: string, templateDocumentId: string, contentHash: string}>}
+   *   `contentHash` identifies the stored content that was rendered, so the
+   *   admin preview can find this exact version later.
+   * @throws {Error} When the template does not exist or is inactive
    */
   async renderTemplate(templateReferenceId, data = {}) {
     const template = await this.findByReferenceId(templateReferenceId);
@@ -957,47 +1016,61 @@ module.exports = ({ strapi }) => ({
       throw new Error(`Template ${template.name} is inactive`);
     }
 
-    let { bodyHtml = '', bodyText = '', subject = '' } = template;
-
-    // Convert <% %> to {{ }} for Mustache
-    bodyHtml = bodyHtml.replace(/<%/g, '{{').replace(/%>/g, '}}');
-    bodyText = bodyText.replace(/<%/g, '{{').replace(/%>/g, '}}');
-    subject = subject.replace(/<%/g, '{{').replace(/%>/g, '}}');
-
-    if ((!bodyText || !bodyText.length) && bodyHtml && bodyHtml.length) {
-      bodyText = convertHtmlToText(bodyHtml, { wordwrap: 130 });
-    }
-
-    // Only Mustache tags are entity-decoded (editors store `{{ a &amp;&amp; b }}`
-    // or `{{ x.&quot;y&quot; }}`). Decoding the whole body turned literal
-    // escaped text such as `&lt;b&gt;` into real markup.
-    const decodedHtml = decodeMustacheTags(bodyHtml);
-    // Text body and subject are not HTML, so stored entities are decoded.
-    const decodedText = decodeHtmlEntities(bodyText);
-    const decodedSubject = decodeHtmlEntities(subject);
-
-    // HTML body keeps Mustache's default HTML escaping. Plain text and the
-    // subject line are NOT HTML, so escaping there corrupts values (e.g.
-    // "Tom & Jerry" -> "Tom &amp; Jerry"). Render those with escaping disabled.
-    const renderedHtml = Mustache.render(decodedHtml, data);
-
-    const previousEscape = Mustache.escape;
-    Mustache.escape = (value) => value;
-    let renderedText;
-    let renderedSubject;
-    try {
-      renderedText = Mustache.render(decodedText, data);
-      renderedSubject = Mustache.render(decodedSubject, data);
-    } finally {
-      Mustache.escape = previousEscape;
-    }
-
     return {
-      html: renderedHtml,
-      text: renderedText,
-      subject: renderedSubject,
+      ...renderTemplateContent(template, data),
       templateName: template.name,
       category: template.category,
+      templateDocumentId: template.documentId,
+      contentHash: templateContentHash(template),
+    };
+  },
+
+  /**
+   * Finds the stored content an email was rendered from: the current
+   * template when its content hash matches, otherwise the version with that
+   * hash. Inactive templates count (the content still exists).
+   *
+   * @param {string} templateDocumentId
+   * @param {string} contentHash - templateContentHash() at send time
+   * @returns {Promise<{source: 'current'|'version', versionNumber: number|null,
+   *   subject: string, bodyHtml: string, bodyText: string, name: string}|null>}
+   *   null when neither the template nor a matching version exists any more
+   */
+  async findRenderedContent(templateDocumentId, contentHash) {
+    if (typeof templateDocumentId !== 'string' || !/^[A-Za-z0-9]{1,64}$/.test(templateDocumentId))
+      return null;
+    if (typeof contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(contentHash)) return null;
+    const fields = ['subject', 'bodyHtml', 'bodyText', 'name'];
+    const template = await strapi.documents(EMAIL_TEMPLATE_UID).findOne({
+      documentId: templateDocumentId,
+      fields: [...fields, 'templateReferenceId'],
+    });
+    if (!template) return null;
+    const versions = await strapi.documents(EMAIL_TEMPLATE_VERSION_UID).findMany({
+      filters: { template: { documentId: templateDocumentId } },
+      fields: [...fields, 'versionNumber'],
+      sort: [{ versionNumber: 'desc' }],
+      limit: 500,
+    });
+    const version = versions.find((row) => templateContentHash(row) === contentHash) || null;
+    if (templateContentHash(template) === contentHash) {
+      return {
+        source: 'current',
+        versionNumber: version?.versionNumber ?? null,
+        subject: template.subject || '',
+        bodyHtml: template.bodyHtml || '',
+        bodyText: template.bodyText || '',
+        name: template.name || '',
+      };
+    }
+    if (!version) return null;
+    return {
+      source: 'version',
+      versionNumber: version.versionNumber ?? null,
+      subject: version.subject || '',
+      bodyHtml: version.bodyHtml || '',
+      bodyText: version.bodyText || '',
+      name: version.name || template.name || '',
     };
   },
 
@@ -1280,3 +1353,5 @@ module.exports = ({ strapi }) => ({
     return { message: 'Saved' };
   },
 });
+
+module.exports.renderTemplateContent = renderTemplateContent;

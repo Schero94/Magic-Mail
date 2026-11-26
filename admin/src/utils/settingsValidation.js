@@ -26,7 +26,37 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   verifyRecipientMx: false,
   // null = automatic (allowed outside production), true = allow, false = reject.
   allowReservedRecipientDomains: null,
+  // Email preview: keep masked variables (on), a full copy (off), retention,
+  // and the extra mask lists (one name or path per line in the form).
+  storeEmailVariables: true,
+  storeFullEmail: false,
+  emailContentRetentionDays: 30,
+  variableDenylist: '',
+  variableAllowlist: '',
 });
+
+/** Settings edited as text (one entry per line) but stored as arrays. */
+const LIST_KEYS = new Set(['variableDenylist', 'variableAllowlist']);
+
+/** Server rules of a mask list entry (Zod schema pluginSettings.update). */
+export const KEY_LIST_RULES = Object.freeze({
+  maxEntries: 100,
+  pattern: /^[A-Za-z0-9_.-]{1,100}$/,
+});
+
+/** Server range of emailContentRetentionDays. */
+export const CONTENT_RETENTION_RANGE = Object.freeze({ min: 1, max: 365 });
+
+/**
+ * Splits a mask list typed in the form (lines or commas) into entries.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export const parseKeyList = (text) =>
+  String(text ?? '')
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
 /** Settings whose value may be null (tri-state booleans). */
 const NULLABLE_BOOLEANS = new Set(['allowReservedRecipientDomains']);
@@ -54,7 +84,11 @@ export const normalizeSettings = (data) => {
   for (const key of SETTINGS_KEYS) {
     const fallback = SETTINGS_DEFAULTS[key];
     const value = source[key];
-    if (NULLABLE_BOOLEANS.has(key)) {
+    if (LIST_KEYS.has(key)) {
+      result[key] = Array.isArray(value)
+        ? value.filter((entry) => typeof entry === 'string').join('\n')
+        : '';
+    } else if (NULLABLE_BOOLEANS.has(key)) {
       result[key] = typeof value === 'boolean' ? value : null;
     } else if (typeof fallback === 'boolean') {
       result[key] = typeof value === 'boolean' ? value : fallback;
@@ -79,7 +113,11 @@ export const diffSettings = (initial, current) => {
   for (const key of SETTINGS_KEYS) {
     if (initial?.[key] !== current?.[key]) {
       const value = current?.[key];
-      changes[key] = typeof value === 'string' ? value.trim() : value;
+      changes[key] = LIST_KEYS.has(key)
+        ? parseKeyList(value)
+        : typeof value === 'string'
+          ? value.trim()
+          : value;
     }
   }
   return changes;
@@ -121,7 +159,7 @@ const checkUrl = (value, protocols) => {
 /**
  * Validates the editable settings.
  * @param {typeof SETTINGS_DEFAULTS} settings
- * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'|'invalidRange'|'invalidInterval'>>}
+ * @returns {Partial<Record<keyof typeof SETTINGS_DEFAULTS, 'invalidUrl'|'invalidProtocol'|'invalidEmail'|'invalidText'|'invalidRange'|'invalidInterval'|'invalidRetention'|'invalidKeyList'>>}
  *   error codes per field (empty object = valid)
  */
 export const validateSettings = (settings) => {
@@ -161,6 +199,28 @@ export const validateSettings = (settings) => {
     interval > BOUNCE_INTERVAL_RANGE.max
   ) {
     errors.bounceMonitorIntervalMinutes = 'invalidInterval';
+  }
+
+  const retention =
+    settings && 'emailContentRetentionDays' in settings
+      ? settings.emailContentRetentionDays
+      : SETTINGS_DEFAULTS.emailContentRetentionDays;
+  if (
+    !Number.isInteger(retention) ||
+    retention < CONTENT_RETENTION_RANGE.min ||
+    retention > CONTENT_RETENTION_RANGE.max
+  ) {
+    errors.emailContentRetentionDays = 'invalidRetention';
+  }
+
+  for (const key of LIST_KEYS) {
+    const entries = parseKeyList(settings?.[key] ?? '');
+    if (
+      entries.length > KEY_LIST_RULES.maxEntries ||
+      entries.some((entry) => !KEY_LIST_RULES.pattern.test(entry))
+    ) {
+      errors[key] = 'invalidKeyList';
+    }
   }
 
   return errors;

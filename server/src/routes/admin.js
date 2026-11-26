@@ -32,6 +32,7 @@ const PLUGIN_ID = 'magic-mail';
  * between them.
  *
  * @param {'read'|'manage'|'test-send'|'queue.read'|'queue.manage'} capability
+ * @param {string[]} [extraActions] - further action ids that are required as well
  * @returns {Array<string|object>}
  */
 const adminPolicy = (capability, extraActions = []) => [
@@ -583,6 +584,18 @@ module.exports = {
       config: {
         policies: adminPolicy('read'),
         description: 'Get email details',
+      },
+    },
+    {
+      // Preview and variables of one sent email. Needs `read` AND
+      // `content.read` (super admins have every action); without
+      // content.read the log itself stays readable through the route above.
+      method: 'GET',
+      path: '/analytics/emails/:emailId/content',
+      handler: 'analytics.getEmailContent',
+      config: {
+        policies: adminPolicy('read', [`plugin::${PLUGIN_ID}.content.read`]),
+        description: 'Preview and masked variables of a sent email',
       },
     },
     {

@@ -16,7 +16,8 @@ const compiledRBACHook = esbuild.transformSync(source('admin/src/hooks/useMagicM
 function evaluateRBACHook(
   allowedActions,
   rbacState = { isLoading: false, error: undefined },
-  queueActions = {}
+  queueActions = {},
+  contentActions = {}
 ) {
   const captured = {};
   const module = { exports: {} };
@@ -27,6 +28,7 @@ function evaluateRBACHook(
     testSend: [{ action: 'plugin::magic-mail.test-send', subject: null }],
     queueRead: [{ action: 'plugin::magic-mail.queue.read', subject: null }],
     queueManage: [{ action: 'plugin::magic-mail.queue.manage', subject: null }],
+    contentRead: [{ action: 'plugin::magic-mail.content.read', subject: null }],
   };
   const dependencies = {
     '@strapi/strapi/admin': {
@@ -34,6 +36,11 @@ function evaluateRBACHook(
       // capabilities after the last action segment, so queue.read would
       // collide with read).
       useRBAC: (requestedPermissions) => {
+        // Email content (content.read) is its own call as well.
+        if (requestedPermissions.some(({ action }) => action.includes('.content.'))) {
+          captured.contentPermissions = requestedPermissions;
+          return { allowedActions: contentActions, ...rbacState };
+        }
         if (requestedPermissions.some(({ action }) => action.includes('.queue.'))) {
           captured.queuePermissions = requestedPermissions;
           return { allowedActions: queueActions, ...rbacState };
@@ -60,8 +67,27 @@ function evaluateRBACHook(
     capabilities: module.exports.useMagicMailRBAC(),
     requestedPermissions: captured.requestedPermissions,
     queuePermissions: captured.queuePermissions,
+    contentPermissions: captured.contentPermissions,
   };
 }
+
+test('RBAC hook reads the email content grant on its own (content.read is not read)', () => {
+  const withoutContent = evaluateRBACHook({ canRead: true });
+  assert.equal(withoutContent.capabilities.canRead, true);
+  assert.equal(withoutContent.capabilities.canReadContent, false);
+  assert.deepEqual(withoutContent.contentPermissions, [
+    { action: 'plugin::magic-mail.content.read', subject: null },
+  ]);
+  const withContent = evaluateRBACHook({ canRead: true }, undefined, {}, { canRead: true });
+  assert.equal(withContent.capabilities.canReadContent, true);
+  const loading = evaluateRBACHook(
+    { canRead: true },
+    { isLoading: true, error: undefined },
+    {},
+    { canRead: true }
+  );
+  assert.equal(loading.capabilities.canReadContent, false, 'fails closed while loading');
+});
 
 test('plugin pages require read permission in addition to the navigation grant', () => {
   const app = source('admin/src/pages/App.jsx');
@@ -227,6 +253,8 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
         canReadQueue: false,
         canManageQueue: false,
         isQueueLoading: false,
+        canReadContent: false,
+        isContentLoading: false,
         isReadOnly: expected.canRead && !expected.canManage,
         isLoading: false,
         error: undefined,
@@ -235,7 +263,7 @@ test('RBAC hook keeps read, manage and test-send independent across role grants'
     );
     assert.deepEqual(
       Object.keys(permissions).sort(),
-      ['access', 'manage', 'queueManage', 'queueRead', 'read', 'testSend'],
+      ['access', 'contentRead', 'manage', 'queueManage', 'queueRead', 'read', 'testSend'],
       role
     );
   }

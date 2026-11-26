@@ -14,6 +14,9 @@ const ROUTE_CAPABILITIES = [
  */
 const QUEUE_CAPABILITIES = [...pluginPermissions.queueRead, ...pluginPermissions.queueManage];
 
+/** Email content (preview, variables): own call, `content.read` would also be `canRead`. */
+const CONTENT_CAPABILITIES = [...pluginPermissions.contentRead];
+
 /**
  * Single source of truth for MagicMail UI gating.
  *
@@ -23,7 +26,7 @@ const QUEUE_CAPABILITIES = [...pluginPermissions.queueRead, ...pluginPermissions
  * flash in. Views should render a loading state while `isLoading` and an
  * error state when `error` is set, instead of treating both as "no rights".
  *
- *   const { canRead, canManage, canTestSend, canReadQueue, canManageQueue } = useMagicMailRBAC();
+ *   const { canRead, canManage, canTestSend, canReadQueue, canManageQueue, canReadContent } = useMagicMailRBAC();
  *
  * Route-level protection keeps using `<Page.Protect permissions={permissions.read}>`
  * with the `permissions` object returned here.
@@ -35,6 +38,8 @@ const QUEUE_CAPABILITIES = [...pluginPermissions.queueRead, ...pluginPermissions
  *   canReadQueue: boolean,
  *   canManageQueue: boolean,
  *   isQueueLoading: boolean,
+ *   canReadContent: boolean,
+ *   isContentLoading: boolean,
  *   isReadOnly: boolean,
  *   isLoading: boolean,
  *   error?: unknown,
@@ -44,6 +49,7 @@ const QUEUE_CAPABILITIES = [...pluginPermissions.queueRead, ...pluginPermissions
 export const useMagicMailRBAC = () => {
   const { allowedActions = {}, isLoading = false, error } = useRBAC(ROUTE_CAPABILITIES) ?? {};
   const queueRbac = useRBAC(QUEUE_CAPABILITIES) ?? {};
+  const contentRbac = useRBAC(CONTENT_CAPABILITIES) ?? {};
   const settled = !isLoading && !error;
   const allowed = (key) => settled && allowedActions?.[key] === true;
   const queueSettled = !queueRbac.isLoading && !queueRbac.error;
@@ -59,6 +65,9 @@ export const useMagicMailRBAC = () => {
     canReadQueue: queueAllowed('canRead'),
     canManageQueue: queueAllowed('canManage'),
     isQueueLoading: Boolean(queueRbac.isLoading),
+    canReadContent:
+      !contentRbac.isLoading && !contentRbac.error && contentRbac.allowedActions?.canRead === true,
+    isContentLoading: Boolean(contentRbac.isLoading),
     isReadOnly: canRead && !canManage,
     isLoading: Boolean(isLoading),
     error,

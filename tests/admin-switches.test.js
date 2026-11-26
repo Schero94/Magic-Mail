@@ -17,6 +17,8 @@ const affectedFiles = [
       'settings.checkRecipientDomains',
       'settings.verifyRecipientMx',
       'settings.suppressHardBounces',
+      'settings.storeEmailVariables',
+      'settings.storeFullEmail',
     ],
   },
   {

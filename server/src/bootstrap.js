@@ -226,6 +226,9 @@ function installEmailInterception(strapi, log) {
       return emailRouter().send(payload, {
         source: 'strapi-email',
         fallbackSend: () => callOriginal(options),
+        // users-permissions variables (USER, URL, TOKEN/CODE) for the admin
+        // preview; masked before they are stored.
+        ...(coreMail?.data ? { coreMailVariables: coreMail.data } : {}),
       });
     };
     routedSend[WRAPPED] = true;

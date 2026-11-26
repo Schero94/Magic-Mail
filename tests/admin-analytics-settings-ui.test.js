@@ -154,6 +154,11 @@ test('UI-M03: settings are normalised from the API and only changed keys are sav
     checkRecipientDomains: true,
     verifyRecipientMx: false,
     allowReservedRecipientDomains: null,
+    storeEmailVariables: true,
+    storeFullEmail: false,
+    emailContentRetentionDays: 30,
+    variableDenylist: '',
+    variableAllowlist: '',
   });
   assert.equal(
     'trackingFallbackUrl' in loaded,
@@ -298,7 +303,7 @@ test('UI-M03/UI-16/UI-09: Settings only renders the form after a successful load
   );
   assert.equal(
     (src.match(/<Field\.Error \/>/g) ?? []).length,
-    6,
+    9,
     'every text and number input shows its validation error'
   );
 });

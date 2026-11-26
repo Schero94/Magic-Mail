@@ -34,6 +34,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   // null: allowed outside production, rejected in production.
   allowReservedRecipientDomains: null,
   verifyRecipientMx: false,
+  // Email preview: masked re-render data per log (on), full copy (off),
+  // kept for this many days, plus extra keys to mask or to keep readable.
+  storeEmailVariables: true,
+  storeFullEmail: false,
+  emailContentRetentionDays: 30,
+  variableDenylist: [],
+  variableAllowlist: [],
 });
 
 /**

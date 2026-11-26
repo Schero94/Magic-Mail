@@ -1628,6 +1628,10 @@ module.exports = ({ strapi }) => ({
     // Correlation id for provider webhooks (SendGrid custom arg / Mailgun
     // variable `magicmail_id`); an opaque id, no personal data.
     if (typeof emailLog?.documentId === 'string') data.__logDocumentId = emailLog.documentId;
+    // Preview data (masked at store time), from the sanitised body before
+    // tracking is added. Never blocks or fails the send.
+    if (emailLog)
+      await this.recordPreviewContent(emailLog, data, renderedTemplate, options, pluginSettings);
     const trackingEnabled = data.enableTracking !== false;
     if (emailLog && trackingEnabled && data.html) {
       data.html = await this.applyTracking(data, emailLog, pluginSettings);
@@ -1704,7 +1708,7 @@ module.exports = ({ strapi }) => ({
           // Real provider id (or null): bounce/complaint webhooks match on it.
           providerMessageId: normalizeMessageId(routing.result?.messageId),
         },
-        { attempted, skipped }
+        { attempted, skipped, trackingApplied: data.__trackingApplied }
       );
 
       strapi.log.info('[magic-mail] [SUCCESS] Email accepted by the provider');
@@ -2156,19 +2160,20 @@ module.exports = ({ strapi }) => ({
       }
       if (!referenceId) throw new Error('No template reference ID could be resolved');
 
+      const variables =
+        data.templateData && typeof data.templateData === 'object' ? data.templateData : {};
+      // Server-owned {{system.*}} merge tags; callers cannot override them.
+      const system = await this.systemMergeTagsFor(data);
       const rendered = await strapi
         .plugin('magic-mail')
         .service('email-designer')
-        .renderTemplate(referenceId, {
-          ...(data.templateData && typeof data.templateData === 'object' ? data.templateData : {}),
-          // Server-owned {{system.*}} merge tags; callers cannot override them.
-          system: await this.systemMergeTagsFor(data),
-        });
+        .renderTemplate(referenceId, { ...variables, system });
 
       data.templateReferenceId = referenceId;
       if (!data.templateName) data.templateName = templateRecord?.name || rendered.templateName;
       strapi.log.debug('[magic-mail] [EMAIL] Template rendered');
-      return { ...rendered, templateReferenceId: referenceId };
+      // renderData feeds the admin preview (masked before it is stored).
+      return { ...rendered, templateReferenceId: referenceId, renderData: { variables, system } };
     } catch (error) {
       strapi.log.error(`[magic-mail] [ERROR] Template rendering failed: ${error?.name || 'Error'}`);
       throw new Error(`Template rendering failed: ${error.message}`, { cause: error });
@@ -2331,6 +2336,38 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
+   * Stores the masked preview data of this send (email-content service).
+   * Best effort: never throws.
+   *
+   * @param {object} emailLog
+   * @param {object} data - Working copy (sanitised, before tracking)
+   * @param {object|null} renderedTemplate - renderTemplateFor() result
+   * @param {object} options - send() options (`coreMailVariables` for core mails)
+   * @param {object} pluginSettings
+   * @returns {Promise<void>}
+   */
+  async recordPreviewContent(emailLog, data, renderedTemplate, options, pluginSettings) {
+    try {
+      const service = strapi.plugin?.('magic-mail')?.service?.('email-content');
+      if (!service || typeof service.record !== 'function') return;
+      await service.record({
+        emailLog,
+        data,
+        renderedTemplate,
+        templateData:
+          options?.coreMailVariables && typeof options.coreMailVariables === 'object'
+            ? options.coreMailVariables
+            : data.templateData && typeof data.templateData === 'object'
+              ? data.templateData
+              : null,
+        settings: pluginSettings,
+      });
+    } catch (error) {
+      strapi.log.warn(`[magic-mail] Preview data skipped: ${error?.name || 'Error'}`);
+    }
+  },
+
+  /**
    * Updates the delivery log (best effort, never throws).
    */
   async markLog(emailLog, fields, routingInfo = {}) {
@@ -2343,6 +2380,14 @@ module.exports = ({ strapi }) => ({
       if (routingInfo.skipped?.length) extra.skippedAccounts = [...routingInfo.skipped];
       if (routingInfo.fallback) extra.fallback = routingInfo.fallback;
       if (routingInfo.queue) extra.queue = { ...(metadata.queue || {}), ...routingInfo.queue };
+      // What Magic Mail really added (pixel / rewritten links), so the admin
+      // can tell "not opened" from "not tracked".
+      if (routingInfo.trackingApplied && typeof routingInfo.trackingApplied === 'object') {
+        extra.trackingApplied = {
+          opens: routingInfo.trackingApplied.opens === true,
+          clicks: routingInfo.trackingApplied.clicks === true,
+        };
+      }
       await strapi.documents(EMAIL_LOG_UID).update({
         documentId: emailLog.documentId,
         data: Object.keys(extra).length
@@ -3951,6 +3996,9 @@ module.exports = ({ strapi }) => ({
     );
   },
 });
+
+/** Outbound HTML sanitiser options (the admin preview re-renders with the same rules). */
+module.exports.HTML_SANITIZE_OPTIONS = HTML_SANITIZE_OPTIONS;
 
 module.exports.__test__ = {
   HTML_SANITIZE_OPTIONS,
